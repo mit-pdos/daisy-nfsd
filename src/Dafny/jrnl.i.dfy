@@ -1,5 +1,9 @@
 include "pow.dfy"
 
+/*
+Spec for sequential journal API, assuming we're using 2PL.
+*/
+
 datatype Addr = Addr(blkno: nat, off: nat)
 type byte = bv8
 type Object = array<byte>

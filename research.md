@@ -1,12 +1,3 @@
-# Dafny to Go compilation
-
-TL;DR: it's terrible
-
-Difficult to impossible to access native types (eg, native arithmetic or real
-byte slices), so we can't interface with our normal code. It might be possible
-to extract some code and then hook it up to the real API externally, but it
-would do all sorts of strange things internally.
-
 # Overall proof strategy
 
 ## Verified 2PL
@@ -40,3 +31,20 @@ locking discipline. API has ghost operations for moving ownership around, which
 it must do to avoid undefined behavior. Spec out concurrent separation logic
 locks for Dafny to get access to ownership, which it then moves around with the
 ghost operations.
+
+# Compilation
+
+## Dafny to Go compilation
+
+TL;DR: it's terrible
+
+Difficult to impossible to access native types (eg, native arithmetic or real
+byte slices), so we can't interface with our normal code. It might be possible
+to extract some code and then hook it up to the real API externally, but it
+would do all sorts of strange things internally.
+
+## Go to Dafny
+
+Follow the same strategy as Goose, translating Go using the jrnl API to Dafny over the axiomatized interface. We would need Dafny models of all the Go code we care about; these models will probably be a bit more limited than Goose, so we'll have slightly less idiomatic and/or efficient use of pointers.
+
+One concern is that the Dafny code needs proof annotations, which we can't easily write in Go (because it would lack the interactive feedback from Dafny). I think we will want to do something to take the old Dafny output with annotations and re-translate while preserving those annotations. In any case we should be able to snapshot the annotations somewhere since we're modifying auto-generated code.
