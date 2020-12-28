@@ -16,7 +16,7 @@ ensures 0 <= pow(x, k)
 lemma mul_increasing(x1: nat, x2: nat)
 ensures x1 <= x1 * x2
 {
-    // TODO: wat why is this not provable
+    // TODO: wat how do I do this
     assume false;
 }
 

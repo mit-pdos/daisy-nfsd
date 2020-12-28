@@ -4,5 +4,9 @@ OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 all: $(OK_FILES)
 
 %.dfy.ok: %.dfy
-	dafny /compile:0 "$<"
-	touch "$@"
+	@echo "DAFNY $<"
+	@dafny /compile:0 /nologo /compileVerbose:0 "$<" 1>/dev/null
+	@touch "$@"
+
+clean:
+	find . -name "*.dfy.ok" -delete
