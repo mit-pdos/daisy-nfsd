@@ -59,7 +59,11 @@ class {:autocontracts} Jrnl {
         kindSize(this.kinds[a.blkno])
     }
 
-    method Begin() returns (txn:Txn)
+    method Begin()
+    returns (txn:Txn)
+    modifies {}
+    ensures txn.Valid()
+    ensures txn.jrnl == this
     {
         return new Txn(this);
     }
@@ -70,6 +74,8 @@ class Txn {
 
     constructor(jrnl: Jrnl)
     requires jrnl.Valid()
+    ensures Valid()
+    ensures this.jrnl == jrnl
     {
         this.jrnl := jrnl;
     }
@@ -80,19 +86,28 @@ class Txn {
 
     method Read(a: Addr, sz: nat)
     returns (o:Object)
-    requires this.Valid()
-    requires a in this.jrnl.domain()
-    requires sz == this.jrnl.size(a)
+    requires Valid()
+    requires a in jrnl.domain()
+    requires sz == jrnl.size(a)
+    modifies {}
+    ensures o.Length*8 == sz
     {
         return this.jrnl.data[a];
     }
 
     method Write(a: Addr, obj: Object)
-    modifies this.jrnl
-    requires this.Valid()
-    requires a in this.jrnl.domain()
-    requires obj.Length*8 == this.jrnl.size(a)
+    modifies jrnl
+    requires Valid()
+    ensures Valid()
+    requires a in jrnl.domain()
+    requires obj.Length*8 == jrnl.size(a)
+    //ensures jrnl.data == old(jrnl.data)[a:=obj]
+    ensures jrnl.kinds == old(jrnl.kinds)
     {
         this.jrnl.data := this.jrnl.data[a:=obj];
+    }
+
+    method Commit()
+    {
     }
 }
