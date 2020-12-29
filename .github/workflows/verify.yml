@@ -1,0 +1,22 @@
+name: verify
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Dafny
+      run: |
+        cd /tmp
+        wget -O dafny.zip https://github.com/dafny-lang/dafny/releases/download/v2.3.0/dafny-2.3.0.10506-x64-ubuntu-16.04.zip
+        unzip dafny.zip
+        echo "/tmp/dafny" >> $GITHUB_PATH
+    - uses: actions/checkout@v2
+    - name: Verify
+      run: make -j2
