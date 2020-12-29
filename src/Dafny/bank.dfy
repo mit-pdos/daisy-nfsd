@@ -3,7 +3,8 @@ include "jrnl.i.dfy"
 /*
 Demo of bank transfer using axiomatized journal API
 */
-class Bank {
+class Bank
+{
     var jrnl: Jrnl;
     constructor(jrnl: Jrnl)
     requires jrnl.Valid()
@@ -13,18 +14,18 @@ class Bank {
     }
 
     predicate Valid()
-    reads {this,this.jrnl} + this.jrnl.Repr
+    reads this, jrnl, jrnl.Repr
     {
         this.jrnl.Valid()
     }
 
     method transfer(acct1: Addr, acct2: Addr, sz: nat)
-    requires Valid()
+    requires Valid() ensures Valid()
     requires acct1 in jrnl.domain()
     requires acct2 in jrnl.domain()
     requires jrnl.size(acct1) == sz
     requires jrnl.size(acct2) == sz
-    modifies {this.jrnl} + this.jrnl.Repr
+    modifies jrnl
     {
         assert acct1 in jrnl.domain();
         var txn := jrnl.Begin();
