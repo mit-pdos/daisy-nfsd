@@ -71,61 +71,25 @@ class {:autocontracts} Jrnl
         kindSize(this.kinds[a.blkno])
     }
 
-    method Begin()
-    returns (txn:Txn)
-    modifies {}
-    ensures txn.Valid()
-    ensures txn.jrnl == this
-    {
-        return new Txn(this);
-    }
-}
-
-// TODO: couldn't figure out how to use autocontracts here
-class Txn {
-    var jrnl: Jrnl;
-
-    constructor(jrnl: Jrnl)
-    requires jrnl.Valid()
-    ensures Valid()
-    ensures this.jrnl == jrnl
-    {
-        this.jrnl := jrnl;
-    }
-
-    predicate Valid()
-    reads this, jrnl, jrnl.Repr
-    {
-        this.jrnl.Valid()
-    }
-
     method Read(a: Addr, sz: nat)
     returns (obj:Object)
     requires Valid()
     modifies {}
-    requires a in jrnl.domain()
-    requires sz == jrnl.size(a)
+    requires a in domain()
+    requires sz == size(a)
     ensures objSize(obj) == sz
     {
-        return this.jrnl.data[a];
+        return data[a];
     }
 
     method Write(a: Addr, obj: Object)
     requires Valid() ensures Valid()
-    modifies jrnl
-    requires a in jrnl.domain()
-    requires objSize(obj) == jrnl.size(a)
+    modifies this
+    requires a in domain()
+    requires objSize(obj) == size(a)
     //ensures jrnl.data == old(jrnl.data)[a:=obj]
-    ensures jrnl.kinds == old(jrnl.kinds)
+    ensures kinds == old(kinds)
     {
-        this.jrnl.data := this.jrnl.data[a:=obj];
-    }
-
-    // NOTE: seems a bit wrong that Commit isn't necessary, but it's a result of
-    // modeling Reads and Writes as operating immediately (instead of somehow
-    // buffering their effects till this linearization point)
-    method Commit()
-    modifies {}
-    {
+        data := data[a:=obj];
     }
 }

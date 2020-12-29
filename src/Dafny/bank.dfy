@@ -19,6 +19,8 @@ class Bank
         this.jrnl.Valid()
     }
 
+    // NOTE: this should be interpreted as the body of a transaction, which
+    // needs to be surrounded with code to check for errors and abort
     method transfer(acct1: Addr, acct2: Addr, sz: nat)
     requires Valid() ensures Valid()
     requires acct1 in jrnl.domain()
@@ -27,10 +29,7 @@ class Bank
     requires jrnl.size(acct2) == sz
     modifies jrnl
     {
-        assert acct1 in jrnl.domain();
-        var txn := jrnl.Begin();
-        var x := txn.Read(acct1, sz);
-        txn.Write(acct2, x);
-        txn.Commit();
+        var x := jrnl.Read(acct1, sz);
+        jrnl.Write(acct2, x);
     }
 }
