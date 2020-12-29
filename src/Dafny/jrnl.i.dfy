@@ -41,36 +41,54 @@ ensures kindSize(k) <= 4096*8
     assert pow(2,15) == 4096*8;
 }
 
-function method repeat<T>(x: T, count: nat): (xs:seq<T>)
+lemma kind_at_least_byte(k: Kind)
+ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
+{
+    if k >= 4 {
+        pow_plus(2, k-3, 3);
+    } else {
+        if k == 0 {
+        } else if k == 1 {
+        } else if k == 2 {
+        }
+    }
+}
+
+function method
+repeat<T>(x: T, count: nat): (xs:seq<T>) decreases count
 ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
 {
     if count == 0 then [] else [x] + repeat(x, count-1)
 }
 
 function method zeroObject(k: Kind): (obj:Object)
-//requires kindSize(k)/8*8 == kindSize(k)
+requires kindSize(k)/8*8 == kindSize(k)
 ensures objSize(obj) == kindSize(k)
 {
-    // TODO: figure this out
-    assume false;
-    if kindSize(k)/8 == 0 then [0 as bv8]
-    else repeat(0 as bv8, kindSize(k)/8)
+    repeat(0 as bv8, kindSize(k)/8)
 }
 
 function method addrsForKinds(kinds: map<Blkno, Kind>): set<Addr>
 {
-    var dom := set blkno | blkno in kinds;
-    set blkno : Blkno, off : int |
-    && blkno in dom
+    var addrs := set blkno : Blkno, off : int |
+    && blkno in kinds
     && 0 <= off < 4096*8
-    // TODO: need to add this restriction later, otherwise finite map heuristics fail
-    // && kindSize(kinds[blkno]) > 0 ==> off % kindSize(kinds[blkno]) == 0
-    :: Addr(blkno, off)
+    :: Addr(blkno, off);
+    // NOTE: need to create the set above and then restrict it for Dafny's
+    // finite set comprehension heuristics to work
+    set a:Addr |
+    && a in addrs
+    && (var sz := kindSize(kinds[a.blkno]);
+        sz > 0 ==> a.off % sz == 0)
 }
 
 class {:autocontracts} Jrnl
 {
     var data: map<Addr, Object>;
+    // we cache the domain of data to easily show that it's constant
+    // NOTE: the entire Jrnl object is a spec, so having ghost state in it is
+    // really strange (it's state that isn't even needed to specify the object's
+    // behavior)
     ghost const domain: set<Addr>;
     const kinds: map<Blkno, Kind>;
     var has_readbuf: bool;
@@ -83,11 +101,13 @@ class {:autocontracts} Jrnl
     }
 
     constructor(kinds: map<Blkno, Kind>)
-    requires forall k | k in kinds :: kindSize(k)/8*8 == kindSize(k)
+    requires forall blkno | blkno in kinds ::
+                (var k := kinds[blkno]; kindSize(k)/8*8 == kindSize(k))
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
-            map a:Addr | a in addrsForKinds(kinds) :: zeroObject(kinds[a.blkno]);
+            map a:Addr | a in addrsForKinds(kinds)
+                         :: zeroObject(kinds[a.blkno]);
         this.data := data;
         this.domain := set a:Addr | a in data;
     }
@@ -100,11 +120,10 @@ class {:autocontracts} Jrnl
 
     method Read(a: Addr, sz: nat)
     returns (buf:ReadBuf)
-    requires Valid()
+    requires Valid() ensures Valid()
     modifies this
     requires !has_readbuf
-    requires a in domain
-    requires sz == size(a)
+    requires a in domain && sz == size(a)
     ensures
     && data == old(data)
     && has_readbuf
@@ -121,8 +140,7 @@ class {:autocontracts} Jrnl
     requires Valid() ensures Valid()
     modifies this
     requires !has_readbuf
-    requires a in domain
-    requires objSize(obj) == size(a)
+    requires a in domain && objSize(obj) == size(a)
     ensures
     && data == old(data)[a:=obj]
     && has_readbuf == old(has_readbuf)
@@ -139,9 +157,8 @@ class ReadBuf
 
     constructor(a: Addr, obj: Object, jrnl: Jrnl)
     requires jrnl.Valid()
-    requires a in jrnl.domain
+    requires a in jrnl.domain && objSize(obj) == jrnl.size(a)
     requires jrnl.has_readbuf
-    requires objSize(obj) == jrnl.size(a)
     ensures Valid()
     ensures
     && this.a == a
