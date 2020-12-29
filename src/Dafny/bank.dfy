@@ -1,4 +1,4 @@
-include "jrnl.i.dfy"
+include "jrnl.s.dfy"
 
 /*
 Demo of bank transfer using axiomatized journal API
