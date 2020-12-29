@@ -41,10 +41,10 @@ ensures kindSize(k) <= 4096*8
     assert pow(2,15) == 4096*8;
 }
 
-lemma kind_at_least_byte(k: Kind)
+lemma lemma_kind_at_least_byte_iff(k: Kind)
 ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
 {
-    if k >= 4 {
+    if k >= 3 {
         pow_plus(2, k-3, 3);
     } else {
         if k == 0 {
@@ -52,6 +52,13 @@ ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
         } else if k == 2 {
         }
     }
+}
+
+lemma lemma_kind_at_least_byte(k: Kind)
+requires k >= 3
+ensures kindSize(k)/8*8 == kindSize(k)
+{
+    lemma_kind_at_least_byte_iff(k);
 }
 
 function method
@@ -62,9 +69,10 @@ ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
 }
 
 function method zeroObject(k: Kind): (obj:Object)
-requires kindSize(k)/8*8 == kindSize(k)
+requires k >= 3
 ensures objSize(obj) == kindSize(k)
 {
+    lemma_kind_at_least_byte(k);
     repeat(0 as bv8, kindSize(k)/8)
 }
 
@@ -101,8 +109,7 @@ class {:autocontracts} Jrnl
     }
 
     constructor(kinds: map<Blkno, Kind>)
-    requires forall blkno | blkno in kinds ::
-                (var k := kinds[blkno]; kindSize(k)/8*8 == kindSize(k))
+    requires forall blkno | blkno in kinds :: kinds[blkno] >= 3
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
