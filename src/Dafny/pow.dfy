@@ -2,7 +2,7 @@
 Uninteresting definition of pow (exponentiation)
 */
 
-function pow(x:nat, k:nat): nat decreases k {
+function method pow(x:nat, k:nat): nat decreases k {
     if k == 0 then 1 else x * pow(x,k-1)
 }
 lemma {:induction k1} pow_plus(x: nat, k1: nat, k2: nat)

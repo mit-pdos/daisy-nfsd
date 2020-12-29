@@ -7,15 +7,15 @@ Spec for sequential journal API, assuming we're using 2PL.
 type Blkno = nat
 datatype Addr = Addr(blkno: Blkno, off: nat)
 type byte = bv8
-type Object = array<byte>
+type Object = seq<byte>
 type Kind = k:int | 0 <= k <= 15
 
-function objSize(obj: Object): nat
+function method objSize(obj: Object): nat
 {
-    obj.Length * 8
+    |obj| * 8
 }
 
-function kindSize(k: Kind): nat
+function method kindSize(k: Kind): nat
 {
     pow_nonneg(2, k);
     pow(2,k)
@@ -41,6 +41,33 @@ ensures kindSize(k) <= 4096*8
     assert pow(2,15) == 4096*8;
 }
 
+function method repeat<T>(x: T, count: nat): (xs:seq<T>)
+ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
+{
+    if count == 0 then [] else [x] + repeat(x, count-1)
+}
+
+function method zeroObject(k: Kind): (obj:Object)
+//requires kindSize(k)/8*8 == kindSize(k)
+ensures objSize(obj) == kindSize(k)
+{
+    // TODO: figure this out
+    assume false;
+    if kindSize(k)/8 == 0 then [0 as bv8]
+    else repeat(0 as bv8, kindSize(k)/8)
+}
+
+function method addrsForKinds(kinds: map<Blkno, Kind>): set<Addr>
+{
+    var dom := set blkno | blkno in kinds;
+    set blkno : Blkno, off : int |
+    && blkno in dom
+    && 0 <= off < 4096*8
+    // TODO: need to add this restriction later, otherwise finite map heuristics fail
+    // && kindSize(kinds[blkno]) > 0 ==> off % kindSize(kinds[blkno]) == 0
+    :: Addr(blkno, off)
+}
+
 class {:autocontracts} Jrnl
 {
     var data: map<Addr, Object>;
@@ -56,14 +83,13 @@ class {:autocontracts} Jrnl
     }
 
     constructor(kinds: map<Blkno, Kind>)
+    requires forall k | k in kinds :: kindSize(k)/8*8 == kindSize(k)
     {
         this.kinds := kinds;
-        // TODO: initializing data based on kinds is quite difficult
-        var data: map<Addr, Object>;
+        var data: map<Addr, Object> :=
+            map a:Addr | a in addrsForKinds(kinds) :: zeroObject(kinds[a.blkno]);
         this.data := data;
         this.domain := set a:Addr | a in data;
-        new;
-        assume Valid();
     }
 
     function size(a: Addr): nat
