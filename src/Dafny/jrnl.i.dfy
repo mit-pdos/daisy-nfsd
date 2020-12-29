@@ -15,9 +15,11 @@ function method objSize(obj: Object): nat
     |obj| * 8
 }
 
-function method kindSize(k: Kind): nat
+function method kindSize(k: Kind): (sz:nat)
+ensures sz > 0
 {
     pow_nonneg(2, k);
+    pow_pos(2, k);
     pow(2,k)
 }
 
@@ -68,6 +70,10 @@ ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
     if count == 0 then [] else [x] + repeat(x, count-1)
 }
 
+function method map_domain<K, V>(m: map<K, V>): set<K> {
+    set k:K | k in m
+}
+
 function method zeroObject(k: Kind): (obj:Object)
 requires k >= 3
 ensures objSize(obj) == kindSize(k)
@@ -76,18 +82,22 @@ ensures objSize(obj) == kindSize(k)
     repeat(0 as bv8, kindSize(k)/8)
 }
 
-function method addrsForKinds(kinds: map<Blkno, Kind>): set<Addr>
+function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
+ensures forall a:Addr :: (&& a.blkno in kinds
+                          && 0 <= a.off < 4096*8
+                          && a.off % kindSize(kinds[a.blkno]) == 0) <==> a in addrs
 {
     var addrs := set blkno : Blkno, off : int |
     && blkno in kinds
     && 0 <= off < 4096*8
     :: Addr(blkno, off);
+    assert forall a:Addr :: a.blkno in kinds && 0 <= a.off < 4096*8 ==> a in addrs;
     // NOTE: need to create the set above and then restrict it for Dafny's
     // finite set comprehension heuristics to work
     set a:Addr |
     && a in addrs
-    && (var sz := kindSize(kinds[a.blkno]);
-        sz > 0 ==> a.off % sz == 0)
+    && (var k := kinds[a.blkno];
+        a.off % kindSize(k) == 0)
 }
 
 class {:autocontracts} Jrnl
@@ -110,13 +120,22 @@ class {:autocontracts} Jrnl
 
     constructor(kinds: map<Blkno, Kind>)
     requires forall blkno | blkno in kinds :: kinds[blkno] >= 3
+    ensures forall a:Addr :: (&& a.blkno in kinds
+                              && a.off < 4096*8
+                              && (var k := kinds[a.blkno];
+                                a.off % kindSize(k) == 0)) <==>
+                             a in domain
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
             map a:Addr | a in addrsForKinds(kinds)
                          :: zeroObject(kinds[a.blkno]);
+        assert forall a:Addr :: a in data <==>
+             && a.blkno in kinds
+             && a.off < 4096*8
+             && a.off % kindSize(kinds[a.blkno]) == 0;
         this.data := data;
-        this.domain := set a:Addr | a in data;
+        this.domain := map_domain(data);
     }
 
     function size(a: Addr): nat
@@ -203,6 +222,7 @@ class ReadBuf
     requires Valid()
     // intentionally does not guarantee validity (consumes the buffer)
     ensures !Valid() && jrnl.Valid()
+    ensures jrnl.data == old(jrnl.data)[a:=obj]
     ensures !jrnl.has_readbuf
     {
         Finish();

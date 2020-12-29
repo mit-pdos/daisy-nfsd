@@ -15,6 +15,12 @@ ensures 0 <= pow(x, k)
 {
 }
 
+lemma {:induction k} pow_pos(x: nat, k: nat)
+requires 0 < x
+ensures 0 < pow(x, k)
+{
+}
+
 // TODO: don't know how to prove this
 lemma {:axiom} mul_increasing(x1: nat, x2: nat)
 ensures x1 <= x1 * x2
