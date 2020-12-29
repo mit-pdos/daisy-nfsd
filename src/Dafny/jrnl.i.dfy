@@ -44,29 +44,30 @@ ensures kindSize(k) <= 4096*8
 class {:autocontracts} Jrnl
 {
     var data: map<Addr, Object>;
-    var kinds: map<Blkno, Kind>;
+    ghost const domain: set<Addr>;
+    const kinds: map<Blkno, Kind>;
+    var has_readbuf: bool;
 
     predicate Valid() reads this {
-        forall a :: a in data ==>
-        && a.blkno in kinds
-        && objSize(data[a]) == kindSize(kinds[a.blkno])
+        && (forall a :: a in data ==>
+            && a.blkno in kinds
+            && objSize(data[a]) == kindSize(kinds[a.blkno]))
+        && (forall a :: a in data <==> a in domain)
     }
 
     constructor(kinds: map<Blkno, Kind>)
     {
         this.kinds := kinds;
         // TODO: initializing data based on kinds is quite difficult
+        var data: map<Addr, Object>;
+        this.data := data;
+        this.domain := set a:Addr | a in data;
         new;
         assume Valid();
     }
 
-    function domain(): set<Addr>
-    {
-        set a:Addr | a in this.data
-    }
-
     function size(a: Addr): nat
-    requires a in this.domain()
+    requires a in this.domain
     {
         kindSize(this.kinds[a.blkno])
     }
@@ -74,25 +75,31 @@ class {:autocontracts} Jrnl
     method Read(a: Addr, sz: nat)
     returns (buf:ReadBuf)
     requires Valid()
-    modifies {}
-    requires a in domain()
+    modifies this
+    requires !has_readbuf
+    requires a in domain
     requires sz == size(a)
     ensures
+    && data == old(data)
+    && has_readbuf
     && buf.a == a
     && buf.obj == data[a]
     && objSize(buf.obj) == sz
     && buf.jrnl == this
     {
+        has_readbuf := true;
         return new ReadBuf(a, data[a], this);
     }
 
     method Write(a: Addr, obj: Object)
     requires Valid() ensures Valid()
     modifies this
-    requires a in domain()
+    requires !has_readbuf
+    requires a in domain
     requires objSize(obj) == size(a)
-    ensures data == old(data)[a:=obj]
-    ensures kinds == old(kinds)
+    ensures
+    && data == old(data)[a:=obj]
+    && has_readbuf == old(has_readbuf)
     {
         data := data[a:=obj];
     }
@@ -106,7 +113,9 @@ class ReadBuf
 
     constructor(a: Addr, obj: Object, jrnl: Jrnl)
     requires jrnl.Valid()
-    requires a in jrnl.domain() && objSize(obj) == jrnl.size(a)
+    requires a in jrnl.domain
+    requires jrnl.has_readbuf
+    requires objSize(obj) == jrnl.size(a)
     ensures Valid()
     ensures
     && this.a == a
@@ -122,18 +131,31 @@ class ReadBuf
     reads this, jrnl, jrnl.Repr
     {
         && jrnl.Valid()
-        && a in jrnl.domain()
+        && a in jrnl.domain
         && objSize(obj) == jrnl.size(a)
+        && jrnl.has_readbuf
+    }
+
+    method Finish()
+    modifies jrnl
+    requires Valid()
+    ensures !Valid() && jrnl.Valid()
+    ensures jrnl.data == old(jrnl.data)
+    ensures !jrnl.has_readbuf
+    {
+        jrnl.has_readbuf := false;
     }
 
     // SetDirty() models writing the buffer out after manually changing the
     // object
     method SetDirty()
-    requires Valid()
-    ensures Valid()
     modifies jrnl;
+    requires Valid()
+    // intentionally does not guarantee validity (consumes the buffer)
+    ensures !Valid() && jrnl.Valid()
+    ensures !jrnl.has_readbuf
     {
+        Finish();
         jrnl.Write(a, obj);
     }
-
 }

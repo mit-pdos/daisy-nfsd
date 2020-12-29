@@ -8,6 +8,7 @@ class Bank
     var jrnl: Jrnl;
     constructor(jrnl: Jrnl)
     requires jrnl.Valid()
+    requires !jrnl.has_readbuf
     ensures this.Valid()
     {
         this.jrnl := jrnl;
@@ -16,20 +17,22 @@ class Bank
     predicate Valid()
     reads this, jrnl, jrnl.Repr
     {
-        this.jrnl.Valid()
+        && jrnl.Valid()
+        && !jrnl.has_readbuf
     }
 
     // NOTE: this should be interpreted as the body of a transaction, which
     // needs to be surrounded with code to check for errors and abort
     method transfer(acct1: Addr, acct2: Addr, sz: nat)
     requires Valid() ensures Valid()
-    requires acct1 in jrnl.domain()
-    requires acct2 in jrnl.domain()
+    requires acct1 in jrnl.domain
+    requires acct2 in jrnl.domain
     requires jrnl.size(acct1) == sz
     requires jrnl.size(acct2) == sz
     modifies jrnl
     {
         var x := jrnl.Read(acct1, sz);
+        x.Finish();
         jrnl.Write(acct2, x.obj);
     }
 }
