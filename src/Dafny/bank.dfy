@@ -30,6 +30,6 @@ class Bank
     modifies jrnl
     {
         var x := jrnl.Read(acct1, sz);
-        jrnl.Write(acct2, x);
+        jrnl.Write(acct2, x.obj);
     }
 }

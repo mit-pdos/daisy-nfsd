@@ -72,14 +72,18 @@ class {:autocontracts} Jrnl
     }
 
     method Read(a: Addr, sz: nat)
-    returns (obj:Object)
+    returns (buf:ReadBuf)
     requires Valid()
     modifies {}
     requires a in domain()
     requires sz == size(a)
-    ensures objSize(obj) == sz
+    ensures
+    && buf.a == a
+    && buf.obj == data[a]
+    && objSize(buf.obj) == sz
+    && buf.jrnl == this
     {
-        return data[a];
+        return new ReadBuf(a, data[a], this);
     }
 
     method Write(a: Addr, obj: Object)
@@ -87,9 +91,49 @@ class {:autocontracts} Jrnl
     modifies this
     requires a in domain()
     requires objSize(obj) == size(a)
-    //ensures jrnl.data == old(jrnl.data)[a:=obj]
+    ensures data == old(data)[a:=obj]
     ensures kinds == old(kinds)
     {
         data := data[a:=obj];
     }
+}
+
+class ReadBuf
+{
+    var a: Addr;
+    var obj: Object;
+    var jrnl: Jrnl;
+
+    constructor(a: Addr, obj: Object, jrnl: Jrnl)
+    requires jrnl.Valid()
+    requires a in jrnl.domain() && objSize(obj) == jrnl.size(a)
+    ensures Valid()
+    ensures
+    && this.a == a
+    && this.obj == obj
+    && this.jrnl == jrnl;
+    {
+        this.a := a;
+        this.obj := obj;
+        this.jrnl := jrnl;
+    }
+
+    predicate Valid()
+    reads this, jrnl, jrnl.Repr
+    {
+        && jrnl.Valid()
+        && a in jrnl.domain()
+        && objSize(obj) == jrnl.size(a)
+    }
+
+    // SetDirty() models writing the buffer out after manually changing the
+    // object
+    method SetDirty()
+    requires Valid()
+    ensures Valid()
+    modifies jrnl;
+    {
+        jrnl.Write(a, obj);
+    }
+
 }
