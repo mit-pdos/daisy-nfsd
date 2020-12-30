@@ -1,4 +1,5 @@
 include "pow.dfy"
+include "machine.s.dfy"
 
 /*
 Spec for sequential journal API, assuming we're using 2PL.
@@ -6,7 +7,6 @@ Spec for sequential journal API, assuming we're using 2PL.
 
 type Blkno = nat
 datatype Addr = Addr(blkno: Blkno, off: nat)
-type byte = bv8
 type Object = seq<byte>
 
 // NOTE: we would like kinds to be represented by their size in bits directly,
