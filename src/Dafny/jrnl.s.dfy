@@ -8,7 +8,16 @@ type Blkno = nat
 datatype Addr = Addr(blkno: Blkno, off: nat)
 type byte = bv8
 type Object = seq<byte>
+
+// NOTE: we would like kinds to be represented by their size in bits directly,
+// but expressing that a kind is a power of two would be complicated, so we
+// define them as the power of two. This is easier to work with but annoying to
+// construct.
 type Kind = k:int | 0 <= k <= 15
+
+const KindByte: Kind := 3
+const KindUint64: Kind := KindByte + 3
+const KindInode: Kind := KindByte + 7 // 2^7 = 128 bytes
 
 function method objSize(obj: Object): nat
 {
@@ -119,12 +128,16 @@ class {:autocontracts} Jrnl
     }
 
     constructor(kinds: map<Blkno, Kind>)
+    requires forall blkno | blkno in kinds :: blkno >= 513
     requires forall blkno | blkno in kinds :: kinds[blkno] >= 3
     ensures forall a:Addr :: (&& a.blkno in kinds
                               && a.off < 4096*8
                               && (var k := kinds[a.blkno];
                                 a.off % kindSize(k) == 0)) <==>
                              a in domain
+    ensures this.kinds == kinds;
+    // something about zero initial data?
+    ensures !has_readbuf
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
@@ -136,6 +149,7 @@ class {:autocontracts} Jrnl
              && a.off % kindSize(kinds[a.blkno]) == 0;
         this.data := data;
         this.domain := map_domain(data);
+        this.has_readbuf := false;
     }
 
     function size(a: Addr): nat

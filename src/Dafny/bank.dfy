@@ -1,17 +1,22 @@
 include "jrnl.s.dfy"
 
+const acct1: Addr := Addr(513, 0);
+const acct2: Addr := Addr(513, 8*8);
+
 /*
 Demo of bank transfer using axiomatized journal API
 */
 class Bank
 {
     var jrnl: Jrnl;
-    constructor(jrnl: Jrnl)
-    requires jrnl.Valid()
-    requires !jrnl.has_readbuf
+    constructor()
     ensures this.Valid()
     {
-        this.jrnl := jrnl;
+        // BUG: we can't actually use the constant because then Dafny makes the type
+        // of the map display expression map<int,int>.
+        assert 6 == KindUint64;
+        var kinds: map<Blkno, Kind> := map[513:=6];
+        this.jrnl := new Jrnl(kinds);
     }
 
     predicate Valid()
@@ -19,19 +24,19 @@ class Bank
     {
         && jrnl.Valid()
         && !jrnl.has_readbuf
+        && acct1 in jrnl.domain
+        && acct2 in jrnl.domain
+        && jrnl.size(acct1) == 64
+        && jrnl.size(acct2) == 64
     }
 
     // NOTE: this should be interpreted as the body of a transaction, which
     // needs to be surrounded with code to check for errors and abort
-    method transfer(acct1: Addr, acct2: Addr, sz: nat)
+    method transfer()
     requires Valid() ensures Valid()
-    requires acct1 in jrnl.domain
-    requires acct2 in jrnl.domain
-    requires jrnl.size(acct1) == sz
-    requires jrnl.size(acct2) == sz
     modifies jrnl
     {
-        var x := jrnl.Read(acct1, sz);
+        var x := jrnl.Read(acct1, 64);
         x.Finish();
         jrnl.Write(acct2, x.obj);
     }
