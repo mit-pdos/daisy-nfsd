@@ -11,4 +11,6 @@ crash-safety reasoning in Perennial.
 
 [Notes on research directions](./research.md)
 
-[Spec for journal interface, assuming 2PL](./src/Dafny/jrnl.i.dfy)
+[Spec for journal interface, assuming 2PL](./src/Dafny/jrnl.s.dfy)
+
+[Bank example](./src/Dafny/bank.dfy)
