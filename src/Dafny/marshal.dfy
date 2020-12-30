@@ -54,6 +54,13 @@ ensures s1 == s2
 {
 }
 
+lemma prefix_of_app2<T>(s1: seq<T>, s2: seq<T>, n: nat)
+requires prefix_of(s1, s2)
+requires n <= |s1|
+ensures prefix_of(s1[n..], s2[n..])
+{
+}
+
 class {:autocontracts} Encoder
 {
     ghost var enc: seq<Encodable>;
@@ -69,6 +76,8 @@ class {:autocontracts} Encoder
     }
 
     constructor(size: nat)
+    ensures enc == []
+    ensures bytes_left() == size
     {
         this.data := new byte[size];
         this.off := 0;
@@ -77,13 +86,14 @@ class {:autocontracts} Encoder
     }
 
     function bytes_left(): nat
-    requires Valid()
     {
         data.Length-off
     }
 
     method EncInt(x: uint64)
     requires bytes_left() >= 8
+    ensures bytes_left() == old(bytes_left()) - 8
+    ensures enc == old(enc) + [EncUInt64(x)]
     {
         forall k: nat | 0 <= k < 8 {
             data[off+k] := le_enc64(x)[k];
@@ -94,11 +104,19 @@ class {:autocontracts} Encoder
         seq_encode_app(old(enc), [EncUInt64(x)]);
     }
 
-    method Finish() returns (bs:array<byte>)
-    ensures prefix_of(seq_encode(enc), bs[..])
-    ensures bs.Length == size
+    method Finish() returns (bs:seq<byte>)
+    ensures prefix_of(seq_encode(enc), bs)
+    ensures |bs| == size
     {
-        return data;
+        return data[..];
+    }
+
+    method FinishComplete() returns (bs:seq<byte>)
+    requires bytes_left() == 0
+    ensures seq_encode(enc) == bs
+    ensures |bs| == size
+    {
+        return data[..];
     }
 }
 
@@ -114,22 +132,26 @@ class {:autocontracts} Decoder
         && prefix_of(seq_encode(enc), data[off..])
     }
 
-    constructor {:autocontracts false}
-    (data: array<byte>, ghost enc: seq<Encodable>)
-    requires prefix_of(seq_encode(enc), data[..])
-    ensures Valid() && fresh(Repr - {this, data})
+    constructor {:autocontracts false}()
     {
-        this.data := data;
-        this.off := 0;
-        this.enc := enc;
-        this.Repr := {this, data};
     }
 
-    lemma prefix_of_app2<T>(s1: seq<T>, s2: seq<T>, n: nat)
-    requires prefix_of(s1, s2)
-    requires n <= |s1|
-    ensures prefix_of(s1[n..], s2[n..])
+    // not a constructor due to https://github.com/dafny-lang/dafny/issues/374
+    method {:autocontracts false} Init(data: seq<byte>, ghost enc: seq<Encodable>)
+    modifies this
+    requires prefix_of(seq_encode(enc), data)
+    ensures Valid()
+    ensures fresh(Repr - {this})
+    ensures this.enc == enc
     {
+        var mut_data := new byte[|data|];
+        forall i:nat | i < |data| {
+            mut_data[i] := data[i];
+        }
+        this.data := mut_data;
+        this.off := 0;
+        this.enc := enc;
+        this.Repr := {this, mut_data};
     }
 
     method DecInt(ghost x: uint64) returns (x':uint64)

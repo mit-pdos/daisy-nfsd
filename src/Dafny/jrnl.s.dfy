@@ -16,7 +16,7 @@ type Object = seq<byte>
 type Kind = k:int | 0 <= k <= 15
 
 const KindByte: Kind := 3
-const KindUint64: Kind := KindByte + 3
+const KindUInt64: Kind := KindByte + 3
 const KindInode: Kind := KindByte + 7 // 2^7 = 128 bytes
 
 function method objSize(obj: Object): nat
@@ -158,6 +158,12 @@ class {:autocontracts} Jrnl
         kindSize(this.kinds[a.blkno])
     }
 
+    predicate has_kind(a: Addr, k: Kind)
+    {
+        && a in domain
+        && kinds[a.blkno] == k
+    }
+
     method Read(a: Addr, sz: nat)
     returns (buf:ReadBuf)
     requires Valid() ensures Valid()
@@ -165,6 +171,7 @@ class {:autocontracts} Jrnl
     requires !has_readbuf
     requires a in domain && sz == size(a)
     ensures
+    && fresh(buf)
     && data == old(data)
     && has_readbuf
     && buf.a == a
@@ -225,6 +232,7 @@ class ReadBuf
     ensures !Valid() && jrnl.Valid()
     ensures jrnl.data == old(jrnl.data)
     ensures !jrnl.has_readbuf
+    ensures obj == old(obj)
     {
         jrnl.has_readbuf := false;
     }
