@@ -13,7 +13,7 @@ Demo of bank transfer using axiomatized journal API
 */
 class Bank
 {
-    ghost const acct_sum: uint64;
+    ghost const acct_sum: nat;
     ghost var accts: seq<uint64>;
 
     var jrnl: Jrnl;
@@ -56,20 +56,10 @@ class Bank
         x' := dec.GetInt(x);
     }
 
-    // NOTE: unused, but an example of how painful helper methods are
-    static method zeroAccount(jrnl: Jrnl, acct: Addr)
-    requires jrnl.Valid() ensures jrnl.Valid()
-    requires jrnl.has_kind(acct, KindUInt64)
-    modifies jrnl
-    ensures jrnl.data == old(jrnl.data)[acct := seq_encode([EncUInt64(0)])]
-    {
-        var data := encode_acct(0);
-        jrnl.Write(acct, data);
-    }
-
-    constructor()
+    constructor(init_bal: uint64)
     ensures Valid()
-    ensures forall n: nat:: n < 512 ==> accts[n] == 100
+    ensures forall n: nat:: n < 512 ==> accts[n] == init_bal
+    ensures acct_sum == 512*init_bal
     {
         // BUG: we can't actually use the constant because then Dafny makes the type
         // of the map display expression map<int,int>.
@@ -82,33 +72,27 @@ class Bank
              && acct in jrnl.domain
              && jrnl.size(acct) == 64);
 
-        var hundred_acct := encode_acct(100);
+        var init_acct := encode_acct(init_bal);
         var n := 0;
         while n < 512
         invariant 0 <= n <= 512
         invariant jrnl.Valid()
-        invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), 100)
+        invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal)
         decreases (512-n)
         {
-            jrnl.Write(Acct(n), hundred_acct);
+            jrnl.Write(Acct(n), init_acct);
             n := n + 1;
         }
-        assert jrnl.Valid();
-        assert forall n: nat :: n < 512 ==>
-            (var acct := Acct(n);
-             && acct in jrnl.domain
-             && jrnl.size(acct) == 64
-             && acct_val(jrnl, Acct(n), 100));
 
         this.jrnl := jrnl;
 
         // NOTE: this was really annoying to figure out - turns out needed the
         // accounts to be a repeat of nats instead of uint64 (hence the extra
-        // let binding and type annotation)
-        var new_accts: seq<nat> := repeat(100, 512);
-        sum_repeat(100, 512);
+        // let binding and type annotations)
+        var new_accts: seq<nat> := repeat(init_bal as nat, 512);
+        sum_repeat(init_bal, 512);
         accts := new_accts;
-        acct_sum := 512*100;
+        acct_sum := 512*init_bal;
     }
 
     // NOTE: this should be interpreted as the body of a transaction, which
