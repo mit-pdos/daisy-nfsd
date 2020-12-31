@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e
+
+## Some simple sanity checks for code quality in infrastructure
+
+markdown-link-check README.md
+markdown-link-check research.md
+black --diff etc/dafnydep
+mypy etc/dafnydep
