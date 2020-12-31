@@ -21,7 +21,7 @@ class Bank
     ensures seq_encode([EncUInt64(x)]) == bs
     {
         var enc := new Encoder(8);
-        enc.EncInt(x);
+        enc.PutInt(x);
         bs := enc.FinishComplete();
     }
 
@@ -32,7 +32,7 @@ class Bank
     {
         var dec := new Decoder();
         dec.Init(bs, [EncUInt64(x)]);
-        x' := dec.DecInt(x);
+        x' := dec.GetInt(x);
     }
 
     // NOTE: unused, but an example of how painful helper methods are

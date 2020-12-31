@@ -90,7 +90,7 @@ class {:autocontracts} Encoder
         data.Length-off
     }
 
-    method EncInt(x: uint64)
+    method PutInt(x: uint64)
     requires bytes_left() >= 8
     ensures bytes_left() == old(bytes_left()) - 8
     ensures enc == old(enc) + [EncUInt64(x)]
@@ -154,7 +154,7 @@ class {:autocontracts} Decoder
         this.Repr := {this, mut_data};
     }
 
-    method DecInt(ghost x: uint64) returns (x':uint64)
+    method GetInt(ghost x: uint64) returns (x':uint64)
     requires |enc| > 0 && enc[0] == EncUInt64(x)
     ensures x' == x
     ensures enc == old(enc)[1..]
