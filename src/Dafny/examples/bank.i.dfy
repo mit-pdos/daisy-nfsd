@@ -17,7 +17,6 @@ class Bank
     var jrnl: Jrnl;
 
     static method encode_acct(x: uint64) returns (bs:seq<byte>)
-    modifies {}
     ensures seq_encode([EncUInt64(x)]) == bs
     {
         var enc := new Encoder(8);
@@ -26,7 +25,6 @@ class Bank
     }
 
     static method decode_acct(bs:seq<byte>, ghost x: uint64) returns (x': uint64)
-    modifies {}
     requires seq_encode([EncUInt64(x)]) == bs
     ensures x' == x
     {
