@@ -36,7 +36,7 @@ ensures kindSize(k) <= 4096*8
     assert pow(2,15) == 4096*8;
 }
 
-lemma lemma_kind_at_least_byte_iff(k: Kind)
+lemma kind_at_least_byte_iff(k: Kind)
 ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
 {
     if k >= 3 {
@@ -44,9 +44,9 @@ ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
     }
 }
 
-lemma lemma_kind_at_least_byte(k: Kind)
+lemma kind_at_least_byte(k: Kind)
 requires k >= 3
 ensures kindSize(k)/8*8 == kindSize(k)
 {
-    lemma_kind_at_least_byte_iff(k);
+    kind_at_least_byte_iff(k);
 }

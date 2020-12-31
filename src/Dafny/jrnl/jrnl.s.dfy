@@ -20,7 +20,7 @@ function method zeroObject(k: Kind): (obj:Object)
 requires k >= 3
 ensures objSize(obj) == kindSize(k)
 {
-    lemma_kind_at_least_byte(k);
+    kind_at_least_byte(k);
     repeat(0 as bv8, kindSize(k)/8)
 }
 
