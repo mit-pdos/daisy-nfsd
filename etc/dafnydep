@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import re
+import sys
+from os import path
+from pathlib import PurePosixPath
+from typing import AnyStr
+
+INCLUDE_RE = re.compile(r"""include\ "(?P<path>.*)" """, re.VERBOSE)
+
+def get_includes(fname: AnyStr):
+    includes = []
+    with open(fname, "r") as f:
+        for line in f:
+            m = INCLUDE_RE.search(line)
+            if m:
+                includes.append(m.group("path"))
+    return includes
+
+def relativize(fname: AnyStr, include: AnyStr) -> str:
+    working_dir = PurePosixPath(path.dirname(fname))
+    p = PurePosixPath(include)
+    return (working_dir / p).as_posix()
+
+
+for fname in sys.argv[1:]:
+    includes = get_includes(fname)
+    includes = [relativize(fname, include) + ".ok" for include in includes]
+    include_list = " ".join(includes)
+    print(f"{fname}.ok: {include_list}")
+    print()
