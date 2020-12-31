@@ -6,7 +6,14 @@ from os import path
 from pathlib import PurePosixPath
 from typing import AnyStr
 
-INCLUDE_RE = re.compile(r"""include\ "(?P<path>.*)" """, re.VERBOSE)
+INCLUDE_RE = re.compile(
+    r"""^\s* # leading whitespace
+include \s+
+"(?P<path>.*)"
+$""",
+    re.VERBOSE,
+)
+
 
 def get_includes(fname: AnyStr):
     includes = []
@@ -16,6 +23,7 @@ def get_includes(fname: AnyStr):
             if m:
                 includes.append(m.group("path"))
     return includes
+
 
 def relativize(fname: AnyStr, include: AnyStr) -> str:
     working_dir = PurePosixPath(path.dirname(fname))
