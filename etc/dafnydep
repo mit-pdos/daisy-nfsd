@@ -3,7 +3,7 @@
 import re
 import sys
 from os import path
-from typing import AnyStr, List
+from typing import List
 
 INCLUDE_RE = re.compile(
     r"""^\s* # leading whitespace
@@ -14,9 +14,9 @@ $""",
 )
 
 
-def get_includes(fname: AnyStr):
+def get_includes(fname: str) -> List[str]:
     """Parse Dafny file `fname` for include directives."""
-    includes = []
+    includes: List[str] = []
     with open(fname, "r") as f:
         for line in f:
             m = INCLUDE_RE.search(line)
@@ -25,14 +25,14 @@ def get_includes(fname: AnyStr):
     return includes
 
 
-def relativize(fname: AnyStr, include: AnyStr) -> str:
+def relativize(fname: str, include: str) -> str:
     """Resolve `include` to a normalized path, based on the directory of `fname`."""
     working_dir = path.dirname(fname)
     p = path.join(working_dir, include)
     return path.normpath(p)
 
 
-def dependency_list(fname: AnyStr, includes: List[AnyStr]) -> str:
+def dependency_list(fname: str, includes: List[str]) -> str:
     """Return list of dependencies for `fname` from raw include paths
     `includes`."""
     includes = [relativize(fname, include) + ".ok" for include in includes]
