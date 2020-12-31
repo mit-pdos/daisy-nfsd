@@ -1,6 +1,6 @@
-include "jrnl.s.dfy"
-include "int.dfy"
-include "marshal.dfy"
+include "../machine/int_encoding.s.dfy"
+include "../util/marshal.i.dfy"
+include "../jrnl/jrnl.s.dfy"
 
 const Acct1: Addr := Addr(513, 0);
 const Acct2: Addr := Addr(513, 8*8);

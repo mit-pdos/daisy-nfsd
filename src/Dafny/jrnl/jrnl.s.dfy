@@ -1,5 +1,5 @@
-include "pow.dfy"
-include "machine.s.dfy"
+include "../machine/machine.s.dfy"
+include "../util/pow.dfy"
 
 /*
 Spec for sequential journal API, assuming we're using 2PL.

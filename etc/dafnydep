@@ -3,8 +3,7 @@
 import re
 import sys
 from os import path
-from pathlib import PurePosixPath
-from typing import AnyStr
+from typing import AnyStr, List
 
 INCLUDE_RE = re.compile(
     r"""^\s* # leading whitespace
@@ -16,6 +15,7 @@ $""",
 
 
 def get_includes(fname: AnyStr):
+    """Parse Dafny file `fname` for include directives."""
     includes = []
     with open(fname, "r") as f:
         for line in f:
@@ -26,14 +26,20 @@ def get_includes(fname: AnyStr):
 
 
 def relativize(fname: AnyStr, include: AnyStr) -> str:
-    working_dir = PurePosixPath(path.dirname(fname))
-    p = PurePosixPath(include)
-    return (working_dir / p).as_posix()
+    """Resolve `include` to a normalized path, based on the directory of `fname`."""
+    working_dir = path.dirname(fname)
+    p = path.join(working_dir, include)
+    return path.normpath(p)
+
+
+def dependency_list(fname: AnyStr, includes: List[AnyStr]) -> str:
+    """Return list of dependencies for `fname` from raw include paths
+    `includes`."""
+    includes = [relativize(fname, include) + ".ok" for include in includes]
+    return " ".join(includes)
 
 
 for fname in sys.argv[1:]:
     includes = get_includes(fname)
-    includes = [relativize(fname, include) + ".ok" for include in includes]
-    include_list = " ".join(includes)
-    print(f"{fname}.ok: {include_list}")
-    print()
+    deps = dependency_list(fname, includes)
+    print(f"{fname}.ok: {deps}")

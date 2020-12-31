@@ -1,5 +1,5 @@
-include "machine.s.dfy"
-include "int.dfy"
+include "../machine/machine.s.dfy"
+include "../machine/int_encoding.s.dfy"
 
 datatype Encodable = EncUInt64(x:uint64)
 

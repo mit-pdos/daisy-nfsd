@@ -1,4 +1,4 @@
-DFY_FILES := $(wildcard src/Dafny/*.dfy)
+DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 Q:=@
