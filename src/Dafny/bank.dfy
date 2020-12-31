@@ -38,10 +38,8 @@ class Bank
     // NOTE: unused, but an example of how painful helper methods are
     static method zeroAccount(jrnl: Jrnl, acct: Addr)
     requires jrnl.Valid() ensures jrnl.Valid()
-    requires !jrnl.has_readbuf
     requires jrnl.has_kind(acct, KindUInt64)
     modifies jrnl
-    ensures !jrnl.has_readbuf
     ensures jrnl.data == old(jrnl.data)[acct := seq_encode([EncUInt64(0)])]
     {
         var data := encode_acct(0);
@@ -72,7 +70,6 @@ class Bank
     reads this, jrnl, jrnl.Repr
     {
         && jrnl.Valid()
-        && !jrnl.has_readbuf
         && Acct1 in jrnl.domain
         && Acct2 in jrnl.domain
         && jrnl.size(Acct1) == 64

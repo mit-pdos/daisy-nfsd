@@ -120,11 +120,22 @@ class {:autocontracts} Jrnl
     const kinds: map<Blkno, Kind>;
     var has_readbuf: bool;
 
-    predicate Valid() reads this {
+    // NOTE: this needs autocontracts false because it otherwise has requires
+    // Valid(), which is recursive
+    predicate {:autocontracts false} ValidButReading()
+    reads this
+    {
+        && this in Repr && null !in Repr
         && (forall a :: a in data ==>
             && a.blkno in kinds
             && objSize(data[a]) == kindSize(kinds[a.blkno]))
         && (forall a :: a in data <==> a in domain)
+    }
+
+    predicate Valid()
+    {
+        && ValidButReading()
+        && !has_readbuf
     }
 
     constructor(kinds: map<Blkno, Kind>)
@@ -137,7 +148,6 @@ class {:autocontracts} Jrnl
                              a in domain
     ensures this.kinds == kinds;
     // something about zero initial data?
-    ensures !has_readbuf
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
@@ -152,23 +162,26 @@ class {:autocontracts} Jrnl
         this.has_readbuf := false;
     }
 
-    function size(a: Addr): nat
-    requires a in this.domain
+    function {:autocontracts false} size(a: Addr): nat
+    reads this
+    requires ValidButReading()
+    requires a in domain
     {
         kindSize(this.kinds[a.blkno])
     }
 
-    predicate has_kind(a: Addr, k: Kind)
+    predicate {:autocontracts false} has_kind(a: Addr, k: Kind)
+    reads this
+    requires ValidButReading()
     {
         && a in domain
         && kinds[a.blkno] == k
     }
 
-    method Read(a: Addr, sz: nat)
+    method {:autocontracts false} Read(a: Addr, sz: nat)
     returns (buf:ReadBuf)
-    requires Valid() ensures Valid()
+    requires Valid() ensures ValidButReading()
     modifies this
-    requires !has_readbuf
     requires a in domain && sz == size(a)
     ensures
     && fresh(buf)
@@ -186,11 +199,9 @@ class {:autocontracts} Jrnl
     method Write(a: Addr, obj: Object)
     requires Valid() ensures Valid()
     modifies this
-    requires !has_readbuf
     requires a in domain && objSize(obj) == size(a)
     ensures
     && data == old(data)[a:=obj]
-    && has_readbuf == old(has_readbuf)
     {
         data := data[a:=obj];
     }
@@ -203,7 +214,7 @@ class ReadBuf
     var jrnl: Jrnl;
 
     constructor(a: Addr, obj: Object, jrnl: Jrnl)
-    requires jrnl.Valid()
+    requires jrnl.ValidButReading()
     requires a in jrnl.domain && objSize(obj) == jrnl.size(a)
     requires jrnl.has_readbuf
     ensures Valid()
@@ -220,7 +231,7 @@ class ReadBuf
     predicate Valid()
     reads this, jrnl, jrnl.Repr
     {
-        && jrnl.Valid()
+        && jrnl.ValidButReading()
         && a in jrnl.domain
         && objSize(obj) == jrnl.size(a)
         && jrnl.has_readbuf
@@ -231,7 +242,6 @@ class ReadBuf
     requires Valid()
     ensures !Valid() && jrnl.Valid()
     ensures jrnl.data == old(jrnl.data)
-    ensures !jrnl.has_readbuf
     ensures obj == old(obj)
     {
         jrnl.has_readbuf := false;
@@ -245,7 +255,6 @@ class ReadBuf
     // intentionally does not guarantee validity (consumes the buffer)
     ensures !Valid() && jrnl.Valid()
     ensures jrnl.data == old(jrnl.data)[a:=obj]
-    ensures !jrnl.has_readbuf
     {
         Finish();
         jrnl.Write(a, obj);
