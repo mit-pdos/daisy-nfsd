@@ -13,14 +13,12 @@ const KindInode: Kind := KindByte + 7 // 2^7 = 128 bytes
 function method kindSize(k: Kind): (sz:nat)
 ensures sz > 0
 {
-    pow_nonneg(2, k);
     pow_pos(2, k);
     pow(2,k)
 }
 
 function kindCount(k: Kind): nat
 {
-    pow_nonneg(2, 15-k);
     pow(2, 15-k)
 }
 
@@ -43,11 +41,6 @@ ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
 {
     if k >= 3 {
         pow_plus(2, k-3, 3);
-    } else {
-        if k == 0 {
-        } else if k == 1 {
-        } else if k == 2 {
-        }
     }
 }
 
