@@ -142,7 +142,7 @@ class {:autocontracts} Jrnl
 
 class ReadBuf
 {
-    var a: Addr;
+    const a: Addr;
     var obj: Object;
     var jrnl: Jrnl;
 

@@ -2,12 +2,6 @@ include "../machine/int_encoding.s.dfy"
 include "../util/marshal.i.dfy"
 include "../jrnl/jrnl.s.dfy"
 
-function method Acct(n: nat): (a:Addr)
-requires n < 512
-{
-    Addr(513, n*64)
-}
-
 /*
 Demo of bank transfer using axiomatized journal API
 */
@@ -17,6 +11,12 @@ class Bank
     ghost var accts: seq<uint64>;
 
     var jrnl: Jrnl;
+
+    static function method Acct(n: nat): (a:Addr)
+    requires n < 512
+    {
+        Addr(513, n*64)
+    }
 
     static predicate acct_val(jrnl: Jrnl, acct: Addr, val: uint64)
     reads jrnl, jrnl.Repr
@@ -75,10 +75,8 @@ class Bank
         var init_acct := encode_acct(init_bal);
         var n := 0;
         while n < 512
-        invariant 0 <= n <= 512
         invariant jrnl.Valid()
         invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal)
-        decreases (512-n)
         {
             jrnl.Write(Acct(n), init_acct);
             n := n + 1;
