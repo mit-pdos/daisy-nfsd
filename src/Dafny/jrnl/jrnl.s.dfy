@@ -79,8 +79,9 @@ class {:autocontracts} Jrnl
                               && (var k := kinds[a.blkno];
                                 a.off % kindSize(k) == 0)) <==>
                              a in domain
-    ensures this.kinds == kinds;
-    // something about zero initial data?
+    ensures this.kinds == kinds
+    ensures forall a:Addr :: a in domain ==>
+            data[a] == zeroObject(kinds[a.blkno])
     {
         this.kinds := kinds;
         var data: map<Addr, Object> :=
@@ -130,11 +131,9 @@ class {:autocontracts} Jrnl
     }
 
     method Write(a: Addr, obj: Object)
-    requires Valid() ensures Valid()
     modifies this
     requires a in domain && objSize(obj) == size(a)
-    ensures
-    && data == old(data)[a:=obj]
+    ensures data == old(data)[a:=obj]
     {
         data := data[a:=obj];
     }
