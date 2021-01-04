@@ -19,7 +19,7 @@ class Bank
     }
 
     static predicate acct_val(jrnl: Jrnl, acct: Addr, val: uint64)
-    reads jrnl, jrnl.Repr
+    reads jrnl
     requires jrnl.Valid()
     requires acct in jrnl.domain
     {
@@ -27,7 +27,7 @@ class Bank
     }
 
     predicate Valid()
-    reads this, jrnl, jrnl.Repr
+    reads this, jrnl
     {
         && jrnl.Valid()
         && |accts| == 512

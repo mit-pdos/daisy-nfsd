@@ -42,7 +42,7 @@ ensures forall a:Addr :: (&& a.blkno in kinds
         a.off % kindSize(k) == 0)
 }
 
-class {:autocontracts} Jrnl
+class Jrnl
 {
     var data: map<Addr, Object>;
     // we cache the domain of data to easily show that it's constant
@@ -53,12 +53,9 @@ class {:autocontracts} Jrnl
     const kinds: map<Blkno, Kind>;
     var has_readbuf: bool;
 
-    // NOTE: this needs autocontracts false because it otherwise has requires
-    // Valid(), which is recursive
-    predicate {:autocontracts false} ValidButReading()
+    predicate ValidButReading()
     reads this
     {
-        && this in Repr && null !in Repr
         && (forall a :: a in data ==>
             && a.blkno in kinds
             && objSize(data[a]) == kindSize(kinds[a.blkno]))
@@ -66,6 +63,7 @@ class {:autocontracts} Jrnl
     }
 
     predicate Valid()
+    reads this
     {
         && ValidButReading()
         && !has_readbuf
@@ -74,6 +72,7 @@ class {:autocontracts} Jrnl
     constructor(kinds: map<Blkno, Kind>)
     requires forall blkno | blkno in kinds :: blkno >= 513
     requires forall blkno | blkno in kinds :: kinds[blkno] >= 3
+    ensures Valid()
     ensures forall a:Addr :: (&& a.blkno in kinds
                               && a.off < 4096*8
                               && (var k := kinds[a.blkno];
@@ -96,7 +95,7 @@ class {:autocontracts} Jrnl
         this.has_readbuf := false;
     }
 
-    function {:autocontracts false} size(a: Addr): nat
+    function size(a: Addr): nat
     reads this
     requires ValidButReading()
     requires a in domain
@@ -104,7 +103,7 @@ class {:autocontracts} Jrnl
         kindSize(this.kinds[a.blkno])
     }
 
-    predicate {:autocontracts false} has_kind(a: Addr, k: Kind)
+    predicate has_kind(a: Addr, k: Kind)
     reads this
     requires ValidButReading()
     {
@@ -112,7 +111,7 @@ class {:autocontracts} Jrnl
         && kinds[a.blkno] == k
     }
 
-    method {:autocontracts false} Read(a: Addr, sz: nat)
+    method Read(a: Addr, sz: nat)
     returns (buf:ReadBuf)
     requires Valid() ensures ValidButReading()
     modifies this
@@ -132,6 +131,7 @@ class {:autocontracts} Jrnl
 
     method Write(a: Addr, obj: Object)
     modifies this
+    requires Valid() ensures Valid()
     requires a in domain && objSize(obj) == size(a)
     ensures data == old(data)[a:=obj]
     {
@@ -161,7 +161,7 @@ class ReadBuf
     }
 
     predicate Valid()
-    reads this, jrnl, jrnl.Repr
+    reads this, jrnl
     {
         && jrnl.ValidButReading()
         && a in jrnl.domain
