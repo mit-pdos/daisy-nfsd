@@ -8,7 +8,7 @@ import (
 
 func TestBytes(t *testing.T) {
 	assert := assert.New(t)
-	bs := New_Bytes_(1)
+	bs := NewBytes(1)
 	bs.Append(1)
 	assert.Equal(byte(0), bs.Get(0))
 	assert.Equal(byte(1), bs.Get(1))

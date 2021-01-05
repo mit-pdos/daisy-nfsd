@@ -5,7 +5,7 @@ type Bytes struct {
 	data []byte
 }
 
-func New_Bytes_(sz uint64) *Bytes {
+func NewBytes(sz uint64) *Bytes {
 	return &Bytes{data: make([]byte, sz)}
 }
 
