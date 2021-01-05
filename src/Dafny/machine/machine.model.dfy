@@ -9,9 +9,9 @@ module bytes_model refines bytes {
             data_
         }
 
-        constructor()
+        constructor(sz: uint64)
         {
-            this.data_ := [];
+            this.data_ := repeat(0 as byte, sz as nat);
         }
 
         method Get(i: uint64)
