@@ -1,2 +1,3 @@
 *.dfy.ok
 /.dafnydeps.d
+*-go/

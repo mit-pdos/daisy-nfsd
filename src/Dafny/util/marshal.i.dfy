@@ -1,4 +1,4 @@
-include "../machine/machine.s.dfy"
+include "../machine/machine_s.dfy"
 include "../machine/int_encoding.s.dfy"
 include "../util/collections.dfy"
 

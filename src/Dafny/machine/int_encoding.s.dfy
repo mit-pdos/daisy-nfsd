@@ -4,7 +4,7 @@ Experiment with little-endian encoding of integers.
 IronFleet has good code for this at
 https://github.com/GLaDOS-Michigan/IronFleet/blob/master/ironfleet/src/Dafny/Distributed/Impl/Common/Util.i.dfy
 */
-include "machine.s.dfy"
+include "machine_s.dfy"
 
 function le_enc16(x: bv16): (bs:seq<byte>)
 ensures |bs| == 2

@@ -1,3 +1,12 @@
+// fmap over sequences
+
+function method
+seq_fmap<T,U>(f: T -> U, xs: seq<T>): (ys:seq<U>) decreases xs
+ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
+{
+    if xs == [] then [] else [f(xs[0])] + seq_fmap(f, xs[1..])
+}
+
 // repeat
 
 function method {:opaque}
