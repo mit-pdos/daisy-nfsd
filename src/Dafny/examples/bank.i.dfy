@@ -1,6 +1,13 @@
-include "../machine/int_encoding.s.dfy"
 include "../util/marshal.i.dfy"
 include "../jrnl/jrnl.s.dfy"
+
+module Bank {
+
+import opened Machine
+import opened JrnlSpec
+import opened Kinds
+import opened Marshal
+import opened Collections
 
 /*
 Demo of bank transfer using axiomatized journal API
@@ -128,4 +135,6 @@ class Bank
     {
         return true;
     }
+}
+
 }

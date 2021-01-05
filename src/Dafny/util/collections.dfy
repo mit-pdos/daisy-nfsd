@@ -1,3 +1,5 @@
+module Collections
+{
 // fmap over sequences
 
 function method
@@ -81,4 +83,5 @@ ensures sum_nat(xs[i:=x]) == sum_nat(xs)-xs[i]+x
         // assert (xs[i:=x])[1..] == xs[1..][i-1:=x];
         sum_update(xs[1..], i-1, x);
     }
+}
 }

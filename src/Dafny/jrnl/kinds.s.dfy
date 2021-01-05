@@ -1,5 +1,10 @@
 include "../util/pow.dfy"
 
+module Kinds
+{
+
+import opened Pow
+
 // NOTE: we would like kinds to be represented by their size in bits directly,
 // but expressing that a kind is a power of two would be complicated, so we
 // define them as the power of two. This is easier to work with but annoying to
@@ -49,4 +54,6 @@ requires k >= 3
 ensures kindSize(k)/8*8 == kindSize(k)
 {
     kind_at_least_byte_iff(k);
+}
+
 }

@@ -2,6 +2,13 @@ include "../machine/machine_s.dfy"
 include "../machine/int_encoding.s.dfy"
 include "../util/collections.dfy"
 
+module Marshal
+{
+
+import opened Machine
+import opened IntEncoding
+import opened Collections
+
 datatype Encodable = EncUInt64(x:uint64)
 
 function enc_encode(e: Encodable): seq<byte>
@@ -144,4 +151,6 @@ class {:autocontracts} Decoder
         enc := enc[1..];
         assert Valid();
     }
+}
+
 }

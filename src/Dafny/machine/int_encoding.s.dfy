@@ -6,6 +6,11 @@ https://github.com/GLaDOS-Michigan/IronFleet/blob/master/ironfleet/src/Dafny/Dis
 */
 include "machine_s.dfy"
 
+module IntEncoding
+{
+
+import opened Machine
+
 function le_enc16(x: bv16): (bs:seq<byte>)
 ensures |bs| == 2
 {
@@ -35,3 +40,5 @@ function method {:axiom} le_dec64(bs: seq<byte>): uint64
 requires |bs| == 8
 lemma {:axiom} lemma_le_enc_dec64(x: uint64)
 ensures le_dec64(le_enc64(x)) == x
+
+}

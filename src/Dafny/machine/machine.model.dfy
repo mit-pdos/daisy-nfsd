@@ -14,7 +14,7 @@ module bytes_model refines bytes {
             this.data_ := [];
         }
 
-        method Get(i: nat)
+        method Get(i: uint64)
         returns (x:byte)
         {
             return data_[i];

@@ -7,6 +7,13 @@ include "kinds.s.dfy"
 Spec for sequential journal API, assuming we're using 2PL.
 */
 
+module JrnlSpec
+{
+
+import opened Machine
+import opened Kinds
+import opened Collections
+
 type Blkno = nat
 datatype Addr = Addr(blkno: Blkno, off: nat)
 type Object = seq<byte>
@@ -191,4 +198,6 @@ class ReadBuf
         Finish();
         jrnl.Write(a, obj);
     }
+}
+
 }

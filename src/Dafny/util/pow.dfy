@@ -2,6 +2,8 @@
 Uninteresting definition of pow (exponentiation)
 */
 
+module Pow {
+
 function method pow(x:nat, k:nat): (p:nat) decreases k
 ensures 1 <= x ==> 1 <= p
 {
@@ -28,4 +30,6 @@ ensures pow(x, k1) <= pow(x, k1+k2)
 {
     pow_plus(x, k1, k2);
     mul_increasing(pow(x,k1), pow(x,k2));
+}
+
 }
