@@ -24,7 +24,7 @@ endif
 
 src/Dafny/machine/machine_s-go/src/machine_s.go: src/Dafny/machine/machine_s.dfy
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 $<
+	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 $< 1>/dev/null
 
 clean:
 	@echo "CLEAN"
