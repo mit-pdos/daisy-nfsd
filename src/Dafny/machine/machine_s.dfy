@@ -2,7 +2,7 @@ include "../util/collections.dfy"
 
 module Machine {
     type byte = bv8
-    type {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
+    newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
 }
 
 
@@ -20,7 +20,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} by
         method {:extern} Get(i: uint64)
         returns (x: byte)
         modifies {}
-        requires i < |data()|
+        requires i as nat < |data()|
         ensures x == data()[i]
 
         method {:extern} Append(b: byte)
@@ -35,6 +35,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} by
 }
 
 module bytes_test {
+    import opened Machine
     import opened bytes
 
     method UseBytes() {
@@ -45,5 +46,12 @@ module bytes_test {
         var b1 := bs.Get(2);
         assert b0 == 0;
         assert b1 == 1;
+    }
+
+    method UseUint64(x: uint64)
+    returns (y:uint64)
+    requires x as nat < 0x1_0000_0000_0000_0000-1
+    {
+        return x + 1;
     }
 }

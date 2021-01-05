@@ -15,7 +15,7 @@ Demo of bank transfer using axiomatized journal API
 class Bank
 {
     ghost const acct_sum: nat;
-    ghost var accts: seq<uint64>;
+    ghost var accts: seq<nat>;
 
     var jrnl: Jrnl;
 
@@ -25,12 +25,13 @@ class Bank
         Addr(513, n*64)
     }
 
-    static predicate acct_val(jrnl: Jrnl, acct: Addr, val: uint64)
+    static predicate acct_val(jrnl: Jrnl, acct: Addr, val: nat)
     reads jrnl
     requires jrnl.Valid()
     requires acct in jrnl.domain
     {
-        jrnl.data[acct] == seq_encode([EncUInt64(val)])
+        && val < 0x1_0000_0000_0000_0000
+        && jrnl.data[acct] == seq_encode([EncUInt64(val as uint64)])
     }
 
     predicate Valid()
@@ -42,6 +43,7 @@ class Bank
             (var acct := Acct(n);
              && acct in jrnl.domain
              && jrnl.size(acct) == 64
+             && accts[n] < 0x1_0000_0000_0000_0000
              && acct_val(jrnl, acct, accts[n]))
         && acct_sum == sum_nat(accts)
     }
@@ -54,19 +56,20 @@ class Bank
         bs := enc.FinishComplete();
     }
 
-    static method decode_acct(bs:seq<byte>, ghost x: uint64) returns (x': uint64)
-    requires seq_encode([EncUInt64(x)]) == bs
-    ensures x' == x
+    static method decode_acct(bs:seq<byte>, ghost x: nat) returns (x': uint64)
+    requires x < 0x1_0000_0000_0000_0000
+    requires seq_encode([EncUInt64(x as uint64)]) == bs
+    ensures x' as nat == x
     {
         var dec := new Decoder();
-        dec.Init(bs, [EncUInt64(x)]);
-        x' := dec.GetInt(x);
+        dec.Init(bs, [EncUInt64(x as uint64)]);
+        x' := dec.GetInt(x as uint64);
     }
 
     constructor(init_bal: uint64)
     ensures Valid()
-    ensures forall n: nat:: n < 512 ==> accts[n] == init_bal
-    ensures acct_sum == 512*init_bal
+    ensures forall n: nat:: n < 512 ==> accts[n] == init_bal as nat
+    ensures acct_sum == 512*(init_bal as nat)
     {
         // BUG: we can't actually use the constant because then Dafny makes the type
         // of the map display expression map<int,int>.
@@ -83,7 +86,7 @@ class Bank
         var n := 0;
         while n < 512
         invariant jrnl.Valid()
-        invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal)
+        invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal as nat)
         {
             jrnl.Write(Acct(n), init_acct);
             n := n + 1;
@@ -95,9 +98,9 @@ class Bank
         // accounts to be a repeat of nats instead of uint64 (hence the extra
         // let binding and type annotations)
         var new_accts: seq<nat> := repeat(init_bal as nat, 512);
-        sum_repeat(init_bal, 512);
+        sum_repeat(init_bal as nat, 512);
         accts := new_accts;
-        acct_sum := 512*init_bal;
+        acct_sum := 512*(init_bal as nat);
     }
 
     // NOTE: this should be interpreted as the body of a transaction, which
@@ -107,22 +110,22 @@ class Bank
     modifies {this,jrnl}
     requires acct1 < 512 && acct2 < 512 && acct1 != acct2
     requires 0 < accts[acct1]
-    requires accts[acct2] < 0x1_0000_0000_0000_000-1
+    requires accts[acct2] < 0x1_0000_0000_0000_0000-1
     ensures accts == old(accts[acct1:=accts[acct1]-1][acct2:=accts[acct2]+1])
     {
         var x := jrnl.Read(Acct(acct1), 64);
-        var acct1_val := decode_acct(x.obj, accts[acct1]);
+        var acct1_val: uint64 := decode_acct(x.obj, accts[acct1]);
         x.obj := encode_acct(acct1_val-1);
         x.SetDirty();
-        sum_update(accts, acct1, acct1_val-1);
-        accts := accts[acct1:=acct1_val-1];
+        sum_update(accts, acct1, (acct1_val-1) as nat);
+        accts := accts[acct1:=(acct1_val-1) as nat];
 
         x := jrnl.Read(Acct(acct2), 64);
         var acct2_val := decode_acct(x.obj, accts[acct2]);
         x.obj := encode_acct(acct2_val+1);
         x.SetDirty();
-        sum_update(accts, acct2, acct2_val+1);
-        accts := accts[acct2:=acct2_val+1];
+        sum_update(accts, acct2, (acct2_val+1) as nat);
+        accts := accts[acct2:=(acct2_val+1) as nat];
 
     }
 
