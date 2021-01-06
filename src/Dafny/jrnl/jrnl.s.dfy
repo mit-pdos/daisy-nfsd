@@ -49,17 +49,19 @@ module {:extern "jrnl"} JrnlSpec
                 && a.blkno in kinds
                 && objSize(data[a]) == kindSize(kinds[a.blkno]))
             && (forall a :: a in data <==> a in domain)
+            && (forall a:Addr ::
+                    (&& a.blkno in kinds
+                     && a.off < 4096*8
+                     // BUG: this variable needs to be fresh in some other
+                     // context due to an internal translation error
+                     && (var k__ := kinds[a.blkno];
+                         a.off % kindSize(k__) == 0)) <==>
+                     a in domain)
         }
 
         constructor(kinds: map<Blkno, Kind>)
-        requires forall blkno | blkno in kinds :: blkno >= 513
-        requires forall blkno | blkno in kinds :: kinds[blkno] >= 3
+        requires forall blkno | blkno in kinds :: blkno >= 513 && kinds[blkno] >= 3
         ensures Valid()
-        ensures forall a:Addr :: (&& a.blkno in kinds
-                                && a.off < 4096*8
-                                && (var k := kinds[a.blkno];
-                                    a.off % kindSize(k) == 0)) <==>
-                                a in domain
         ensures this.kinds == kinds
         ensures forall a:Addr :: a in domain ==>
                 && data[a] == zeroObject(kinds[a.blkno])
@@ -98,5 +100,14 @@ module {:extern "jrnl"} JrnlSpec
         requires a in domain && objSize(bs.data) == size(a)
         ensures data == old(data)[a:=bs.data]
     }
+
+    method {:extern} NewJrnl(kinds: map<Blkno, Kind>)
+    returns (jrnl:Jrnl)
+    requires forall blkno | blkno in kinds :: blkno >= 513 && kinds[blkno] >= 3
+    ensures fresh(jrnl)
+    ensures jrnl.Valid()
+    ensures jrnl.kinds == kinds
+    ensures forall a:Addr :: a in jrnl.domain ==>
+            && jrnl.data[a] == zeroObject(jrnl.kinds[a.blkno])
 
 }

@@ -79,7 +79,7 @@ class Bank
         // of the map display expression map<int,int>.
         assert 6 == KindUInt64;
         var kinds: map<Blkno, Kind> := map[513:=6];
-        var jrnl := new Jrnl(kinds);
+        var jrnl := NewJrnl(kinds);
 
         assert forall n: nat :: n < 512 ==>
             (var acct := Acct(n);

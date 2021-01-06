@@ -48,4 +48,10 @@ module Jrnl_model refines JrnlSpec {
             data := data[a:=bs.data];
         }
     }
+
+    method NewJrnl(kinds: map<Blkno, Kind>)
+    returns (jrnl:Jrnl)
+    {
+        return new Jrnl(kinds);
+    }
 }
