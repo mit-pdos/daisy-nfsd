@@ -32,7 +32,7 @@ class Bank
     requires acct in jrnl.domain
     {
         && val < 0x1_0000_0000_0000_0000
-        && jrnl.data[acct] == seq_encode([EncUInt64(val as uint64)])
+        && jrnl.data[acct].bs == seq_encode([EncUInt64(val as uint64)])
     }
 
     predicate Valid()

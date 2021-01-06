@@ -17,11 +17,11 @@ module {:extern "jrnl"} JrnlSpec
 
     type Blkno = nat
     datatype Addr = Addr(blkno: Blkno, off: nat)
-    type Object = seq<byte>
+    datatype Object = | ObjData (bs:seq<byte>)
 
     function method objSize(obj: Object): nat
     {
-        |obj| * 8
+        |obj.bs| * 8
     }
 
     function method zeroObject(k: Kind): (obj:Object)
@@ -29,7 +29,7 @@ module {:extern "jrnl"} JrnlSpec
     ensures objSize(obj) == kindSize(k)
     {
         kind_at_least_byte(k);
-        repeat(0 as bv8, kindSize(k)/8)
+        ObjData(repeat(0 as bv8, kindSize(k)/8))
     }
 
     class Jrnl
@@ -90,15 +90,16 @@ module {:extern "jrnl"} JrnlSpec
         ensures
         && fresh(buf)
         && buf.Valid()
-        && buf.data == data[a]
-        && objSize(buf.data) == sz
+        && buf.data == data[a].bs
+        && objSize(data[a]) == sz
 
         method {:extern} Write(a: Addr, bs: Bytes)
         modifies this
         requires Valid() ensures Valid()
         requires bs.Valid()
-        requires a in domain && objSize(bs.data) == size(a)
-        ensures data == old(data)[a:=bs.data]
+        requires a in domain && objSize(ObjData(bs.data)) == size(a)
+        requires kinds[a.blkno] >= 3
+        ensures data == old(data)[a:=ObjData(bs.data)]
     }
 
     method {:extern} NewJrnl(kinds: map<Blkno, Kind>)

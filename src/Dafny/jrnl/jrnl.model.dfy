@@ -40,12 +40,12 @@ module Jrnl_model refines JrnlSpec {
         {
             ghost var k := kinds[a.blkno];
             kindSize_bounds(k);
-            return new Bytes(data[a]);
+            return new Bytes(data[a].bs);
         }
 
         method Write(a: Addr, bs: Bytes)
         {
-            data := data[a:=bs.data];
+            data := data[a:=ObjData(bs.data)];
         }
     }
 
