@@ -3,7 +3,7 @@
 ## Quiet version of Dafny - outputs only on error
 
 # capture output
-out=$(mktemp -t 'dafny-output')
+out=$(mktemp '/tmp/dafny-output.XXXXXXXX') || exit 127
 
 cleanup() {
   rm "$out"
