@@ -7,31 +7,19 @@ include "machine.s.dfy"
 
 module bytes_model refines bytes {
     class {:compile false} Bytes {
-        var data_: seq<byte>;
-
-        predicate Valid()
-        {
-            |data_| < 0x1_0000_0000_0000_0000
-        }
-
-        function method data(): seq<byte>
-        {
-            data_
-        }
-
         constructor(data_: seq<byte>)
         {
-            this.data_ := data_;
+            this.data := data_;
         }
 
         function method Get(i: uint64): (x:byte)
         {
-            data_[i]
+            data[i]
         }
 
         method Append(b: byte)
         {
-            data_ := data_ + [b];
+            data := data + [b];
         }
     }
 

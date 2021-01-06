@@ -52,7 +52,7 @@ class Bank
     static method encode_acct(x: uint64) returns (bs:Bytes)
     ensures fresh(bs)
     ensures bs.Valid()
-    ensures seq_encode([EncUInt64(x)]) == bs.data()
+    ensures seq_encode([EncUInt64(x)]) == bs.data
     {
         var enc := new Encoder(8);
         enc.PutInt(x);
@@ -62,7 +62,7 @@ class Bank
     static method decode_acct(bs:Bytes, ghost x: nat) returns (x': uint64)
     requires x < 0x1_0000_0000_0000_0000
     requires bs.Valid()
-    requires seq_encode([EncUInt64(x as uint64)]) == bs.data()
+    requires seq_encode([EncUInt64(x as uint64)]) == bs.data
     ensures x' as nat == x
     {
         var dec := new Decoder();

@@ -55,14 +55,14 @@ ensures [x1] == [x2]
 method {:extern} UInt64Put(x: uint64, off: uint64, bytes: Bytes)
 modifies bytes
 requires bytes.Valid() ensures bytes.Valid()
-requires off as nat + 8 <= |bytes.data()|
-ensures bytes.data() == old(bytes.data()[..off as nat] + le_enc64(x) + bytes.data()[off as nat+8..])
+requires off as nat + 8 <= |bytes.data|
+ensures bytes.data == old(bytes.data[..off as nat] + le_enc64(x) + bytes.data[off as nat+8..])
 
 method {:extern} UInt64Get(bytes: Bytes, off: uint64)
 returns (x:uint64)
 requires bytes.Valid()
-requires off as nat + 8 <= |bytes.data()|
-ensures x == le_dec64(bytes.data()[off as nat..off as nat+8])
+requires off as nat + 8 <= |bytes.data|
+ensures x == le_dec64(bytes.data[off as nat..off as nat+8])
 
 
 }

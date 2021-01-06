@@ -51,8 +51,8 @@ class {:autocontracts} Encoder
     {
         && data.Valid()
         && off as nat <= data.Len() as nat
-        && seq_encode(enc) == data.data()[..off]
-        && |data.data()| == size
+        && seq_encode(enc) == data.data[..off]
+        && |data.data| == size
     }
 
     constructor(size: uint64)
@@ -69,7 +69,7 @@ class {:autocontracts} Encoder
 
     function bytes_left(): nat
     {
-        |data.data()|-(off as nat)
+        |data.data|-(off as nat)
     }
 
     method PutInt(x: uint64)
@@ -79,7 +79,7 @@ class {:autocontracts} Encoder
     ensures enc == old(enc) + [EncUInt64(x)]
     {
         UInt64Put(x, off, data);
-        assert data.data()[off..off+8] == le_enc64(x);
+        assert data.data[off..off+8] == le_enc64(x);
         off := off + 8;
         enc := enc + [EncUInt64(x)];
         seq_encode_app(old(enc), [EncUInt64(x)]);
@@ -87,8 +87,8 @@ class {:autocontracts} Encoder
 
     method Finish() returns (bs:Bytes)
     ensures bs.Valid()
-    ensures prefix_of(seq_encode(enc), bs.data())
-    ensures |bs.data()| == size
+    ensures prefix_of(seq_encode(enc), bs.data)
+    ensures |bs.data| == size
     ensures bs in Repr
     {
         return data;
@@ -99,8 +99,8 @@ class {:autocontracts} Encoder
     method FinishComplete() returns (bs:Bytes)
     requires bytes_left() == 0
     ensures bs.Valid()
-    ensures seq_encode(enc) == bs.data()
-    ensures |bs.data()| == size
+    ensures seq_encode(enc) == bs.data
+    ensures |bs.data| == size
     ensures bs in Repr
     {
         return data;
@@ -116,8 +116,8 @@ class {:autocontracts} Decoder
     predicate Valid()
     {
         && data.Valid()
-        && off as nat <= |data.data()|
-        && prefix_of(seq_encode(enc), data.data()[off..])
+        && off as nat <= |data.data|
+        && prefix_of(seq_encode(enc), data.data[off..])
     }
 
     constructor {:autocontracts false}()
@@ -131,7 +131,7 @@ class {:autocontracts} Decoder
     method {:autocontracts false} Init(data: Bytes, ghost enc: seq<Encodable>)
     modifies this
     requires data.Valid()
-    requires prefix_of(seq_encode(enc), data.data())
+    requires prefix_of(seq_encode(enc), data.data)
     ensures Valid()
     ensures fresh(Repr - {this, data})
     ensures this.enc == enc
@@ -152,11 +152,11 @@ class {:autocontracts} Decoder
         //seq_encode_app([enc[0]], enc[1..]);
         //assert data[off..] == data[off..off+8] + data[off+8..];
         //assert |enc_encode(enc[0])| == 8;
-        prefix_of_app2(seq_encode(enc), data.data()[off..], 8);
+        prefix_of_app2(seq_encode(enc), data.data[off..], 8);
         //assert prefix_of(seq_encode(enc[1..]), data[off+8..]);
         x' := UInt64Get(data, off);
         lemma_le_enc_dec64(x);
-        assert data.data()[off..off+8] == enc_encode(EncUInt64(x));
+        assert data.data[off..off+8] == enc_encode(EncUInt64(x));
         off := off + 8;
         enc := enc[1..];
         assert Valid();

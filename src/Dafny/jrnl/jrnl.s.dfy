@@ -117,8 +117,8 @@ class Jrnl
     ensures
     && fresh(buf)
     && buf.Valid()
-    && buf.data() == data[a]
-    && objSize(buf.data()) == sz
+    && buf.data == data[a]
+    && objSize(buf.data) == sz
     {
         ghost var k := kinds[a.blkno];
         kindSize_bounds(k);
@@ -129,10 +129,10 @@ class Jrnl
     modifies this
     requires Valid() ensures Valid()
     requires bs.Valid()
-    requires a in domain && objSize(bs.data()) == size(a)
-    ensures data == old(data)[a:=bs.data()]
+    requires a in domain && objSize(bs.data) == size(a)
+    ensures data == old(data)[a:=bs.data]
     {
-        data := data[a:=bs.data()];
+        data := data[a:=bs.data];
     }
 }
 
