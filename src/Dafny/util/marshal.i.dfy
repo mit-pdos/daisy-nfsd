@@ -6,7 +6,7 @@ module Marshal
 
 import opened Machine
 import opened IntEncoding
-import opened bytes
+import opened ByteSlice
 import opened Collections
 
 datatype Encodable = EncUInt64(x:uint64)

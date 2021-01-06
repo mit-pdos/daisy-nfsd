@@ -10,7 +10,7 @@ module IntEncoding
 {
 
 import opened Machine
-import opened bytes
+import opened ByteSlice
 
 function le_enc16(x: bv16): (bs:seq<byte>)
 ensures |bs| == 2

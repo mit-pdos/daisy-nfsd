@@ -12,7 +12,7 @@ module JrnlSpec
 
 import opened Machine
 import opened Kinds
-import opened bytes
+import opened ByteSlice
 import opened Collections
 
 type Blkno = nat

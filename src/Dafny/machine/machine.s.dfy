@@ -5,7 +5,7 @@ module Machine {
     newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
 }
 
-module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} bytes {
+module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} ByteSlice {
     import opened Machine
     import opened Collections
 
@@ -60,7 +60,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} by
 
 module bytes_test {
     import opened Machine
-    import opened bytes
+    import opened ByteSlice
 
     method UseBytes() {
         var bs := NewBytes(1);

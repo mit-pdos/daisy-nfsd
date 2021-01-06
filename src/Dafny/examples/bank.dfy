@@ -4,7 +4,7 @@ include "../jrnl/jrnl.s.dfy"
 module Bank {
 
 import opened Machine
-import opened bytes
+import opened ByteSlice
 import opened JrnlSpec
 import opened Kinds
 import opened Marshal

@@ -1,11 +1,11 @@
 include "machine.s.dfy"
 
-// This model ensures that the bytes extern interface is feasible (that it has
+// This model ensures that the ByteSlice extern interface is feasible (that it has
 // no contradictions). See
 // https://github.com/dafny-lang/dafny/wiki/Modeling-External-State-Correctly
 // for a complete description of this approach.
 
-module bytes_model refines bytes {
+module ByteSlice_model refines ByteSlice {
     class {:compile false} Bytes {
         constructor(data_: seq<byte>)
         {
