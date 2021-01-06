@@ -1,4 +1,4 @@
-include "../machine/machine_s.dfy"
+include "../machine/machine.s.dfy"
 include "../util/pow.dfy"
 include "../util/collections.dfy"
 include "kinds.s.dfy"
@@ -12,6 +12,7 @@ module JrnlSpec
 
 import opened Machine
 import opened Kinds
+import opened bytes
 import opened Collections
 
 type Blkno = nat
@@ -58,22 +59,14 @@ class Jrnl
     // behavior)
     ghost const domain: set<Addr>;
     const kinds: map<Blkno, Kind>;
-    var has_readbuf: bool;
 
-    predicate ValidButReading()
+    predicate Valid()
     reads this
     {
         && (forall a :: a in data ==>
             && a.blkno in kinds
             && objSize(data[a]) == kindSize(kinds[a.blkno]))
         && (forall a :: a in data <==> a in domain)
-    }
-
-    predicate Valid()
-    reads this
-    {
-        && ValidButReading()
-        && !has_readbuf
     }
 
     constructor(kinds: map<Blkno, Kind>)
@@ -99,12 +92,11 @@ class Jrnl
              && a.off % kindSize(kinds[a.blkno]) == 0;
         this.data := data;
         this.domain := map_domain(data);
-        this.has_readbuf := false;
     }
 
     function size(a: Addr): nat
     reads this
-    requires ValidButReading()
+    requires Valid()
     requires a in domain
     {
         kindSize(this.kinds[a.blkno])
@@ -112,91 +104,35 @@ class Jrnl
 
     predicate has_kind(a: Addr, k: Kind)
     reads this
-    requires ValidButReading()
+    requires Valid()
     {
         && a in domain
         && kinds[a.blkno] == k
     }
 
     method Read(a: Addr, sz: nat)
-    returns (buf:ReadBuf)
-    requires Valid() ensures ValidButReading()
-    modifies this
+    returns (buf:Bytes)
+    requires Valid() ensures Valid()
     requires a in domain && sz == size(a)
     ensures
     && fresh(buf)
-    && data == old(data)
-    && has_readbuf
-    && buf.a == a
-    && buf.obj == data[a]
-    && objSize(buf.obj) == sz
-    && buf.jrnl == this
+    && buf.Valid()
+    && buf.data() == data[a]
+    && objSize(buf.data()) == sz
     {
-        has_readbuf := true;
-        return new ReadBuf(a, data[a], this);
+        ghost var k := kinds[a.blkno];
+        kindSize_bounds(k);
+        return new Bytes(data[a]);
     }
 
-    method Write(a: Addr, obj: Object)
+    method Write(a: Addr, bs: Bytes)
     modifies this
     requires Valid() ensures Valid()
-    requires a in domain && objSize(obj) == size(a)
-    ensures data == old(data)[a:=obj]
+    requires bs.Valid()
+    requires a in domain && objSize(bs.data()) == size(a)
+    ensures data == old(data)[a:=bs.data()]
     {
-        data := data[a:=obj];
-    }
-}
-
-class ReadBuf
-{
-    const a: Addr;
-    var obj: Object;
-    var jrnl: Jrnl;
-
-    constructor(a: Addr, obj: Object, jrnl: Jrnl)
-    requires jrnl.ValidButReading()
-    requires a in jrnl.domain && objSize(obj) == jrnl.size(a)
-    requires jrnl.has_readbuf
-    ensures Valid()
-    ensures
-    && this.a == a
-    && this.obj == obj
-    && this.jrnl == jrnl;
-    {
-        this.a := a;
-        this.obj := obj;
-        this.jrnl := jrnl;
-    }
-
-    predicate Valid()
-    reads this, jrnl
-    {
-        && jrnl.ValidButReading()
-        && a in jrnl.domain
-        && objSize(obj) == jrnl.size(a)
-        && jrnl.has_readbuf
-    }
-
-    method Finish()
-    modifies jrnl
-    requires Valid()
-    ensures !Valid() && jrnl.Valid()
-    ensures jrnl.data == old(jrnl.data)
-    ensures obj == old(obj)
-    {
-        jrnl.has_readbuf := false;
-    }
-
-    // SetDirty() models writing the buffer out after manually changing the
-    // object
-    method SetDirty()
-    modifies jrnl;
-    requires Valid()
-    // intentionally does not guarantee validity (consumes the buffer)
-    ensures !Valid() && jrnl.Valid()
-    ensures jrnl.data == old(jrnl.data)[a:=obj]
-    {
-        Finish();
-        jrnl.Write(a, obj);
+        data := data[a:=bs.data()];
     }
 }
 

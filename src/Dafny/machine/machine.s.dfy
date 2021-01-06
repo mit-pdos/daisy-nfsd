@@ -5,32 +5,56 @@ module Machine {
     newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
 }
 
-
 module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} bytes {
     import opened Machine
     import opened Collections
 
     class {:extern} Bytes {
-        function {:extern} data(): seq<byte>
+        predicate {:extern} Valid()
         reads this
 
+        // NOTE(tej): both the constructor and data() are available in code in
+        // order to write the feasibility of Jrnl; it would be nice to separate
+        // these out, so that the model of Jrnl depends on the model of bytes.
+
+        function method {:extern} data(): (bs:seq<byte>)
+        reads this
+        requires Valid()
+        ensures |bs| < 0x1_0000_0000_0000_0000
+
         constructor {:extern} (data_: seq<byte>)
+        requires |data_| < 0x1_0000_0000_0000_0000
+        ensures Valid()
         ensures data() == data_
 
-        method {:extern} Get(i: uint64)
-        returns (x: byte)
-        modifies {}
+        function method {:extern} Len(): (len:uint64)
+        reads this
+        requires Valid()
+        ensures len as nat == |data()|
+
+        function method {:extern} Get(i: uint64): (x: byte)
+        reads this
+        requires Valid()
         requires i as nat < |data()|
         ensures x == data()[i]
 
+        method {:extern} Set(i: uint64, b: byte)
+        modifies this
+        requires Valid() ensures Valid()
+        requires i as nat < |data()|
+        ensures data() == old(data())[i as nat:=b]
+
         method {:extern} Append(b: byte)
         modifies this
+        requires Valid() ensures Valid()
+        requires |data()| < 0x1_0000_0000_0000_0000-1
         ensures data() == old(data()) + [b]
     }
 
     method {:extern} NewBytes(sz: uint64)
     returns (bs:Bytes)
     ensures fresh(bs)
+    ensures bs.Valid()
     ensures bs.data() == repeat(0 as byte, sz as nat)
 }
 

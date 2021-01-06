@@ -1,4 +1,3 @@
-include "../machine/machine_s.dfy"
 include "../machine/int_encoding.s.dfy"
 include "../util/collections.dfy"
 
@@ -7,6 +6,7 @@ module Marshal
 
 import opened Machine
 import opened IntEncoding
+import opened bytes
 import opened Collections
 
 datatype Encodable = EncUInt64(x:uint64)
@@ -44,96 +44,106 @@ class {:autocontracts} Encoder
 {
     ghost var enc: seq<Encodable>;
     ghost const size: nat;
-    var data: array<byte>;
-    var off: nat;
+    var data: Bytes;
+    var off: uint64;
 
     predicate Valid()
     {
-        && off <= data.Length
-        && seq_encode(enc) == data[..off]
-        && data.Length == size
+        && data.Valid()
+        && off as nat <= data.Len() as nat
+        && seq_encode(enc) == data.data()[..off]
+        && |data.data()| == size
     }
 
-    constructor(size: nat)
+    constructor(size: uint64)
     ensures enc == []
-    ensures bytes_left() == size
+    ensures this.size == size as nat
+    ensures bytes_left() == this.size
     {
-        this.data := new byte[size];
+        var bs := NewBytes(size);
+        this.data := bs;
         this.off := 0;
         this.enc := [];
-        this.size := size;
+        this.size := size as nat;
     }
 
     function bytes_left(): nat
     {
-        data.Length-off
+        |data.data()|-(off as nat)
     }
 
     method PutInt(x: uint64)
+    modifies this, Repr
     requires bytes_left() >= 8
     ensures bytes_left() == old(bytes_left()) - 8
     ensures enc == old(enc) + [EncUInt64(x)]
     {
-        forall k: nat | 0 <= k < 8 {
-            data[off+k] := le_enc64(x)[k];
-        }
-        assert data[off..off+8] == le_enc64(x);
+        UInt64Put(x, off, data);
+        assert data.data()[off..off+8] == le_enc64(x);
         off := off + 8;
         enc := enc + [EncUInt64(x)];
         seq_encode_app(old(enc), [EncUInt64(x)]);
     }
 
-    method Finish() returns (bs:seq<byte>)
-    ensures prefix_of(seq_encode(enc), bs)
-    ensures |bs| == size
+    method Finish() returns (bs:Bytes)
+    ensures bs.Valid()
+    ensures prefix_of(seq_encode(enc), bs.data())
+    ensures |bs.data()| == size
+    ensures bs in Repr
     {
-        return data[..];
+        return data;
     }
 
-    method FinishComplete() returns (bs:seq<byte>)
+    // Exactly the same as Finish but with a simpler spec if the encoder has
+    // been completely used
+    method FinishComplete() returns (bs:Bytes)
     requires bytes_left() == 0
-    ensures seq_encode(enc) == bs
-    ensures |bs| == size
+    ensures bs.Valid()
+    ensures seq_encode(enc) == bs.data()
+    ensures |bs.data()| == size
+    ensures bs in Repr
     {
-        return data[..];
+        return data;
     }
 }
 
 class {:autocontracts} Decoder
 {
     ghost var enc: seq<Encodable>;
-    var data: array<byte>;
-    var off: nat;
+    var data: Bytes;
+    var off: uint64;
 
     predicate Valid()
     {
-        && off <= data.Length
-        && prefix_of(seq_encode(enc), data[off..])
+        && data.Valid()
+        && off as nat <= |data.data()|
+        && prefix_of(seq_encode(enc), data.data()[off..])
     }
 
     constructor {:autocontracts false}()
     {
+        // FIXME: dummy assignment because of "definite assignment rules"
+        var bs := NewBytes(0);
+        data := bs;
     }
 
     // not a constructor due to https://github.com/dafny-lang/dafny/issues/374
-    method {:autocontracts false} Init(data: seq<byte>, ghost enc: seq<Encodable>)
+    method {:autocontracts false} Init(data: Bytes, ghost enc: seq<Encodable>)
     modifies this
-    requires prefix_of(seq_encode(enc), data)
+    requires data.Valid()
+    requires prefix_of(seq_encode(enc), data.data())
     ensures Valid()
-    ensures fresh(Repr - {this})
+    ensures fresh(Repr - {this, data})
     ensures this.enc == enc
     {
-        var mut_data := new byte[|data|];
-        forall i:nat | i < |data| {
-            mut_data[i] := data[i];
-        }
-        this.data := mut_data;
+        this.data := data;
         this.off := 0;
         this.enc := enc;
-        this.Repr := {this, mut_data};
+        this.Repr := {this, data};
     }
 
     method GetInt(ghost x: uint64) returns (x':uint64)
+    modifies this
     requires |enc| > 0 && enc[0] == EncUInt64(x)
     ensures x' == x
     ensures enc == old(enc)[1..]
@@ -142,11 +152,11 @@ class {:autocontracts} Decoder
         //seq_encode_app([enc[0]], enc[1..]);
         //assert data[off..] == data[off..off+8] + data[off+8..];
         //assert |enc_encode(enc[0])| == 8;
-        prefix_of_app2(seq_encode(enc), data[off..], 8);
+        prefix_of_app2(seq_encode(enc), data.data()[off..], 8);
         //assert prefix_of(seq_encode(enc[1..]), data[off+8..]);
-        x' := le_dec64(data[off..off+8]);
+        x' := UInt64Get(data, off);
         lemma_le_enc_dec64(x);
-        assert data[off..off+8] == enc_encode(EncUInt64(x));
+        assert data.data()[off..off+8] == enc_encode(EncUInt64(x));
         off := off + 8;
         enc := enc[1..];
         assert Valid();

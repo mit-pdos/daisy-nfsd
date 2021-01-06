@@ -4,6 +4,7 @@ include "../jrnl/jrnl.s.dfy"
 module Bank {
 
 import opened Machine
+import opened bytes
 import opened JrnlSpec
 import opened Kinds
 import opened Marshal
@@ -48,17 +49,20 @@ class Bank
         && acct_sum == sum_nat(accts)
     }
 
-    static method encode_acct(x: uint64) returns (bs:seq<byte>)
-    ensures seq_encode([EncUInt64(x)]) == bs
+    static method encode_acct(x: uint64) returns (bs:Bytes)
+    ensures fresh(bs)
+    ensures bs.Valid()
+    ensures seq_encode([EncUInt64(x)]) == bs.data()
     {
         var enc := new Encoder(8);
         enc.PutInt(x);
         bs := enc.FinishComplete();
     }
 
-    static method decode_acct(bs:seq<byte>, ghost x: nat) returns (x': uint64)
+    static method decode_acct(bs:Bytes, ghost x: nat) returns (x': uint64)
     requires x < 0x1_0000_0000_0000_0000
-    requires seq_encode([EncUInt64(x as uint64)]) == bs
+    requires bs.Valid()
+    requires seq_encode([EncUInt64(x as uint64)]) == bs.data()
     ensures x' as nat == x
     {
         var dec := new Decoder();
@@ -85,6 +89,7 @@ class Bank
         var init_acct := encode_acct(init_bal);
         var n := 0;
         while n < 512
+        modifies jrnl
         invariant jrnl.Valid()
         invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal as nat)
         {
@@ -114,16 +119,16 @@ class Bank
     ensures accts == old(accts[acct1:=accts[acct1]-1][acct2:=accts[acct2]+1])
     {
         var x := jrnl.Read(Acct(acct1), 64);
-        var acct1_val: uint64 := decode_acct(x.obj, accts[acct1]);
-        x.obj := encode_acct(acct1_val-1);
-        x.SetDirty();
+        var acct1_val: uint64 := decode_acct(x, accts[acct1]);
+        var x' := encode_acct(acct1_val-1);
+        jrnl.Write(Acct(acct1), x');
         sum_update(accts, acct1, (acct1_val-1) as nat);
         accts := accts[acct1:=(acct1_val-1) as nat];
 
         x := jrnl.Read(Acct(acct2), 64);
-        var acct2_val := decode_acct(x.obj, accts[acct2]);
-        x.obj := encode_acct(acct2_val+1);
-        x.SetDirty();
+        var acct2_val: uint64 := decode_acct(x, accts[acct2]);
+        x' := encode_acct(acct2_val+1);
+        jrnl.Write(Acct(acct2), x');
         sum_update(accts, acct2, (acct2_val+1) as nat);
         accts := accts[acct2:=(acct2_val+1) as nat];
 
