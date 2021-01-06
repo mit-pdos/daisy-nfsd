@@ -1,0 +1,22 @@
+#!/bin/bash
+
+## Quiet version of Dafny - outputs only on error
+
+# capture output
+out=$(mktemp -t 'dafny-output')
+
+cleanup() {
+  rm "$out"
+}
+
+dafny "$@" 1> "$out"
+status="$?"
+
+trap cleanup EXIT
+
+# on error, print output (and output to stderr while we're at it)
+if [ "$status" -ne 0 ]; then
+  cat "$out" >&2
+fi
+
+exit "$status"

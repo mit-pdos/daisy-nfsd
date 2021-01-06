@@ -1,8 +1,8 @@
-DFY_FILES := $(shell find src -name "*.dfy")
+DFY_FILES := $(shell find src -path src/Dafny/machine/machine_s-go -prune -false -o -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 DAFNY_ARGS := /compile:0 /compileTarget:go /nologo /compileVerbose:0
-DAFNY := dafny $(DAFNY_ARGS)
+DAFNY := ./etc/dafnyq $(DAFNY_ARGS)
 
 Q:=@
 
