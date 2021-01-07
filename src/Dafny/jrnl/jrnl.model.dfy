@@ -5,17 +5,14 @@ module Jrnl_model refines JrnlSpec {
     function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
     ensures hasDomainForKinds(kinds, addrs)
     {
-        var addrs := set blkno : Blkno, off : int |
+        // TODO: kind of a bummer that we have to repeat the body of
+        // hasDomainForKinds, but in a function method can't use the "somehow
+        // assign" form :|
+        set blkno : Blkno, off : int |
         && blkno in kinds
         && 0 <= off < 4096*8
-        :: Addr(blkno, off);
-        assert forall a:Addr :: a.blkno in kinds && 0 <= a.off < 4096*8 ==> a in addrs;
-        // NOTE: need to create the set above and then restrict it for Dafny's
-        // finite set comprehension heuristics to work
-        set a:Addr |
-        && a in addrs
-        && (var k := kinds[a.blkno];
-            a.off % kindSize(k) == 0)
+        && off % kindSize(kinds[blkno]) == 0
+        :: Addr(blkno, off)
     }
 
     class Jrnl {
@@ -24,10 +21,6 @@ module Jrnl_model refines JrnlSpec {
             var data: map<Addr, Object> :=
                 map a:Addr | a in addrsForKinds(kinds)
                             :: zeroObject(kinds[a.blkno]);
-            assert forall a:Addr :: a in data <==>
-                && a.blkno in kinds
-                && a.off < 4096*8
-                && a.off % kindSize(kinds[a.blkno]) == 0;
             this.kinds := kinds;
             this.data := data;
             this.domain := map_domain(data);
