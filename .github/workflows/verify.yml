@@ -29,10 +29,10 @@ jobs:
     - name: Test support library
       run: |
         cd src/dafny_go
-        go test ./...
+        go test -v ./...
     - name: Compile
       run: |
         cd bank-go
         export GOPATH="$PWD"
         go get -t ./src
-        go test ./src
+        go test -v ./src
