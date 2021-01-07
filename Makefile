@@ -32,6 +32,11 @@ bank-go/src/bank.go: src/Dafny/compile.dfy $(DFY_FILES)
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $< 1>/dev/null
 	$(Q)cd bank-go; \
 	env GOPATH="$$PWD" goimports -w ./src
+	$(Q)cd bank-go; \
+	if [ ! -d src/github.com/mit-pdos/dafny-jrnl ]; then \
+		mkdir -p src/github.com/mit-pdos; \
+		ln -s ../../../.. src/github.com/mit-pdos/dafny-jrnl; \
+	fi
 
 clean:
 	@echo "CLEAN"
