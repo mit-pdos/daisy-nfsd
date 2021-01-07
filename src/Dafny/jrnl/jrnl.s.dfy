@@ -17,17 +17,21 @@ module {:extern "jrnl"} JrnlSpec
 
     type Blkno = nat
     datatype Addr = Addr(blkno: Blkno, off: nat)
-    datatype Object = | ObjData (bs:seq<byte>)
+    datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
 
     function method objSize(obj: Object): nat
     {
-        |obj.bs| * 8
+        match obj
+        case ObjData(bs) => |bs| * 8
+        case ObjBit(b) => 1
     }
 
     function method zeroObject(k: Kind): (obj:Object)
-    requires k >= 3
     ensures objSize(obj) == kindSize(k)
     {
+        if k == 0 then
+            ObjBit(false)
+        else
         kind_at_least_byte(k);
         ObjData(repeat(0 as bv8, kindSize(k)/8))
     }
@@ -86,20 +90,34 @@ module {:extern "jrnl"} JrnlSpec
         method {:extern} Read(a: Addr, sz: nat)
         returns (buf:Bytes)
         requires Valid() ensures Valid()
-        requires a in domain && sz == size(a)
+        requires a in domain && size(a) == sz
+        // Read only works for at least byte-sized objects
+        requires sz >= 8
         ensures
         && fresh(buf)
         && buf.Valid()
         && buf.data == data[a].bs
         && objSize(data[a]) == sz
 
+        method {:extern} ReadBit(a: Addr)
+        returns (b:bool)
+        requires Valid() ensures Valid()
+        requires a in domain && size(a) == 1
+        ensures && data[a] == ObjBit(b)
+
         method {:extern} Write(a: Addr, bs: Bytes)
         modifies this
         requires Valid() ensures Valid()
         requires bs.Valid()
-        requires a in domain && objSize(ObjData(bs.data)) == size(a)
-        requires kinds[a.blkno] >= 3
+        requires a in domain && size(a) == objSize(ObjData(bs.data))
+        requires 8 <= |bs.data|
         ensures data == old(data)[a:=ObjData(bs.data)]
+
+        method {:extern} WriteBit(a: Addr, b: bool)
+        modifies this
+        requires Valid() ensures Valid()
+        requires a in domain && size(a) == 1
+        ensures data == old(data)[a:=ObjBit(b)]
     }
 
     method {:extern} NewJrnl(kinds: map<Blkno, Kind>)

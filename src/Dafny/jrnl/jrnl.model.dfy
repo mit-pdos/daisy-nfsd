@@ -43,9 +43,19 @@ module Jrnl_model refines JrnlSpec {
             return new Bytes(data[a].bs);
         }
 
+        method ReadBit(a: Addr) returns (b:bool)
+        {
+            return data[a].b;
+        }
+
         method Write(a: Addr, bs: Bytes)
         {
             data := data[a:=ObjData(bs.data)];
+        }
+
+        method WriteBit(a: Addr, b: bool)
+        {
+            data := data[a:=ObjBit(b)];
         }
     }
 
