@@ -15,8 +15,8 @@ Demo of bank transfer using axiomatized journal API
 */
 class Bank
 {
-    ghost const acct_sum: nat;
     ghost var accts: seq<nat>;
+    ghost const acct_sum: nat;
 
     var jrnl: Jrnl;
 
@@ -35,8 +35,9 @@ class Bank
         && jrnl.data[acct] == ObjData(seq_encode([EncUInt64(val as uint64)]))
     }
 
-    predicate Valid()
-    reads this, jrnl
+    // pure version of Valid for crash condition
+    static predicate ValidState(jrnl: Jrnl, accts: seq<nat>, acct_sum: nat)
+        reads jrnl
     {
         && jrnl.Valid()
         && |accts| == 512
@@ -47,6 +48,12 @@ class Bank
              && accts[n] < 0x1_0000_0000_0000_0000
              && acct_val(jrnl, acct, accts[n]))
         && acct_sum == sum_nat(accts)
+    }
+
+    predicate Valid()
+        reads this, jrnl
+    {
+        && ValidState(jrnl, accts, acct_sum)
     }
 
     static method encode_acct(x: uint64) returns (bs:Bytes)
@@ -70,7 +77,7 @@ class Bank
         x' := dec.GetInt(x as uint64);
     }
 
-    constructor(d: Disk, init_bal: uint64)
+    constructor Init(d: Disk, init_bal: uint64)
     ensures Valid()
     ensures forall n: nat:: n < 512 ==> accts[n] == init_bal as nat
     ensures acct_sum == 512*(init_bal as nat)
@@ -111,8 +118,18 @@ class Bank
         acct_sum := 512*(init_bal as nat);
     }
 
-    // NOTE: this should be interpreted as the body of a transaction, which
-    // needs to be surrounded with code to check for errors and abort
+    constructor Recover(jrnl: Jrnl, ghost accts: seq<nat>, ghost acct_sum: nat)
+        requires ValidState(jrnl, accts, acct_sum)
+        ensures Valid()
+        ensures this.jrnl == jrnl
+        ensures this.accts == accts
+        ensures this.acct_sum == acct_sum
+    {
+        this.jrnl := jrnl;
+        this.accts := accts;
+        this.acct_sum := acct_sum;
+    }
+
     method transfer(acct1: uint64, acct2: uint64)
     requires Valid() ensures Valid()
     modifies {this,jrnl}

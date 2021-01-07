@@ -18,10 +18,6 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             |data| < 0x1_0000_0000_0000_0000
         }
 
-        // NOTE(tej): both the constructor and data are available in code in
-        // order to write the feasibility of Jrnl; it would be nice to separate
-        // these out, so that the model of Jrnl depends on the model of bytes.
-
         constructor {:extern} (data_: seq<byte>)
         requires |data_| < 0x1_0000_0000_0000_0000
         ensures Valid()
