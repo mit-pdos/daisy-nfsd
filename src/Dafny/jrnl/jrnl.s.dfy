@@ -195,7 +195,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         requires a in jrnl.domain && jrnl.size(a) == 1
         ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
 
-        method {:extern} Commit()
+        method {:extern} Commit() returns (ok:bool)
         requires Valid() ensures Valid()
     }
 

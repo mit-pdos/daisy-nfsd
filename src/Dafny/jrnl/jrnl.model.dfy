@@ -79,8 +79,9 @@ module Jrnl_model refines JrnlSpec {
             jrnl.data := jrnl.data[a:=ObjBit(b)];
         }
 
-        method Commit()
+        method Commit() returns (ok:bool)
         {
+            ok := true;
         }
     }
 

@@ -86,9 +86,7 @@ func (txn *Txn) WriteBit(a Addr, b bool) {
 	txn.btxn.OverWrite(a_, 1, []byte{data})
 }
 
-func (txn *Txn) Commit() {
+func (txn *Txn) Commit() bool {
 	ok := txn.btxn.CommitWait(true)
-	if !ok {
-		panic("failed to commit")
-	}
+	return ok
 }

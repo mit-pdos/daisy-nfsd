@@ -105,7 +105,7 @@ class Bank
             txn.Write(Acct(n), init_acct);
             n := n + 1;
         }
-        txn.Commit();
+        var _ := txn.Commit();
 
         this.jrnl := jrnl;
 
@@ -161,7 +161,7 @@ class Bank
         x' := encode_acct(acct2_val+1);
         txn.Write(Acct(acct2), x');
         inc_acct(acct2, 1);
-        txn.Commit();
+        var _ := txn.Commit();
     }
 
     method Get(acct: uint64)
