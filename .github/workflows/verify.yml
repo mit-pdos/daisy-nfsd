@@ -26,6 +26,10 @@ jobs:
     - uses: actions/checkout@v2
     - name: Verify
       run: make -j2 all
+    - name: Test support library
+      run: |
+        cd src/dafny_go
+        go test ./...
     - name: Compile
       run: |
         cd bank-go
