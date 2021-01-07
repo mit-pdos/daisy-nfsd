@@ -31,7 +31,7 @@ class Bank
     requires jrnl.Valid()
     requires acct in jrnl.domain
     {
-        && val < 0x1_0000_0000_0000_0000
+        && val < U64.MAX
         && jrnl.data[acct] == ObjData(seq_encode([EncUInt64(val as uint64)]))
     }
 
@@ -45,7 +45,7 @@ class Bank
             (var acct := Acct(n);
              && acct in jrnl.domain
              && jrnl.size(acct) == 64
-             && accts[n] < 0x1_0000_0000_0000_0000
+             && accts[n] < U64.MAX
              && acct_val(jrnl, acct, accts[n]))
         && acct_sum == sum_nat(accts)
     }
@@ -67,7 +67,7 @@ class Bank
     }
 
     static method decode_acct(bs:Bytes, ghost x: nat) returns (x': uint64)
-    requires x < 0x1_0000_0000_0000_0000
+    requires x < U64.MAX
     requires bs.Valid()
     requires seq_encode([EncUInt64(x as uint64)]) == bs.data
     ensures x' as nat == x
@@ -133,7 +133,7 @@ class Bank
     ghost method inc_acct(acct: uint64, amt: int)
         modifies this
         requires acct as nat < |accts|
-        requires 0 <= (accts[acct] as nat + amt) < 0x1_0000_0000_0000_0000
+        requires no_overflow(accts[acct], amt)
         ensures accts == old(accts[acct as nat:=accts[acct] + amt])
         ensures sum_nat(accts) == old(sum_nat(accts) + amt)
     {
@@ -146,7 +146,7 @@ class Bank
     modifies {this,jrnl}
     requires acct1 < 512 && acct2 < 512 && acct1 != acct2
     requires 0 < accts[acct1]
-    requires accts[acct2] < 0x1_0000_0000_0000_0000-1
+    requires no_overflow(accts[acct2], 1)
     ensures accts == old(accts[acct1 as nat:=accts[acct1]-1][acct2 as nat:=accts[acct2]+1])
     {
         var txn := jrnl.Begin();

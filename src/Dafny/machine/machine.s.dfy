@@ -3,6 +3,24 @@ include "../util/collections.dfy"
 module Machine {
     type byte = bv8
     newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
+
+    predicate no_overflow(x: nat, y: int)
+    {
+        0 <= x + y < U64.MAX
+    }
+
+    // NOTE(tej): I wanted this to be in module U64, but Dafny imports children
+    // modules into their parents but not the other way around, so there's no
+    // way to do that without making U64 a separate module (which I don't know
+    // how to re-export)
+    predicate no_overflow_u64(x: uint64, y: int)
+    {
+        no_overflow(x as nat, y)
+    }
+
+    module U64 {
+        const MAX: nat := 0x1_0000_0000_0000_0000
+    }
 }
 
 module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} ByteSlice {
@@ -15,11 +33,11 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
         predicate Valid()
         reads this
         {
-            |data| < 0x1_0000_0000_0000_0000
+            |data| < U64.MAX
         }
 
         constructor {:extern} (data_: seq<byte>)
-        requires |data_| < 0x1_0000_0000_0000_0000
+        requires |data_| < U64.MAX
         ensures Valid()
         ensures data == data_
 
@@ -43,7 +61,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
         method {:extern} Append(b: byte)
         modifies this
         requires Valid() ensures Valid()
-        requires |data| < 0x1_0000_0000_0000_0000-1
+        requires no_overflow(|data|, 1)
         ensures data == old(data) + [b]
     }
 
@@ -119,7 +137,7 @@ module bytes_test {
 
     method UseUint64(x: uint64)
     returns (y:uint64)
-    requires x as nat < 0x1_0000_0000_0000_0000-1
+    requires x as nat + 1 < U64.MAX
     {
         return x + 1;
     }
