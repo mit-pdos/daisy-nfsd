@@ -27,7 +27,7 @@ endif
 	$(Q)touch "$@"
 
 # compilation runs goimports to clean up unused imports emitted by Dafny
-bank-go/src/bank.go: src/Dafny/examples/bank.dfy $(DFY_FILES)
+bank-go/src/bank.go: src/Dafny/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $< 1>/dev/null
 	$(Q)cd bank-go; \
