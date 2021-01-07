@@ -20,7 +20,9 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     type Blkno = uint64
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
-    datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
+    datatype Object =
+        | ObjData (bs:seq<byte>)
+        | ObjBit (b:bool)
 
     function method objSize(obj: Object): nat
     {
@@ -32,11 +34,10 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     function method zeroObject(k: Kind): (obj:Object)
     ensures objSize(obj) == kindSize(k)
     {
-        if k == 0 then
-            ObjBit(false)
+        if k == 0 then ObjBit(false)
         else
-        kind_at_least_byte(k);
-        ObjData(repeat(0 as bv8, kindSize(k)/8))
+            kind_at_least_byte(k);
+            ObjData(repeat(0 as bv8, kindSize(k)/8))
     }
 
     predicate kindsValid(kinds: map<Blkno, Kind>)
@@ -55,7 +56,27 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
            a in addrs
     }
 
-    class Jrnl
+    class {:extern} Allocator
+    {
+        const max: uint64;
+
+        constructor {:extern} NewAlloc(max: uint64)
+            ensures this.max == max
+
+        // MarkUsed prevents an index from being allocated. Used during recovery.
+        method {:extern} MarkUsed(x: uint64)
+            modifies this
+
+        method {:extern} Alloc()
+            returns (x:uint64)
+            modifies this
+            ensures x as nat <= max as nat
+
+        method {:extern} Free(x: uint64)
+            modifies this
+    }
+
+    class {:extern} Jrnl
     {
         var data: map<Addr, Object>;
         // we cache the domain of data to easily show that it's constant
@@ -113,7 +134,8 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         }
     }
 
-    class {:extern} Txn {
+    class {:extern} Txn
+    {
 
         var jrnl: Jrnl;
 
