@@ -42,11 +42,11 @@ class Bank
         && jrnl.Valid()
         && |accts| == 512
         && forall n: uint64 :: n < 512 ==>
-            (var acct := Acct(n);
-             && acct in jrnl.domain
-             && jrnl.size(acct) == 64
+            (var acct_ := Acct(n);
+             && acct_ in jrnl.domain
+             && jrnl.size(acct_) == 64
              && accts[n] < U64.MAX
-             && acct_val(jrnl, acct, accts[n]))
+             && acct_val(jrnl, acct_, accts[n]))
         && acct_sum == sum_nat(accts)
     }
 
@@ -141,7 +141,7 @@ class Bank
         accts := accts[acct as nat:=accts[acct] + amt];
     }
 
-    method transfer(acct1: uint64, acct2: uint64)
+    method Transfer(acct1: uint64, acct2: uint64)
     requires Valid() ensures Valid()
     modifies {this,jrnl}
     requires acct1 < 512 && acct2 < 512 && acct1 != acct2
@@ -164,9 +164,20 @@ class Bank
         txn.Commit();
     }
 
+    method Get(acct: uint64)
+        returns (bal: uint64)
+        requires Valid() ensures Valid()
+        requires acct < 512
+        ensures bal as nat == accts[acct]
+    {
+        var txn := jrnl.Begin();
+        var x := txn.Read(Acct(acct), 64);
+        bal := decode_acct(x, accts[acct]);
+    }
+
     // this is kind of silly but it gets the point across (without requiring the
     // reader to understand Valid())
-    method audit() returns (b:bool)
+    method Audit() returns (b:bool)
     modifies {}
     requires Valid()
     ensures b == (sum_nat(accts) == acct_sum)
