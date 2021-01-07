@@ -6,7 +6,11 @@ DAFNY := ./etc/dafnyq $(DAFNY_ARGS)
 
 Q:=@
 
-all: $(OK_FILES) src/Dafny/examples/bank-go/src/bank.go
+default: $(OK_FILES)
+
+compile: src/Dafny/examples/bank-go/src/bank.go
+
+all: $(OK_FILES) compile
 
 .dafnydeps.d: $(DFY_FILES) etc/dafnydep
 	@echo "DAFNYDEP"

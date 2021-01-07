@@ -19,4 +19,4 @@ jobs:
         echo "/tmp/dafny" >> $GITHUB_PATH
     - uses: actions/checkout@v2
     - name: Verify
-      run: make -j2
+      run: make -j2 all
