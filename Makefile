@@ -29,6 +29,8 @@ endif
 bank-go/src/bank.go: src/Dafny/examples/bank.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $< 1>/dev/null
+	$(Q)cd bank-go; \
+	env GOPATH="$$PWD" goimports -w ./src
 
 clean:
 	@echo "CLEAN"

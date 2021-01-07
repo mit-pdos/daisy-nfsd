@@ -7,6 +7,11 @@ include "kinds.s.dfy"
 Spec for sequential journal API, assuming we're using 2PL.
 */
 
+module JrnlTypes {
+    type Blkno = nat
+    datatype Addr = Addr(blkno: Blkno, off: nat)
+}
+
 module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} JrnlSpec
 {
 
@@ -14,9 +19,8 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     import opened Kinds
     import opened ByteSlice
     import opened Collections
+    import opened JrnlTypes
 
-    type Blkno = nat
-    datatype Addr = Addr(blkno: Blkno, off: nat)
     datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
 
     function method objSize(obj: Object): nat
