@@ -4,7 +4,11 @@ set -e
 
 ## Some simple sanity checks for code quality in infrastructure
 
-markdown-link-check README.md
-markdown-link-check research.md
-black --diff etc/dafnydep
-mypy etc/dafnydep
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd "$SCRIPT_DIR/.."
+
+markdown-link-check "README.md"
+markdown-link-check "research.md"
+black --diff "etc/dafnydep"
+mypy "etc/dafnydep"
+shellcheck "etc/dafnyq"
