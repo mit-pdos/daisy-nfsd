@@ -1,8 +1,6 @@
 package jrnl
 
 import (
-	"fmt"
-
 	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
@@ -38,20 +36,6 @@ func (_this Addr) Dtor_off() uint64 {
 }
 
 // end of Addr datatype
-//
-// MkAddr builds the Dafny representation of an address
-//
-// Mainly for testing purposes; Dafny-generated code constructs a datatype using
-// a struct literal.
-func MkAddr(blkno Blkno, off uint64) Addr {
-	if blkno < 513 {
-		panic(fmt.Sprintf("invalid blkno %d < 513", blkno))
-	}
-	if off > 8*4096 {
-		panic(fmt.Sprintf("out-of-bounds offset %d", off))
-	}
-	return Addr{Addr_Addr: Addr_Addr{Blkno: blkno, Off: off}}
-}
 
 func dafnyAddrToAddr(a Addr) addr.Addr {
 	return addr.Addr{Blkno: a.Blkno, Off: a.Off}
