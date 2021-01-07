@@ -16,7 +16,7 @@ module Jrnl_model refines JrnlSpec {
     }
 
     class Allocator {
-        constructor NewAlloc(max: uint64)
+        constructor(max: uint64)
         {
             this.max := max;
         }
@@ -34,6 +34,12 @@ module Jrnl_model refines JrnlSpec {
         method Free(x: uint64)
         {
         }
+    }
+
+    method NewAllocator(max: uint64)
+        returns (a:Allocator)
+    {
+        a := new Allocator(max);
     }
 
     class Jrnl {

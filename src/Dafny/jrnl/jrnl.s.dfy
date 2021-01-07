@@ -56,11 +56,14 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
            a in addrs
     }
 
+    // This is an allocator that makes no real guarantees due to being
+    // stateless, so that no issues of concurrency arise.
     class {:extern} Allocator
     {
         const max: uint64;
 
-        constructor {:extern} NewAlloc(max: uint64)
+        constructor {:extern}(max: uint64)
+            requires max%8 == 0
             ensures this.max == max
 
         // MarkUsed prevents an index from being allocated. Used during recovery.
@@ -70,11 +73,18 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         method {:extern} Alloc()
             returns (x:uint64)
             modifies this
-            ensures x as nat <= max as nat
+            ensures x <= max
 
         method {:extern} Free(x: uint64)
+            requires x <= max
             modifies this
     }
+
+    method {:extern} NewAllocator(max: uint64)
+        returns (a:Allocator)
+        requires max%8 == 0
+        ensures fresh(a)
+        ensures a.max == max
 
     class {:extern} Jrnl
     {

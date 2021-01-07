@@ -19,6 +19,8 @@ github.com/mattn/go-isatty v0.0.11/go.mod h1:PhnuNfih5lzO57/f3n+odYbM4JtupLOxQOA
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
 github.com/mit-pdos/goose-nfsd v0.0.0-20201221203728-170cafdcddd9 h1:FGsfAOKg/gJyV5drGMxlRdBSR5zTpv5DSzQzU+zMG7I=
 github.com/mit-pdos/goose-nfsd v0.0.0-20201221203728-170cafdcddd9/go.mod h1:b5BosCMzHIjGXeeIruDN2TxC+Pu4tasfIFyY7/rMK9E=
+github.com/mit-pdos/goose-nfsd v0.0.0-20210107224622-f3c922dd9926 h1:WdgfsE4eDE0AS1eyk6YiLtsDPu8Rhqb4jobAjU0I9bc=
+github.com/mit-pdos/goose-nfsd v0.0.0-20210107224622-f3c922dd9926/go.mod h1:m49FM9l/6VOeatwj5Sl/DcZyVcUO9eG1ApjfjD2mcz0=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
