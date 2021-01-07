@@ -5,7 +5,7 @@ module Machine {
     newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
 }
 
-module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} ByteSlice {
+module {:extern "machine", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/machine"} ByteSlice {
     import opened Machine
     import opened Collections
 
