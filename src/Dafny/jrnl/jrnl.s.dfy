@@ -23,7 +23,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     import opened Collections
     import opened JrnlTypes
 
-    type {:extern} Disk
+    class {:extern} Disk{}
 
     datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
 
