@@ -1,4 +1,4 @@
-package machine
+package bytes
 
 // Bytes wraps a byte slice []byte
 type Bytes struct {
