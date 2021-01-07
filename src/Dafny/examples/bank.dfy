@@ -130,6 +130,17 @@ class Bank
         this.acct_sum := acct_sum;
     }
 
+    ghost method inc_acct(acct: uint64, amt: int)
+        modifies this
+        requires acct as nat < |accts|
+        requires 0 <= (accts[acct] as nat + amt) < 0x1_0000_0000_0000_0000
+        ensures accts == old(accts[acct as nat:=accts[acct] + amt])
+        ensures sum_nat(accts) == old(sum_nat(accts) + amt)
+    {
+        sum_update(accts, acct as nat, accts[acct] as nat + amt);
+        accts := accts[acct as nat:=accts[acct] + amt];
+    }
+
     method transfer(acct1: uint64, acct2: uint64)
     requires Valid() ensures Valid()
     modifies {this,jrnl}
@@ -143,15 +154,13 @@ class Bank
         var acct1_val: uint64 := decode_acct(x, accts[acct1]);
         var x' := encode_acct(acct1_val-1);
         txn.Write(Acct(acct1), x');
-        sum_update(accts, acct1 as nat, (acct1_val-1) as nat);
-        accts := accts[acct1 as nat:=(acct1_val-1) as nat];
+        inc_acct(acct1, -1);
 
         x := txn.Read(Acct(acct2), 64);
         var acct2_val: uint64 := decode_acct(x, accts[acct2]);
         x' := encode_acct(acct2_val+1);
         txn.Write(Acct(acct2), x');
-        sum_update(accts, acct2 as nat, (acct2_val+1) as nat);
-        accts := accts[acct2 as nat:=(acct2_val+1) as nat];
+        inc_acct(acct2, 1);
         txn.Commit();
     }
 
