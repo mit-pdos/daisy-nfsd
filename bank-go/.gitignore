@@ -1,0 +1,4 @@
+/src/*
+/pkg/*
+!/src/bank_test.go
+!.gitignore

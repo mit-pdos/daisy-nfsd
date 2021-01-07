@@ -42,4 +42,4 @@ clean:
 	@echo "CLEAN"
 	$(Q)find . -name "*.dfy.ok" -delete
 	$(Q)rm -f .dafnydeps.d
-	$(Q)rm -rf bank-go
+	$(Q)rm -rf bank-go/src/bank.go bank-go/src/*/ bank-go/pkg
