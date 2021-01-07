@@ -16,3 +16,14 @@ crash-safety reasoning in Perennial.
 [Spec for journal interface, assuming 2PL](./src/Dafny/jrnl/jrnl.s.dfy)
 
 [Bank example](./src/Dafny/examples/bank.dfy)
+
+## Compiling
+
+Run `make` to verify everything and `make all` to also compile the bank example.
+
+You'll need Dafny 2.3 on your $PATH. Compilation additionally depends on
+goimports to remove unused imports:
+
+```sh
+go get golang.org/x/tools/cmd/goimports
+```
