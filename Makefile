@@ -1,4 +1,4 @@
-DFY_FILES := $(shell find src -path src/Dafny/examples/bank-go -prune -false -o -name "*.dfy")
+DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 DAFNY_ARGS := /compile:0 /compileTarget:go /nologo /compileVerbose:0
@@ -8,7 +8,7 @@ Q:=@
 
 default: $(OK_FILES)
 
-compile: src/Dafny/examples/bank-go/src/bank.go
+compile: bank-go/src/bank.go
 
 all: $(OK_FILES) compile
 
@@ -26,12 +26,12 @@ endif
 	$(Q)$(DAFNY) /compile:0 "$<" 1>/dev/null
 	$(Q)touch "$@"
 
-src/Dafny/examples/bank-go/src/bank.go: src/Dafny/examples/bank.dfy $(DFY_FILES)
+bank-go/src/bank.go: src/Dafny/examples/bank.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 $< 1>/dev/null
+	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $< 1>/dev/null
 
 clean:
 	@echo "CLEAN"
 	$(Q)find . -name "*.dfy.ok" -delete
 	$(Q)rm -f .dafnydeps.d
-	$(Q)rm -rf src/Dafny/examples/bank-go
+	$(Q)rm -rf bank-go
