@@ -25,34 +25,38 @@ module Jrnl_model refines JrnlSpec {
             this.data := data;
             this.domain := map_domain(data);
         }
+    }
+
+    class Txn {
 
         method Read(a: Addr, sz: nat)
         returns (buf:Bytes)
         {
-            ghost var k := kinds[a.blkno];
+            ghost var k := jrnl.kinds[a.blkno];
             kindSize_bounds(k);
-            return new Bytes(data[a].bs);
+            return new Bytes(jrnl.data[a].bs);
         }
 
         method ReadBit(a: Addr) returns (b:bool)
         {
-            return data[a].b;
+            return jrnl.data[a].b;
         }
 
         method Write(a: Addr, bs: Bytes)
         {
-            data := data[a:=ObjData(bs.data)];
+            jrnl.data := jrnl.data[a:=ObjData(bs.data)];
         }
 
         method WriteBit(a: Addr, b: bool)
         {
-            data := data[a:=ObjBit(b)];
+            jrnl.data := jrnl.data[a:=ObjBit(b)];
+        }
+
+        method Commit()
+        {
         }
     }
 
-    method NewJrnl(kinds: map<Blkno, Kind>)
-    returns (jrnl:Jrnl)
-    {
-        return new Jrnl(kinds);
-    }
+    // NOTE: NewJrnl is not refined because it makes kinds ghost, which matches
+    // how the code works but isn't possible to do in a ghost context in Dafny
 }

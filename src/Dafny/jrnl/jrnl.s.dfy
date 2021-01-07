@@ -23,6 +23,8 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     import opened Collections
     import opened JrnlTypes
 
+    type {:extern} Disk
+
     datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
 
     function method objSize(obj: Object): nat
@@ -103,40 +105,74 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             && kinds[a.blkno] == k
         }
 
+        method Begin()
+            returns (txn:Txn)
+            // TODO: should invalidate Jrnl while a transaction is in progress
+            // but lazy
+            requires Valid() ensures Valid()
+            ensures fresh(txn)
+            ensures txn.jrnl == this
+            ensures txn.Valid()
+        {
+            return new Txn(this);
+        }
+    }
+
+    class {:extern} Txn {
+
+        var jrnl: Jrnl;
+
+        constructor(jrnl: Jrnl)
+            requires jrnl.Valid()
+            ensures this.jrnl == jrnl
+            ensures Valid()
+        {
+            this.jrnl := jrnl;
+        }
+
+        predicate Valid()
+            reads this, jrnl
+        {
+            && jrnl.Valid()
+        }
+
         method {:extern} Read(a: Addr, sz: nat)
         returns (buf:Bytes)
         requires Valid() ensures Valid()
-        requires a in domain && size(a) == sz
+        requires a in jrnl.domain && jrnl.size(a) == sz
         // Read only works for at least byte-sized objects
         requires sz >= 8
         ensures
         && fresh(buf)
         && buf.Valid()
-        && buf.data == data[a].bs
-        && objSize(data[a]) == sz
+        && buf.data == jrnl.data[a].bs
+        && objSize(jrnl.data[a]) == sz
 
         method {:extern} ReadBit(a: Addr)
         returns (b:bool)
         requires Valid() ensures Valid()
-        requires a in domain && size(a) == 1
-        ensures && data[a] == ObjBit(b)
+        requires a in jrnl.domain && jrnl.size(a) == 1
+        ensures && jrnl.data[a] == ObjBit(b)
 
         method {:extern} Write(a: Addr, bs: Bytes)
-        modifies this
+        modifies jrnl
         requires Valid() ensures Valid()
         requires bs.Valid()
-        requires a in domain && size(a) == objSize(ObjData(bs.data))
+        requires a in jrnl.domain && jrnl.size(a) == objSize(ObjData(bs.data))
         requires 8 <= |bs.data|
-        ensures data == old(data)[a:=ObjData(bs.data)]
+        ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
 
         method {:extern} WriteBit(a: Addr, b: bool)
-        modifies this
+        modifies jrnl
         requires Valid() ensures Valid()
-        requires a in domain && size(a) == 1
-        ensures data == old(data)[a:=ObjBit(b)]
+        requires a in jrnl.domain && jrnl.size(a) == 1
+        ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
+
+        method {:extern} Commit()
+        requires Valid() ensures Valid()
     }
 
-    method {:extern} NewJrnl(kinds: map<Blkno, Kind>)
+    method {:extern} NewJrnl(d: Disk, ghost kinds: map<Blkno, Kind>)
     returns (jrnl:Jrnl)
     requires kindsValid(kinds)
     ensures fresh(jrnl)
