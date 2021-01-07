@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Install Dafny
       run: |
@@ -17,6 +17,12 @@ jobs:
         wget -O dafny.zip https://github.com/dafny-lang/dafny/releases/download/v2.3.0/dafny-2.3.0.10506-x64-ubuntu-16.04.zip
         unzip dafny.zip
         echo "/tmp/dafny" >> $GITHUB_PATH
+    - uses: actions/setup-go@v2
+      with:
+        go-version: "1.15.6"
+    - name: Install goimports
+        run: |
+          go get golang.org/x/tools/cmd/goimports
     - uses: actions/checkout@v2
     - name: Verify
       run: make -j2 all
