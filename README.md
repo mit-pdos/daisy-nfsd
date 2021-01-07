@@ -15,4 +15,4 @@ crash-safety reasoning in Perennial.
 
 [Spec for journal interface, assuming 2PL](./src/Dafny/jrnl/jrnl.s.dfy)
 
-[Bank example](./src/Dafny/examples/bank.i.dfy)
+[Bank example](./src/Dafny/examples/bank.dfy)
