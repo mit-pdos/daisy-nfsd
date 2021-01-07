@@ -7,13 +7,6 @@ include "kinds.s.dfy"
 Spec for sequential journal API, assuming we're using 2PL.
 */
 
-module JrnlTypes {
-    import opened Machine
-
-    type Blkno = uint64
-    datatype Addr = Addr(blkno: Blkno, off: uint64)
-}
-
 module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} JrnlSpec
 {
 
@@ -21,9 +14,11 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     import opened Kinds
     import opened ByteSlice
     import opened Collections
-    import opened JrnlTypes
 
     class {:extern} Disk{}
+
+    type Blkno = uint64
+    datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
     datatype Object = | ObjData (bs:seq<byte>) | ObjBit (b:bool)
 
@@ -136,17 +131,17 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             && jrnl.Valid()
         }
 
-        method {:extern} Read(a: Addr, sz: nat)
+        method {:extern} Read(a: Addr, sz: uint64)
         returns (buf:Bytes)
         requires Valid() ensures Valid()
-        requires a in jrnl.domain && jrnl.size(a) == sz
+        requires a in jrnl.domain && jrnl.size(a) == sz as nat
         // Read only works for at least byte-sized objects
         requires sz >= 8
         ensures
         && fresh(buf)
         && buf.Valid()
         && buf.data == jrnl.data[a].bs
-        && objSize(jrnl.data[a]) == sz
+        && objSize(jrnl.data[a]) == sz as nat
 
         method {:extern} ReadBit(a: Addr)
         returns (b:bool)

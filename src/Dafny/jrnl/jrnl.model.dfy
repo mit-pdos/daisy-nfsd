@@ -29,7 +29,7 @@ module Jrnl_model refines JrnlSpec {
 
     class Txn {
 
-        method Read(a: Addr, sz: nat)
+        method Read(a: Addr, sz: uint64)
         returns (buf:Bytes)
         {
             ghost var k := jrnl.kinds[a.blkno];
