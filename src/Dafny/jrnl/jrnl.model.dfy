@@ -3,9 +3,7 @@ include "../machine/machine.model.dfy"
 
 module Jrnl_model refines JrnlSpec {
     function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
-    ensures forall a:Addr :: (&& a.blkno in kinds
-                            && 0 <= a.off < 4096*8
-                            && a.off % kindSize(kinds[a.blkno]) == 0) <==> a in addrs
+    ensures hasDomainForKinds(kinds, addrs)
     {
         var addrs := set blkno : Blkno, off : int |
         && blkno in kinds

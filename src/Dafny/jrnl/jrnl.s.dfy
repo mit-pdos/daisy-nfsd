@@ -36,6 +36,22 @@ module {:extern "jrnl"} JrnlSpec
         ObjData(repeat(0 as bv8, kindSize(k)/8))
     }
 
+    predicate kindsValid(kinds: map<Blkno, Kind>)
+    {
+        forall a | a in kinds :: 513 <= a
+    }
+
+    // specifies that the set of addresses is the correct set for a particular
+    // kind schema
+    predicate hasDomainForKinds(kinds: map<Blkno, Kind>, addrs: set<Addr>)
+    {
+        forall a:Addr ::
+          (&& a.blkno in kinds
+           && a.off < 4096*8
+           && a.off % kindSize(kinds[a.blkno]) == 0) <==>
+           a in addrs
+    }
+
     class Jrnl
     {
         var data: map<Addr, Object>;
@@ -49,22 +65,16 @@ module {:extern "jrnl"} JrnlSpec
         predicate Valid()
         reads this
         {
+            && kindsValid(kinds)
             && (forall a :: a in data ==>
                 && a.blkno in kinds
                 && objSize(data[a]) == kindSize(kinds[a.blkno]))
             && (forall a :: a in data <==> a in domain)
-            && (forall a:Addr ::
-                    (&& a.blkno in kinds
-                     && a.off < 4096*8
-                     // BUG: this variable needs to be fresh in some other
-                     // context due to an internal translation error
-                     && (var k__ := kinds[a.blkno];
-                         a.off % kindSize(k__) == 0)) <==>
-                     a in domain)
+            && hasDomainForKinds(kinds, domain)
         }
 
         constructor(kinds: map<Blkno, Kind>)
-        requires forall blkno | blkno in kinds :: blkno >= 513 && kinds[blkno] >= 3
+        requires kindsValid(kinds)
         ensures Valid()
         ensures this.kinds == kinds
         ensures forall a:Addr :: a in domain ==>
@@ -122,7 +132,7 @@ module {:extern "jrnl"} JrnlSpec
 
     method {:extern} NewJrnl(kinds: map<Blkno, Kind>)
     returns (jrnl:Jrnl)
-    requires forall blkno | blkno in kinds :: blkno >= 513 && kinds[blkno] >= 3
+    requires kindsValid(kinds)
     ensures fresh(jrnl)
     ensures jrnl.Valid()
     ensures jrnl.kinds == kinds
