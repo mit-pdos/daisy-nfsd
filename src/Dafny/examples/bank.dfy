@@ -21,7 +21,7 @@ class Bank
 
     var jrnl: Jrnl;
 
-    static function method Acct(n: nat): (a:Addr)
+    static function method Acct(n: uint64): (a:Addr)
     requires n < 512
     {
         Addr(513, n*64)
@@ -41,7 +41,7 @@ class Bank
     {
         && jrnl.Valid()
         && |accts| == 512
-        && forall n: nat :: n < 512 ==>
+        && forall n: uint64 :: n < 512 ==>
             (var acct := Acct(n);
              && acct in jrnl.domain
              && jrnl.size(acct) == 64
@@ -82,7 +82,7 @@ class Bank
         var kinds: map<Blkno, Kind> := map[513:=6];
         var jrnl := NewJrnl(kinds);
 
-        assert forall n: nat :: n < 512 ==>
+        assert forall n: uint64 :: n < 512 ==>
             (var acct := Acct(n);
              && acct in jrnl.domain
              && jrnl.size(acct) == 64);
@@ -111,27 +111,27 @@ class Bank
 
     // NOTE: this should be interpreted as the body of a transaction, which
     // needs to be surrounded with code to check for errors and abort
-    method transfer(acct1: nat, acct2: nat)
+    method transfer(acct1: uint64, acct2: uint64)
     requires Valid() ensures Valid()
     modifies {this,jrnl}
     requires acct1 < 512 && acct2 < 512 && acct1 != acct2
     requires 0 < accts[acct1]
     requires accts[acct2] < 0x1_0000_0000_0000_0000-1
-    ensures accts == old(accts[acct1:=accts[acct1]-1][acct2:=accts[acct2]+1])
+    ensures accts == old(accts[acct1 as nat:=accts[acct1]-1][acct2 as nat:=accts[acct2]+1])
     {
         var x := jrnl.Read(Acct(acct1), 64);
         var acct1_val: uint64 := decode_acct(x, accts[acct1]);
         var x' := encode_acct(acct1_val-1);
         jrnl.Write(Acct(acct1), x');
-        sum_update(accts, acct1, (acct1_val-1) as nat);
-        accts := accts[acct1:=(acct1_val-1) as nat];
+        sum_update(accts, acct1 as nat, (acct1_val-1) as nat);
+        accts := accts[acct1 as nat:=(acct1_val-1) as nat];
 
         x := jrnl.Read(Acct(acct2), 64);
         var acct2_val: uint64 := decode_acct(x, accts[acct2]);
         x' := encode_acct(acct2_val+1);
         jrnl.Write(Acct(acct2), x');
-        sum_update(accts, acct2, (acct2_val+1) as nat);
-        accts := accts[acct2:=(acct2_val+1) as nat];
+        sum_update(accts, acct2 as nat, (acct2_val+1) as nat);
+        accts := accts[acct2 as nat:=(acct2_val+1) as nat];
 
     }
 

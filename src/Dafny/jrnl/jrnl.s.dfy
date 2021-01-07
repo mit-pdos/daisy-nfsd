@@ -8,8 +8,10 @@ Spec for sequential journal API, assuming we're using 2PL.
 */
 
 module JrnlTypes {
-    type Blkno = nat
-    datatype Addr = Addr(blkno: Blkno, off: nat)
+    import opened Machine
+
+    type Blkno = uint64
+    datatype Addr = Addr(blkno: Blkno, off: uint64)
 }
 
 module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} JrnlSpec
@@ -52,7 +54,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         forall a:Addr ::
           (&& a.blkno in kinds
            && a.off < 4096*8
-           && a.off % kindSize(kinds[a.blkno]) == 0) <==>
+           && a.off as nat % kindSize(kinds[a.blkno]) == 0) <==>
            a in addrs
     }
 

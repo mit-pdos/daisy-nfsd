@@ -8,10 +8,10 @@ module Jrnl_model refines JrnlSpec {
         // TODO: kind of a bummer that we have to repeat the body of
         // hasDomainForKinds, but in a function method can't use the "somehow
         // assign" form :|
-        set blkno : Blkno, off : int |
+        set blkno : Blkno, off : uint64 |
         && blkno in kinds
         && 0 <= off < 4096*8
-        && off % kindSize(kinds[blkno]) == 0
+        && off as nat % kindSize(kinds[blkno]) == 0
         :: Addr(blkno, off)
     }
 
