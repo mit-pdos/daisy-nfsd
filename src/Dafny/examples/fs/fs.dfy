@@ -156,6 +156,8 @@ module Fs {
     ensures kindsValid(fs_kinds)
   {}
 
+  datatype Option<T> = Some(x:T) | None
+
   class Filesys
   {
 
@@ -164,51 +166,76 @@ module Fs {
 
     // intermediate abstractions
     ghost var inodes: map<Ino, Inode.Inode>;
-    ghost var block_used: map<Blkno, bool>;
+    // gives the inode that owns the block
+    ghost var block_used: map<Blkno, Option<Ino>>;
     ghost var data_block: map<Blkno, seq<byte>>;
 
     var jrnl: Jrnl;
     var balloc: Allocator;
 
-    static predicate ValidState(jrnl: Jrnl, data: map<Ino, seq<byte>>)
-      reads jrnl
+    predicate Valid_basics()
+      reads this, jrnl
     {
       && jrnl.Valid()
-      // TODO: eventually everything in Valid should go here (but this is
-      // annoying because we're going to be adding several ghost fields to Filesys)
+      && jrnl.kinds == fs_kinds
+    }
+
+    predicate Valid_block_used()
+      requires Valid_basics()
+      reads this, jrnl
+    {
+      && (forall blkno :: blkno < 4096*8 ==> blkno in block_used)
+      && (forall blkno | blkno in block_used ::
+        && blkno < 4096 * 8
+        && jrnl.data[Addr(DataAllocBlk, blkno)] == ObjBit(block_used[blkno].Some?))
+    }
+
+    predicate Valid_data_block()
+      requires Valid_basics()
+      reads this, jrnl
+    {
+      && (forall blkno :: blkno < 4096*8 ==> blkno in data_block)
+      && (forall blkno | blkno in data_block ::
+        && blkno < 4096*8
+        && jrnl.data[DataBlk(blkno)] == ObjData(data_block[blkno]))
+    }
+
+    predicate Valid_inodes()
+      requires Valid_basics()
+      reads this, jrnl
+    {
+      && (forall ino: Ino | ino < 32 :: ino in inodes)
+      && (forall ino: Ino | ino in inodes ::
+        && ino < 32
+        && Inode.Valid(inodes[ino])
+        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
     }
 
     predicate Valid()
       reads this, jrnl
     {
-      && ValidState(jrnl, data)
-      && jrnl.kinds == fs_kinds
-      && (forall ino: Ino | ino < 32 ::
-        && ino in inodes
-        && Inode.Valid(inodes[ino]))
-      && (forall ino: Ino | ino in data :: ino in inodes)
-      && (forall ino: Ino | ino in inodes ::
-        && ino in data
-        && inodes[ino].sz as nat == |data[ino]|)
+      // TODO: split this into multiple predicates, ideally opaque
+      && Valid_basics()
 
-      && (forall blkno: uint64 :: blkno < 4096*8 <==> blkno in block_used)
-      && (forall blkno | blkno in block_used ::
-         jrnl.data[Addr(DataAllocBlk, blkno)] == ObjBit(block_used[blkno]))
-      // this is true but probably not useful
-      // && (forall blkno | blkno in block_used ::
-      //    jrnl.size(Addr(DataAllocBlk, blkno)) == 1)
-      && (forall blkno :: blkno in data_block <==> blkno < 4096*8)
-      && (forall blkno | blkno in data_block :: jrnl.data[DataBlk(blkno)] == ObjData(data_block[blkno]))
+      // NOTE(tej): this is for the real abstract state, which we're not worrying
+      // about for now
+      // && (forall ino: Ino | ino in data :: ino in inodes)
+      // && (forall ino: Ino | ino in inodes ::
+      //   && ino in data
+      //   && inodes[ino].sz as nat == |data[ino]|)
+      // TODO: tie Inode.Inode low-level value + block data to abstract state
 
-      && (forall ino: Ino | ino < 32 :: jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
+      && this.Valid_block_used()
+      && this.Valid_data_block()
+      && this.Valid_inodes()
+
+      // TODO: tie inode ownership to inode block lists
 
       && balloc.max == 4096*8
     }
 
     constructor(d: Disk)
       ensures Valid()
-      ensures forall ino :: ino in this.data <==> ino < 513
-      ensures forall ino | ino in data :: data[ino] == []
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
@@ -216,12 +243,11 @@ module Fs {
       var balloc := NewAllocator(4096*8);
       balloc.MarkUsed(0);
       this.balloc := balloc;
-      this.data := map ino: Ino {:trigger} | ino < 513 :: [];
 
       this.inodes := map ino: Ino {:trigger} | ino < 513 :: Inode.zero;
       Inode.zero_encoding();
       this.block_used := map blkno: uint64 {:trigger} |
-        blkno < 4096*8 :: false;
+        blkno < 4096*8 :: None;
       this.data_block := map blkno: uint64 |
         blkno < 4096*8 :: zeroObject(KindBlock).bs;
     }
