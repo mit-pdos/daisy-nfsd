@@ -173,6 +173,8 @@ module Fs {
     var jrnl: Jrnl;
     var balloc: Allocator;
 
+    static predicate blkno_ok(blkno: Blkno) { blkno < 4096*8 }
+
     predicate Valid_basics()
       reads this, jrnl
     {
@@ -180,14 +182,21 @@ module Fs {
       && jrnl.kinds == fs_kinds
     }
 
+    static lemma blkno_bit_inbounds(jrnl: Jrnl)
+      requires jrnl.Valid()
+      requires jrnl.kinds == fs_kinds
+      ensures forall bn :: blkno_ok(bn) ==> Addr(DataAllocBlk, bn) in jrnl.data
+    {}
+
     predicate Valid_block_used()
       requires Valid_basics()
       reads this, jrnl
     {
-      && (forall blkno :: blkno < 4096*8 ==> blkno in block_used)
-      && (forall blkno | blkno in block_used ::
-        && blkno < 4096 * 8
-        && jrnl.data[Addr(DataAllocBlk, blkno)] == ObjBit(block_used[blkno].Some?))
+      blkno_bit_inbounds(jrnl);
+      && (forall bn :: blkno_ok(bn) ==> bn in block_used)
+      && (forall bn | bn in block_used ::
+        && blkno_ok(bn)
+        && jrnl.data[Addr(DataAllocBlk, bn)] == ObjBit(block_used[bn].Some?))
     }
 
     predicate Valid_data_block()
