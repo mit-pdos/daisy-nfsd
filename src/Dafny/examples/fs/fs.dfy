@@ -120,6 +120,7 @@ module Fs {
   type Ino = uint64
 
   predicate blkno_ok(blkno: Blkno) { blkno < 4096*8 }
+  predicate ino_ok(ino: Blkno) { ino < 32 }
 
   // disk layout, in blocks:
   //
@@ -137,7 +138,7 @@ module Fs {
     Addr(513+2+bn, 0)
   }
   function method InodeAddr(ino: Ino): (a:Addr)
-    requires ino < 32
+    requires ino_ok(ino)
     ensures a.off < 4096*8
   {
     Addr(InodeBlk, ino*128*8)
@@ -213,9 +214,9 @@ module Fs {
       requires Valid_basics()
       reads this, jrnl
     {
-      && (forall ino: Ino | ino < 32 :: ino in inodes)
+      && (forall ino: Ino | ino_ok(ino) :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
-        && ino < 32
+        && ino_ok(ino)
         && Inode.Valid(inodes[ino])
         && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
     }
