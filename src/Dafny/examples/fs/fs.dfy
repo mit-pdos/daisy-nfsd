@@ -271,12 +271,17 @@ module Fs {
       balloc.MarkUsed(0);
       this.balloc := balloc;
 
-      this.inodes := map ino: Ino {:trigger} | ino < 513 :: Inode.zero;
+      this.inodes := map ino: Ino | ino < 513 :: Inode.zero;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 |
         blkno_ok(bn) :: None;
       this.data_block := map bn: uint64 |
         blkno_ok(bn) :: zeroObject(KindBlock).bs;
+      new;
+      assert Valid_inodes();
+      assert 500 in inodes;
+      assert ino_ok(500);
+      assert false;
     }
   }
 
