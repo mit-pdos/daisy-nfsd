@@ -129,19 +129,29 @@ module Fs {
   // 1 bitmap block
   // 4096*8 data blocks
   const NumBlocks: nat := 513 + 1 + 1 + 4096*8
+    // if you want to make a disk for the fs 40,000 blocks is a usable number
+  lemma NumBlocks_upper_bound()
+    ensures NumBlocks < 40_000
+  {}
 
   const InodeBlk: Blkno := 513
   const DataAllocBlk: Blkno := 514
-  function method DataBlk(bn: uint64): Addr
-    requires blkno_ok(bn)
-  {
-    Addr(513+2+bn, 0)
-  }
+
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
     ensures a.off < 4096*8
   {
     Addr(InodeBlk, ino*128*8)
+  }
+  function method DataBitAddr(bn: uint64): Addr
+    requires blkno_ok(bn)
+  {
+    Addr(DataAllocBlk, bn)
+  }
+  function method DataBlk(bn: uint64): Addr
+    requires blkno_ok(bn)
+  {
+    Addr(513+2+bn, 0)
   }
 
   const fs_kinds: map<Blkno, Kind> :=
@@ -186,7 +196,13 @@ module Fs {
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
-      ensures forall bn :: blkno_ok(bn) ==> Addr(DataAllocBlk, bn) in jrnl.data
+      ensures forall bn :: blkno_ok(bn) ==> DataBitAddr(bn) in jrnl.data
+    {}
+
+    static lemma inode_inbounds(jrnl: Jrnl)
+      requires jrnl.Valid()
+      requires jrnl.kinds == fs_kinds
+      ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data
     {}
 
     predicate Valid_block_used()
@@ -197,7 +213,7 @@ module Fs {
       && (forall bn :: blkno_ok(bn) ==> bn in block_used)
       && (forall bn | bn in block_used ::
         && blkno_ok(bn)
-        && jrnl.data[Addr(DataAllocBlk, bn)] == ObjBit(block_used[bn].Some?))
+        && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
     }
 
     predicate Valid_data_block()
@@ -214,6 +230,7 @@ module Fs {
       requires Valid_basics()
       reads this, jrnl
     {
+      inode_inbounds(jrnl);
       && (forall ino: Ino | ino_ok(ino) :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
         && ino_ok(ino)
