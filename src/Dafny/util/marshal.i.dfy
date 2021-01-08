@@ -44,7 +44,7 @@ class {:autocontracts} Encoder
 {
     ghost var enc: seq<Encodable>;
     ghost const size: nat;
-    var data: Bytes;
+    const data: Bytes;
     var off: uint64;
 
     predicate Valid()
@@ -73,7 +73,7 @@ class {:autocontracts} Encoder
     }
 
     method PutInt(x: uint64)
-    modifies this, Repr
+    modifies this, data
     requires bytes_left() >= 8
     ensures bytes_left() == old(bytes_left()) - 8
     ensures enc == old(enc) + [EncUInt64(x)]
@@ -89,7 +89,7 @@ class {:autocontracts} Encoder
     ensures bs.Valid()
     ensures prefix_of(seq_encode(enc), bs.data)
     ensures |bs.data| == size
-    ensures bs in Repr
+    ensures bs == data
     {
         return data;
     }
@@ -101,26 +101,27 @@ class {:autocontracts} Encoder
     ensures bs.Valid()
     ensures seq_encode(enc) == bs.data
     ensures |bs.data| == size
-    ensures bs in Repr
+    ensures bs == data
     {
         return data;
     }
 }
 
-class {:autocontracts} Decoder
+class Decoder
 {
     ghost var enc: seq<Encodable>;
     var data: Bytes;
     var off: uint64;
 
     predicate Valid()
+        reads this, data
     {
         && data.Valid()
         && off as nat <= |data.data|
         && prefix_of(seq_encode(enc), data.data[off..])
     }
 
-    constructor {:autocontracts false}()
+    constructor()
     {
         // FIXME: dummy assignment because of "definite assignment rules"
         var bs := NewBytes(0);
@@ -128,25 +129,26 @@ class {:autocontracts} Decoder
     }
 
     // not a constructor due to https://github.com/dafny-lang/dafny/issues/374
-    method {:autocontracts false} Init(data: Bytes, ghost enc: seq<Encodable>)
+    method Init(data: Bytes, ghost enc: seq<Encodable>)
     modifies this
     requires data.Valid()
     requires prefix_of(seq_encode(enc), data.data)
     ensures Valid()
-    ensures fresh(Repr - {this, data})
     ensures this.enc == enc
+    ensures this.data == data
     {
         this.data := data;
         this.off := 0;
         this.enc := enc;
-        this.Repr := {this, data};
     }
 
     method GetInt(ghost x: uint64) returns (x':uint64)
     modifies this
+    requires Valid() ensures Valid()
     requires |enc| > 0 && enc[0] == EncUInt64(x)
     ensures x' == x
     ensures enc == old(enc)[1..]
+    ensures data == old(data)
     {
         //assert enc == [enc[0]] + enc[1..];
         //seq_encode_app([enc[0]], enc[1..]);

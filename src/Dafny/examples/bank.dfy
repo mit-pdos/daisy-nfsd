@@ -143,10 +143,9 @@ class Bank
 
     method Transfer(acct1: uint64, acct2: uint64)
     requires Valid() ensures Valid()
-    modifies {this,jrnl}
-    requires acct1 < 512 && acct2 < 512 && acct1 != acct2
-    requires 0 < accts[acct1]
-    requires no_overflow(accts[acct2], 1)
+    modifies this, jrnl
+    requires && acct1 < 512 && acct2 < 512 && acct1 != acct2
+    requires && no_overflow(accts[acct1], -1) && no_overflow(accts[acct2], 1)
     ensures accts == old(accts[acct1 as nat:=accts[acct1]-1][acct2 as nat:=accts[acct2]+1])
     {
         var txn := jrnl.Begin();

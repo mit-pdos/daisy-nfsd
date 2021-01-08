@@ -15,6 +15,7 @@ const KindBit: Kind := 0
 const KindByte: Kind := 3
 const KindUInt64: Kind := KindByte + 3
 const KindInode: Kind := KindByte + 7 // 2^7 = 128 bytes
+const KindBlock: Kind := 15
 
 // kindSize interprets a kind as a size in bits
 function method kindSize(k: Kind): (sz:nat)
@@ -23,6 +24,14 @@ ensures sz > 0
     pow_pos(2, k);
     pow(2,k)
 }
+
+lemma kind_uint64_correct()
+    ensures kindSize(KindUInt64) == 64
+{}
+
+lemma kind_block_correct()
+    ensures kindSize(KindBlock) == 4096*8
+{}
 
 function kindCount(k: Kind): nat
 {

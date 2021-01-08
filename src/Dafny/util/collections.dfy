@@ -84,4 +84,10 @@ ensures sum_nat(xs[i:=x]) == sum_nat(xs)-xs[i]+x
         sum_update(xs[1..], i-1, x);
     }
 }
+
+predicate unique<T>(xs: seq<T>)
+{
+  forall i, j | 0 <= i < |xs| && 0 <= j < |xs| && xs[i] == xs[j] :: i == j
+}
+
 }
