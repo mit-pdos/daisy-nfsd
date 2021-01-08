@@ -119,6 +119,8 @@ module Fs {
 
   type Ino = uint64
 
+  predicate blkno_ok(blkno: Blkno) { blkno < 4096*8 }
+
   // disk layout, in blocks:
   //
   // 513 for the jrnl
@@ -129,10 +131,10 @@ module Fs {
 
   const InodeBlk: Blkno := 513
   const DataAllocBlk: Blkno := 514
-  function method DataBlk(blkno: uint64): Addr
-    requires blkno as nat < 4096*8
+  function method DataBlk(bn: uint64): Addr
+    requires blkno_ok(bn)
   {
-    Addr(513+2+blkno, 0)
+    Addr(513+2+bn, 0)
   }
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino < 32
@@ -173,8 +175,6 @@ module Fs {
     var jrnl: Jrnl;
     var balloc: Allocator;
 
-    static predicate blkno_ok(blkno: Blkno) { blkno < 4096*8 }
-
     predicate Valid_basics()
       reads this, jrnl
     {
@@ -203,10 +203,10 @@ module Fs {
       requires Valid_basics()
       reads this, jrnl
     {
-      && (forall blkno :: blkno < 4096*8 ==> blkno in data_block)
-      && (forall blkno | blkno in data_block ::
-        && blkno < 4096*8
-        && jrnl.data[DataBlk(blkno)] == ObjData(data_block[blkno]))
+      && (forall bn :: blkno_ok(bn) ==> bn in data_block)
+      && (forall bn | bn in data_block ::
+        && blkno_ok(bn)
+        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
     predicate Valid_inodes()
@@ -255,10 +255,10 @@ module Fs {
 
       this.inodes := map ino: Ino {:trigger} | ino < 513 :: Inode.zero;
       Inode.zero_encoding();
-      this.block_used := map blkno: uint64 {:trigger} |
-        blkno < 4096*8 :: None;
-      this.data_block := map blkno: uint64 |
-        blkno < 4096*8 :: zeroObject(KindBlock).bs;
+      this.block_used := map bn: uint64 |
+        blkno_ok(bn) :: None;
+      this.data_block := map bn: uint64 |
+        blkno_ok(bn) :: zeroObject(KindBlock).bs;
     }
   }
 
