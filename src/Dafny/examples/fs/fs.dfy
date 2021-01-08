@@ -285,7 +285,9 @@ module Fs {
     constructor(d: Disk)
       ensures Valid()
     {
-      var jrnl := NewJrnl(d, fs_kinds);
+      // FIXME: using constructor directly since it has a model, but for
+      // compilation need to use // NewJrnl
+      var jrnl := new Jrnl(fs_kinds);
       this.jrnl := jrnl;
 
       this.inodes := map ino: Ino | ino < 513 :: Inode.zero;
@@ -296,8 +298,8 @@ module Fs {
         blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
       assert Valid_inodes();
-      assert 500 in inodes;
-      assert ino_ok(500);
+      assert 32 in inodes;
+      assert ino_ok(32);
       assert false;
     }
   }
