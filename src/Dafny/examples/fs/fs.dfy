@@ -8,6 +8,7 @@ include "../../jrnl/jrnl.s.dfy"
 // some reason
 module Inode {
   import opened Machine
+  import IntEncoding
   import opened Collections
   import opened ByteSlice
   import opened Marshal
@@ -41,16 +42,39 @@ module Inode {
 
   const zero: Inode := Mk(0, repeat(0 as uint64, 15));
 
+  lemma zero_valid()
+    ensures Valid(zero)
+  {}
+
+  lemma {:induction count} repeat_zero_ints(count: nat)
+    ensures seq_encode(repeat(EncUInt64(0), count)) == repeat(0 as byte, 8*count)
+  {
+    var z := EncUInt64(0);
+    if count == 0 {
+      reveal_repeat();
+      assert 8*count == 0;
+      assert repeat(z, count) == [];
+      //assert seq_encode([]) == [];
+      assert repeat(0 as byte, 8*count) == [];
+    } else {
+      IntEncoding.lemma_enc_0();
+      assert repeat(0 as byte, 8) == enc_encode(z);
+      repeat_split(0 as byte, 8*count, 8, 8*(count-1));
+      repeat_zero_ints(count-1);
+      assert repeat(z, count) == [z] + repeat(z, count-1);
+      //assert seq_encode(repeat(z, count)) == repeat(0 as byte, 8) + repeat(0 as byte, 8*(count-1));
+      //assert seq_encode([z]) == repeat(0 as byte, 8);
+    }
+  }
+
   lemma zero_encoding()
     ensures Valid(zero)
     ensures repeat(0 as byte, 128) == enc(zero)
   {
+    zero_valid();
     assert inode_enc(zero) == [EncUInt64(0)] + repeat(EncUInt64(0), 15);
     assert inode_enc(zero) == repeat(EncUInt64(0), 16);
-    // TODO: need to assume this about little-endian encoding
-    assume enc_encode(EncUInt64(0)) == repeat(0 as byte, 8);
-    // TODO: prove this eventually
-    assume false;
+    repeat_zero_ints(16);
   }
 
   method encode_ino(i: Inode) returns (bs:Bytes)
@@ -184,7 +208,6 @@ module Fs {
     ghost var data_block: map<Blkno, seq<byte>>;
 
     var jrnl: Jrnl;
-    var balloc: Allocator;
 
     predicate Valid_basics()
       reads this, jrnl
@@ -257,8 +280,6 @@ module Fs {
       && this.Valid_inodes()
 
       // TODO: tie inode ownership to inode block lists
-
-      && balloc.max == 4096*8
     }
 
     constructor(d: Disk)
@@ -266,10 +287,6 @@ module Fs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-
-      var balloc := NewAllocator(4096*8);
-      balloc.MarkUsed(0);
-      this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino < 513 :: Inode.zero;
       Inode.zero_encoding();

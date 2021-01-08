@@ -7,6 +7,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEncodeOf0(t *testing.T) {
+	bs := bytes.NewBytes(8)
+	for i := 0; i < 8; i++ {
+		bs.Data[i] = 1
+	}
+
+	UInt64Put(0, 0, bs)
+
+	assert.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 0}, bs.Data[:8],
+		"encoding of zero is not 8 zeros")
+}
+
 func TestEncodeDecodeAt0(t *testing.T) {
 	assert := assert.New(t)
 	for _, x := range []uint64{

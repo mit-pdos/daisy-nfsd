@@ -12,11 +12,13 @@ module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/encodin
     import opened ByteSlice
 
     function method {:axiom} le_enc64(x: uint64): (bs:seq<byte>)
-    ensures |bs| == 8
+        ensures |bs| == 8
     function method {:axiom} le_dec64(bs: seq<byte>): uint64
-    requires |bs| == 8
+        requires |bs| == 8
     lemma {:axiom} lemma_le_enc_dec64(x: uint64)
-    ensures le_dec64(le_enc64(x)) == x
+        ensures le_dec64(le_enc64(x)) == x
+    lemma {:axiom} lemma_enc_0()
+        ensures le_enc64(0) == [0,0,0,0,0,0,0,0]
 
     method {:extern} UInt64Put(x: uint64, off: uint64, bytes: Bytes)
     modifies bytes

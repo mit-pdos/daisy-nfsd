@@ -11,12 +11,47 @@ ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
 
 // repeat
 
-function method {:opaque}
-repeat<T>(x: T, count: nat): (xs:seq<T>) decreases count
-ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
+function method {:opaque} repeat<T>(x: T, count: nat): (xs:seq<T>)
+    decreases count
+    ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
 {
     if count == 0 then [] else [x] + repeat(x, count-1)
 }
+
+lemma repeat_split<T>(x: T, count: nat, count1: nat, count2: nat)
+    requires count == count1 + count2
+    ensures repeat(x, count) == repeat(x, count1) + repeat(x, count2)
+{}
+
+// concat
+
+function method concat<T>(xs: seq<seq<T>>): (ys: seq<T>)
+    decreases xs
+{
+    if xs == [] then []
+    else xs[0] + concat(xs[1..])
+}
+
+/*
+lemma {:induction ls} concat_homogeneous_spec<T>(ls: seq<seq<T>>, len: nat)
+    requires forall l | l in ls :: |l| == len
+    ensures |concat(ls)| == len * |ls|
+    ensures forall x1:nat, x2:nat :: x1 < |ls| && x2 < len ==>
+      concat(ls)[x1 * len + x2] == ls[x1][x2]
+{
+    if ls == [] {}
+    else {
+        concat_homogeneous_spec(ls[1..], len);
+        forall x1:nat, x2:nat | x1 < |ls| && x2 < len
+            ensures concat(ls)[x1 * len + x2] == ls[x1][x2]
+        {
+            if x1 == 0 {
+            } else {
+            }
+        }
+    }
+}
+*/
 
 // map to domain as a set
 
