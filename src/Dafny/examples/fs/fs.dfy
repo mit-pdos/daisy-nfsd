@@ -83,23 +83,24 @@ module Inode {
     ensures fresh(bs)
     ensures bs.data == enc(i)
   {
-    var enc := new Encoder(128);
-    enc.PutInt(i.sz);
+    var e := new Encoder(128);
+    e.PutInt(i.sz);
     var k: nat := 0;
     while k < 15
-      modifies enc.Repr
-      invariant enc.Valid()
+      modifies e.Repr
+      invariant e.Valid()
       invariant 0 <= k <= 15
-      invariant enc.bytes_left() == 128 - ((k+1)*8)
-      invariant enc.enc ==
+      invariant e.bytes_left() == 128 - ((k+1)*8)
+      invariant e.enc ==
       [EncUInt64(i.sz)] +
       seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
     {
-      enc.PutInt(i.blks[k]);
+      e.PutInt(i.blks[k]);
       k := k + 1;
     }
     assert i.blks[..15] == i.blks;
-    bs := enc.FinishComplete();
+    assert e.enc == inode_enc(i);
+    bs := e.FinishComplete();
   }
 
   method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
@@ -209,6 +210,7 @@ module Fs {
     ghost var data_block: map<Blkno, seq<byte>>;
 
     var jrnl: Jrnl;
+    var balloc: Allocator;
 
     predicate Valid_basics()
       reads this, jrnl
@@ -288,15 +290,16 @@ module Fs {
       && this.Valid_inodes()
 
       // TODO: tie inode ownership to inode block lists
+      && this.balloc.max == 4096*8
     }
 
     constructor(d: Disk)
       ensures Valid()
     {
-      // FIXME: using constructor directly since it has a model, but for
-      // compilation need to use // NewJrnl
-      var jrnl := new Jrnl(fs_kinds);
+      var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
+      var balloc := NewAllocator(4096*8);
+      this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       Inode.zero_encoding();
