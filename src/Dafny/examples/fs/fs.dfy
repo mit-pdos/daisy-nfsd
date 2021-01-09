@@ -21,6 +21,11 @@ module Inode {
     (x + (k-1)) / k
   }
 
+  function method NextBlock(i:Inode): uint64
+  {
+    i.sz/4096
+  }
+
   predicate Valid(i:Inode)
   {
     var blks_ := i.blks;
@@ -29,8 +34,9 @@ module Inode {
     && i.sz as nat/4096 <= 15
     // TODO: generalize to allow non-block appends
     && i.sz % 4096 == 0
-    && unique(blks_[..i.sz as nat/4096])
+    && unique(blks_[..NextBlock(i) as nat])
   }
+
 
   function inode_enc(i: Inode): seq<Encodable>
   {
@@ -329,7 +335,7 @@ module Fs {
     static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
     requires can_inode_append(i, bn)
     {
-      Inode.Mk(i.sz + 4096, i.blks[i.sz as nat/4096:=bn])
+      Inode.Mk(i.sz + 4096, i.blks[Inode.NextBlock(i) as nat:=bn])
     }
 
     method Append(ino: Ino, bs: Bytes) returns (ok:bool, ghost alloc_bn: Option<Blkno>)
@@ -384,6 +390,39 @@ module Fs {
 
       var _ := txn.Commit();
     }
-  }
 
+    method Size(ino: Ino) returns (sz: uint64)
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures sz == inodes[ino].sz
+    {
+      var txn := jrnl.Begin();
+      var buf := txn.Read(InodeAddr(ino), 128*8);
+      var i := Inode.decode_ino(buf, inodes[ino]);
+      sz := i.sz;
+      var _ := txn.Commit();
+    }
+
+    method Get(ino: Ino, off: uint64, len: uint64)
+      returns (ok:bool, data: Bytes)
+      modifies {}
+      requires off % 4096 == 0 && len == 4096
+      requires ino_ok(ino)
+      requires Valid() ensures Valid()
+      ensures ok ==> fresh(data)
+    {
+      var txn := jrnl.Begin();
+      var buf := txn.Read(InodeAddr(ino), 128*8);
+      var i := Inode.decode_ino(buf, inodes[ino]);
+      if sum_overflows(off, len) || off+len >= i.sz {
+        ok := false;
+        data := NewBytes(0);
+        return;
+      }
+      ok := true;
+      var blk := i.blks[off / 4096];
+      data := txn.Read(DataBlk(blk), 4096*8);
+      var _ := txn.Commit();
+    }
+  }
 }

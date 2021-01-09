@@ -9,6 +9,13 @@ module Machine {
         0 <= x + y < U64.MAX
     }
 
+    function method sum_overflows(x: uint64, y: uint64): (overflow:bool)
+        ensures !overflow == no_overflow(x as nat, y as nat)
+    {
+        // discovered by trial and error
+        x > (0xFFFF_FFFF_FFFF_FFFF-y)
+    }
+
     // NOTE(tej): I wanted this to be in module U64, but Dafny imports children
     // modules into their parents but not the other way around, so there's no
     // way to do that without making U64 a separate module (which I don't know
