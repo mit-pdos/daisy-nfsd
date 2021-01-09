@@ -164,6 +164,7 @@ module Fs {
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
     ensures a.off < 4096*8
+    ensures a.off%(128*8) == 0
   {
     Addr(InodeBlk, ino*128*8)
   }
@@ -226,7 +227,14 @@ module Fs {
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
       ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data
-    {}
+    {
+      assert KindInode == 10;
+      assert kindSize(KindInode) == 128*8;
+      forall ino : Ino | ino_ok(ino)
+        ensures InodeAddr(ino).blkno == InodeBlk
+      {
+      }
+    }
 
     predicate Valid_block_used()
       requires Valid_basics()
@@ -290,7 +298,7 @@ module Fs {
       var jrnl := new Jrnl(fs_kinds);
       this.jrnl := jrnl;
 
-      this.inodes := map ino: Ino | ino < 513 :: Inode.zero;
+      this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 |
         blkno_ok(bn) :: None;
@@ -298,9 +306,6 @@ module Fs {
         blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
       assert Valid_inodes();
-      assert 32 in inodes;
-      assert ino_ok(32);
-      assert false;
     }
   }
 

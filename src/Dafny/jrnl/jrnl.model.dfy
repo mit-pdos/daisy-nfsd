@@ -1,5 +1,4 @@
 include "jrnl.s.dfy"
-include "../machine/machine.model.dfy"
 
 module Jrnl_model refines JrnlSpec {
     function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)

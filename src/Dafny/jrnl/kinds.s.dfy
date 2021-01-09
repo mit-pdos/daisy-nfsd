@@ -27,7 +27,9 @@ ensures sz > 0
 
 lemma kind_uint64_correct()
     ensures kindSize(KindUInt64) == 64
-{}
+{
+    assert kindSize(6) == 64;
+}
 
 lemma kind_block_correct()
     ensures kindSize(KindBlock) == 4096*8
@@ -77,7 +79,7 @@ ensures (&& k == 0
     if k >= 3 {
         assert pow(2, 3) == 8;
         pow_increasing(2, k, 3);
-        pow_plus(2, k, k-3);
+        pow_plus(2, k-3, 3);
     }
 }
 
