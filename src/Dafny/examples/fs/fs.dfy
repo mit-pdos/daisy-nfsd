@@ -26,8 +26,10 @@ module Inode {
     var blks_ := i.blks;
     // only direct blocks
     && |blks_| == 15
-    && i.sz as nat <= |blks_| * 4096
-    && unique(blks_[..div_roundup(i.sz as nat, 4096)])
+    && i.sz as nat/4096 <= 15
+    // TODO: generalize to allow non-block appends
+    && i.sz % 4096 == 0
+    && unique(blks_[..i.sz as nat/4096])
   }
 
   function inode_enc(i: Inode): seq<Encodable>
@@ -82,6 +84,7 @@ module Inode {
     requires Valid(i)
     ensures fresh(bs)
     ensures bs.data == enc(i)
+    ensures |bs.data| == 128
   {
     var e := new Encoder(128);
     e.PutInt(i.sz);
@@ -268,7 +271,11 @@ module Fs {
       && (forall ino: Ino | ino in inodes ::
         && ino_ok(ino)
         && Inode.Valid(inodes[ino])
-        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
+        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]))
+        && (forall bn | bn in inodes[ino].blks && bn != 0 ::
+          && bn in block_used
+          && block_used[bn] == Some(ino))
+        )
     }
 
     predicate Valid()
@@ -290,7 +297,7 @@ module Fs {
       && this.Valid_inodes()
 
       // TODO: tie inode ownership to inode block lists
-      && this.balloc.max == 4096*8
+      && this.balloc.max == 4095*8
     }
 
     constructor(d: Disk)
@@ -298,7 +305,7 @@ module Fs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-      var balloc := NewAllocator(4096*8);
+      var balloc := NewAllocator(4095*8);
       this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
@@ -309,6 +316,73 @@ module Fs {
         blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
       assert Valid_inodes();
+    }
+
+    // full block append
+    static predicate can_inode_append(i: Inode.Inode, bn: Blkno)
+    {
+      && Inode.Valid(i)
+      && blkno_ok(bn)
+      && i.sz < 15*4096
+    }
+
+    static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
+    requires can_inode_append(i, bn)
+    {
+      Inode.Mk(i.sz + 4096, i.blks[i.sz as nat/4096:=bn])
+    }
+
+    method Append(ino: Ino, bs: Bytes) returns (ok:bool, ghost alloc_bn: Option<Blkno>)
+      modifies this, jrnl, balloc
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      requires |bs.data| == 4096
+      ensures ok ==>
+        && alloc_bn.Some?
+        && alloc_bn.x in old(block_used)
+        && old(block_used[alloc_bn.x]).None?
+        && block_used == old(block_used[alloc_bn.x:=Some(ino)])
+        && data_block == old(data_block[alloc_bn.x:=bs.data])
+        && can_inode_append(old(inodes[ino]), alloc_bn.x)
+        && inodes == old(inodes[ino:=inode_append(inodes[ino], alloc_bn.x)])
+    {
+      alloc_bn := None;
+
+      var txn := jrnl.Begin();
+
+      // allocate and validate
+      var bn := balloc.Alloc(); bn := bn + 1;
+
+      var used := txn.ReadBit(DataBitAddr(bn));
+      if used {
+        ok := false;
+        balloc.Free(bn-1);
+        return;
+      }
+
+      assert block_used[bn].None?;
+      block_used := block_used[bn:=Some(ino)];
+      txn.WriteBit(DataBitAddr(bn), true);
+
+      var buf := txn.Read(InodeAddr(ino), 128*8);
+      var i := Inode.decode_ino(buf, inodes[ino]);
+      if i.sz == 15*4096 {
+        ok := false;
+        balloc.Free(bn-1);
+        return;
+      }
+      i := inode_append(i, bn);
+      assert Inode.Valid(i);
+      var buf' := Inode.encode_ino(i);
+      txn.Write(InodeAddr(ino), buf');
+      inodes := inodes[ino:=i];
+
+      txn.Write(DataBlk(bn), bs);
+      data_block := data_block[bn:=bs.data];
+      ok := true;
+      alloc_bn := Some(bn);
+
+      var _ := txn.Commit();
     }
   }
 
