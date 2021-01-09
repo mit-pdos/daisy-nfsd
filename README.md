@@ -38,7 +38,7 @@ run:
 ```sh
 cd bank-go
 export GOPATH="$PWD"
-go get ./src
+go get -t ./src
 go test ./src
 ```
 
