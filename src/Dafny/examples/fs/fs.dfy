@@ -134,11 +134,11 @@ module Fs {
       inode_inbounds(jrnl);
       && (forall ino: Ino | ino_ok(ino) :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
-        var i := inodes[ino];
+        var i2 := inodes[ino];
         && ino_ok(ino)
-        && Inode.Valid(i)
-        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i))
-        && (forall bn | bn in i.blks ::
+        && Inode.Valid(i2)
+        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i2))
+        && (forall bn | bn in i2.blks ::
           && bn in block_used
           && block_used[bn] == Some(ino))
         )
@@ -149,16 +149,12 @@ module Fs {
       requires Valid_inodes()
       reads this, jrnl
     {
-      inode_inbounds(jrnl);
       && (forall ino: Ino | ino in data :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
          var i := inodes[ino];
          && ino in data
-         && i.sz as nat == |data[ino]|
-         && (forall k: nat | k < |data[ino]|/4096 ::
-           && i.blks[k] in data_block
-           && data[ino][k * 4096..(k+1)*4096] == data_block[i.blks[k]])
-         )
+         && i.sz as nat == |data[ino]|)
+      // TODO: need to encode how data blocks are looked up and concatenated together
     }
 
     predicate Valid()
@@ -170,7 +166,7 @@ module Fs {
       && this.Valid_block_used()
       && this.Valid_data_block()
       && this.Valid_inodes()
-      // && this.Valid_data()
+      && this.Valid_data()
 
       // TODO: tie inode ownership to inode block lists
       && this.balloc.max == 4095*8
@@ -284,7 +280,11 @@ module Fs {
       txn.Write(DataBlk(bn), bs);
       data_block := data_block[bn:=bs.data];
 
-      // data := data[ino:=data[ino] + bs.data];
+      data := data[ino:=data[ino] + bs.data];
+
+      assert this.Valid_block_used();
+      assert this.Valid_data_block();
+      assert this.Valid_inodes();
 
       ok := true;
       alloc_bn := Some(bn);
