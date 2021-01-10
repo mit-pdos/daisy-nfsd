@@ -40,15 +40,18 @@ ensures seq_encode(es1 + es2) == seq_encode(es1) + seq_encode(es2)
     }
 }
 
-class {:autocontracts} Encoder
+class Encoder
 {
     ghost var enc: seq<Encodable>;
     ghost const size: nat;
     const data: Bytes;
     var off: uint64;
+    const Repr: set<object>;
 
-    predicate Valid()
+    predicate {:opaque} Valid()
+        reads Repr
     {
+        && Repr == {this, data}
         && data.Valid()
         && off as nat <= data.Len() as nat
         && seq_encode(enc) == data.data[..off]
@@ -56,24 +59,33 @@ class {:autocontracts} Encoder
     }
 
     constructor(size: uint64)
+    ensures Valid()
     ensures enc == []
     ensures this.size == size as nat
     ensures bytes_left() == this.size
+    ensures fresh(data)
     {
         var bs := NewBytes(size);
         this.data := bs;
         this.off := 0;
         this.enc := [];
         this.size := size as nat;
+        this.Repr := {this, data};
+        new;
+        reveal_Valid();
     }
 
     function bytes_left(): nat
+        reads Repr
+        requires Valid()
     {
+        reveal_Valid();
         |data.data|-(off as nat)
     }
 
     method PutInt(x: uint64)
-    modifies this, data
+    modifies Repr
+    requires Valid() ensures Valid()
     requires bytes_left() >= 8
     ensures bytes_left() == old(bytes_left()) - 8
     ensures enc == old(enc) + [EncUInt64(x)]
@@ -86,17 +98,20 @@ class {:autocontracts} Encoder
     }
 
     method Finish() returns (bs:Bytes)
+    requires Valid() ensures Valid()
     ensures bs.Valid()
     ensures prefix_of(seq_encode(enc), bs.data)
     ensures |bs.data| == size
     ensures bs == data
     {
+        reveal_Valid();
         return data;
     }
 
     // Exactly the same as Finish but with a simpler spec if the encoder has
     // been completely used
     method FinishComplete() returns (bs:Bytes)
+    requires Valid() ensures Valid()
     requires bytes_left() == 0
     ensures bs.Valid()
     ensures seq_encode(enc) == bs.data
