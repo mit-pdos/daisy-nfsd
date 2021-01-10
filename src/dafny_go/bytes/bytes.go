@@ -21,6 +21,13 @@ func (bs *Bytes) Append(b byte) {
 	bs.Data = append(bs.Data, b)
 }
 
+func (bs *Bytes) AppendBytes(other *Bytes) {
+	if other == bs {
+		panic("attempt to append to self")
+	}
+	bs.Data = append(bs.Data, other.Data...)
+}
+
 func (bs *Bytes) Set(i uint64, b byte) {
 	bs.Data[i] = b
 }

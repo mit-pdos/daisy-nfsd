@@ -86,6 +86,19 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
         {
             data := data + [b];
         }
+
+        method {:extern} AppendBytes(bs: Bytes)
+            modifies this
+            // NOTE: I did not think of this initially, until the model proof
+            // caught it
+            requires bs != this
+            requires Valid() ensures Valid()
+            requires bs.Valid()
+            requires no_overflow(|data|, |bs.data|)
+            ensures data == old(data) + bs.data
+        {
+            data := data + bs.data;
+        }
     }
 
     method {:extern} NewBytes(sz: uint64)
