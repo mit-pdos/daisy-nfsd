@@ -56,7 +56,10 @@ func (jrnl *Jrnl) Begin() *Txn {
 func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
 	a_ := dafnyAddrToAddr(a)
 	buf := txn.btxn.ReadBuf(a_, sz)
-	return &bytes.Bytes{Data: buf.Data}
+	// make independent clone for safety
+	buf2 := make([]byte, len(buf.Data))
+	copy(buf2, buf.Data)
+	return &bytes.Bytes{Data: buf2}
 }
 
 func is_bit_set(b byte, off uint64) bool {

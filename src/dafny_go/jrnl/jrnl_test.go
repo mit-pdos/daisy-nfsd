@@ -98,3 +98,24 @@ func TestReadWriteBits(t *testing.T) {
 		txn.Commit()
 	}
 }
+
+func TestReadModify(t *testing.T) {
+	assert := assert.New(t)
+
+	var d disk.Disk = disk.NewMemDisk(1000)
+	jrnl := NewJrnl(&d)
+	a0 := mkAddr(513, 0)
+
+	{
+		txn := jrnl.Begin()
+		buf := txn.Read(a0, 4096*8)
+		buf.Data[0] = 1
+		txn.Commit()
+	}
+
+	{
+		txn := jrnl.Begin()
+		buf := txn.Read(a0, 4096*8)
+		assert.Equal(byte(0), buf.Data[0])
+	}
+}
