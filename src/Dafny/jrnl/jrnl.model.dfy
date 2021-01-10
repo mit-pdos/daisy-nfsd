@@ -14,36 +14,6 @@ module Jrnl_model refines JrnlSpec {
         :: Addr(blkno, off)
     }
 
-    class Allocator {
-        constructor(max: uint64)
-        {
-            this.max := max;
-            new;
-            reveal_Valid();
-        }
-
-        method Alloc()
-            returns (x:uint64)
-        {
-            reveal_Valid();
-            return 0;
-        }
-
-        method MarkUsed(x: uint64)
-        {
-        }
-
-        method Free(x: uint64)
-        {
-        }
-    }
-
-    method NewAllocator(max: uint64)
-        returns (a:Allocator)
-    {
-        a := new Allocator(max);
-    }
-
     class Jrnl {
         constructor(kinds: map<Blkno, Kind>)
         {
