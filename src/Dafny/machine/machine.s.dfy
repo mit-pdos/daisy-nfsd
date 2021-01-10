@@ -34,6 +34,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
     import opened Machine
     import opened Collections
 
+    // the implementations in this module serve as a feasibility check for the API
     class {:extern} Bytes {
         var data: seq<byte>
 
@@ -47,29 +48,44 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
         requires |data_| < U64.MAX
         ensures Valid()
         ensures data == data_
+        {
+            this.data := data_;
+        }
 
         function method {:extern} Len(): (len:uint64)
         reads this
         requires Valid()
         ensures len as nat == |data|
+        {
+            |data| as uint64
+        }
 
         function method {:extern} Get(i: uint64): (x: byte)
         reads this
         requires Valid()
         requires i as nat < |data|
         ensures x == data[i]
+        {
+            data[i]
+        }
 
         method {:extern} Set(i: uint64, b: byte)
         modifies this
         requires Valid() ensures Valid()
         requires i as nat < |data|
         ensures data == old(data)[i as nat:=b]
+        {
+            data := data[i as nat := b];
+        }
 
         method {:extern} Append(b: byte)
         modifies this
         requires Valid() ensures Valid()
         requires no_overflow(|data|, 1)
         ensures data == old(data) + [b]
+        {
+            data := data + [b];
+        }
     }
 
     method {:extern} NewBytes(sz: uint64)
@@ -77,6 +93,9 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
     ensures fresh(bs)
     ensures bs.Valid()
     ensures bs.data == repeat(0 as byte, sz as nat)
+    {
+        return new Bytes(repeat(0 as byte, sz as nat));
+    }
 }
 
 module ImmutableByteSlice {
