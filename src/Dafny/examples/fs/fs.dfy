@@ -1,148 +1,6 @@
 include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
-
-// NOTE: this module, unlike the others in this development, is not intended to
-// be opened
-//
-// NOTE: factoring out Inode to a separate file made this file much _slower_ for
-// some reason
-module Inode {
-  import opened Machine
-  import IntEncoding
-  import opened Collections
-  import opened ByteSlice
-  import opened Marshal
-
-  datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
-
-  function method div_roundup(x: nat, k: nat): nat
-    requires k >= 1
-  {
-    (x + (k-1)) / k
-  }
-
-  function method NextBlock(i:Inode): uint64
-  {
-    i.sz/4096
-  }
-
-  predicate Valid(i:Inode)
-  {
-    var blks_ := i.blks;
-    // only direct blocks
-    && |blks_| == 15
-    && i.sz as nat/4096 <= 15
-    // TODO: generalize to allow non-block appends
-    && i.sz % 4096 == 0
-    && unique(blks_[..NextBlock(i) as nat])
-  }
-
-
-  function inode_enc(i: Inode): seq<Encodable>
-  {
-    [EncUInt64(i.sz)] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
-  }
-
-  function enc(i: Inode): seq<byte>
-  {
-    seq_encode(inode_enc(i))
-  }
-
-  const zero: Inode := Mk(0, repeat(0 as uint64, 15));
-
-  lemma zero_valid()
-    ensures Valid(zero)
-  {}
-
-  lemma {:induction count} repeat_zero_ints(count: nat)
-    ensures seq_encode(repeat(EncUInt64(0), count)) == repeat(0 as byte, 8*count)
-  {
-    var z := EncUInt64(0);
-    if count == 0 {
-      reveal_repeat();
-      assert 8*count == 0;
-      assert repeat(z, count) == [];
-      //assert seq_encode([]) == [];
-      assert repeat(0 as byte, 8*count) == [];
-    } else {
-      IntEncoding.lemma_enc_0();
-      assert repeat(0 as byte, 8) == enc_encode(z);
-      repeat_split(0 as byte, 8*count, 8, 8*(count-1));
-      repeat_zero_ints(count-1);
-      assert repeat(z, count) == [z] + repeat(z, count-1);
-      //assert seq_encode(repeat(z, count)) == repeat(0 as byte, 8) + repeat(0 as byte, 8*(count-1));
-      //assert seq_encode([z]) == repeat(0 as byte, 8);
-    }
-  }
-
-  lemma zero_encoding()
-    ensures Valid(zero)
-    ensures repeat(0 as byte, 128) == enc(zero)
-  {
-    zero_valid();
-    assert inode_enc(zero) == [EncUInt64(0)] + repeat(EncUInt64(0), 15);
-    assert inode_enc(zero) == repeat(EncUInt64(0), 16);
-    repeat_zero_ints(16);
-  }
-
-  method encode_ino(i: Inode) returns (bs:Bytes)
-    modifies {}
-    requires Valid(i)
-    ensures fresh(bs)
-    ensures bs.data == enc(i)
-    ensures |bs.data| == 128
-  {
-    var e := new Encoder(128);
-    e.PutInt(i.sz);
-    var k: nat := 0;
-    while k < 15
-      modifies e.Repr
-      invariant e.Valid()
-      invariant 0 <= k <= 15
-      invariant e.bytes_left() == 128 - ((k+1)*8)
-      invariant e.enc ==
-      [EncUInt64(i.sz)] +
-      seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
-    {
-      e.PutInt(i.blks[k]);
-      k := k + 1;
-    }
-    assert i.blks[..15] == i.blks;
-    assert e.enc == inode_enc(i);
-    e.is_complete();
-    bs := e.Finish();
-  }
-
-  method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
-    modifies {}
-    requires bs.Valid()
-    requires Valid(i)
-    requires bs.data == enc(i)
-    ensures i' == i
-  {
-    var dec := new Decoder();
-    dec.Init(bs, inode_enc(i));
-    var sz := dec.GetInt(i.sz);
-    assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
-
-    var blks: seq<uint64> := [];
-
-    var k: nat := 0;
-    while k < 15
-      modifies dec
-      invariant dec.Valid()
-      invariant Valid(i)
-      invariant 0 <= k <= 15
-      invariant blks == i.blks[..k]
-      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k..])
-    {
-      var blk := dec.GetInt(i.blks[k]);
-      blks := blks + [blk];
-      k := k + 1;
-    }
-    return Mk(sz, blks);
-  }
-}
+include "inode.dfy"
 
 module Fs {
   import Inode
@@ -280,7 +138,7 @@ module Fs {
         && ino_ok(ino)
         && Inode.Valid(i)
         && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i))
-        && (forall bn | bn in i.blks && bn != 0 ::
+        && (forall bn | bn in i.blks ::
           && bn in block_used
           && block_used[bn] == Some(ino))
         )
@@ -349,7 +207,7 @@ module Fs {
     static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
     requires can_inode_append(i, bn)
     {
-      Inode.Mk(i.sz + 4096, i.blks[Inode.NextBlock(i) as nat:=bn])
+      Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
     method Alloc(txn: Txn) returns (ok:bool, bn:Blkno)
@@ -416,8 +274,7 @@ module Fs {
         return;
       }
       var i' := inode_append(i, bn);
-      assert i'.blks[..Inode.NextBlock(i')] == i.blks[..Inode.NextBlock(i)] + [bn];
-      Collections.unique_extend(i.blks[..Inode.NextBlock(i)], bn);
+      Collections.unique_extend(i.blks, bn);
       assert Inode.Valid(i');
       i := i';
       var buf' := Inode.encode_ino(i);
