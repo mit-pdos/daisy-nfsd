@@ -275,13 +275,31 @@ module Fs {
       inode_inbounds(jrnl);
       && (forall ino: Ino | ino_ok(ino) :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
+        var i := inodes[ino];
         && ino_ok(ino)
-        && Inode.Valid(inodes[ino])
-        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]))
-        && (forall bn | bn in inodes[ino].blks && bn != 0 ::
+        && Inode.Valid(i)
+        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i))
+        && (forall bn | bn in i.blks && bn != 0 ::
           && bn in block_used
           && block_used[bn] == Some(ino))
         )
+    }
+
+    predicate Valid_data()
+      requires Valid_basics()
+      requires Valid_inodes()
+      reads this, jrnl
+    {
+      inode_inbounds(jrnl);
+      && (forall ino: Ino | ino in data :: ino in inodes)
+      && (forall ino: Ino | ino in inodes ::
+         var i := inodes[ino];
+         && ino in data
+         && i.sz as nat == |data[ino]|
+         && (forall k: nat | k < |data[ino]|/4096 ::
+           && i.blks[k] in data_block
+           && data[ino][k * 4096..(k+1)*4096] == data_block[i.blks[k]])
+         )
     }
 
     predicate Valid()
@@ -290,17 +308,10 @@ module Fs {
       // TODO: split this into multiple predicates, ideally opaque
       && Valid_basics()
 
-      // NOTE(tej): this is for the real abstract state, which we're not worrying
-      // about for now
-      // && (forall ino: Ino | ino in data :: ino in inodes)
-      // && (forall ino: Ino | ino in inodes ::
-      //   && ino in data
-      //   && inodes[ino].sz as nat == |data[ino]|)
-      // TODO: tie Inode.Inode low-level value + block data to abstract state
-
       && this.Valid_block_used()
       && this.Valid_data_block()
       && this.Valid_inodes()
+      // && this.Valid_data()
 
       // TODO: tie inode ownership to inode block lists
       && this.balloc.max == 4095*8
@@ -315,6 +326,7 @@ module Fs {
       var balloc := NewAllocator(4095*8);
       this.balloc := balloc;
 
+      this.data := map ino: Ino | ino_ok(ino) :: [];
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 |
@@ -413,6 +425,9 @@ module Fs {
 
       txn.Write(DataBlk(bn), bs);
       data_block := data_block[bn:=bs.data];
+
+      // data := data[ino:=data[ino] + bs.data];
+
       ok := true;
       alloc_bn := Some(bn);
 
