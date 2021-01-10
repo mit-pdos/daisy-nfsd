@@ -45,15 +45,14 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         forall a | a in kinds :: 513 <= a
     }
 
-    // specifies that the set of addresses is the correct set for a particular
-    // kind schema
-    predicate hasDomainForKinds(kinds: map<Blkno, Kind>, addrs: set<Addr>)
+    // specifies the set of addresses used for a kind schema
+    function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
     {
-        forall a:Addr ::
-          (&& a.blkno in kinds
-           && a.off < 4096*8
-           && a.off as nat % kindSize(kinds[a.blkno]) == 0) <==>
-           a in addrs
+        set blkno : Blkno, off : uint64 |
+        && blkno in kinds
+        && 0 <= off < 4096*8
+        && off as nat % kindSize(kinds[blkno]) == 0
+        :: Addr(blkno, off)
     }
 
     // This is an allocator that makes no real guarantees due to being
@@ -133,7 +132,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
                 && a.blkno in kinds
                 && objSize(data[a]) == kindSize(kinds[a.blkno]))
             && (forall a :: a in data <==> a in domain)
-            && hasDomainForKinds(kinds, domain)
+            && addrsForKinds(kinds) == domain
         }
 
         constructor(kinds: map<Blkno, Kind>)
@@ -142,6 +141,14 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         ensures this.kinds == kinds
         ensures forall a:Addr :: a in domain ==>
                 && data[a] == zeroObject(kinds[a.blkno])
+        {
+            var data: map<Addr, Object> :=
+                map a:Addr | a in addrsForKinds(kinds)
+                            :: zeroObject(kinds[a.blkno]);
+            this.kinds := kinds;
+            this.data := data;
+            this.domain := map_domain(data);
+        }
 
 
         function size(a: Addr): nat
@@ -203,12 +210,20 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         && buf.Valid()
         && buf.data == jrnl.data[a].bs
         && objSize(jrnl.data[a]) == sz as nat
+        {
+            ghost var k := jrnl.kinds[a.blkno];
+            kindSize_bounds(k);
+            return new Bytes(jrnl.data[a].bs);
+        }
 
         method {:extern} ReadBit(a: Addr)
         returns (b:bool)
         requires Valid() ensures Valid()
         requires a in jrnl.domain && jrnl.size(a) == 1
         ensures && jrnl.data[a] == ObjBit(b)
+        {
+            return jrnl.data[a].b;
+        }
 
         method {:extern} Write(a: Addr, bs: Bytes)
         modifies jrnl
@@ -217,17 +232,32 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         requires a in jrnl.domain && jrnl.size(a) == objSize(ObjData(bs.data))
         requires 8 <= |bs.data|
         ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
+        {
+            jrnl.data := jrnl.data[a:=ObjData(bs.data)];
+        }
 
         method {:extern} WriteBit(a: Addr, b: bool)
         modifies jrnl
         requires Valid() ensures Valid()
         requires a in jrnl.domain && jrnl.size(a) == 1
         ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
+        {
+            jrnl.data := jrnl.data[a:=ObjBit(b)];
+        }
 
         method {:extern} Commit() returns (ok:bool)
         requires Valid() ensures Valid()
+        {
+            ok := true;
+        }
     }
 
+    // NOTE: we can't provide a model for this because we need kinds to be ghost
+    // for the spec but the model uses kinds to construct the initial data
+    //
+    // The best we can do is manually check that NewJrnl has about the same spec
+    // as the constructor, except for adding fresh(jrnl) which is implied by the
+    // constructor.
     method {:extern} NewJrnl(d: Disk, ghost kinds: map<Blkno, Kind>)
     returns (jrnl:Jrnl)
     requires kindsValid(kinds)
