@@ -339,6 +339,32 @@ module Fs {
       Inode.Mk(i.sz + 4096, i.blks[Inode.NextBlock(i) as nat:=bn])
     }
 
+    method Alloc(txn: Txn) returns (ok:bool, bn:Blkno)
+      modifies balloc
+      requires txn.jrnl == this.jrnl
+      requires Valid() ensures Valid()
+      ensures ok ==>
+        (&& bn != 0
+        && bn-1 < 4095*8
+        && block_used[bn].None?
+        )
+    {
+      bn := balloc.Alloc(); bn := bn + 1;
+      var used := txn.ReadBit(DataBitAddr(bn));
+      if used {
+        ok := false;
+        balloc.Free(bn-1);
+        return;
+      }
+      ok := true;
+    }
+
+    lemma free_block_unused(bn: Blkno)
+      requires Valid()
+      requires blkno_ok(bn) && bn != 0 && block_used[bn].None?
+      ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
+    {}
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool, ghost alloc_bn: Option<Blkno>)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
@@ -358,16 +384,14 @@ module Fs {
       var txn := jrnl.Begin();
 
       // allocate and validate
-      var bn := balloc.Alloc(); bn := bn + 1;
-
-      var used := txn.ReadBit(DataBitAddr(bn));
-      if used {
+      var alloc_ok, bn := Alloc(txn);
+      if !alloc_ok {
         ok := false;
-        balloc.Free(bn-1);
         return;
       }
+      free_block_unused(bn);
 
-      assert block_used[bn].None?;
+      // mark bn in-use now
       block_used := block_used[bn:=Some(ino)];
       txn.WriteBit(DataBitAddr(bn), true);
 
@@ -378,8 +402,11 @@ module Fs {
         balloc.Free(bn-1);
         return;
       }
-      i := inode_append(i, bn);
-      assert Inode.Valid(i);
+      var i' := inode_append(i, bn);
+      assert i'.blks[..Inode.NextBlock(i')] == i.blks[..Inode.NextBlock(i)] + [bn];
+      Collections.unique_extend(i.blks[..Inode.NextBlock(i)], bn);
+      assert Inode.Valid(i');
+      i := i';
       var buf' := Inode.encode_ino(i);
       txn.Write(InodeAddr(ino), buf');
       inodes := inodes[ino:=i];

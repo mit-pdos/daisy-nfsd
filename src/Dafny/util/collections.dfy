@@ -120,9 +120,17 @@ ensures sum_nat(xs[i:=x]) == sum_nat(xs)-xs[i]+x
     }
 }
 
+// unique
+
 predicate unique<T>(xs: seq<T>)
 {
   forall i, j | 0 <= i < |xs| && 0 <= j < |xs| && xs[i] == xs[j] :: i == j
 }
+
+lemma unique_extend<T>(xs: seq<T>, x: T)
+    requires unique(xs)
+    requires x !in xs
+    ensures unique(xs + [x])
+{}
 
 }
