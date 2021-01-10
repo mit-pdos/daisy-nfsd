@@ -99,6 +99,14 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
         {
             data := data + bs.data;
         }
+
+        method {:extern} Subslice(start: uint64, end: uint64)
+            modifies this
+            requires start as nat <= end as nat <= |data|
+            ensures data == old(data[start..end])
+        {
+            data := data[start..end];
+        }
     }
 
     method {:extern} NewBytes(sz: uint64)
@@ -179,5 +187,33 @@ module bytes_test {
     requires x as nat + 1 < U64.MAX
     {
         return x + 1;
+    }
+
+    method TestSublice()
+    {
+        // mirror of Go test to check Subslice against concrete values
+        //
+        // the spec is written in terms of Dafny sequence operations and there's
+        // always a question of off-by-one errors in their interpretation
+        // (though luckily it happens to be that Go and Dafny agree)
+
+        // the Go test we're copying
+        /*
+        bs := NewBytes(5)
+        bs.Set(1, 3)
+        bs.Set(2, 4)
+        bs.Subslice(1, 3)
+        assert.Equal(t, uint64(2), bs.Len())
+        assert.Equal(t, byte(3), bs.Get(0))
+        assert.Equal(t, byte(4), bs.Get(1))
+        */
+
+        var bs := NewBytes(5);
+        bs.Set(1, 3);
+        bs.Set(2, 4);
+        bs.Subslice(1, 3);
+        assert 2 as uint64 == bs.Len();
+        assert 3 as byte == bs.Get(0);
+        assert 4 as byte == bs.Get(1);
     }
 }

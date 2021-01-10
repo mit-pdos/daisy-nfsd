@@ -31,3 +31,7 @@ func (bs *Bytes) AppendBytes(other *Bytes) {
 func (bs *Bytes) Set(i uint64, b byte) {
 	bs.Data[i] = b
 }
+
+func (bs *Bytes) Subslice(start uint64, end uint64) {
+	bs.Data = bs.Data[start:end]
+}
