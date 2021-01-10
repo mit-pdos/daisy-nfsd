@@ -25,13 +25,19 @@ ensures sz > 0
     pow(2,k)
 }
 
-lemma kind_uint64_correct()
+lemma kind_uint64_size()
     ensures kindSize(KindUInt64) == 64
 {
-    assert kindSize(6) == 64;
+    assert KindUInt64 == 6;
 }
 
-lemma kind_block_correct()
+lemma kind_inode_size()
+    ensures kindSize(KindInode) == 128*8
+{
+    assert KindInode == 10;
+}
+
+lemma kind_block_size()
     ensures kindSize(KindBlock) == 4096*8
 {}
 

@@ -173,9 +173,10 @@ module Fs {
 
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
-    ensures a.off < 4096*8
-    ensures a.off%(128*8) == 0
+    ensures a in addrsForKinds(fs_kinds)
   {
+    kind_inode_size();
+    assert fs_kinds[InodeBlk] == KindInode;
     Addr(InodeBlk, ino*128*8)
   }
   function method DataBitAddr(bn: uint64): Addr
@@ -239,8 +240,7 @@ module Fs {
       requires jrnl.kinds == fs_kinds
       ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data
     {
-      assert KindInode == 10;
-      assert kindSize(KindInode) == 128*8;
+      kind_inode_size();
       forall ino : Ino | ino_ok(ino)
         ensures InodeAddr(ino).blkno == InodeBlk
       {
@@ -425,6 +425,7 @@ module Fs {
       ensures sz == inodes[ino].sz
     {
       var txn := jrnl.Begin();
+      kind_inode_size();
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       sz := i.sz;
@@ -440,6 +441,7 @@ module Fs {
       ensures ok ==> fresh(data)
     {
       var txn := jrnl.Begin();
+      kind_inode_size();
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       if sum_overflows(off, len) || off+len >= i.sz {
