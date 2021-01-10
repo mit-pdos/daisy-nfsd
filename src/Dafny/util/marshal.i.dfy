@@ -56,6 +56,7 @@ class Encoder
         && off as nat <= data.Len() as nat
         && seq_encode(enc) == data.data[..off]
         && |data.data| == size
+        && data.data[off..] == repeat(0 as byte, size-off as nat)
     }
 
     constructor(size: uint64)
@@ -100,7 +101,7 @@ class Encoder
     method Finish() returns (bs:Bytes)
     requires Valid() ensures Valid()
     ensures bs.Valid()
-    ensures prefix_of(seq_encode(enc), bs.data)
+    ensures bs.data == seq_encode(enc) + repeat(0 as byte, bytes_left())
     ensures |bs.data| == size
     ensures bs == data
     {
@@ -108,18 +109,11 @@ class Encoder
         return data;
     }
 
-    // Exactly the same as Finish but with a simpler spec if the encoder has
-    // been completely used
-    method FinishComplete() returns (bs:Bytes)
-    requires Valid() ensures Valid()
-    requires bytes_left() == 0
-    ensures bs.Valid()
-    ensures seq_encode(enc) == bs.data
-    ensures |bs.data| == size
-    ensures bs == data
-    {
-        return data;
-    }
+    lemma is_complete()
+        requires Valid()
+        requires bytes_left() == 0
+        ensures repeat(0 as byte, bytes_left()) == []
+    {}
 }
 
 class Decoder

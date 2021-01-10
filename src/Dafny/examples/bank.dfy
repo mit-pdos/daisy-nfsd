@@ -63,7 +63,8 @@ class Bank
     {
         var enc := new Encoder(8);
         enc.PutInt(x);
-        bs := enc.FinishComplete();
+        enc.is_complete();
+        bs := enc.Finish();
     }
 
     static method decode_acct(bs:Bytes, ghost x: nat) returns (x': uint64)

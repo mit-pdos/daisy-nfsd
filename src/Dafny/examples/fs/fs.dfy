@@ -109,7 +109,8 @@ module Inode {
     }
     assert i.blks[..15] == i.blks;
     assert e.enc == inode_enc(i);
-    bs := e.FinishComplete();
+    e.is_complete();
+    bs := e.Finish();
   }
 
   method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
