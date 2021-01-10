@@ -18,11 +18,14 @@ module Jrnl_model refines JrnlSpec {
         constructor(max: uint64)
         {
             this.max := max;
+            new;
+            reveal_Valid();
         }
 
         method Alloc()
             returns (x:uint64)
         {
+            reveal_Valid();
             return 0;
         }
 

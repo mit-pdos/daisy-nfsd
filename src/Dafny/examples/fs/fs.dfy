@@ -285,7 +285,7 @@ module Fs {
     }
 
     predicate Valid()
-      reads this, jrnl
+      reads this, balloc, jrnl
     {
       // TODO: split this into multiple predicates, ideally opaque
       && Valid_basics()
@@ -304,6 +304,7 @@ module Fs {
 
       // TODO: tie inode ownership to inode block lists
       && this.balloc.max == 4095*8
+      && this.balloc.Valid()
     }
 
     constructor(d: Disk)
