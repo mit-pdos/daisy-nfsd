@@ -192,7 +192,7 @@ module Fs {
       && this.balloc.Valid()
     }
 
-    constructor(d: Disk)
+    constructor Init(d: Disk)
       ensures Valid()
     {
       var jrnl := NewJrnl(d, fs_kinds);
@@ -323,7 +323,7 @@ module Fs {
     }
 
     method Get(ino: Ino, off: uint64, len: uint64)
-      returns (ok:bool, data: Bytes)
+      returns (data: Bytes, ok: bool)
       modifies {}
       requires off % 4096 == 0 && len == 4096
       requires ino_ok(ino)
@@ -331,20 +331,20 @@ module Fs {
       // already guaranteed by modifies clause
       ensures data == old(data)
       ensures ok ==> && fresh(data)
-                    && (off as nat + len as nat) < |this.data[ino]|
+                    && (off as nat + len as nat) <= |this.data[ino]|
                     && data.data == this.data[ino][off as nat..(off+len) as nat]
     {
       var txn := jrnl.Begin();
       kind_inode_size();
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
-      if sum_overflows(off, len) || off+len >= i.sz {
+      if sum_overflows(off, len) || off+len > i.sz {
         ok := false;
         data := NewBytes(0);
         return;
       }
       ok := true;
-      var blk := i.blks[off / 4096];
+      var blk := i.blks[(off / 4096) as nat];
       data := txn.Read(DataBlk(blk), 4096*8);
       assert data.data == inode_blks[ino][off as nat / 4096];
       Collections.concat_homogeneous_spec(inode_blks[ino], 4096);

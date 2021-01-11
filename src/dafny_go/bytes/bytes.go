@@ -9,6 +9,10 @@ func NewBytes(sz uint64) *Bytes {
 	return &Bytes{Data: make([]byte, sz)}
 }
 
+func Data(data []byte) *Bytes {
+	return &Bytes{Data: data}
+}
+
 func (bs *Bytes) Len() uint64 {
 	return uint64(len(bs.Data))
 }

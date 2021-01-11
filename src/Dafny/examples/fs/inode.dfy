@@ -92,7 +92,7 @@ module Inode {
       [EncUInt64(i.sz)] +
       seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
     {
-      e.PutInt(i.blks[k]);
+      e.PutInt(i.blks[k as nat]);
       k := k + 1;
     }
     assert i.blks[..|i.blks|] == i.blks;
@@ -110,7 +110,7 @@ module Inode {
     var dec := new Decoder();
     dec.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
-    var num_blks := sz/4096;
+    var num_blks: uint64 := sz/4096;
     assert num_blks as nat == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 
@@ -125,7 +125,7 @@ module Inode {
       invariant blks == i.blks[..k]
       invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k..])
     {
-      var blk := dec.GetInt(i.blks[k]);
+      var blk := dec.GetInt(i.blks[k as nat]);
       blks := blks + [blk];
       k := k + 1;
     }
