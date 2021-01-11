@@ -1,5 +1,9 @@
+include "arith.dfy"
+
 module Collections
 {
+import opened Arith
+
 // fmap over sequences
 
 function method
@@ -32,26 +36,68 @@ function method concat<T>(xs: seq<seq<T>>): (ys: seq<T>)
     else xs[0] + concat(xs[1..])
 }
 
-/*
-lemma {:induction ls} concat_homogeneous_spec<T>(ls: seq<seq<T>>, len: nat)
+lemma {:induction ls} concat_homogeneous_len<T>(ls: seq<seq<T>>, len: nat)
     requires forall l | l in ls :: |l| == len
     ensures |concat(ls)| == len * |ls|
-    ensures forall x1:nat, x2:nat :: x1 < |ls| && x2 < len ==>
-      concat(ls)[x1 * len + x2] == ls[x1][x2]
 {
+    if ls == [] {}
+    else {
+        concat_homogeneous_len(ls[1..], len);
+    }
+}
+
+predicate concat_spec<T>(ls: seq<seq<T>>, x1: nat, x2: nat, len: nat)
+    requires forall l | l in ls :: |l| == len
+    requires x1 < |ls|
+    requires x2 < len
+{
+    concat_homogeneous_len(ls, len);
+    && x1 * len + x2 < len * |ls|
+    && concat(ls)[x1 * len + x2] == ls[x1][x2]
+}
+
+
+lemma {:induction ls} concat_homogeneous_spec<T>(ls: seq<seq<T>>, len: nat)
+    decreases ls
+    requires forall l | l in ls :: |l| == len
+    ensures |concat(ls)| == len * |ls|
+    ensures forall x1:nat, x2:nat | x1 < |ls| && x2 < len ::
+        concat_spec(ls, x1, x2, len)
+{
+    concat_homogeneous_len(ls, len);
     if ls == [] {}
     else {
         concat_homogeneous_spec(ls[1..], len);
         forall x1:nat, x2:nat | x1 < |ls| && x2 < len
-            ensures concat(ls)[x1 * len + x2] == ls[x1][x2]
+            ensures concat_spec(ls, x1, x2, len)
         {
             if x1 == 0 {
             } else {
+                assert concat_spec(ls[1..], x1-1, x2, len);
+                // assert concat(ls[1..])[(x1-1) * len + x2] == ls[1..][x1-1][x2];
+                // assert (x1-1) * len + x2 == (x1*len + x2) - len;
             }
         }
     }
 }
-*/
+
+lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
+    requires forall l | l in ls :: |l| == len
+    ensures |concat(ls)| == len * |ls|
+    ensures forall x: nat | x < len * |ls| ::
+        concat(ls)[x] == ls[x / len][x % len]
+{
+    concat_homogeneous_spec(ls, len);
+    forall x: nat | x < len * |ls|
+        ensures concat_spec(ls, x / len, x % len, len)
+        ensures concat(ls)[x] == ls[x / len][x % len]
+    {
+        div_mod_split(x, len);
+        assert concat_spec(ls, x/len, x%len, len);
+        // assert (x/len) * len + (x%len) == x;
+        assert concat(ls)[(x/len) * len + (x%len)] == concat(ls)[x];
+    }
+}
 
 // map to domain as a set
 
