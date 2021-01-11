@@ -272,6 +272,14 @@ module Fs {
     {
       var txn := jrnl.Begin();
 
+      // check for available space
+      var buf := txn.Read(InodeAddr(ino), 128*8);
+      var i := Inode.decode_ino(buf, inodes[ino]);
+      if i.sz + 4096 >= 15*4096 {
+        ok := false;
+        return;
+      }
+
       // allocate and validate
       var alloc_ok, bn := Alloc(txn);
       if !alloc_ok {
@@ -284,13 +292,6 @@ module Fs {
       block_used := block_used[bn:=Some(ino)];
       txn.WriteBit(DataBitAddr(bn), true);
 
-      var buf := txn.Read(InodeAddr(ino), 128*8);
-      var i := Inode.decode_ino(buf, inodes[ino]);
-      if i.sz == 15*4096 {
-        ok := false;
-        balloc.Free(bn-1);
-        return;
-      }
       var i' := inode_append(i, bn);
       Collections.unique_extend(i.blks, bn);
       assert Inode.Valid(i');
