@@ -75,10 +75,19 @@ module Fs {
     ghost var data: map<Ino, seq<byte>>;
 
     // intermediate abstractions
-    ghost var inodes: map<Ino, Inode.Inode>;
+
+    // slightly more physical representation of an inode as a sequence of data
+    // blocks (without size, that's in this.inodes)
     ghost var inode_blks: map<Ino, seq<seq<byte>>>;
-    // gives the inode that owns the block
+
+    // inodes, block_used, and data_block are basically just the data in the
+    // journal (except block_used additionally has inode owners)
+
+    // encoded inodes on disk
+    ghost var inodes: map<Ino, Inode.Inode>;
+    // allocator state + the inode that owns the block
     ghost var block_used: map<Blkno, Option<Ino>>;
+    // on-disk value for all the data blocks
     ghost var data_block: map<Blkno, seq<byte>>;
 
     var jrnl: Jrnl;
