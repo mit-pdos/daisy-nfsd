@@ -109,6 +109,17 @@ lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
     }
 }
 
+lemma {:induction ls} concat_app1<T>(ls: seq<seq<T>>, x: seq<T>)
+    decreases ls
+    ensures concat(ls + [x]) == concat(ls) + x
+{
+    if ls == [] {
+    } else {
+        concat_app1(ls[1..], x);
+        assert (ls + [x])[1..] == ls[1..] + [x];
+    }
+}
+
 // map to domain as a set
 
 function method map_domain<K, V>(m: map<K, V>): set<K> {

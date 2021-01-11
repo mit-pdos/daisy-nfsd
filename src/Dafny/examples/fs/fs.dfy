@@ -93,7 +93,7 @@ module Fs {
       reads this
     {
       && (forall bn: Blkno | blkno_ok(bn) :: bn in block_used && bn in data_block)
-      && (forall ino: Ino | ino_ok(ino) :: ino in inodes && ino in inode_blks)
+      && (forall ino: Ino | ino_ok(ino) :: ino in inodes && ino in inode_blks && ino in data)
     }
 
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
@@ -130,7 +130,8 @@ module Fs {
     {
       && (forall bn | bn in data_block ::
         && blkno_ok(bn)
-        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
+        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn])
+        && |data_block[bn]| == 4096)
     }
 
     predicate Valid_inodes()
@@ -155,10 +156,10 @@ module Fs {
       requires ino_ok(ino)
     {
       var i3 := inodes[ino];
-      forall k: nat | k < |i3.blks| ::
+      && |inode_blks[ino]| == |i3.blks|
+      && (forall k: nat | k < |i3.blks| ::
         && i3.blks[k] in data_block
-        && |inode_blks[ino]| == |i3.blks|
-        && inode_blks[ino][k] == data_block[i3.blks[k]]
+        && inode_blks[ino][k] == data_block[i3.blks[k]])
     }
 
     predicate Valid_data()
@@ -167,12 +168,10 @@ module Fs {
       requires Valid_inodes()
       reads this, jrnl
     {
-      && (forall ino: Ino | ino in data :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
-         var i2 := inodes[ino];
-         && ino in data
-         && i2.sz as nat == |data[ino]|
-         // && inode_blks_match(ino)
+         && inodes[ino].sz as nat == |data[ino]|
+         && inode_blks_match(ino)
+         && data[ino] == Collections.concat(inode_blks[ino])
         )
     }
 
@@ -232,6 +231,7 @@ module Fs {
       ensures ok ==>
         (&& bn != 0
         && bn-1 < 4095*8
+        && blkno_ok(bn)
         && block_used[bn].None?
         )
     {
@@ -251,22 +251,14 @@ module Fs {
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {}
 
-    method Append(ino: Ino, bs: Bytes) returns (ok:bool, ghost alloc_bn: Option<Blkno>)
+    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires |bs.data| == 4096
-      ensures ok ==>
-        && alloc_bn.Some?
-        && alloc_bn.x in old(block_used)
-        && old(block_used[alloc_bn.x]).None?
-        && block_used == old(block_used[alloc_bn.x:=Some(ino)])
-        && data_block == old(data_block[alloc_bn.x:=bs.data])
-        && can_inode_append(old(inodes[ino]), alloc_bn.x)
-        && inodes == old(inodes[ino:=inode_append(inodes[ino], alloc_bn.x)])
+      ensures ok ==> data == old(data[ino := data[ino] + bs.data])
+      ensures !ok ==> data == old(data)
     {
-      alloc_bn := None;
-
       var txn := jrnl.Begin();
 
       // allocate and validate
@@ -298,11 +290,13 @@ module Fs {
 
       txn.Write(DataBlk(bn), bs);
       data_block := data_block[bn:=bs.data];
+      assert bn in data_block;
 
+      Collections.concat_app1(inode_blks[ino], bs.data);
       inode_blks := inode_blks[ino := inode_blks[ino] + [bs.data]];
       data := data[ino:=data[ino] + bs.data];
 
-      assert inode_blks[ino] == old(inode_blks[ino]) + [bs.data];
+      assert inode_blks_match(ino);
 
       assert this.Valid_block_used();
       assert this.Valid_data_block();
@@ -310,8 +304,6 @@ module Fs {
       assert this.Valid_data();
 
       ok := true;
-      alloc_bn := Some(bn);
-
       var _ := txn.Commit();
     }
 
