@@ -4,6 +4,8 @@ include "inode.dfy"
 
 module Fs {
   import Inode
+  import Collections
+  import Arith
   import opened Machine
   import opened ByteSlice
   import opened JrnlSpec
@@ -310,7 +312,7 @@ module Fs {
     method Size(ino: Ino) returns (sz: uint64)
       requires Valid() ensures Valid()
       requires ino_ok(ino)
-      ensures sz == inodes[ino].sz
+      ensures sz as nat == |data[ino]|
     {
       var txn := jrnl.Begin();
       kind_inode_size();
@@ -326,7 +328,11 @@ module Fs {
       requires off % 4096 == 0 && len == 4096
       requires ino_ok(ino)
       requires Valid() ensures Valid()
-      ensures ok ==> fresh(data)
+      // already guaranteed by modifies clause
+      ensures data == old(data)
+      ensures ok ==> && fresh(data)
+                    && (off as nat + len as nat) < |this.data[ino]|
+                    && data.data == this.data[ino][off as nat..(off+len) as nat]
     {
       var txn := jrnl.Begin();
       kind_inode_size();
@@ -340,6 +346,10 @@ module Fs {
       ok := true;
       var blk := i.blks[off / 4096];
       data := txn.Read(DataBlk(blk), 4096*8);
+      assert data.data == inode_blks[ino][off as nat / 4096];
+      Collections.concat_homogeneous_spec(inode_blks[ino], 4096);
+      Collections.concat_homogeneous_one_list(inode_blks[ino], off as nat / 4096, 4096);
+      Arith.div_mod_split(off as nat, 4096);
       var _ := txn.Commit();
     }
   }

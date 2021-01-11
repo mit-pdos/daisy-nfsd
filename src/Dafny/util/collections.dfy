@@ -120,6 +120,23 @@ lemma {:induction ls} concat_app1<T>(ls: seq<seq<T>>, x: seq<T>)
     }
 }
 
+// extracting one full list from a concatnation
+lemma concat_homogeneous_one_list<T>(ls: seq<seq<T>>, k: nat, len: nat)
+    requires forall l | l in ls :: |l| == len
+    requires 1 < len
+    requires k < |ls|
+    ensures k * len + len <= |concat(ls)|
+    ensures concat(ls)[k * len..k*len + len] == ls[k]
+{
+    concat_homogeneous_spec(ls, len);
+    assert k * len + len == (k+1) * len;
+    forall i: nat | i < len
+        ensures concat(ls)[k * len + i] == ls[k][i]
+    {
+        assert concat_spec(ls, k, i, len);
+    }
+}
+
 // map to domain as a set
 
 function method map_domain<K, V>(m: map<K, V>): set<K> {
