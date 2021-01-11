@@ -81,20 +81,30 @@ lemma {:induction ls} concat_homogeneous_spec<T>(ls: seq<seq<T>>, len: nat)
     }
 }
 
+lemma concat_homogeneous_spec1<T>(ls: seq<seq<T>>, x1: nat, x2: nat, len: nat)
+    requires forall l | l in ls :: |l| == len
+    requires x1 < |ls| && x2 < len
+    ensures concat_spec(ls, x1, x2, len)
+{
+    concat_homogeneous_spec(ls, len);
+}
+
 lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
     requires forall l | l in ls :: |l| == len
     ensures |concat(ls)| == len * |ls|
     ensures forall x: nat | x < len * |ls| ::
         concat(ls)[x] == ls[x / len][x % len]
 {
-    concat_homogeneous_spec(ls, len);
+    concat_homogeneous_len(ls, len);
     forall x: nat | x < len * |ls|
         ensures concat_spec(ls, x / len, x % len, len)
         ensures concat(ls)[x] == ls[x / len][x % len]
     {
+        div_incr(x, |ls|, len);
+        concat_homogeneous_spec1(ls, x/len, x%len, len);
         div_mod_split(x, len);
         assert concat_spec(ls, x/len, x%len, len);
-        // assert (x/len) * len + (x%len) == x;
+        assert (x/len) * len + (x%len) == x;
         assert concat(ls)[(x/len) * len + (x%len)] == concat(ls)[x];
     }
 }

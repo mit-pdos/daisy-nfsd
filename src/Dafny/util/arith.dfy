@@ -18,4 +18,11 @@ module Arith {
           == x1_bound*k-k;
       }
   }
+
+  lemma div_incr(x: nat, bound: nat, k: nat)
+    requires 0 < k
+    requires x < k * bound
+    ensures x / k < bound
+  {
+  }
 }
