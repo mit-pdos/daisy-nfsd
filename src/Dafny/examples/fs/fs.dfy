@@ -74,6 +74,7 @@ module Fs {
 
     // intermediate abstractions
     ghost var inodes: map<Ino, Inode.Inode>;
+    ghost var inode_blks: map<Ino, seq<seq<byte>>>;
     // gives the inode that owns the block
     ghost var block_used: map<Blkno, Option<Ino>>;
     ghost var data_block: map<Blkno, seq<byte>>;
@@ -86,6 +87,13 @@ module Fs {
     {
       && jrnl.Valid()
       && jrnl.kinds == fs_kinds
+    }
+
+    predicate Valid_domains()
+      reads this
+    {
+      && (forall bn: Blkno | blkno_ok(bn) :: bn in block_used && bn in data_block)
+      && (forall ino: Ino | ino_ok(ino) :: ino in inodes && ino in inode_blks)
     }
 
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
@@ -111,7 +119,6 @@ module Fs {
       reads this, jrnl
     {
       blkno_bit_inbounds(jrnl);
-      && (forall bn :: blkno_ok(bn) ==> bn in block_used)
       && (forall bn | bn in block_used ::
         && blkno_ok(bn)
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
@@ -121,7 +128,6 @@ module Fs {
       requires Valid_basics()
       reads this, jrnl
     {
-      && (forall bn :: blkno_ok(bn) ==> bn in data_block)
       && (forall bn | bn in data_block ::
         && blkno_ok(bn)
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
@@ -132,7 +138,6 @@ module Fs {
       reads this, jrnl
     {
       inode_inbounds(jrnl);
-      && (forall ino: Ino | ino_ok(ino) :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
         var i2 := inodes[ino];
         && ino_ok(ino)
@@ -144,31 +149,44 @@ module Fs {
         )
     }
 
+    predicate inode_blks_match(ino: Ino)
+      reads this
+      requires Valid_domains()
+      requires ino_ok(ino)
+    {
+      var i3 := inodes[ino];
+      forall k: nat | k < |i3.blks| ::
+        && i3.blks[k] in data_block
+        && |inode_blks[ino]| == |i3.blks|
+        && inode_blks[ino][k] == data_block[i3.blks[k]]
+    }
+
     predicate Valid_data()
       requires Valid_basics()
+      requires Valid_domains()
       requires Valid_inodes()
       reads this, jrnl
     {
       && (forall ino: Ino | ino in data :: ino in inodes)
       && (forall ino: Ino | ino in inodes ::
-         var i := inodes[ino];
+         var i2 := inodes[ino];
          && ino in data
-         && i.sz as nat == |data[ino]|)
-      // TODO: need to encode how data blocks are looked up and concatenated together
+         && i2.sz as nat == |data[ino]|
+         // && inode_blks_match(ino)
+        )
     }
 
     predicate Valid()
       reads this, balloc, jrnl
     {
-      // TODO: split this into multiple predicates, ideally opaque
       && Valid_basics()
+      && Valid_domains()
 
       && this.Valid_block_used()
       && this.Valid_data_block()
       && this.Valid_inodes()
       && this.Valid_data()
 
-      // TODO: tie inode ownership to inode block lists
       && this.balloc.max == 4095*8
       && this.balloc.Valid()
     }
@@ -183,6 +201,7 @@ module Fs {
 
       this.data := map ino: Ino | ino_ok(ino) :: [];
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
+      this.inode_blks := map ino: Ino | ino_ok(ino) :: [];
       Inode.zero_encoding();
       this.block_used := map bn: uint64 |
         blkno_ok(bn) :: None;
@@ -280,11 +299,15 @@ module Fs {
       txn.Write(DataBlk(bn), bs);
       data_block := data_block[bn:=bs.data];
 
+      inode_blks := inode_blks[ino := inode_blks[ino] + [bs.data]];
       data := data[ino:=data[ino] + bs.data];
+
+      assert inode_blks[ino] == old(inode_blks[ino]) + [bs.data];
 
       assert this.Valid_block_used();
       assert this.Valid_data_block();
       assert this.Valid_inodes();
+      assert this.Valid_data();
 
       ok := true;
       alloc_bn := Some(bn);
