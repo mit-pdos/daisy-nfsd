@@ -9,17 +9,42 @@ module Round {
     (x + (k-1)) / k
   }
 
-  // TODO: prove this
-  lemma {:axiom} div_roundup_spec(x: nat, k: nat)
+  // TODO: prove this (Coq's Z.div_add_l, specialized to nat)
+  lemma {:axiom} div_add_l(a:nat, b:nat, c: nat)
+    requires 0 < b
+    ensures (a * b + c) / b == a + c / b
+
+  lemma div_small(a: nat, b:nat)
+    requires a < b
+    ensures a / b == 0
+  {}
+
+  lemma div_roundup_spec(x: nat, k: nat)
     requires k >= 1
     ensures div_roundup(x, k) == if x % k == 0 then x/k else x/k + 1
   {
     if x % k == 0 {
       assert x == (x/k)*k;
       assert x + (k-1) == x/k*k + (k-1);
-      assume (x/k*k + (k-1)) / k == x/k;
+      calc {
+        (x + (k-1)) / k;
+        (x/k*k + (k-1)) / k;
+      { div_add_l(x/k, k, (k-1)); }
+        x/k + (k-1) / k;
+      { div_small(k-1, k); }
+        x/k;
+      }
     } else {
-      assume false;
+      calc {
+        div_roundup(x, k);
+        (x/k*k + x%k + (k-1)) / k;
+        (x/k*k + k + (x%k-1)) / k;
+        ((x/k+1)*k + (x%k-1)) / k;
+        { div_add_l(x/k+1, k, (x%k-1)); }
+        x/k+1 + (x%k-1)/k;
+        { div_small( (x%k-1)/k, k ); }
+        x/k + 1;
+      }
     }
   }
 
