@@ -104,8 +104,20 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             modifies this
             requires start as nat <= end as nat <= |data|
             ensures data == old(data[start..end])
+            ensures |data| == (end-start) as nat
         {
             data := data[start..end];
+        }
+
+        method {:extern} CopyTo(off: uint64, bs: Bytes)
+            modifies this
+            requires bs != this
+            requires off as nat + |bs.data| <= |this.data|
+            ensures data == old(data[..off as nat] + bs.data + data[off as nat + |bs.data|..])
+            ensures |data| == old(|data|)
+            ensures bs.data == old(bs.data)
+        {
+            data := data[..off as nat] + bs.data + data[off as nat + |bs.data|..];
         }
     }
 

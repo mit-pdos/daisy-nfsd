@@ -30,3 +30,17 @@ func TestSubslice(t *testing.T) {
 	assert.Equal(t, byte(3), bs.Get(0))
 	assert.Equal(t, byte(4), bs.Get(1))
 }
+
+func TestCopyTo(t *testing.T) {
+	bs := NewBytes(3)
+	bs2 := NewBytes(2)
+	bs2.Data[1] = byte(4)
+	assert.Equal(t, []byte{0, 4}, bs2.Data)
+
+	bs.CopyTo(1, bs2)
+	assert.Equal(t, uint64(3), bs.Len())
+	assert.Equal(t, byte(0), bs.Get(0))
+	assert.Equal(t, byte(4), bs.Get(2))
+
+	assert.Equal(t, []byte{0, 4}, bs2.Data)
+}

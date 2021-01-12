@@ -235,6 +235,11 @@ module Fs {
       Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
+    static lemma after_copy_to(bs: seq<byte>, off: nat, data: seq<byte>)
+      requires off + |data| <= |bs|
+      ensures (bs[..off] + data + bs[off+|data|..])[off..off+|data|] == data
+    {}
+
     method Alloc(txn: Txn) returns (ok:bool, bn:Blkno)
       modifies balloc
       requires txn.jrnl == this.jrnl

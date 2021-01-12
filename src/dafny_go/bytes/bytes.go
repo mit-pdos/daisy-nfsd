@@ -21,6 +21,10 @@ func (bs *Bytes) Get(i uint64) byte {
 	return bs.Data[i]
 }
 
+func (bs *Bytes) Set(i uint64, b byte) {
+	bs.Data[i] = b
+}
+
 func (bs *Bytes) Append(b byte) {
 	bs.Data = append(bs.Data, b)
 }
@@ -32,10 +36,13 @@ func (bs *Bytes) AppendBytes(other *Bytes) {
 	bs.Data = append(bs.Data, other.Data...)
 }
 
-func (bs *Bytes) Set(i uint64, b byte) {
-	bs.Data[i] = b
-}
-
 func (bs *Bytes) Subslice(start uint64, end uint64) {
 	bs.Data = bs.Data[start:end]
+}
+
+func (bs *Bytes) CopyTo(start uint64, other *Bytes) {
+	if other == bs {
+		panic("attempt to copy from self")
+	}
+	copy(bs.Data[start:], other.Data)
 }
