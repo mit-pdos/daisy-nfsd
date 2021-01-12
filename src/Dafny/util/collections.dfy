@@ -36,6 +36,17 @@ function method concat<T>(xs: seq<seq<T>>): (ys: seq<T>)
     else xs[0] + concat(xs[1..])
 }
 
+lemma {:induction ls1} concat_app<T>(ls1: seq<seq<T>>, ls2: seq<seq<T>>)
+    ensures concat(ls1 + ls2) == concat(ls1) + concat(ls2)
+{
+    if ls1 == [] {
+        assert [] + ls2 == ls2;
+    } else {
+        assert (ls1 + ls2)[1..] == ls1[1..] + ls2;
+        concat_app(ls1[1..], ls2);
+    }
+}
+
 lemma {:induction ls} concat_homogeneous_len<T>(ls: seq<seq<T>>, len: nat)
     requires forall l | l in ls :: |l| == len
     ensures |concat(ls)| == len * |ls|
