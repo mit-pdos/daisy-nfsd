@@ -12,6 +12,12 @@ module Round {
     (x + (k-1)) / k
   }
 
+  function div_roundup_alt(x: nat, k: nat): nat
+    requires k >= 1
+  {
+    if x % k == 0 then x/k else x/k + 1
+  }
+
   lemma mul_add_mod(a: nat, b: nat, c: nat)
     requires 0 < b
     ensures (a*b + c) % b == c % b
@@ -44,7 +50,7 @@ module Round {
 
   lemma div_roundup_spec(x: nat, k: nat)
     requires k >= 1
-    ensures div_roundup(x, k) == if x % k == 0 then x/k else x/k + 1
+    ensures div_roundup(x, k) == div_roundup_alt(x, k)
   {
     if x % k == 0 {
       assert x == (x/k)*k;
@@ -82,15 +88,16 @@ module Round {
   function method div_roundup64(x: uint64, k: uint64): (r:uint64)
     requires k >= 1
     requires x as nat < 0x1_0000_0000_0000_0000-k as nat
-    ensures div_roundup(x as nat, k as nat) == r as nat
+    ensures div_roundup_alt(x as nat, k as nat) == r as nat
   {
+    div_roundup_spec(x as nat, k as nat);
     (x + (k-1)) / k
   }
 
   function roundup(x: nat, k: nat): nat
     requires k >= 1
   {
-    div_roundup(x, k) * k
+    if x % k == 0 then x else x/k*k + k
   }
 
   function method roundup64(x: uint64, k: uint64): (r:uint64)

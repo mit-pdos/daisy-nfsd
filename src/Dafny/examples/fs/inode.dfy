@@ -1,9 +1,11 @@
 include "../../util/marshal.i.dfy"
+include "../../nonlin/roundup.dfy"
 
 // NOTE: this module, unlike the others in this development, is not intended to
 // be opened
 module Inode {
   import opened Machine
+  import opened Round
   import IntEncoding
   import opened Arith
   import opened Collections
@@ -12,27 +14,13 @@ module Inode {
 
   datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
 
-  function method div_roundup(x: nat, k: nat): nat
-    requires k >= 1
-  {
-    div_positive(x + (k-1), k);
-    (x + (k-1)) / k
-  }
-
-  function method NextBlock(i:Inode): uint64
-  {
-    i.sz/4096
-  }
-
   predicate Valid(i:Inode)
   {
     var blks_ := i.blks;
     // only direct blocks
     && |blks_| <= 15
-    // TODO: will be div_roundup
-    && |blks_| == i.sz as nat/4096
-    // TODO: generalize to allow non-block appends
-    && i.sz % 4096 == 0
+    && |blks_| == div_roundup_alt(i.sz as nat, 4096)
+    && i.sz as nat <= 15*4096
     && (forall bn | bn in blks_ :: bn != 0)
     && unique(blks_)
   }
@@ -82,7 +70,7 @@ module Inode {
   {
     var e := new Encoder(128);
     e.PutInt(i.sz);
-    var num_blocks := i.sz/4096;
+    var num_blocks: uint64 := div_roundup64(i.sz, 4096);
     assert num_blocks as nat == |i.blks|;
     var k: uint64 := 0;
     while k < num_blocks
@@ -112,7 +100,7 @@ module Inode {
     var dec := new Decoder();
     dec.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
-    var num_blks: uint64 := sz/4096;
+    var num_blks: uint64 := div_roundup64(sz, 4096);
     assert num_blks as nat == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 

@@ -247,4 +247,18 @@ lemma unique_extend<T>(xs: seq<T>, x: T)
     ensures unique(xs + [x])
 {}
 
+// without_last, last
+
+function without_last<T>(xs: seq<T>): seq<T>
+    requires 0 < |xs|
+{
+    xs[..|xs|-1]
+}
+
+function last<T>(xs: seq<T>): T
+    requires 0 < |xs|
+{
+    xs[|xs|-1]
+}
+
 }

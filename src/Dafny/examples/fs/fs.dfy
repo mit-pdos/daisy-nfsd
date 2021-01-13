@@ -4,7 +4,7 @@ include "inode.dfy"
 
 module Fs {
   import Inode
-  import Collections
+  import C = Collections
   import Arith
   import opened Machine
   import opened ByteSlice
@@ -177,6 +177,7 @@ module Fs {
     {
       var i3 := inodes[ino];
       && |inode_blks[ino]| == |i3.blks|
+      && (forall blk | blk in inode_blks[ino] :: |blk| == 4096)
       && (forall k: nat | k < |i3.blks| ::
         && i3.blks[k] in data_block
         && inode_blks[ino][k] == data_block[i3.blks[k]])
@@ -191,9 +192,33 @@ module Fs {
       && (forall ino: Ino | ino in inodes ::
          && inodes[ino].sz as nat == |data[ino]|
          && inode_blks_match(ino)
-         && data[ino] == Collections.concat(inode_blks[ino])
+         && data[ino] == if inodes[ino].sz as nat % 4096 == 0
+                        then C.concat(inode_blks[ino])
+                        else C.concat(C.without_last(inode_blks[ino])) +
+                             C.last(inode_blks[ino])[..inodes[ino].sz as nat % 4096]
         )
     }
+
+    lemma data_block_val(ino: Ino, k: nat)
+      requires && Valid_basics() && Valid_domains() && Valid_inodes() && Valid_data()
+      requires ino_ok(ino)
+      requires (k+1)*4096 <= |data[ino]|
+      ensures inode_blks[ino][k] == data[ino][k*4096..(k+1)*4096]
+    {
+      if inodes[ino].sz as nat % 4096 == 0 {
+        C.concat_homogeneous_one_list(inode_blks[ino], k, 4096);
+      } else {
+        C.concat_homogeneous_one_list(C.without_last(inode_blks[ino]), k, 4096);
+      }
+    }
+
+    lemma data_block_val_last(ino: Ino)
+      requires && Valid_basics() && Valid_domains() && Valid_inodes() && Valid_data()
+      requires ino_ok(ino)
+      requires 0 < |inodes[ino].blks|
+      ensures C.last(inode_blks[ino])[..inodes[ino].sz as nat % 4096] ==
+              data[ino][inodes[ino].sz as nat / 4096 * 4096..]
+    {}
 
     predicate Valid()
       reads this, balloc, jrnl
@@ -280,7 +305,7 @@ module Fs {
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
       requires ino_ok(ino)
-      requires |bs.data| == 4096
+      requires bs.Valid()
       ensures ok ==> data == old(data[ino := data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
@@ -289,10 +314,12 @@ module Fs {
       // check for available space
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
-      if i.sz + 4096 >= 15*4096 {
+      if sum_overflows(i.sz, bs.Len()) || i.sz + bs.Len() >= 15*4096 {
         ok := false;
         return;
       }
+
+      assume false;
 
       // allocate and validate
       var alloc_ok, bn := Alloc(txn);
@@ -307,7 +334,7 @@ module Fs {
       txn.WriteBit(DataBitAddr(bn), true);
 
       var i' := inode_append(i, bn);
-      Collections.unique_extend(i.blks, bn);
+      C.unique_extend(i.blks, bn);
       assert Inode.Valid(i');
       i := i';
       var buf' := Inode.encode_ino(i);
@@ -318,7 +345,7 @@ module Fs {
       data_block := data_block[bn:=bs.data];
       assert bn in data_block;
 
-      Collections.concat_app1(inode_blks[ino], bs.data);
+      C.concat_app1(inode_blks[ino], bs.data);
       inode_blks := inode_blks[ino := inode_blks[ino] + [bs.data]];
       data := data[ino:=data[ino] + bs.data];
 
@@ -346,10 +373,42 @@ module Fs {
       var _ := txn.Commit();
     }
 
+    method get_inode_blk(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
+      returns (bs: Bytes)
+      modifies {}
+      requires Valid()
+      requires
+      && this.jrnl == txn.jrnl
+      && ino_ok(ino)
+      && i == inodes[ino]
+      requires blkoff * 4096 < inodes[ino].sz as nat
+      ensures fresh(bs)
+      ensures
+      && |bs.data| == 4096
+      && if i.sz % 4096 == 0 || blkoff < |i.blks|-1
+      then bs.data == data[ino][blkoff * 4096..blkoff * 4096 + 4096]
+      else (blkoff == |i.blks|-1 && bs.data[..i.sz as nat % 4096] == data[ino][blkoff * 4096..])
+    {
+      assert blkoff as nat < |inodes[ino].blks|;
+      var bn := i.blks[blkoff];
+      bs := txn.Read(DataBlk(bn), 4096*8);
+      ghost var blk := bs.data;
+      assert blk == inode_blks[ino][blkoff];
+      if i.sz % 4096 == 0 {
+          data_block_val(ino, blkoff);
+      } else {
+        if blkoff < |i.blks|-1 {
+          data_block_val(ino, blkoff);
+        } else {
+          data_block_val_last(ino);
+        }
+      }
+    }
+
     method Get(ino: Ino, off: uint64, len: uint64)
       returns (data: Bytes, ok: bool)
       modifies {}
-      requires off % 4096 == 0 && len == 4096
+      requires off % 4096 == 0 && len <= 4096
       requires ino_ok(ino)
       requires Valid() ensures Valid()
       // already guaranteed by modifies clause
@@ -367,13 +426,21 @@ module Fs {
         data := NewBytes(0);
         return;
       }
+
       ok := true;
-      var blk := i.blks[(off / 4096) as nat];
-      data := txn.Read(DataBlk(blk), 4096*8);
-      assert data.data == inode_blks[ino][off as nat / 4096];
-      Collections.concat_homogeneous_spec(inode_blks[ino], 4096);
-      Collections.concat_homogeneous_one_list(inode_blks[ino], off as nat / 4096, 4096);
-      Arith.div_mod_split(off as nat, 4096);
+      if len == 0 {
+        data := NewBytes(0);
+        assert this.data[ino][off as nat..(off+len) as nat] == [];
+        return;
+      }
+      assert (off as nat + len as nat) <= |this.data[ino]|;
+      assert 0 < len <= 4096;
+
+      var blkoff: nat := off as nat / 4096;
+      data := get_inode_blk(txn, ino, i, blkoff);
+      data.Subslice(0, len);
+      assert blkoff * 4096 == off as nat;
+
       var _ := txn.Commit();
     }
   }
