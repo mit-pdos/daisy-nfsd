@@ -19,17 +19,11 @@ requires 0 < x
 ensures 0 < pow(x, k)
 {}
 
-lemma mul_increasing(x1: nat, x2: nat)
-requires 0 < x2
-ensures x1 <= x1 * x2
-{}
-
 lemma {:induction k1} pow_increasing(x: nat, k1: nat, k2: nat)
 requires 0 < x
 ensures pow(x, k1) <= pow(x, k1+k2)
 {
     pow_plus(x, k1, k2);
-    mul_increasing(pow(x,k1), pow(x,k2));
 }
 
 }

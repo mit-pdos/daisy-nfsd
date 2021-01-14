@@ -1,3 +1,4 @@
+// -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=false") -*-
 include "arith.dfy"
 
 module Collections
@@ -54,6 +55,13 @@ lemma {:induction ls} concat_homogeneous_len<T>(ls: seq<seq<T>>, len: nat)
     if ls == [] {}
     else {
         concat_homogeneous_len(ls[1..], len);
+        calc {
+            |ls[0] + concat(ls[1..])|;
+            len + |concat(ls[1..])|;
+            len + len*(|ls|-1);
+            { mul_distr_add_l(len, |ls|, -1); }
+            len * |ls|;
+        }
     }
 }
 
@@ -63,6 +71,7 @@ predicate concat_spec<T>(ls: seq<seq<T>>, x1: nat, x2: nat, len: nat)
     requires x2 < len
 {
     concat_homogeneous_len(ls, len);
+    mul_positive(x1, len);
     && x1 * len + x2 < len * |ls|
     && concat(ls)[x1 * len + x2] == ls[x1][x2]
 }
@@ -85,8 +94,10 @@ lemma {:induction ls} concat_homogeneous_spec<T>(ls: seq<seq<T>>, len: nat)
             if x1 == 0 {
             } else {
                 assert concat_spec(ls[1..], x1-1, x2, len);
-                // assert concat(ls[1..])[(x1-1) * len + x2] == ls[1..][x1-1][x2];
-                // assert (x1-1) * len + x2 == (x1*len + x2) - len;
+                mul_positive(x1-1, len);
+                assert concat(ls[1..])[(x1-1) * len + x2] == ls[1..][x1-1][x2];
+                mul_distr_add_r(x1, -1, len);
+                assert (x1-1) * len + x2 == (x1*len + x2) - len;
             }
         }
     }
@@ -104,14 +115,17 @@ lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
     requires forall l | l in ls :: |l| == len
     ensures |concat(ls)| == len * |ls|
     ensures forall x: nat | x < len * |ls| ::
-        concat(ls)[x] == ls[x / len][x % len]
+        && 0 <= x/len < |ls|
+        && concat(ls)[x] == ls[x / len][x % len]
 {
     concat_homogeneous_len(ls, len);
     forall x: nat | x < len * |ls|
         ensures concat_spec(ls, x / len, x % len, len)
+        ensures 0 <= x/len < |ls|
         ensures concat(ls)[x] == ls[x / len][x % len]
     {
         div_incr(x, |ls|, len);
+        div_positive(x, len);
         concat_homogeneous_spec1(ls, x/len, x%len, len);
         div_mod_split(x, len);
         assert concat_spec(ls, x/len, x%len, len);
@@ -136,11 +150,15 @@ lemma concat_homogeneous_one_list<T>(ls: seq<seq<T>>, k: nat, len: nat)
     requires forall l | l in ls :: |l| == len
     requires 1 < len
     requires k < |ls|
+    ensures 0 <= k*len
     ensures k * len + len <= |concat(ls)|
     ensures concat(ls)[k * len..k*len + len] == ls[k]
 {
+    mul_positive(k, len);
+    mul_distr_add_r(k, 1, len);
+    mul_add_bound(k, 1, |ls|, len);
+    mul_r_incr(k+1, |ls|, len);
     concat_homogeneous_spec(ls, len);
-    assert k * len + len == (k+1) * len;
     forall i: nat | i < len
         ensures concat(ls)[k * len + i] == ls[k][i]
     {
@@ -198,6 +216,8 @@ lemma {:induction count} sum_repeat(x: nat, count: nat)
 ensures sum_nat(repeat(x, count)) == count * x
 {
     reveal_repeat();
+    mul_distr_add_r(count, -1, x);
+    // assert x + (count-1) * x == count*x;
 }
 
 // NOTE(tej): if you happen to know the proof, then Dafny can automatically
