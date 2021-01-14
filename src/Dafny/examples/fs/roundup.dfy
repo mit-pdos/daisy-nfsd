@@ -1,7 +1,9 @@
 include "../../machine/machine.s.dfy"
+include "../../util/arith.dfy"
 
 module Round {
   import opened Machine
+  import opened Arith
 
   function div_roundup(x: nat, k: nat): nat
     requires k >= 1
@@ -9,10 +11,48 @@ module Round {
     (x + (k-1)) / k
   }
 
-  // TODO: prove this (Coq's Z.div_add_l, specialized to nat)
-  lemma {:axiom} div_add_l(a:nat, b:nat, c: nat)
+  // TODO: prove these basic properties of mul, mod, div
+
+  lemma {:axiom} mod_add(a: nat, b: nat, k: nat)
+    requires 0 < k
+    ensures (a + b) % k == (a%k + b%k) % k
+
+  lemma {:axiom} mul_div_id(a: nat, k: nat)
+    requires 0 < k
+    ensures (a*k) / k == a
+
+  lemma mul_mod(a: nat, k: nat)
+    requires 0 < k
+    ensures a * k % k == 0
+  {
+    div_mod_split(a*k, k);
+    mul_div_id(a, k);
+  }
+
+  lemma mul_add_mod(a: nat, b: nat, c: nat)
+    requires 0 < b
+    ensures (a*b + c) % b == c % b
+  {
+    calc {
+      (a*b + c) % b;
+      { mod_add(a*b, c, b); }
+      (a*b%b + c%b) % b;
+      { mul_mod(a, b); }
+      (c%b) % b;
+      c%b;
+    }
+  }
+
+  lemma div_add_l(a:nat, b:nat, c: nat)
     requires 0 < b
     ensures (a * b + c) / b == a + c / b
+  {
+    div_mod_split(a * b + c, b);
+    mul_add_mod(a, b, c);
+    assert (a*b + c) / b * b + (a*b + c) % b == (a*b + c/b*b) + (a*b + c) % b;
+    assert (a*b + c) / b * b == a*b + c/b*b;
+    assert (a*b + c) / b * b == (a + c/b) * b;
+  }
 
   lemma div_small(a: nat, b:nat)
     requires a < b
