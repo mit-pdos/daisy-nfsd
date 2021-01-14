@@ -122,4 +122,20 @@ module Round {
     requires k >= 1
     ensures 0 <= roundup(x, k) - x < k
   {}
+
+  lemma roundup_div(x: nat, k: nat)
+    requires k >= 1
+    ensures roundup(x, k)/k == div_roundup_alt(x, k)
+  {
+    if x % k == 0 {
+    } else {
+      calc {
+        roundup(x, k) / k;
+        ((x/k + 1) * k) / k;
+        { div_add_l(x/k+1, k, 0); }
+        x/k + 1;
+        div_roundup_alt(x, k);
+      }
+    }
+  }
 }

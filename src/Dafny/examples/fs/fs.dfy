@@ -6,6 +6,7 @@ module Fs {
   import Inode
   import C = Collections
   import Arith
+  import Round
   import opened Machine
   import opened ByteSlice
   import opened JrnlSpec
@@ -306,6 +307,7 @@ module Fs {
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
+      requires bs.Len() <= 4096
       ensures ok ==> data == old(data[ino := data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
@@ -316,6 +318,39 @@ module Fs {
       var i := Inode.decode_ino(buf, inodes[ino]);
       if sum_overflows(i.sz, bs.Len()) || i.sz + bs.Len() >= 15*4096 {
         ok := false;
+        return;
+      }
+      if bs.Len() == 0 {
+        ok := true;
+        assert data[ino] + bs.data == data[ino];
+        return;
+      }
+
+      // is there space in the last block?
+      if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {
+        var blkoff: nat := i.sz as nat/4096;
+        assert blkoff < |i.blks|;
+        var blk := get_inode_blk(txn, ino, i, blkoff);
+        blk.CopyTo(i.sz % 4096, bs);
+        var bn := i.blks[blkoff];
+        txn.Write(DataBlk(bn), blk);
+        data_block := data_block[bn := blk.data];
+        inode_blks := inode_blks[ino := inode_blks[ino][blkoff:=blk.data]];
+
+        var i' := Inode.Mk(i.sz + bs.Len(), i.blks);
+        var buf' := Inode.encode_ino(i');
+        txn.Write(InodeAddr(ino), buf');
+        inodes := inodes[ino:=i'];
+
+        data := data[ino := data[ino] + bs.data];
+
+        assert Valid_data_block();
+        assert Valid_inodes();
+        assert inode_blks_match(ino);
+        assert forall ino: Ino | ino_ok(ino) :: inode_blks_match(ino);
+        assume false;
+        assert Valid_data();
+
         return;
       }
 
@@ -440,6 +475,9 @@ module Fs {
       data := get_inode_blk(txn, ino, i, blkoff);
       data.Subslice(0, len);
       assert blkoff * 4096 == off as nat;
+
+      // FIXME: the remaining proof is hard but doable for Dafny
+      assume false;
 
       var _ := txn.Commit();
     }
