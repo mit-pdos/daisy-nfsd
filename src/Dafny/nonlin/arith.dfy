@@ -1,3 +1,4 @@
+// -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=true" "/arith:1") -*-
 module Arith {
   lemma div_mod_split(x: nat, k: nat)
       requires 0 < k
@@ -30,6 +31,10 @@ module Arith {
     requires 0 < k
     requires x <= y
     ensures x*k <= y*k
+  {}
+
+  lemma mul_assoc(x: int, y: int, z: int)
+    ensures x*(y*z) == (x * y) * z
   {}
 
   lemma mul_incr_auto()
@@ -68,6 +73,29 @@ module Arith {
   lemma div_positive(x: nat, y: int)
     requires 0 < y
     ensures 0 <= x / y
+  {}
+
+  // TODO: prove these basic properties of mul, mod, div
+
+  lemma {:axiom} mod_add(a: nat, b: nat, k: nat)
+    requires 0 < k
+    ensures (a + b) % k == (a%k + b%k) % k
+
+  lemma {:axiom} mul_div_id(a: nat, k: nat)
+    requires 0 < k
+    ensures (a*k) / k == a
+
+  lemma mul_mod(a: nat, k: nat)
+    requires 0 < k
+    ensures a * k % k == 0
+  {
+    div_mod_split(a*k, k);
+    mul_div_id(a, k);
+  }
+
+  lemma zero_mod(k: int)
+    requires k != 0
+    ensures 0 % k == 0
   {}
 
 }

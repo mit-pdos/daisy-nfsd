@@ -38,6 +38,11 @@ module Fs {
   {
     kind_inode_size();
     assert fs_kinds[InodeBlk] == KindInode;
+    Arith.mul_assoc(ino as nat, 128, 8);
+    Arith.mul_r_strictly_incr(ino as nat, 128*8, 32);
+    assert ino*128*8 < 4096*8;
+    Arith.mul_mod(ino as nat, 128*8);
+    assert kindSize(KindInode) == 128*8;
     Addr(InodeBlk, ino*128*8)
   }
   function method DataBitAddr(bn: uint64): Addr
@@ -45,9 +50,13 @@ module Fs {
   {
     Addr(DataAllocBlk, bn)
   }
-  function method DataBlk(bn: uint64): Addr
+  function method DataBlk(bn: uint64): (a:Addr)
     requires blkno_ok(bn)
+    ensures a in addrsForKinds(fs_kinds)
   {
+    assert fs_kinds[513+2+bn] == KindBlock;
+    assert kindSize(KindBlock) == 4096*8;
+    Arith.zero_mod(4096*8);
     Addr(513+2+bn, 0)
   }
 

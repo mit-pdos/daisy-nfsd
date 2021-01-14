@@ -1,5 +1,6 @@
-include "../../machine/machine.s.dfy"
-include "../../util/arith.dfy"
+// -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=true") -*-
+include "../machine/machine.s.dfy"
+include "../nonlin/arith.dfy"
 
 module Round {
   import opened Machine
@@ -9,24 +10,6 @@ module Round {
     requires k >= 1
   {
     (x + (k-1)) / k
-  }
-
-  // TODO: prove these basic properties of mul, mod, div
-
-  lemma {:axiom} mod_add(a: nat, b: nat, k: nat)
-    requires 0 < k
-    ensures (a + b) % k == (a%k + b%k) % k
-
-  lemma {:axiom} mul_div_id(a: nat, k: nat)
-    requires 0 < k
-    ensures (a*k) / k == a
-
-  lemma mul_mod(a: nat, k: nat)
-    requires 0 < k
-    ensures a * k % k == 0
-  {
-    div_mod_split(a*k, k);
-    mul_div_id(a, k);
   }
 
   lemma mul_add_mod(a: nat, b: nat, c: nat)

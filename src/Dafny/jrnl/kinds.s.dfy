@@ -65,6 +65,8 @@ ensures kindSize(k)/8*8 == kindSize(k) <==> k >= 3
 {
     if k >= 3 {
         pow_plus(2, k-3, 3);
+        assert pow(2, 3) == 8;
+        assert kindSize(k)/8*8 == 8 * pow(2, k-3) / 8 * 8;
     }
 }
 

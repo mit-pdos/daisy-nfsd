@@ -5,6 +5,7 @@ include "../../util/marshal.i.dfy"
 module Inode {
   import opened Machine
   import IntEncoding
+  import opened Arith
   import opened Collections
   import opened ByteSlice
   import opened Marshal
@@ -14,6 +15,7 @@ module Inode {
   function method div_roundup(x: nat, k: nat): nat
     requires k >= 1
   {
+    div_positive(x + (k-1), k);
     (x + (k-1)) / k
   }
 

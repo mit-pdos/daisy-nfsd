@@ -1,8 +1,8 @@
 DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
-DAFNY_ARGS := /compile:0 /compileTarget:go /nologo /compileVerbose:0
-DAFNY := ./etc/dafnyq $(DAFNY_ARGS)
+DAFNY_ARGS := /compile:0 /compileTarget:go /nologo /compileVerbose:0 /z3opt:smt.arith.nl=false /arith:5
+DAFNY=./etc/dafnyq $(DAFNY_ARGS)
 
 Q:=@
 
@@ -20,6 +20,9 @@ all: $(OK_FILES) compile
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
 -include .dafnydeps.d
 endif
+
+# allow non-linear reasoning for nonlin directory specifically
+src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS += /z3opt:smt.arith.nl=true /arith:1
 
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"

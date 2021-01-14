@@ -1,5 +1,4 @@
-// -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=false") -*-
-include "arith.dfy"
+include "../nonlin/arith.dfy"
 
 module Collections
 {

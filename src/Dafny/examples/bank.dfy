@@ -22,7 +22,9 @@ class Bank
 
     static function method Acct(n: uint64): (a:Addr)
     requires n < 512
+    ensures a.off as nat % kindSize(KindUInt64) == 0
     {
+        assert kindSize(KindUInt64) == 64;
         Addr(513, n*64)
     }
 
@@ -101,7 +103,8 @@ class Bank
         modifies jrnl
         invariant txn.jrnl == jrnl
         invariant txn.Valid()
-        invariant forall k:: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal as nat)
+        invariant n <= 512
+        invariant forall k :: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal as nat)
         {
             txn.Write(Acct(n), init_acct);
             n := n + 1;
