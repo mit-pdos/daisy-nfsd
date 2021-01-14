@@ -1,7 +1,0 @@
-# Go compilation output
-/test-go/
-# C# compilation output
-*.a
-*.cs
-*.dll
-*.dll.mdb
