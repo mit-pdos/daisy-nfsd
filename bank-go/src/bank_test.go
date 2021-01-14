@@ -3,7 +3,7 @@ package compile_test
 import (
 	// TODO: this is an auto-generated name, which is really unfortunate. Dafny
 	// master does not emit such an unpredictable name.
-	bank "30_Bank_Compile_"
+	bank "31_Bank_Compile_"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
