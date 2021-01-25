@@ -21,18 +21,19 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: "1.15.6"
-      - name: Install goimports
-        run: |
-          go get golang.org/x/tools/cmd/goimports
       - uses: actions/checkout@v2
       - name: Verify
-        run: make -j2 all
+        run: make -j2
       - name: Test support library
         run: |
           cd src/dafny_go
           go test -v ./...
+      - name: Install goimports
+        run: |
+          go get golang.org/x/tools/cmd/goimports
       - name: Compile
         run: |
+          make compile
           cd bank-go
           export GOPATH="$PWD"
           go get -t ./src
