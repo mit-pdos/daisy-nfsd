@@ -98,4 +98,12 @@ module Arith {
     ensures 0 % k == 0
   {}
 
+  lemma mul_1(x: int)
+    ensures x * 1 == x
+  {}
+
+  lemma mul_neg_1(x: int)
+    ensures x * -1 == -x
+  {}
+
 }

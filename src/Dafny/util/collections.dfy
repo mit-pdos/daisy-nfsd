@@ -216,7 +216,7 @@ ensures sum_nat(repeat(x, count)) == count * x
 {
     reveal_repeat();
     mul_distr_add_r(count, -1, x);
-    // assert x + (count-1) * x == count*x;
+    mul_neg_1(x);
 }
 
 // NOTE(tej): if you happen to know the proof, then Dafny can automatically
