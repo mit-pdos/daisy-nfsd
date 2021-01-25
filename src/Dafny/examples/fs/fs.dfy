@@ -166,6 +166,7 @@ module Fs {
         && Inode.Valid(i2)
         && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i2))
         && (forall bn | bn in i2.blks ::
+          && blkno_ok(bn)
           && bn in block_used
           && block_used[bn] == Some(ino))
         )
@@ -340,10 +341,13 @@ module Fs {
         var i' := Inode.Mk(i.sz + bs.Len(), i.blks);
         var buf' := Inode.encode_ino(i');
         txn.Write(InodeAddr(ino), buf');
+        var _ := txn.Commit();
+
         inodes := inodes[ino:=i'];
 
         data := data[ino := data[ino] + bs.data];
 
+        assert Valid_domains();
         assert Valid_data_block();
         assert Valid_inodes();
         assert inode_blks_match(ino);
