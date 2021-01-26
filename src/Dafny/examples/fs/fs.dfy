@@ -182,13 +182,16 @@ module Fs {
         && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
     }
 
+    static predicate Inodes_all_Valid(inodes: map<Ino, Inode.Inode>)
+    {
+      forall ino: Ino | ino in inodes :: Inode.Valid(inodes[ino])
+    }
+
     static predicate Valid_inodes_to_block_used(inodes: map<Ino, Inode.Inode>, block_used: map<Blkno, Option<Ino>>)
       requires blkno_dom(block_used)
     {
       && (forall ino: Ino | ino in inodes ::
-        var i2 := inodes[ino];
-        && Inode.Valid(i2)
-        && (forall bn | bn in i2.blks ::
+        && (forall bn | bn in inodes[ino].blks ::
           && blkno_ok(bn)
           && block_used[bn] == Some(ino))
         )
@@ -199,6 +202,7 @@ module Fs {
       requires Valid_domains()
       reads this, jrnl
     {
+      && Inodes_all_Valid(inodes)
       && Valid_jrnl_to_inodes(jrnl, inodes)
       && Valid_inodes_to_block_used(inodes, block_used)
     }
@@ -214,12 +218,11 @@ module Fs {
     }
 
     predicate Valid_data()
-      requires Valid_basics(jrnl)
       requires Valid_domains()
-      requires Valid_inodes()
-      reads this, jrnl
+      requires Inodes_all_Valid(inodes)
+      reads this
     {
-      && (forall ino: Ino | ino in inodes ::
+      && (forall ino: Ino | ino_ok(ino) ::
          && inodes[ino].sz as nat == |data[ino]|
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block)
          && data[ino] == if inodes[ino].sz as nat % 4096 == 0
@@ -230,7 +233,7 @@ module Fs {
     }
 
     lemma data_block_val(ino: Ino, k: nat)
-      requires && Valid_basics(jrnl) && Valid_domains() && Valid_inodes() && Valid_data()
+      requires Valid_domains() && Inodes_all_Valid(inodes) && Valid_data()
       requires ino_ok(ino)
       requires (k+1)*4096 <= |data[ino]|
       ensures inode_blks[ino][k] == data[ino][k*4096..(k+1)*4096]
@@ -243,7 +246,7 @@ module Fs {
     }
 
     lemma data_block_val_last(ino: Ino)
-      requires && Valid_basics(jrnl) && Valid_domains() && Valid_inodes() && Valid_data()
+      requires  Valid_domains() && Inodes_all_Valid(inodes) && Valid_data()
       requires ino_ok(ino)
       requires 0 < |inodes[ino].blks|
       ensures C.last(inode_blks[ino])[..inodes[ino].sz as nat % 4096] ==
