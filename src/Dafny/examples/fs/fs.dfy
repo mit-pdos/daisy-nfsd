@@ -103,18 +103,31 @@ module Fs {
     var jrnl: Jrnl;
     var balloc: Allocator;
 
-    predicate Valid_basics()
-      reads this, jrnl
+    static predicate Valid_basics(jrnl: Jrnl)
+      reads jrnl
     {
       && jrnl.Valid()
       && jrnl.kinds == fs_kinds
     }
 
+    static predicate blkno_dom<T>(m: map<Blkno, T>)
+    {
+      forall bn: Blkno :: blkno_ok(bn) <==> bn in m
+    }
+
+    static predicate ino_dom<T>(m: map<Ino, T>)
+    {
+      forall ino: Ino :: ino_ok(ino) <==> ino in m
+    }
+
     predicate Valid_domains()
       reads this
     {
-      && (forall bn: Blkno | blkno_ok(bn) :: bn in block_used && bn in data_block)
-      && (forall ino: Ino | ino_ok(ino) :: ino in inodes && ino in inode_blks && ino in data)
+      && blkno_dom(block_used)
+      && blkno_dom(data_block)
+      && ino_dom(inodes)
+      && ino_dom(inode_blks)
+      && ino_dom(data)
     }
 
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
@@ -135,65 +148,80 @@ module Fs {
       }
     }
 
-    predicate Valid_block_used()
-      requires Valid_basics()
-      reads this, jrnl
+    static predicate Valid_jrnl_to_block_used(jrnl: Jrnl, block_used: map<Blkno, Option<Ino>>)
+      reads jrnl
+      requires blkno_dom(block_used)
+      requires Valid_basics(jrnl)
     {
       blkno_bit_inbounds(jrnl);
-      && (forall bn | bn in block_used ::
-        && blkno_ok(bn)
+      && (forall bn | blkno_ok(bn) ::
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
     }
 
-    predicate Valid_data_block()
-      requires Valid_basics()
-      reads this, jrnl
+    static predicate Valid_jrnl_to_data_block(jrnl: Jrnl, data_block: map<Blkno, seq<byte>>)
+      reads jrnl
+      requires blkno_dom(data_block)
+      requires Valid_basics(jrnl)
     {
-      && (forall bn | bn in data_block ::
-        && blkno_ok(bn)
-        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn])
-        && |data_block[bn]| == 4096)
+      && (forall bn | blkno_ok(bn) ::
+        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
-    predicate Valid_inodes()
-      requires Valid_basics()
-      reads this, jrnl
+    static predicate Valid_data_block(data_block: map<Blkno, seq<byte>>)
+    {
+      forall bn | bn in data_block :: |data_block[bn]| == 4096
+    }
+
+    static predicate Valid_jrnl_to_inodes(jrnl: Jrnl, inodes: map<Ino, Inode.Inode>)
+      reads jrnl
+      requires ino_dom(inodes)
+      requires Valid_basics(jrnl)
     {
       inode_inbounds(jrnl);
+      && (forall ino: Ino | ino_ok(ino) ::
+        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
+    }
+
+    static predicate Valid_inodes_to_block_used(inodes: map<Ino, Inode.Inode>, block_used: map<Blkno, Option<Ino>>)
+      requires blkno_dom(block_used)
+    {
       && (forall ino: Ino | ino in inodes ::
         var i2 := inodes[ino];
-        && ino_ok(ino)
         && Inode.Valid(i2)
-        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i2))
         && (forall bn | bn in i2.blks ::
           && blkno_ok(bn)
-          && bn in block_used
           && block_used[bn] == Some(ino))
         )
     }
 
-    predicate inode_blks_match(ino: Ino)
-      reads this
+    predicate Valid_inodes()
+      requires Valid_basics(jrnl)
       requires Valid_domains()
-      requires ino_ok(ino)
+      reads this, jrnl
     {
-      var i3 := inodes[ino];
-      && |inode_blks[ino]| == |i3.blks|
-      && (forall blk | blk in inode_blks[ino] :: |blk| == 4096)
-      && (forall k: nat | k < |i3.blks| ::
-        && i3.blks[k] in data_block
-        && inode_blks[ino][k] == data_block[i3.blks[k]])
+      && Valid_jrnl_to_inodes(jrnl, inodes)
+      && Valid_inodes_to_block_used(inodes, block_used)
+    }
+
+    // inode i encodes blks, using data_block to lookup indirect references
+    static predicate inode_blks_match(i: Inode.Inode, blks: seq<seq<byte>>, data_block: map<Blkno, seq<byte>>)
+    {
+      && |blks| == |i.blks|
+      && (forall blk | blk in blks :: |blk| == 4096)
+      && (forall k: nat | k < |i.blks| ::
+        && i.blks[k] in data_block
+        && blks[k] == data_block[i.blks[k]])
     }
 
     predicate Valid_data()
-      requires Valid_basics()
+      requires Valid_basics(jrnl)
       requires Valid_domains()
       requires Valid_inodes()
       reads this, jrnl
     {
       && (forall ino: Ino | ino in inodes ::
          && inodes[ino].sz as nat == |data[ino]|
-         && inode_blks_match(ino)
+         && inode_blks_match(inodes[ino], inode_blks[ino], data_block)
          && data[ino] == if inodes[ino].sz as nat % 4096 == 0
                         then C.concat(inode_blks[ino])
                         else C.concat(C.without_last(inode_blks[ino])) +
@@ -202,7 +230,7 @@ module Fs {
     }
 
     lemma data_block_val(ino: Ino, k: nat)
-      requires && Valid_basics() && Valid_domains() && Valid_inodes() && Valid_data()
+      requires && Valid_basics(jrnl) && Valid_domains() && Valid_inodes() && Valid_data()
       requires ino_ok(ino)
       requires (k+1)*4096 <= |data[ino]|
       ensures inode_blks[ino][k] == data[ino][k*4096..(k+1)*4096]
@@ -215,26 +243,33 @@ module Fs {
     }
 
     lemma data_block_val_last(ino: Ino)
-      requires && Valid_basics() && Valid_domains() && Valid_inodes() && Valid_data()
+      requires && Valid_basics(jrnl) && Valid_domains() && Valid_inodes() && Valid_data()
       requires ino_ok(ino)
       requires 0 < |inodes[ino].blks|
       ensures C.last(inode_blks[ino])[..inodes[ino].sz as nat % 4096] ==
               data[ino][inodes[ino].sz as nat / 4096 * 4096..]
     {}
 
+    predicate Valid_balloc()
+      reads this, balloc
+    {
+      && this.balloc.max == 4095*8
+      && this.balloc.Valid()
+    }
+
     predicate Valid()
       reads this, balloc, jrnl
     {
-      && Valid_basics()
+      && Valid_basics(jrnl)
       && Valid_domains()
 
-      && this.Valid_block_used()
-      && this.Valid_data_block()
+      && Valid_jrnl_to_block_used(jrnl, block_used)
+      && Valid_jrnl_to_data_block(jrnl, data_block)
+      && Valid_data_block(data_block)
       && this.Valid_inodes()
       && this.Valid_data()
 
-      && this.balloc.max == 4095*8
-      && this.balloc.Valid()
+      && this.Valid_balloc()
     }
 
     constructor Init(d: Disk)
@@ -348,11 +383,12 @@ module Fs {
         data := data[ino := data[ino] + bs.data];
 
         assert Valid_domains();
-        assert Valid_data_block();
-        assert Valid_inodes();
-        assert inode_blks_match(ino);
-        assert forall ino: Ino | ino_ok(ino) :: inode_blks_match(ino);
+        assert Valid_jrnl_to_data_block(jrnl, data_block);
         assume false;
+        assert Valid_inodes();
+        assert inode_blks_match(i', inode_blks[ino], data_block);
+        // TODO: proof goes through up to here, but the proof is extremely slow
+
         assert Valid_data();
 
         return;
@@ -388,10 +424,10 @@ module Fs {
       inode_blks := inode_blks[ino := inode_blks[ino] + [bs.data]];
       data := data[ino:=data[ino] + bs.data];
 
-      assert inode_blks_match(ino);
+      assert inode_blks_match(inodes[ino], inode_blks[ino], data_block);
 
-      assert this.Valid_block_used();
-      assert this.Valid_data_block();
+      assert Valid_jrnl_to_block_used(jrnl, block_used);
+      assert Valid_jrnl_to_data_block(jrnl, data_block);
       assert this.Valid_inodes();
       assert this.Valid_data();
 

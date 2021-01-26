@@ -36,12 +36,13 @@ module Inode {
   {}
 
   function enc(i: Inode): (bs:seq<byte>)
-    requires Valid(i)
     ensures |bs| == 128
   {
-    enc_uint64_len(i.blks);
-    assert |seq_encode(inode_enc(i))| == 8+8*|i.blks|;
-    seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8+8*|i.blks|))
+    if Valid(i) then
+      (enc_uint64_len(i.blks);
+      assert |seq_encode(inode_enc(i))| == 8+8*|i.blks|;
+      seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8+8*|i.blks|)))
+    else repeat(0 as byte, 128)
   }
 
   const zero: Inode := Mk(0, []);
