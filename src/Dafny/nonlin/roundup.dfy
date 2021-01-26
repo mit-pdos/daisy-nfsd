@@ -94,8 +94,9 @@ module Round {
     (x + (k-1)) / k
   }
 
-  function roundup(x: nat, k: nat): nat
+  function roundup(x: nat, k: nat): (r:nat)
     requires k >= 1
+    ensures x <= r < x+k
   {
     if x % k == 0 then x else x/k*k + k
   }

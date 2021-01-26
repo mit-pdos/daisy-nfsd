@@ -20,11 +20,14 @@ module Inode {
     // only direct blocks
     && |blks_| <= 15
     && |blks_| == div_roundup_alt(i.sz as nat, 4096)
-    && i.sz as nat <= 15*4096
     && (forall bn | bn in blks_ :: bn != 0)
     && unique(blks_)
   }
 
+  lemma Valid_sz_bound(i:Inode)
+    requires Valid(i)
+    ensures i.sz as nat <= |i.blks|*4096 <= 15*4096
+  {}
 
   function inode_enc(i: Inode): seq<Encodable>
   {
@@ -67,7 +70,6 @@ module Inode {
     requires Valid(i)
     ensures fresh(bs)
     ensures bs.data == enc(i)
-    ensures |bs.data| == 128
   {
     var e := new Encoder(128);
     e.PutInt(i.sz);

@@ -130,6 +130,15 @@ module Fs {
       && ino_dom(data)
     }
 
+    lemma inode_in_dom(ino: Ino)
+      requires ino_ok(ino)
+      requires Valid_domains()
+      ensures
+      && ino in inodes
+      && ino in inode_blks
+      && ino in data
+    {}
+
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
@@ -350,6 +359,7 @@ module Fs {
       ensures ok ==> data == old(data[ino := data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
+      inode_in_dom(ino);
       var txn := jrnl.Begin();
 
       // check for available space
@@ -377,21 +387,29 @@ module Fs {
         inode_blks := inode_blks[ino := inode_blks[ino][blkoff:=blk.data]];
 
         var i' := Inode.Mk(i.sz + bs.Len(), i.blks);
+        Inode.Valid_sz_bound(i);
+        assert Inode.Valid(i');
         var buf' := Inode.encode_ino(i');
         txn.Write(InodeAddr(ino), buf');
         var _ := txn.Commit();
 
+        inode_in_dom(ino);
         inodes := inodes[ino:=i'];
-
         data := data[ino := data[ino] + bs.data];
 
         assert Valid_domains();
         assert Valid_jrnl_to_data_block(jrnl, data_block);
-        assume false;
+        assert Inodes_all_Valid(inodes);
         assert Valid_inodes();
-        assert inode_blks_match(i', inode_blks[ino], data_block);
-        // TODO: proof goes through up to here, but the proof is extremely slow
 
+        assume false;
+
+        // TODO: somehow this is a struggle...
+        assert DataBlk(bn) != InodeAddr(ino);
+        assert jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i'));
+        assert Valid_jrnl_to_inodes(jrnl, inodes);
+
+        assert inode_blks_match(i', inode_blks[ino], data_block);
         assert Valid_data();
 
         return;
