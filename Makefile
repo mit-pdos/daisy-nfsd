@@ -1,7 +1,7 @@
 DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
-DAFNY_ARGS := /compile:0 /compileTarget:go /z3opt:smt.arith.nl=false /arith:5 /timeLimit:20
+DAFNY_ARGS := /compile:0 /compileTarget:go /z3opt:smt.arith.nl=false /arith:5 /timeLimit:30
 DAFNY=./etc/dafnyq $(DAFNY_ARGS)
 
 Q:=@
