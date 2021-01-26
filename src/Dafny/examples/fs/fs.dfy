@@ -226,6 +226,16 @@ module Fs {
         && blks[k] == data_block[i.blks[k]])
     }
 
+    static function inode_data(sz: nat, blks: seq<seq<byte>>): seq<byte>
+      requires forall i:nat | i < |blks| :: |blks[i]| == 4096
+      requires |blks| == Round.div_roundup_alt(sz, 4096)
+    {
+      if sz % 4096 == 0
+        then C.concat(blks)
+        else C.concat(C.without_last(blks)) +
+          C.last(blks)[..sz % 4096]
+    }
+
     predicate Valid_data()
       requires Valid_domains()
       requires Inodes_all_Valid(inodes)
@@ -234,10 +244,7 @@ module Fs {
       && (forall ino: Ino | ino_ok(ino) ::
          && inodes[ino].sz as nat == |data[ino]|
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block)
-         && data[ino] == if inodes[ino].sz as nat % 4096 == 0
-                        then C.concat(inode_blks[ino])
-                        else C.concat(C.without_last(inode_blks[ino])) +
-                             C.last(inode_blks[ino])[..inodes[ino].sz as nat % 4096]
+         && data[ino] == inode_data(inodes[ino].sz as nat, inode_blks[ino])
         )
     }
 
@@ -377,6 +384,7 @@ module Fs {
 
       // is there space in the last block?
       if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {
+        Round.roundup_distance(i.sz as nat, 4096);
         var blkoff: nat := i.sz as nat/4096;
         assert blkoff < |i.blks|;
         var blk := get_inode_blk(txn, ino, i, blkoff);
@@ -401,15 +409,16 @@ module Fs {
         assert Valid_jrnl_to_data_block(jrnl, data_block);
         assert Inodes_all_Valid(inodes);
         assert Valid_inodes();
+        assert jrnl.data == old(jrnl.data)[DataBlk(bn):=ObjData(blk.data)][InodeAddr(ino):=ObjData(Inode.enc(i'))];
 
-        assume false;
-
-        // TODO: somehow this is a struggle...
         assert DataBlk(bn) != InodeAddr(ino);
         assert jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i'));
         assert Valid_jrnl_to_inodes(jrnl, inodes);
 
+        assume false;
+
         assert inode_blks_match(i', inode_blks[ino], data_block);
+
         assert Valid_data();
 
         return;
@@ -485,6 +494,7 @@ module Fs {
       then bs.data == data[ino][blkoff * 4096..blkoff * 4096 + 4096]
       else (blkoff == |i.blks|-1 && bs.data[..i.sz as nat % 4096] == data[ino][blkoff * 4096..])
     {
+      assume false;
       assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
       bs := txn.Read(DataBlk(bn), 4096*8);
