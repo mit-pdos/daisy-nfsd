@@ -494,7 +494,6 @@ module Fs {
       then bs.data == data[ino][blkoff * 4096..blkoff * 4096 + 4096]
       else (blkoff == |i.blks|-1 && bs.data[..i.sz as nat % 4096] == data[ino][blkoff * 4096..])
     {
-      assume false;
       assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
       bs := txn.Read(DataBlk(bn), 4096*8);

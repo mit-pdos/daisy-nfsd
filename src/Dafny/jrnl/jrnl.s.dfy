@@ -114,9 +114,11 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         return new Allocator(max);
     }
 
+    type JrnlData = map<Addr, Object>;
+
     class {:extern} Jrnl
     {
-        var data: map<Addr, Object>;
+        var data: JrnlData;
         // we cache the domain of data to easily show that it's constant
         // NOTE: the entire Jrnl object is a spec, so having ghost state in it is
         // really strange (it's state that isn't even needed to specify the object's
