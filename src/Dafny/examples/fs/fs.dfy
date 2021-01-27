@@ -256,6 +256,19 @@ module Fs {
           C.last(blks)[..sz % 4096]
     }
 
+    static lemma inode_data_len(sz: nat, blks: seq<seq<byte>>)
+      requires forall i:nat | i < |blks| :: |blks[i]| == 4096
+      requires |blks| == Round.div_roundup_alt(sz, 4096)
+      ensures |inode_data(sz, blks)| == sz
+    {
+      if sz % 4096 == 0 {
+        C.concat_homogeneous_spec(blks, 4096);
+      } else {
+        C.concat_homogeneous_spec(C.without_last(blks), 4096);
+        assert |C.without_last(blks)| == |blks|-1;
+      }
+    }
+
     predicate Valid_data()
       requires Valid_domains()
       requires Inodes_all_Valid(inodes)
@@ -410,7 +423,7 @@ module Fs {
         Round.roundup_distance(i.sz as nat, 4096);
 
         var blkoff: nat := i.sz as nat/4096;
-        assert blkoff < |i.blks|;
+        assert blkoff == |i.blks|-1;
         var blk := get_inode_blk(txn, ino, i, blkoff);
         blk.CopyTo(i.sz % 4096, bs);
         var bn := i.blks[blkoff];
