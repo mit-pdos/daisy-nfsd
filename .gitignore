@@ -1,2 +1,4 @@
 *.dfy.ok
 /.dafnydeps.d
+# from profile-collect
+/dafny-qi.profile
