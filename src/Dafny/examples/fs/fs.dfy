@@ -385,6 +385,7 @@ module Fs {
       // is there space in the last block?
       if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {
         Round.roundup_distance(i.sz as nat, 4096);
+
         var blkoff: nat := i.sz as nat/4096;
         assert blkoff < |i.blks|;
         var blk := get_inode_blk(txn, ino, i, blkoff);
@@ -407,18 +408,26 @@ module Fs {
 
         assert Valid_domains();
         assert Valid_jrnl_to_data_block(jrnl, data_block);
-        assert Inodes_all_Valid(inodes);
-        assert Valid_inodes();
         assert jrnl.data == old(jrnl.data)[DataBlk(bn):=ObjData(blk.data)][InodeAddr(ino):=ObjData(Inode.enc(i'))];
 
-        assert DataBlk(bn) != InodeAddr(ino);
-        assert jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i'));
+        forall ino' | ino_ok(ino')
+          ensures
+          if ino == ino' then jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(i'))
+          else jrnl.data[InodeAddr(ino')] == old(jrnl.data[InodeAddr(ino')])
+        {
+          if ino != ino' {
+            assert DataBlk(bn) != InodeAddr(ino');
+          }
+        }
+
         assert Valid_jrnl_to_inodes(jrnl, inodes);
 
-        assume false;
+        assert Inodes_all_Valid(inodes);
+        assert Valid_inodes();
 
         assert inode_blks_match(i', inode_blks[ino], data_block);
 
+        assume false;
         assert Valid_data();
 
         return;
@@ -459,6 +468,8 @@ module Fs {
       assert Valid_jrnl_to_block_used(jrnl, block_used);
       assert Valid_jrnl_to_data_block(jrnl, data_block);
       assert this.Valid_inodes();
+
+      assume false;
       assert this.Valid_data();
 
       ok := true;

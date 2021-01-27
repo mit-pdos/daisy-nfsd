@@ -114,7 +114,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         return new Allocator(max);
     }
 
-    type JrnlData = map<Addr, Object>;
+    type JrnlData = map<Addr, Object>
 
     class {:extern} Jrnl
     {
