@@ -379,7 +379,7 @@ module Fs {
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {}
 
-    method {:verify false} Append(ino: Ino, bs: Bytes) returns (ok:bool)
+    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
       requires ino_ok(ino)
@@ -392,6 +392,7 @@ module Fs {
       var txn := jrnl.Begin();
 
       // check for available space
+      inode_inbounds(jrnl, ino);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       if sum_overflows(i.sz, bs.Len()) || i.sz + bs.Len() >= 15*4096 {
@@ -444,11 +445,11 @@ module Fs {
 
         assert Valid_jrnl_to_inodes(jrnl, inodes);
         assert Inodes_all_Valid(inodes);
-        assert Valid_inodes();
-
-        assert inode_blks_match(i', inode_blks[ino], data_block);
+        assert Valid_inodes_to_block_used(inodes, block_used);
 
         assume false;
+        assert Valid_inodes();
+        assert inode_blks_match(i', inode_blks[ino], data_block);
         assert Valid_data();
 
         return;
