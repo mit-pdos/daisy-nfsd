@@ -153,33 +153,27 @@ module Fs {
       }
     }
 
-    static lemma inode_inbounds(jrnl: Jrnl)
+    static lemma inode_inbounds(jrnl: Jrnl, ino: Ino)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
-      ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data && jrnl.size(InodeAddr(ino)) == 8*128
+      requires ino_ok(ino)
+      ensures InodeAddr(ino) in jrnl.data && jrnl.size(InodeAddr(ino)) == 8*128
     {
       kind_inode_size();
-      forall ino : Ino | ino_ok(ino)
-        ensures InodeAddr(ino).blkno == InodeBlk
-        ensures InodeAddr(ino) in jrnl.data
-        ensures jrnl.size(InodeAddr(ino)) == 8*128
-      {
-        ghost var addr := InodeAddr(ino);
-        jrnl.in_domain(addr);
-        jrnl.has_size(addr);
-      }
+      ghost var addr := InodeAddr(ino);
+      jrnl.in_domain(addr);
+      jrnl.has_size(addr);
     }
 
-    static lemma blkno_inbounds(jrnl: Jrnl)
+    static lemma datablk_inbounds(jrnl: Jrnl, bn: Blkno)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
-      ensures forall bn :: blkno_ok(bn) ==> DataBlk(bn) in jrnl.data
+      requires blkno_ok(bn)
+      ensures DataBlk(bn) in jrnl.data && jrnl.size(DataBlk(bn)) == 8*4096
     {
-      forall bn | blkno_ok(bn)
-        ensures DataBlk(bn) in jrnl.data
-      {
-        jrnl.in_domain(DataBlk(bn));
-      }
+      ghost var addr := DataBlk(bn);
+      jrnl.in_domain(addr);
+      jrnl.has_size(addr);
     }
 
     static predicate Valid_jrnl_to_block_used(jrnl: Jrnl, block_used: map<Blkno, Option<Ino>>)
@@ -197,8 +191,8 @@ module Fs {
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
     {
-      blkno_inbounds(jrnl);
       && (forall bn | blkno_ok(bn) ::
+        datablk_inbounds(jrnl, bn);
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
@@ -212,8 +206,8 @@ module Fs {
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
     {
-      inode_inbounds(jrnl);
       && (forall ino: Ino | ino_ok(ino) ::
+        inode_inbounds(jrnl, ino);
         && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
     }
 
@@ -509,7 +503,7 @@ module Fs {
       ensures sz as nat == |data[ino]|
     {
       var txn := jrnl.Begin();
-      inode_inbounds(jrnl);
+      inode_inbounds(jrnl, ino);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       sz := i.sz;
@@ -534,7 +528,7 @@ module Fs {
     {
       assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
-      blkno_inbounds(jrnl);
+      datablk_inbounds(jrnl, bn);
       bs := txn.Read(DataBlk(bn), 4096*8);
       ghost var blk := bs.data;
       assert blk == inode_blks[ino][blkoff];
@@ -562,7 +556,7 @@ module Fs {
                     && data.data == this.data[ino][off as nat..(off+len) as nat]
     {
       var txn := jrnl.Begin();
-      inode_inbounds(jrnl);
+      inode_inbounds(jrnl, ino);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       if sum_overflows(off, len) || off+len > i.sz {
