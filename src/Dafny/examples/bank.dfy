@@ -3,6 +3,7 @@ include "../jrnl/jrnl.s.dfy"
 
 module Bank {
 
+import Arith
 import opened Machine
 import opened ByteSlice
 import opened JrnlSpec
@@ -20,21 +21,29 @@ class Bank
 
     var jrnl: Jrnl;
 
+    static const BankKinds : map<Blkno, Kind> := map[513:=6]
+    static lemma bank_kinds_is_correct__()
+        ensures BankKinds[513] == KindUInt64
+    {}
+
     static function method Acct(n: uint64): (a:Addr)
     requires n < 512
     ensures a.off as nat % kindSize(KindUInt64) == 0
     {
         assert kindSize(KindUInt64) == 64;
+        Arith.mul_mod(n as nat, 64);
         Addr(513, n*64)
     }
 
-    static predicate acct_val(jrnl: Jrnl, acct: Addr, val: nat)
+    static predicate acct_val(jrnl: Jrnl, acct: uint64, val: nat)
     reads jrnl
     requires jrnl.Valid()
-    requires acct in jrnl.domain
+    requires jrnl.kinds == BankKinds
+    requires acct < 512
     {
+        jrnl.in_domain(Acct(acct));
         && val < U64.MAX
-        && jrnl.data[acct] == ObjData(seq_encode([EncUInt64(val as uint64)]))
+        && jrnl.data[Acct(acct)] == ObjData(seq_encode([EncUInt64(val as uint64)]))
     }
 
     // pure version of Valid for crash condition
@@ -42,13 +51,14 @@ class Bank
         reads jrnl
     {
         && jrnl.Valid()
+        && jrnl.kinds == BankKinds
         && |accts| == 512
         && forall n: uint64 :: n < 512 ==>
             (var acct_ := Acct(n);
-             && acct_ in jrnl.domain
+             && acct_ in jrnl.data
              && jrnl.size(acct_) == 64
              && accts[n] < U64.MAX
-             && acct_val(jrnl, acct_, accts[n]))
+             && acct_val(jrnl, n, accts[n]))
         && acct_sum == sum_nat(accts)
     }
 
@@ -91,10 +101,15 @@ class Bank
         var kinds: map<Blkno, Kind> := map[513:=6];
         var jrnl := NewJrnl(d, kinds);
 
-        assert forall n: uint64 :: n < 512 ==>
-            (var acct := Acct(n);
-             && acct in jrnl.domain
-             && jrnl.size(acct) == 64);
+        assert kindSize(jrnl.kinds[513]) == 64;
+        forall n: uint64 | n < 512
+            ensures Acct(n) in jrnl.data
+            ensures jrnl.size(Acct(n)) == 64
+        {
+            ghost var acct := Acct(n);
+            jrnl.in_domain(acct);
+            jrnl.has_size(acct);
+        }
 
         var txn := jrnl.Begin();
         var init_acct := encode_acct(init_bal);
@@ -104,7 +119,7 @@ class Bank
         invariant txn.jrnl == jrnl
         invariant txn.Valid()
         invariant n <= 512
-        invariant forall k :: 0 <= k < n ==> acct_val(jrnl, Acct(k), init_bal as nat)
+        invariant forall k {:trigger Acct(k)} :: 0 <= k < n ==> acct_val(jrnl, k, init_bal as nat)
         {
             txn.Write(Acct(n), init_acct);
             n := n + 1;

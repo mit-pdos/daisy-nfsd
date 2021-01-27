@@ -142,18 +142,43 @@ module Fs {
     static lemma blkno_bit_inbounds(jrnl: Jrnl)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
-      ensures forall bn :: blkno_ok(bn) ==> DataBitAddr(bn) in jrnl.data
-    {}
+      ensures forall bn :: blkno_ok(bn) ==> DataBitAddr(bn) in jrnl.data && jrnl.size(DataBitAddr(bn)) == 1
+    {
+      forall bn | blkno_ok(bn)
+        ensures DataBitAddr(bn) in jrnl.data
+      {
+        ghost var addr := DataBitAddr(bn);
+        jrnl.in_domain(addr);
+        jrnl.has_size(addr);
+      }
+    }
 
     static lemma inode_inbounds(jrnl: Jrnl)
       requires jrnl.Valid()
       requires jrnl.kinds == fs_kinds
-      ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data
+      ensures forall ino :: ino_ok(ino) ==> InodeAddr(ino) in jrnl.data && jrnl.size(InodeAddr(ino)) == 8*128
     {
       kind_inode_size();
       forall ino : Ino | ino_ok(ino)
         ensures InodeAddr(ino).blkno == InodeBlk
+        ensures InodeAddr(ino) in jrnl.data
+        ensures jrnl.size(InodeAddr(ino)) == 8*128
       {
+        ghost var addr := InodeAddr(ino);
+        jrnl.in_domain(addr);
+        jrnl.has_size(addr);
+      }
+    }
+
+    static lemma blkno_inbounds(jrnl: Jrnl)
+      requires jrnl.Valid()
+      requires jrnl.kinds == fs_kinds
+      ensures forall bn :: blkno_ok(bn) ==> DataBlk(bn) in jrnl.data
+    {
+      forall bn | blkno_ok(bn)
+        ensures DataBlk(bn) in jrnl.data
+      {
+        jrnl.in_domain(DataBlk(bn));
       }
     }
 
@@ -172,6 +197,7 @@ module Fs {
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
     {
+      blkno_inbounds(jrnl);
       && (forall bn | blkno_ok(bn) ::
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
@@ -308,6 +334,7 @@ module Fs {
       this.data_block := map bn: uint64 |
         blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
+      jrnl.reveal_Valid();
       assert Valid_inodes();
     }
 
@@ -342,6 +369,7 @@ module Fs {
         )
     {
       bn := balloc.Alloc(); bn := bn + 1;
+      blkno_bit_inbounds(jrnl);
       var used := txn.ReadBit(DataBitAddr(bn));
       if used {
         ok := false;
@@ -357,7 +385,7 @@ module Fs {
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {}
 
-    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
+    method {:verify false} Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
       requires ino_ok(ino)
@@ -421,7 +449,6 @@ module Fs {
         }
 
         assert Valid_jrnl_to_inodes(jrnl, inodes);
-
         assert Inodes_all_Valid(inodes);
         assert Valid_inodes();
 
@@ -482,7 +509,7 @@ module Fs {
       ensures sz as nat == |data[ino]|
     {
       var txn := jrnl.Begin();
-      kind_inode_size();
+      inode_inbounds(jrnl);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       sz := i.sz;
@@ -507,6 +534,7 @@ module Fs {
     {
       assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
+      blkno_inbounds(jrnl);
       bs := txn.Read(DataBlk(bn), 4096*8);
       ghost var blk := bs.data;
       assert blk == inode_blks[ino][blkoff];
@@ -534,7 +562,7 @@ module Fs {
                     && data.data == this.data[ino][off as nat..(off+len) as nat]
     {
       var txn := jrnl.Begin();
-      kind_inode_size();
+      inode_inbounds(jrnl);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       var i := Inode.decode_ino(buf, inodes[ino]);
       if sum_overflows(off, len) || off+len > i.sz {
@@ -556,9 +584,6 @@ module Fs {
       data := get_inode_blk(txn, ino, i, blkoff);
       data.Subslice(0, len);
       assert blkoff * 4096 == off as nat;
-
-      // FIXME: the remaining proof is hard but doable for Dafny
-      assume false;
 
       var _ := txn.Commit();
     }

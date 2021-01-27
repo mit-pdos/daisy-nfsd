@@ -123,10 +123,11 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         // NOTE: the entire Jrnl object is a spec, so having ghost state in it is
         // really strange (it's state that isn't even needed to specify the object's
         // behavior)
+        // NOTE: since Valid is now opaque domain doesn't really do anything
         ghost const domain: set<Addr>;
         ghost const kinds: map<Blkno, Kind>;
 
-        predicate Valid()
+        predicate {:opaque} Valid()
         reads this
         {
             && kindsValid(kinds)
@@ -135,14 +136,34 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
                 && objSize(data[a]) == kindSize(kinds[a.blkno]))
             && (forall a :: a in data <==> a in domain)
             && addrsForKinds(kinds) == domain
+            && (forall a :: a in data <==> a in domain)
+        }
+
+        lemma in_domain(a: Addr)
+            requires Valid()
+            requires a.blkno in kinds
+            requires a.off as nat % kindSize(kinds[a.blkno]) == 0
+            requires a.off < 8*4096
+            ensures a in domain
+            ensures a in data
+        {
+            reveal_Valid();
+        }
+
+        lemma has_size(a: Addr)
+            requires Valid()
+            requires a in domain
+            ensures (reveal_Valid(); objSize(this.data[a]) == this.size(a))
+        {
+            reveal_Valid();
         }
 
         constructor(kinds: map<Blkno, Kind>)
         requires kindsValid(kinds)
         ensures Valid()
         ensures this.kinds == kinds
-        ensures forall a:Addr :: a in domain ==>
-                && data[a] == zeroObject(kinds[a.blkno])
+        ensures (reveal_Valid(); forall a:Addr :: a in data ==>
+                && data[a] == zeroObject(kinds[a.blkno]))
         {
             var data: map<Addr, Object> :=
                 map a:Addr | a in addrsForKinds(kinds)
@@ -150,14 +171,17 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             this.kinds := kinds;
             this.data := data;
             this.domain := map_domain(data);
+            new;
+            reveal_Valid();
         }
 
 
         function size(a: Addr): nat
         reads this
         requires Valid()
-        requires a in domain
+        requires a in data
         {
+            reveal_Valid();
             kindSize(this.kinds[a.blkno])
         }
 
@@ -165,7 +189,8 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         reads this
         requires Valid()
         {
-            && a in domain
+            reveal_Valid();
+            && a in data
             && kinds[a.blkno] == k
         }
 
@@ -204,7 +229,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         method {:extern} Read(a: Addr, sz: uint64)
         returns (buf:Bytes)
         requires Valid() ensures Valid()
-        requires a in jrnl.domain && jrnl.size(a) == sz as nat
+        requires a in jrnl.data && jrnl.size(a) == sz as nat
         // Read only works for at least byte-sized objects
         requires sz >= 8
         ensures
@@ -221,7 +246,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         method {:extern} ReadBit(a: Addr)
         returns (b:bool)
         requires Valid() ensures Valid()
-        requires a in jrnl.domain && jrnl.size(a) == 1
+        requires a in jrnl.data && jrnl.size(a) == 1
         ensures && jrnl.data[a] == ObjBit(b)
         {
             return jrnl.data[a].b;
@@ -231,7 +256,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         modifies jrnl
         requires Valid() ensures Valid()
         requires bs.Valid()
-        requires a in jrnl.domain && jrnl.size(a) == objSize(ObjData(bs.data))
+        requires a in jrnl.data && jrnl.size(a) == objSize(ObjData(bs.data))
         requires 8 <= |bs.data|
         ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
         {
@@ -241,7 +266,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         method {:extern} WriteBit(a: Addr, b: bool)
         modifies jrnl
         requires Valid() ensures Valid()
-        requires a in jrnl.domain && jrnl.size(a) == 1
+        requires a in jrnl.data && jrnl.size(a) == 1
         ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
         {
             jrnl.data := jrnl.data[a:=ObjBit(b)];
@@ -266,7 +291,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     ensures fresh(jrnl)
     ensures jrnl.Valid()
     ensures jrnl.kinds == kinds
-    ensures forall a:Addr :: a in jrnl.domain ==>
-            && jrnl.data[a] == zeroObject(jrnl.kinds[a.blkno])
+    ensures (jrnl.reveal_Valid(); forall a:Addr :: a in jrnl.data ==>
+            && jrnl.data[a] == zeroObject(jrnl.kinds[a.blkno]))
 
 }
