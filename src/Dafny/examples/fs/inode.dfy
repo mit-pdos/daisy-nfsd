@@ -14,6 +14,11 @@ module Inode {
 
   datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
 
+  predicate {:opaque} blks_unique(blks: seq<uint64>)
+  {
+    unique(blks)
+  }
+
   predicate Valid(i:Inode)
   {
     var blks_ := i.blks;
@@ -21,7 +26,7 @@ module Inode {
     && |blks_| <= 15
     && |blks_| == div_roundup_alt(i.sz as nat, 4096)
     && (forall bn | bn in blks_ :: bn != 0)
-    && unique(blks_)
+    && blks_unique(i.blks)
   }
 
   lemma Valid_sz_bound(i:Inode)
@@ -52,7 +57,9 @@ module Inode {
 
   lemma zero_valid()
     ensures Valid(zero)
-  {}
+  {
+    reveal_blks_unique();
+  }
 
   lemma zero_encoding()
     ensures Valid(zero)
