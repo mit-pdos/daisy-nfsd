@@ -244,27 +244,20 @@ module Fs {
         && blks[k] == data_block[i.blks[k]])
     }
 
-    static function inode_data(sz: nat, blks: seq<seq<byte>>): seq<byte>
+    static function inode_data(sz: nat, blks: seq<seq<byte>>): (bs:seq<byte>)
       requires forall i:nat | i < |blks| :: |blks[i]| == 4096
       requires |blks| == Round.div_roundup_alt(sz, 4096)
+      ensures |bs| == sz
     {
-      if sz % 4096 == 0
-        then C.concat(blks)
-        else C.concat(C.without_last(blks)) +
-          C.last(blks)[..sz % 4096]
-    }
-
-    static lemma inode_data_len(sz: nat, blks: seq<seq<byte>>)
-      requires forall i:nat | i < |blks| :: |blks[i]| == 4096
-      requires |blks| == Round.div_roundup_alt(sz, 4096)
-      ensures |inode_data(sz, blks)| == sz
-    {
-      if sz % 4096 == 0 {
+      if sz % 4096 == 0 then (
         C.concat_homogeneous_spec(blks, 4096);
-      } else {
+        C.concat(blks)
+        )
+      else (
         C.concat_homogeneous_spec(C.without_last(blks), 4096);
-        assert |C.without_last(blks)| == |blks|-1;
-      }
+        C.concat(C.without_last(blks)) +
+        C.last(blks)[..sz % 4096]
+        )
     }
 
     static predicate Valid_inode_blks_match(
@@ -285,8 +278,6 @@ module Fs {
     {
       && Valid_inode_blks_match(inodes, inode_blks, data_block)
       && (forall ino: Ino | ino_ok(ino) ::
-      // NOTE: this is redundant as witnessed by inode_data_len
-        && inodes[ino].sz as nat == |data[ino]|
         && data[ino] == inode_data(inodes[ino].sz as nat, inode_blks[ino]))
     }
 
@@ -451,6 +442,22 @@ module Fs {
       Inode.reveal_blks_unique();
     }
 
+    // inode_blks_match is insensitive to changes in blocks owned by other inodes
+    static lemma inode_blks_match_change_other(
+      ino: Ino, blks: seq<seq<byte>>,
+      inodes: map<Ino, Inode.Inode>,
+      data_block: map<Blkno, seq<byte>>,
+      block_used: map<Blkno, Option<Ino>>,
+      // stuff that changed in an unrelated inode ino':
+      ino': Ino, bn: Blkno, bs: seq<byte>)
+      requires && blkno_dom(data_block) && blkno_dom(block_used) && blkno_ok(bn)
+      requires && ino_dom(inodes) && ino_ok(ino) && ino_ok(ino')
+      requires inode_blks_match(inodes[ino], blks, data_block)
+      requires Valid_inodes_to_block_used(inodes, block_used)
+      requires block_used[bn] == Some(ino')
+      ensures ino != ino' ==> inode_blks_match(inodes[ino], blks, data_block[bn:=bs])
+    {}
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
@@ -505,9 +512,19 @@ module Fs {
           i', bn, blkoff, blk.data);
 
         assert inode_blks_match(i', inode_blks[ino], data_block);
+        var this_ino := ino;
+        forall ino | ino_ok(ino)
+          ensures inode_blks_match(inodes[ino], inode_blks[ino], data_block)
+        {
+          inode_blks_match_change_other(ino, old(inode_blks[ino]),
+            old(inodes), old(data_block), old(block_used),
+            this_ino, bn, blk.data);
+        }
         assert Valid_inode_blks_match(inodes, inode_blks, data_block);
-        assume false;
+
+        data := data[ino := inode_data(inodes[ino].sz as nat, inode_blks[ino])];
         assert Valid_data();
+        assume false;
 
         // assert data[ino] == old(data[ino]) + bs.data;
 
