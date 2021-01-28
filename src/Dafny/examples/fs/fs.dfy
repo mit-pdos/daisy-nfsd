@@ -267,7 +267,10 @@ module Fs {
       }
     }
 
-    static predicate Valid_inode_blks_match(inodes: map<Ino, Inode.Inode>, inode_blks: map<Ino, seq<seq<byte>>>, data_block: map<Blkno, seq<byte>>)
+    static predicate Valid_inode_blks_match(
+      inodes: map<Ino, Inode.Inode>,
+      inode_blks: map<Ino, seq<seq<byte>>>,
+      data_block: map<Blkno, seq<byte>>)
       requires ino_dom(inodes)
       requires ino_dom(inode_blks)
     {
@@ -431,6 +434,23 @@ module Fs {
       inode_blks := inode_blks[ino := inode_blks[ino][blkoff:=blk.data]];
     }
 
+    static lemma inode_blks_match_change_1(
+      i: Inode.Inode, blks: seq<seq<byte>>, data_block: map<Blkno, seq<byte>>,
+      i': Inode.Inode, bn: Blkno, blkoff: nat, bs: seq<byte>)
+      requires inode_blks_match(i, blks, data_block)
+      requires blkoff < |i.blks|
+      requires |bs| == 4096
+      requires Inode.Valid(i)
+      requires i'.blks == i.blks
+      requires bn in data_block
+      requires i.blks[blkoff] == bn
+      ensures inode_blks_match(i', blks[blkoff:=bs], data_block[bn := bs])
+    {
+      var blks' := blks[blkoff:=bs];
+      var data_block' := data_block[bn := bs];
+      Inode.reveal_blks_unique();
+    }
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
@@ -481,11 +501,15 @@ module Fs {
         assert Inodes_all_Valid(inodes);
         assert Valid_inodes_to_block_used(inodes, block_used);
         assert Valid_inodes();
+        inode_blks_match_change_1(i, old(inode_blks[ino]), old(data_block),
+          i', bn, blkoff, blk.data);
 
-        assume false;
         assert inode_blks_match(i', inode_blks[ino], data_block);
-        // assert data[ino] == old(data[ino]) + bs.data;
+        assert Valid_inode_blks_match(inodes, inode_blks, data_block);
+        assume false;
         assert Valid_data();
+
+        // assert data[ino] == old(data[ino]) + bs.data;
 
         return;
       }
