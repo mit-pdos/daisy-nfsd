@@ -210,7 +210,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     class {:extern} Txn
     {
 
-        var jrnl: Jrnl;
+        const jrnl: Jrnl;
 
         constructor(jrnl: Jrnl)
             requires jrnl.Valid()
