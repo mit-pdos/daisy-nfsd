@@ -263,7 +263,7 @@ module Fs {
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {}
 
-    method write_data_block(txn: Txn, bn: Blkno, blk: Bytes,
+    method writeDataBlock(txn: Txn, bn: Blkno, blk: Bytes,
       ghost ino: Ino, ghost blkoff: nat)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
@@ -285,17 +285,17 @@ module Fs {
       inode_blks := inode_blks[ino := inode_blks[ino][blkoff:=blk.data]];
     }
 
-    method write_inode_sz(txn: Txn, ino: Ino, i': Inode.Inode)
+    method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
       requires txn.jrnl == jrnl
-      requires ino_ok(ino)
+      requires is_inode(ino, i)
+      requires i'.blks == i.blks
       requires Inode.Valid(i')
-      requires i'.blks == inodes[ino].blks
       requires Inodes_all_Valid(inodes)
       ensures Inodes_all_Valid(inodes)
+      ensures is_inode(ino, i')
       ensures
-      && jrnl == old(jrnl)
       && inodes == old(inodes)[ino:=i']
       && block_used == old(block_used)
       && data_block == old(data_block)
@@ -340,6 +340,27 @@ module Fs {
       ensures ino != ino' ==> inode_blks_match(inodes[ino], blks, data_block[bn:=bs])
     {}
 
+    predicate is_inode(ino: Ino, i: Inode.Inode)
+      reads this, jrnl
+      requires Valid_basics(jrnl)
+      requires Valid_domains()
+    {
+      && ino_ok(ino)
+      && inodes[ino] == i
+    }
+
+    method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
+      modifies {}
+      requires Valid()
+      requires ino_ok(ino)
+      requires txn.jrnl == jrnl
+      ensures is_inode(ino, i)
+    {
+      inode_inbounds(jrnl, ino);
+      var buf := txn.Read(InodeAddr(ino), 128*8);
+      i := Inode.decode_ino(buf, inodes[ino]);
+    }
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
@@ -353,9 +374,7 @@ module Fs {
       var txn := jrnl.Begin();
 
       // check for available space
-      inode_inbounds(jrnl, ino);
-      var buf := txn.Read(InodeAddr(ino), 128*8);
-      var i := Inode.decode_ino(buf, inodes[ino]);
+      var i := getInode(txn, ino);
       if sum_overflows(i.sz, bs.Len()) || i.sz + bs.Len() >= 15*4096 {
         ok := false;
         return;
@@ -371,16 +390,16 @@ module Fs {
 
         var blkoff: nat := i.sz as nat/4096;
         assert blkoff == |i.blks|-1;
-        var blk := get_inode_blk(txn, ino, i, blkoff);
+        var blk := getInodeBlk(txn, ino, i, blkoff);
         blk.CopyTo(i.sz % 4096, bs);
         assert blk.data[..i.sz % 4096] == C.last(inode_blks[ino])[..i.sz % 4096];
         var bn := i.blks[blkoff];
-        write_data_block(txn, bn, blk, ino, blkoff);
+        writeDataBlock(txn, bn, blk, ino, blkoff);
 
         var i' := i.(sz := i.sz + bs.Len());
         Inode.Valid_sz_bound(i);
         assert Inode.Valid(i');
-        write_inode_sz(txn, ino, i');
+        writeInodeSz(txn, ino, i, i');
         var _ := txn.Commit();
         ok := true;
 
@@ -454,25 +473,22 @@ module Fs {
       ensures sz as nat == inodes[ino].sz as nat
     {
       var txn := jrnl.Begin();
-      inode_inbounds(jrnl, ino);
-      var buf := txn.Read(InodeAddr(ino), 128*8);
-      var i := Inode.decode_ino(buf, inodes[ino]);
+      var i := getInode(txn, ino);
       sz := i.sz;
       var _ := txn.Commit();
     }
 
-    method get_inode_blk(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
+    method getInodeBlk(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
       returns (bs: Bytes)
       modifies {}
       requires Valid()
       requires
       && this.jrnl == txn.jrnl
-      && ino_ok(ino)
-      && i == inodes[ino]
-      requires blkoff * 4096 < inodes[ino].sz as nat
+      && is_inode(ino, i)
+      requires blkoff * 4096 < i.sz as nat
       ensures fresh(bs)
       ensures
-      && |bs.data| == 4096
+      && is_block(bs.data)
       && bs.data == inode_blks[ino][blkoff]
     {
       assert blkoff as nat < |inodes[ino].blks|;
@@ -492,9 +508,7 @@ module Fs {
       // TODO: add ensures in terms of inode_blks
     {
       var txn := jrnl.Begin();
-      inode_inbounds(jrnl, ino);
-      var buf := txn.Read(InodeAddr(ino), 128*8);
-      var i := Inode.decode_ino(buf, inodes[ino]);
+      var i := getInode(txn, ino);
       if sum_overflows(off, len) || off+len > i.sz {
         ok := false;
         data := NewBytes(0);
@@ -509,7 +523,7 @@ module Fs {
       assert 0 < len <= 4096;
 
       var blkoff: nat := off as nat / 4096;
-      data := get_inode_blk(txn, ino, i, blkoff);
+      data := getInodeBlk(txn, ino, i, blkoff);
       data.Subslice(0, len);
       assert blkoff * 4096 == off as nat;
 
