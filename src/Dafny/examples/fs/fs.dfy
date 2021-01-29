@@ -230,20 +230,20 @@ module Fs {
       Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
-    static lemma after_copy_to(bs: seq<byte>, off: nat, data: seq<byte>)
-      requires off + |data| <= |bs|
-      ensures (bs[..off] + data + bs[off+|data|..])[off..off+|data|] == data
-    {}
+    static predicate is_alloc_bn(bn: Blkno)
+    {
+      && bn != 0
+      && bn-1 < 4095*8
+      && blkno_ok(bn)
+    }
 
     method Alloc(txn: Txn) returns (ok:bool, bn:Blkno)
       modifies balloc
       requires txn.jrnl == this.jrnl
       requires Valid() ensures Valid()
       ensures ok ==>
-        (&& bn != 0
-        && bn-1 < 4095*8
-        && blkno_ok(bn)
-        && block_used[bn].None?
+        (&& is_alloc_bn(bn)
+         && block_used[bn].None?
         )
     {
       bn := balloc.Alloc(); bn := bn + 1;
@@ -361,6 +361,38 @@ module Fs {
       i := Inode.decode_ino(buf, inodes[ino]);
     }
 
+    method allocateTo(txn: Txn, ino: Ino, ghost i: Inode.Inode) returns (ok: bool, bn:Blkno)
+      modifies this, jrnl, balloc
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      requires is_inode(ino, i)
+      ensures inode_blks == old(inode_blks)
+      ensures inodes == old(inodes)
+      ensures !ok ==> block_used == old(block_used)
+      ensures data_block == old(data_block)
+      ensures ok ==> forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
+      ensures ok ==> block_used == old(block_used[bn:=Some(ino)])
+      ensures ok ==> is_alloc_bn(bn)
+    {
+      ok, bn := Alloc(txn);
+      if !ok {
+        return;
+      }
+      free_block_unused(bn);
+
+      blkno_bit_inbounds(jrnl);
+      block_used := block_used[bn:=Some(ino)];
+      txn.WriteBit(DataBitAddr(bn), true);
+      return;
+    }
+
+    // freeing is not as simple as allocation: to maintain invariants, we need
+    // to simultaneously free a block and remove it from the blocks of an inode
+    //
+    // TODO: need to track is_alloc_bn for all blks in an inode, not the weaker
+    // != 0 property being tracked by Inode.Valid or blkno_ok from
+    // Valid_inodes_to_block_used
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies this, jrnl, balloc
       requires Valid() ensures Valid()
@@ -412,7 +444,6 @@ module Fs {
         inode_blks_match_change_1(i, old(inode_blks[ino]), old(data_block),
           i', bn, blkoff, blk.data);
 
-        assert inode_blks_match(i', inode_blks[ino], data_block);
         forall ino | ino_ok(ino)
           ensures inode_blks_match(inodes[ino], inode_blks[ino], data_block)
         {
@@ -426,18 +457,12 @@ module Fs {
       }
 
       // allocate and validate
-      var alloc_ok, bn := Alloc(txn);
+      var alloc_ok, bn := allocateTo(txn, ino, i);
       if !alloc_ok {
         ok := false;
         return;
       }
-      free_block_unused(bn);
-
       assume false;
-
-      // mark bn in-use now
-      block_used := block_used[bn:=Some(ino)];
-      txn.WriteBit(DataBitAddr(bn), true);
 
       var i' := inode_append(i, bn);
       C.unique_extend(i.blks, bn);
