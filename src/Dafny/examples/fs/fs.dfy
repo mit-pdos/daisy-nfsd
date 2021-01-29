@@ -27,11 +27,6 @@ module Fs {
     && (forall blk | blk in d.blks :: is_block(blk))
   }
 
-  function set_blks(d: InodeData, f: seq<Block> -> seq<Block>): InodeData
-  {
-    d.(blks := f(d.blks))
-  }
-
   predicate blkno_dom<T>(m: map<Blkno, T>)
   {
     forall bn: Blkno :: blkno_ok(bn) <==> bn in m
@@ -284,12 +279,17 @@ module Fs {
       && inodes == old(inodes)
       && block_used == old(block_used)
       && data_block == old(data_block)[bn := blk.data]
-      && inode_blks == old(inode_blks[ino := set_blks(inode_blks[ino], blks => blks[blkoff:=blk.data])])
+      && inode_blks ==
+        old(var d0 := inode_blks[ino];
+            var d' := d0.(blks := d0.blks[blkoff:=blk.data]);
+            inode_blks[ino:=d'])
     {
       datablk_inbounds(jrnl, bn);
       txn.Write(DataBlk(bn), blk);
       data_block := data_block[bn := blk.data];
-      inode_blks := inode_blks[ino := set_blks(inode_blks[ino], blks => blks[blkoff:=blk.data])];
+      ghost var d0 := inode_blks[ino];
+      ghost var d' := d0.(blks := d0.blks[blkoff:=blk.data]);
+      inode_blks := inode_blks[ino:=d'];
     }
 
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
@@ -306,12 +306,13 @@ module Fs {
       && inodes == old(inodes)[ino:=i']
       && block_used == old(block_used)
       && data_block == old(data_block)
-      && inode_blks == old(inode_blks)
+      && inode_blks == old(inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)])
     {
       inode_inbounds(jrnl, ino);
       var buf' := Inode.encode_ino(i');
       txn.Write(InodeAddr(ino), buf');
       inodes := inodes[ino:=i'];
+      inode_blks := inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)];
     }
 
     static lemma inode_blks_match_change_1(
@@ -321,10 +322,11 @@ module Fs {
       requires blkoff < |i.blks|
       requires |bs| == 4096
       requires Inode.Valid(i)
+      requires Inode.Valid(i')
       requires i'.blks == i.blks
       requires bn in data_block
       requires i.blks[blkoff] == bn
-      ensures inode_blks_match(i', set_blks(d, blks => blks[blkoff:=bs]), data_block[bn := bs])
+      ensures inode_blks_match(i', InodeData(i'.sz as nat, d.blks[blkoff:=bs]), data_block[bn := bs])
     {
       Inode.reveal_blks_unique();
     }
@@ -482,7 +484,9 @@ module Fs {
       assert bn in data_block;
 
       C.concat_app1(inode_blks[ino].blks, bs.data);
-      inode_blks := inode_blks[ino := set_blks(inode_blks[ino], blks => blks + [bs.data])];
+      ghost var d0 := inode_blks[ino];
+      ghost var d' := d0.(blks := d0.blks + [bs.data]);
+      inode_blks := inode_blks[ino := d'];
 
       assert inode_blks_match(inodes[ino], inode_blks[ino], data_block);
 
