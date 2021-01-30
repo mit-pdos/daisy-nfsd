@@ -11,4 +11,7 @@ markdown-link-check "README.md"
 markdown-link-check "research.md"
 black --diff "etc/dafnydep"
 mypy "etc/dafnydep"
+mypy etc/*.py
+black --diff etc/*.py
+pytest etc
 shellcheck "etc/dafnyq"
