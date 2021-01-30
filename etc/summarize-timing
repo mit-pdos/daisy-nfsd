@@ -1,56 +1,14 @@
 #!/usr/bin/env python3
 
-# process Dafny's /trace output and organizing timing info
+from timing import parse_df
 
-import sys
-import re
-from typing import List, Tuple
-import pandas as pd
 
-NAME_RE = re.compile(
-    r"""Verifying\s
-    (?P<type>\w*)\$\$
-    (?P<module>[a-zA-Z0-9_]*)\.
-    (?P<name>[a-zA-Z0-9_.]*)
-    \s\.\.\.
-    """,
-    re.VERBOSE,
-)
+def main():
+    df = parse_df(sys.stdin)
+    print(df.sort_values(by="time_s", ascending=False).head(10))
+    total_s = df.time_s.sum()
+    print(f"total: {total_s:0.2f}")
 
-TIME_RE = re.compile(
-    r"""
-    \s*\[
-    (?P<time>[0-9.]*)
-    \s s,
-    .*\] # ignoring num proof obligations
-    \s*verified
-    """,
-    re.VERBOSE,
-)
 
-# tuple of type and name
-current = None
-data: List[Tuple[str, str, float]] = []
-
-for line in sys.stdin:
-    line = line.rstrip("\n")
-    if current is None:
-        m = NAME_RE.match(line)
-        if m:
-            current = (m.group("type"), m.group("name"))
-        continue
-
-    # should find timing after a name
-    m = TIME_RE.match(line)
-    if not m:
-        print(f"did not find timing info for {current}", file=sys.stderr)
-        continue
-    (typ_, name) = current
-    t = float(m.group("time"))
-    data.append((typ_, name, t))
-    current = None
-
-df = pd.DataFrame.from_records(data, columns=["type", "name", "time_s"])
-print(df.sort_values(by="time_s", ascending=False).head(10))
-total_s = df.time_s.sum()
-print(f"total: {total_s:0.2f}")
+if __name__ == "__main__":
+    main()
