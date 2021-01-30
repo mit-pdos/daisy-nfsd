@@ -28,11 +28,11 @@ jobs:
         run: |
           cd src/dafny_go
           go test -v ./...
+      - name: Install goimports
+        run: |
+          go get golang.org/x/tools/cmd/goimports
       - name: Compile and test
         run: |
-          echo "::group::Install goimports"
-          go get golang.org/x/tools/cmd/goimports
-          echo "::endgroup::"
           echo "::group::Compile"
           make compile
           echo "::endgroup::"
