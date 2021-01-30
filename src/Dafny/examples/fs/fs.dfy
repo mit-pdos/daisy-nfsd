@@ -37,6 +37,12 @@ module Fs {
     forall ino: Ino :: ino_ok(ino) <==> ino in m
   }
 
+  predicate Valid_inode_blks(inode_blks: map<Ino, InodeData>)
+    requires ino_dom(inode_blks)
+  {
+    forall ino | ino_ok(ino) :: InodeData_Valid(inode_blks[ino])
+  }
+
   class Filesys
   {
 
@@ -120,7 +126,7 @@ module Fs {
       forall ino: Ino | ino in inodes :: Inode.Valid(inodes[ino])
     }
 
-    static predicate Valid_inodes_to_block_used(inodes: map<Ino, Inode.Inode>, block_used: map<Blkno, Option<Ino>>)
+    static protected predicate Valid_inodes_to_block_used(inodes: map<Ino, Inode.Inode>, block_used: map<Blkno, Option<Ino>>)
       requires blkno_dom(block_used)
     {
       && (forall ino: Ino | ino in inodes ::
@@ -167,7 +173,7 @@ module Fs {
       && this.balloc.Valid()
     }
 
-    predicate Valid_jrnl_to_all()
+    protected predicate Valid_jrnl_to_all()
       reads this, jrnl
     {
       && Valid_basics(jrnl)
@@ -184,8 +190,13 @@ module Fs {
       && Valid_inode_blks_match(inodes, inode_blks, data_block)
     }
 
+    function Repr(): set<object>
+    {
+      {this, balloc, jrnl}
+    }
+
     predicate Valid()
-      reads this, balloc, jrnl
+      reads Repr()
     {
       && Valid_basics(jrnl)
       && Valid_domains()
@@ -198,8 +209,15 @@ module Fs {
       && this.Valid_balloc()
     }
 
+    lemma Valid_inode_data()
+      requires Valid_domains()
+      requires Valid_data()
+      ensures Valid_inode_blks(inode_blks)
+    {}
+
     constructor Init(d: Disk)
       ensures Valid()
+      ensures inode_blks == map ino | ino_ok(ino) :: InodeData(0, [])
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
@@ -209,10 +227,8 @@ module Fs {
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData(0, []);
       Inode.zero_encoding();
-      this.block_used := map bn: uint64 |
-        blkno_ok(bn) :: None;
-      this.data_block := map bn: uint64 |
-        blkno_ok(bn) :: zeroObject(KindBlock).bs;
+      this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
+      this.data_block := map bn: uint64 | blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
       jrnl.reveal_Valid();
       assert Valid_inodes();
@@ -529,39 +545,6 @@ module Fs {
       var bn := i.blks[blkoff];
       datablk_inbounds(jrnl, bn);
       bs := txn.Read(DataBlk(bn), 4096*8);
-    }
-
-    method Get(ino: Ino, off: uint64, len: uint64)
-      returns (data: Bytes, ok: bool)
-      modifies {}
-      requires off % 4096 == 0 && len <= 4096
-      requires ino_ok(ino)
-      requires Valid() ensures Valid()
-      // already guaranteed by modifies clause
-      ensures data == old(data)
-      // TODO: add ensures in terms of inode_blks
-    {
-      var txn := jrnl.Begin();
-      var i := getInode(txn, ino);
-      if sum_overflows(off, len) || off+len > i.sz {
-        ok := false;
-        data := NewBytes(0);
-        return;
-      }
-
-      ok := true;
-      if len == 0 {
-        data := NewBytes(0);
-        return;
-      }
-      assert 0 < len <= 4096;
-
-      var blkoff: nat := off as nat / 4096;
-      data := getInodeBlk(txn, ino, i, blkoff);
-      data.Subslice(0, len);
-      assert blkoff * 4096 == off as nat;
-
-      var _ := txn.Commit();
     }
   }
 }
