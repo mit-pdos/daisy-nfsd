@@ -100,5 +100,26 @@ module ByteFs {
 
       var _ := txn.Commit();
     }
+
+    method Size(ino: Ino) returns (sz: uint64)
+      modifies {}
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures sz as nat == |data[ino]|
+    {
+      sz := fs.Size(ino);
+    }
+
+    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
+      modifies this, fs.Repr()
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      requires bs.Valid()
+      requires bs.Len() <= 4096
+    {
+      ok := fs.Append(ino, bs);
+      data := data[ino := data[ino] + bs.data];
+      assume false;
+    }
   }
 }

@@ -3,7 +3,7 @@ package compile_test
 import (
 	// TODO: this is an auto-generated name, which is really unfortunate. Dafny
 	// master does not emit such an unpredictable name.
-	fs "59_Fs_Compile_"
+	fs "65_ByteFs_Compile_"
 	"testing"
 
 	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
@@ -15,7 +15,7 @@ import (
 func TestFsSanity(t *testing.T) {
 	assert := assert.New(t)
 	var d disk.Disk = disk.NewMemDisk(1000)
-	filesys := fs.New_Filesys_()
+	filesys := fs.New_ByteFilesys_()
 	filesys.Init(&d)
 	ino := uint64(3)
 

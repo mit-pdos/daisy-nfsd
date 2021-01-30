@@ -1,2 +1,2 @@
 include "examples/bank.dfy"
-include "examples/fs/fs.dfy"
+include "examples/fs/byte_fs.dfy"
