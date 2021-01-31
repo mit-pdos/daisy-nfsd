@@ -150,20 +150,6 @@ module ByteFs {
         assert Inode.Valid(i');
         fs.writeInodeSz(txn, ino, i, i');
 
-        // TODO: this is all Filesys-level reasoning that would be better
-        // encapsulated there, maybe associated with changing a block of a file
-        // (can writeDataBlock just re-prove validity?)
-        assert Filesys.Inodes_all_Valid(fs.inodes);
-        Filesys.inode_blks_match_change_1(i, old(fs.inode_blks[ino]), old(fs.data_block),
-          i', bn, blkoff, blk.data);
-        ghost var this_ino := ino;
-        forall ino | ino_ok(ino)
-          ensures Filesys.inode_blks_match(fs.inodes[ino], fs.inode_blks[ino], fs.data_block)
-        {
-          Filesys.inode_blks_match_change_other(ino, old(fs.inode_blks[ino]),
-            old(fs.inodes), old(fs.data_block), old(fs.block_used),
-            this_ino, bn, blk.data);
-        }
         assert fs.Valid() by {
           Filesys.reveal_Valid_inodes_to_block_used();
         }

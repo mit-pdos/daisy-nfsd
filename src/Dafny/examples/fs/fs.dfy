@@ -293,13 +293,12 @@ module Fs {
     method writeDataBlock(txn: Txn, bn: Blkno, blk: Bytes,
       ghost ino: Ino, ghost blkoff: nat)
       modifies this, jrnl
-      requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
+      requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires blkno_ok(bn)
       requires is_block(blk.data)
       requires ino_ok(ino)
       requires blkoff < |inode_blks[ino].blks|
-      requires Inodes_all_Valid(inodes)
+      requires inodes[ino].blks[blkoff] == bn
       ensures
       && inodes == old(inodes)
       && block_used == old(block_used)
@@ -309,12 +308,27 @@ module Fs {
             var d' := d0.(blks := d0.blks[blkoff:=blk.data]);
             inode_blks[ino:=d'])
     {
+      assert inode_blks_match(inodes[ino], inode_blks[ino], data_block);
       datablk_inbounds(jrnl, bn);
       txn.Write(DataBlk(bn), blk);
       data_block := data_block[bn := blk.data];
       ghost var d0 := inode_blks[ino];
       ghost var d' := d0.(blks := d0.blks[blkoff:=blk.data]);
       inode_blks := inode_blks[ino:=d'];
+
+      ghost var i := inodes[ino];
+      inode_blks_match_change_1(i, d0, old(data_block), i, bn, blkoff, blk.data);
+
+      Filesys.reveal_Valid_inodes_to_block_used();
+      assert Inodes_all_Valid(inodes);
+      ghost var this_ino := ino;
+      forall ino | ino_ok(ino)
+        ensures inode_blks_match(inodes[ino], inode_blks[ino], data_block)
+      {
+        inode_blks_match_change_other(ino, old(inode_blks[ino]),
+          old(inodes), old(data_block), old(block_used),
+          this_ino, bn, blk.data);
+      }
     }
 
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
