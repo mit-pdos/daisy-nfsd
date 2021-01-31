@@ -188,33 +188,34 @@ module ByteFs {
         return;
       }
 
-      // allocate and validate
-      var alloc_ok, bn := fs.allocateTo(txn, ino, i);
+      if i.sz % 4096 != 0 {
+        // TODO: need to handle this by first doing a partial write to the last
+        // block
+        ok := false;
+        return;
+      }
+
+      // add some garbage data to the end of the inode
+      var alloc_ok, bn := fs.growInode(txn, ino, i);
       if !alloc_ok {
         ok := false;
         return;
       }
 
-      assume false;
-
-      // TODO: rewrite this using better Filesys APIs
-
       var i' := Filesys.inode_append(i, bn);
-      C.unique_extend(i.blks, bn);
-      assert Inode.Valid(i');
-      i := i';
-      var buf' := Inode.encode_ino(i);
-      txn.Write(InodeAddr(ino), buf');
-      fs.inodes := fs.inodes[ino:=i];
-
-      txn.Write(DataBlk(bn), bs);
-      fs.data_block := fs.data_block[bn:=bs.data];
-      assert bn in fs.data_block;
-
-      C.concat_app1(fs.inode_blks[ino].blks, bs.data);
-      ghost var d0 := fs.inode_blks[ino];
-      ghost var d' := d0.(blks := d0.blks + [bs.data]);
-      fs.inode_blks := fs.inode_blks[ino := d'];
+      var blk := NewBytes(4096);
+      blk.CopyTo(0, bs);
+      fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
+      if bs.Len() < 4096 {
+        var i'' := i'.(sz:=i.sz + bs.Len());
+        // this truncates the inode, which growInode grows for the sake of
+        // preserving the complete inode invariant
+        fs.writeInodeSz(txn, ino, i', i'');
+        assert fs.Valid() by {
+          Filesys.reveal_Valid_inodes_to_block_used();
+        }
+      }
+      assert fs.Valid();
 
       assume false;
 

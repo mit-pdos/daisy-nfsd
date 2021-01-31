@@ -262,7 +262,7 @@ module Fs {
       && blkno_ok(bn)
     }
 
-    method Alloc(txn: Txn) returns (ok:bool, bn:Blkno)
+    method allocBlkno(txn: Txn) returns (ok:bool, bn:Blkno)
       modifies balloc
       requires txn.jrnl == this.jrnl
       requires Valid() ensures Valid()
@@ -331,15 +331,33 @@ module Fs {
       }
     }
 
+    method writeInode(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
+      modifies this, jrnl
+      requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
+      requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
+      requires txn.jrnl == jrnl
+      requires is_inode(ino, i)
+      requires Inode.Valid(i')
+      ensures is_inode(ino, i')
+      ensures inodes == old(inodes)[ino:=i']
+      ensures block_used == old(block_used)
+      ensures data_block == old(data_block)
+      ensures inode_blks == old(inode_blks)
+    {
+      inode_inbounds(jrnl, ino);
+      var buf' := Inode.encode_ino(i');
+      txn.Write(InodeAddr(ino), buf');
+      inodes := inodes[ino:=i'];
+    }
+
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
+      requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
       requires i'.blks == i.blks
       requires Inode.Valid(i')
-      requires Inodes_all_Valid(inodes)
-      ensures Inodes_all_Valid(inodes)
       ensures is_inode(ino, i')
       ensures
       && inodes == old(inodes)[ino:=i']
@@ -347,10 +365,7 @@ module Fs {
       && data_block == old(data_block)
       && inode_blks == old(inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)])
     {
-      inode_inbounds(jrnl, ino);
-      var buf' := Inode.encode_ino(i');
-      txn.Write(InodeAddr(ino), buf');
-      inodes := inodes[ino:=i'];
+      writeInode(txn, ino, i, i');
       inode_blks := inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)];
     }
 
@@ -410,7 +425,7 @@ module Fs {
     }
 
     method allocateTo(txn: Txn, ino: Ino, ghost i: Inode.Inode) returns (ok: bool, bn:Blkno)
-      modifies this, jrnl, balloc
+      modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
@@ -422,7 +437,7 @@ module Fs {
       ensures ok ==> block_used == old(block_used[bn:=Some(ino)])
       ensures ok ==> is_alloc_bn(bn)
     {
-      ok, bn := Alloc(txn);
+      ok, bn := allocBlkno(txn);
       if !ok {
         return;
       }
@@ -441,6 +456,49 @@ module Fs {
     // TODO: need to track is_alloc_bn for all blks in an inode, not the weaker
     // != 0 property being tracked by Inode.Valid or blkno_ok from
     // Valid_inodes_to_block_used
+
+    method growInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, bn: Blkno)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      requires is_inode(ino, i)
+      requires i.sz <= 14*4096
+      requires i.sz % 4096 == 0
+      ensures !ok ==> inode_blks == old(inode_blks)
+      ensures ok ==> blkno_ok(bn)
+      ensures ok ==> block_used[bn] == Some(ino)
+      ensures ok ==> inode_blks ==
+        old(var d0 := inode_blks[ino];
+            var d' := InodeData(d0.sz + 4096, d0.blks + [data_block[bn]]);
+            inode_blks[ino := d'])
+      ensures ok ==> is_inode(ino, inode_append(i, bn))
+    {
+      ok, bn := allocateTo(txn, ino, i);
+      if !ok {
+        return;
+      }
+      ok := true;
+
+      // this is the garbage data we're adding to the inode
+      ghost var data := data_block[bn];
+
+      var i' := Filesys.inode_append(i, bn);
+      assert Inode.Valid(i') by {
+        Inode.reveal_blks_unique();
+        C.unique_extend(i.blks, bn);
+      }
+      writeInode(txn, ino, i, i');
+
+      ghost var d0 := inode_blks[ino];
+      ghost var d' := InodeData(d0.sz + 4096, d0.blks + [data]);
+      inode_blks := inode_blks[ino:=d'];
+      assert inode_blks_match(i', d', data_block);
+      assert Valid_inodes_to_block_used(inodes, block_used) by {
+        reveal_Valid_inodes_to_block_used();
+      }
+
+      return;
+    }
 
     method Size(ino: Ino) returns (sz: uint64)
       modifies {}

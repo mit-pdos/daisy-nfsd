@@ -19,18 +19,23 @@ module Inode {
     unique(blks)
   }
 
+  predicate ValidBlks(blks: seq<uint64>)
+  {
+    && |blks| <= 15
+    && (forall bn | bn in blks :: bn != 0)
+    && blks_unique(blks)
+  }
+
   predicate Valid(i:Inode)
   {
-    var blks_ := i.blks;
+    && ValidBlks(i.blks)
     // only direct blocks
-    && |blks_| <= 15
-    && |blks_| == div_roundup_alt(i.sz as nat, 4096)
-    && (forall bn | bn in blks_ :: bn != 0)
-    && blks_unique(i.blks)
+    && |i.blks| == div_roundup_alt(i.sz as nat, 4096)
   }
 
   lemma Valid_sz_bound(i:Inode)
-    requires Valid(i)
+    requires ValidBlks(i.blks)
+    requires |i.blks| == div_roundup_alt(i.sz as nat, 4096)
     ensures i.sz as nat <= |i.blks|*4096 <= 15*4096
   {}
 
