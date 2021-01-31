@@ -7,25 +7,6 @@ module ByteFs {
   import opened Machine
   import opened ByteSlice
 
-  // TODO: implement this on top of the lower-level API in fs.dfy
-
-  function inode_data_alt(d: InodeData): (bs:seq<byte>)
-    requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
-    requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
-    ensures |bs| == d.sz
-  {
-    var blks := d.blks;
-    if d.sz % 4096 == 0 then (
-      C.concat_homogeneous_spec(blks, 4096);
-      C.concat(blks)
-      )
-    else (
-      C.concat_homogeneous_spec(C.without_last(blks), 4096);
-      C.concat(C.without_last(blks)) +
-      C.last(blks)[..d.sz % 4096]
-      )
-  }
-
   function inode_data(d: InodeData): (bs:seq<byte>)
     requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
     requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
