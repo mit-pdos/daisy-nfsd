@@ -92,7 +92,7 @@ module ByteFs {
     }
 
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
-      modifies this, fs.Repr()
+      modifies Repr()
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
@@ -184,10 +184,10 @@ module ByteFs {
       }
 
       var i' := Filesys.inode_append(i, bn);
-      var blk := NewBytes(4096);
-      blk.CopyTo(0, bs);
-      fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
       if bs.Len() < 4096 {
+        var blk := NewBytes(4096);
+        blk.CopyTo(0, bs);
+        fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
         var i'' := i'.(sz:=i.sz + bs.Len());
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
@@ -195,8 +195,15 @@ module ByteFs {
         assert fs.Valid() by {
           Filesys.reveal_Valid_inodes_to_block_used();
         }
+
+        data := data[ino:=data[ino] + bs.data];
+      } else {
+        fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
+
+        assert i'.sz == i.sz + bs.Len();
+        data := data[ino:=data[ino] + bs.data];
+        C.concat_app1(old(fs.inode_blks[ino].blks), bs.data);
       }
-      assert fs.Valid();
 
       assume false;
 
