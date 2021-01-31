@@ -116,10 +116,124 @@ module ByteFs {
       requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
+      ensures ok ==> data == old(data)[ino:=old(data[ino]) + bs.data]
     {
-      ok := fs.Append(ino, bs);
-      data := data[ino := data[ino] + bs.data];
+      var txn := fs.jrnl.Begin();
+
+      // check for available space
+      var i := fs.getInode(txn, ino);
+      if sum_overflows(i.sz, bs.Len()) || i.sz + bs.Len() >= 15*4096 {
+        ok := false;
+        return;
+      }
+      if bs.Len() == 0 {
+        ok := true;
+        assert bs.data == [];
+        assert data[ino] == data[ino] + bs.data;
+        return;
+      }
+      assert fs.is_inode(ino, i);
+
+      // is there space in the last block?
+      if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {
+        Round.roundup_distance(i.sz as nat, 4096);
+
+        fs.inode_blks_sz(ino);
+        var blkoff: nat := i.sz as nat/4096;
+        assert blkoff == |i.blks|-1;
+        var blk := fs.getInodeBlk(txn, ino, i, blkoff);
+        blk.CopyTo(i.sz % 4096, bs);
+        var bn := i.blks[blkoff];
+        fs.writeDataBlock(txn, bn, blk, ino, blkoff);
+
+        var i' := i.(sz := i.sz + bs.Len());
+        assert Inode.Valid(i');
+        fs.writeInodeSz(txn, ino, i, i');
+
+        // TODO: this is all Filesys-level reasoning that would be better
+        // encapsulated there, maybe associated with changing a block of a file
+        // (can writeDataBlock just re-prove validity?)
+        assert Filesys.Inodes_all_Valid(fs.inodes);
+        Filesys.inode_blks_match_change_1(i, old(fs.inode_blks[ino]), old(fs.data_block),
+          i', bn, blkoff, blk.data);
+        ghost var this_ino := ino;
+        forall ino | ino_ok(ino)
+          ensures Filesys.inode_blks_match(fs.inodes[ino], fs.inode_blks[ino], fs.data_block)
+        {
+          Filesys.inode_blks_match_change_other(ino, old(fs.inode_blks[ino]),
+            old(fs.inodes), old(fs.data_block), old(fs.block_used),
+            this_ino, bn, blk.data);
+        }
+        assert fs.Valid() by {
+          Filesys.reveal_Valid_inodes_to_block_used();
+        }
+
+        ghost var sz := i.sz as nat;
+        ghost var sz' := i'.sz as nat;
+        data := data[ino := data[ino] + bs.data];
+        ghost var i_blks: seq<Block> := old(fs.inode_blks[ino].blks);
+        ghost var i_blks': seq<Block> := fs.inode_blks[ino].blks;
+        ghost var i_data := old(data[ino]);
+        ghost var i_data' := data[ino];
+
+        // TODO: this much calc is a little excessive but I'm scared to reduce it
+
+        C.concat_split_last(i_blks);
+        C.concat_homogeneous_len(i_blks, 4096);
+        calc {
+          i_data;
+          inode_data(InodeData(sz, i_blks));
+          C.concat(i_blks)[..sz];
+          (C.concat(C.without_last(i_blks)) + C.last(i_blks))[..sz];
+          C.concat(C.without_last(i_blks)) + C.last(i_blks)[..sz % 4096];
+          C.concat(C.without_last(i_blks)) + blk.data[..sz % 4096];
+        }
+
+        C.concat_split_last(i_blks');
+        C.concat_homogeneous_len(C.without_last(i_blks'), 4096);
+        calc {
+          i_data';
+          (C.concat(C.without_last(i_blks')) + C.last(i_blks'))[..sz'];
+          C.concat(C.without_last(i_blks)) + C.last(i_blks)[..sz % 4096] + bs.data;
+          inode_data(InodeData(sz', i_blks'));
+        }
+
+        ok := true;
+        return;
+      }
+
+      // allocate and validate
+      var alloc_ok, bn := fs.allocateTo(txn, ino, i);
+      if !alloc_ok {
+        ok := false;
+        return;
+      }
+
       assume false;
+
+      // TODO: rewrite this using better Filesys APIs
+
+      var i' := Filesys.inode_append(i, bn);
+      C.unique_extend(i.blks, bn);
+      assert Inode.Valid(i');
+      i := i';
+      var buf' := Inode.encode_ino(i);
+      txn.Write(InodeAddr(ino), buf');
+      fs.inodes := fs.inodes[ino:=i];
+
+      txn.Write(DataBlk(bn), bs);
+      fs.data_block := fs.data_block[bn:=bs.data];
+      assert bn in fs.data_block;
+
+      C.concat_app1(fs.inode_blks[ino].blks, bs.data);
+      ghost var d0 := fs.inode_blks[ino];
+      ghost var d' := d0.(blks := d0.blks + [bs.data]);
+      fs.inode_blks := fs.inode_blks[ino := d'];
+
+      assume false;
+
+      ok := true;
+      var _ := txn.Commit();
     }
   }
 }

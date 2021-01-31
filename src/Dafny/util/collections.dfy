@@ -261,4 +261,12 @@ function last<T>(xs: seq<T>): T
     xs[|xs|-1]
 }
 
+lemma concat_split_last<T>(xs: seq<seq<T>>)
+    requires 0 < |xs|
+    ensures concat(xs) == concat(without_last(xs)) + last(xs)
+{
+    assert xs == without_last(xs) + [last(xs)];
+    concat_app1(without_last(xs), last(xs));
+}
+
 }
