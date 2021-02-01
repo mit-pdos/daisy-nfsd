@@ -1,4 +1,5 @@
 include "fs.dfy"
+include "../../util/min_max.dfy"
 
 module ByteFs {
   import opened Fs
@@ -6,6 +7,7 @@ module ByteFs {
   import opened JrnlSpec
   import opened Machine
   import opened ByteSlice
+  import opened MinMax
   import C = Collections
 
   function inode_data(d: InodeData): (bs:seq<byte>)
@@ -128,7 +130,7 @@ module ByteFs {
     }
 
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
-      modifies Repr()
+      modifies Repr(), bs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
@@ -150,6 +152,9 @@ module ByteFs {
         return;
       }
       assert fs.is_inode(ino, i);
+
+      var remaining_space := Round.roundup64(i.sz, 4096) - i.sz;
+      // var bs' := bs.Split(min_u64(remaining_space, bs.Len()));
 
       // is there space in the last block?
       if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {

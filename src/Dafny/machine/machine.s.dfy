@@ -25,6 +25,24 @@ module Machine {
         no_overflow(x as nat, y)
     }
 
+    function method min_u64(x: uint64, y: uint64): uint64
+    {
+        if x < y then x else y
+    }
+
+    lemma min_u64_lb(x: uint64, y: uint64)
+        ensures min_u64(x, y) <= x && min_u64(x, y) <= y
+    {}
+
+    function method max_u64(x: uint64, y: uint64): uint64
+    {
+        if x > y then x else y
+    }
+
+    lemma max_u64_ub(x: uint64, y: uint64)
+        ensures x <= max_u64(x, y) && y <= max_u64(x, y)
+    {}
+
     module U64 {
         const MAX: nat := 0x1_0000_0000_0000_0000
     }
@@ -62,7 +80,6 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
 
         function method {:extern} Get(i: uint64): (x: byte)
         reads this
-        requires Valid()
         requires i as nat < |data|
         ensures x == data[i]
         {
@@ -71,7 +88,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
 
         method {:extern} Set(i: uint64, b: byte)
         modifies this
-        requires Valid() ensures Valid()
+        ensures old(Valid()) ==> Valid()
         requires i as nat < |data|
         ensures data == old(data)[i as nat:=b]
         {
@@ -92,7 +109,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             // NOTE: I did not think of this initially, until the model proof
             // caught it
             requires bs != this
-            requires Valid() ensures Valid()
+            ensures old(Valid()) ==> Valid()
             requires bs.Valid()
             requires no_overflow(|data|, |bs.data|)
             ensures data == old(data) + bs.data
@@ -102,6 +119,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
 
         method {:extern} Subslice(start: uint64, end: uint64)
             modifies this
+            ensures old(Valid()) ==> Valid()
             requires start as nat <= end as nat <= |data|
             ensures data == old(data[start..end])
             ensures |data| == (end-start) as nat
@@ -111,6 +129,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
 
         method {:extern} CopyTo(off: uint64, bs: Bytes)
             modifies this
+            ensures old(Valid()) ==> Valid()
             requires bs != this
             requires off as nat + |bs.data| <= |this.data|
             ensures data == old(C.splice(data, off as nat, bs.data))
@@ -118,6 +137,20 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             ensures bs.data == old(bs.data)
         {
             data := C.splice(data, off as nat, bs.data);
+        }
+
+        method {:extern} Split(off: uint64) returns (bs: Bytes)
+            modifies this
+            ensures fresh(bs)
+            requires off as nat <= |data|
+            requires Valid() ensures Valid()
+            ensures bs.Valid()
+            ensures data == old(data[..off as nat])
+            ensures bs.data == old(data[off as nat..])
+        {
+            var rest := data[off as nat..];
+            data := data[..off as nat];
+            bs := new Bytes(rest);
         }
     }
 

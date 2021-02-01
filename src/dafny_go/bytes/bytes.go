@@ -46,3 +46,15 @@ func (bs *Bytes) CopyTo(start uint64, other *Bytes) {
 	}
 	copy(bs.Data[start:], other.Data)
 }
+
+func (bs *Bytes) Split(off uint64) *Bytes {
+	// this "full slice expression" is necessary to make the two Bytes
+	// independent (otherwise bs will have the returned Bytes as its capacity,
+	// which is overwritten by Append)
+	//
+	// see https://golang.org/ref/spec#Slice_expressions
+	first := bs.Data[:off:off]
+	second := bs.Data[off:]
+	bs.Data = first
+	return &Bytes{Data: second}
+}
