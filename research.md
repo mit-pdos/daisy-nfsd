@@ -12,8 +12,7 @@ We've implemented the `doTransaction` operation as a language-level
 `Atomically(e)` expression, which runs small steps for `e` until termination. We
 plan to implement these restrictions with a logical relation that supports only
 transaction operations within `e` when `Atomically(e)` appears in the spec
-program, which roughly corresponds to `btxn := txn.Begin(); /* do transaction */;
-btxn.CommitWait(true)`.
+program, which roughly corresponds to `btxn := txn.Begin(); /* do transaction */; btxn.CommitWait(true)`.
 
 Now Dafny has an object for the transaction system which supports `Begin`,
 operations within the transaction, and `Commit`. The effect of running this
@@ -45,18 +44,18 @@ ghost operations.
 
 **current plan**
 
-Native integer types are accessible with `:nativeType`.
+Native integer types are accessible with `{:nativeType}` on a subset type.
 
 Byte slices are axiomatized as an `{:extern}` class.
 
-All external interfaces are also equipped with a feasibility module refining the
-spec that "implements" the spec using types like maps and sequences. This module
-serves as a check that the spec is non-trivial, which is especially easy to
-accidentally do in Dafny due to incorrect `modifies` and `reads` clauses. See
-https://github.com/dafny-lang/dafny/wiki/Modeling-External-State-Correctly for a
-discussion of approach and the problems it solves.
+All external interfaces are also implemented by operating on maps and sequences.
+These implementations are never run but check that the spec is non-trivial. This
+is especially important because Dafny _will_ exploit a contradictory spec - for
+example leaving off `modifies` and specifying `data == old(data) + bs` means
+data is both `old(data)` and `bs`, thus asserting those expressions are equal.
 
-The generated code is horrible, and possible also low performance.
+The generated code is horrible, and possibly also low performance. We haven't
+measured anything.
 
 ## Go to Dafny
 
