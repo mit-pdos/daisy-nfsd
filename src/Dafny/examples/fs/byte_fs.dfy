@@ -154,16 +154,18 @@ module ByteFs {
       assert fs.is_inode(ino, i);
 
       var remaining_space := Round.roundup64(i.sz, 4096) - i.sz;
-      // var bs' := bs.Split(min_u64(remaining_space, bs.Len()));
 
-      // is there space in the last block?
-      if i.sz + bs.Len() <= Round.roundup64(i.sz, 4096) {
+      var bs' := bs;
+      if remaining_space > 0 {
+        assert remaining_space == 4096 - i.sz % 4096;
+        bs' := bs.Split(min_u64(remaining_space, bs.Len()));
         Round.roundup_distance(i.sz as nat, 4096);
-
         fs.inode_blks_sz(ino);
         var blkoff: nat := i.sz as nat/4096;
         assert blkoff == |i.blks|-1;
         var blk := fs.getInodeBlk(txn, ino, i, blkoff);
+        assert |bs.data| <= |old(bs.data)|;
+        assert |bs.data| <= remaining_space as nat;
         blk.CopyTo(i.sz % 4096, bs);
         var bn := i.blks[blkoff];
         fs.writeDataBlock(txn, bn, blk, ino, blkoff);
@@ -177,19 +179,29 @@ module ByteFs {
         }
 
         data := data[ino := data[ino] + bs.data];
-
         inode_data_splice_last(old(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data);
 
+        assert old(bs.data) == bs.data + bs'.data;
+        assert 0 < |bs'.data| ==> fs.inode_blks[ino].sz % 4096 == 0;
+
+        // fix up the inode for the rest of the function
+        //
+        // NOTE: this was caught by verification (due to the precondition of
+        // fs.growInode() specifically)
+        i := i';
+        assert fs.is_inode(ino, i);
+      }
+      //label post_fixup:
+      // we still need to write bs'
+
+      if bs'.Len() == 0 {
         ok := true;
         return;
       }
 
-      if i.sz % 4096 != 0 {
-        // TODO: need to handle this by first doing a partial write to the last
-        // block of (4096 - i.sz % 4096) bytes
-        ok := false;
-        return;
-      }
+      // if we had any remaining space from this being non-zero, we have no
+      // written to it
+      assert fs.inode_blks[ino].sz % 4096 == 0;
 
       // add some garbage data to the end of the inode
       var alloc_ok, bn := fs.growInode(txn, ino, i);
@@ -197,14 +209,16 @@ module ByteFs {
         ok := false;
         return;
       }
+      //label post_grow:
 
       var i' := Filesys.inode_append(i, bn);
-      // this is meant to check the remaining bytes to write
-      if bs.Len() < 4096 {
+      assert fs.is_inode(ino, i');
+
+      if bs'.Len() < 4096 {
         var blk := NewBytes(4096);
-        blk.CopyTo(0, bs);
+        blk.CopyTo(0, bs');
         fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
-        var i'' := i'.(sz:=i.sz + bs.Len());
+        var i'' := i'.(sz:=i.sz + bs'.Len());
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
         fs.writeInodeSz(txn, ino, i', i'');
@@ -212,13 +226,16 @@ module ByteFs {
           Filesys.reveal_Valid_inodes_to_block_used();
         }
 
-        data := data[ino:=data[ino] + bs.data];
-      } else {
-        fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
+        data := data[ino:=data[ino] + bs'.data];
 
-        assert i'.sz == i.sz + bs.Len();
-        data := data[ino:=data[ino] + bs.data];
-        C.concat_app1(old(fs.inode_blks[ino].blks), bs.data);
+      } else {
+        assert |bs'.data| == 4096;
+        fs.writeDataBlock(txn, bn, bs', ino, |i'.blks|-1);
+        assert fs.Valid();
+
+        assert i'.sz == i.sz + bs'.Len();
+        data := data[ino:=data[ino] + bs'.data];
+
       }
 
       assume false;
