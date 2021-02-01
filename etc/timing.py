@@ -30,7 +30,7 @@ TIME_RE = re.compile(
     \s*\[
     (?P<time>[0-9.]*)
     \s s,
-    .*\] # ignoring num proof obligations
+    \s* (?P<num_obligations>[0-9]*)\ proof\ obligations?\]
     \s*verified
     """,
     re.VERBOSE,
@@ -41,7 +41,10 @@ def get_time(line):
     m = TIME_RE.match(line)
     if m is None:
         return None
-    return {"time_s": float(m.group("time"))}
+    return {
+        "time_s": float(m.group("time")),
+        "obligations": int(m.group("num_obligations")),
+    }
 
 
 def parse_df(lines) -> pd.DataFrame:
@@ -63,7 +66,9 @@ def parse_df(lines) -> pd.DataFrame:
         data.append(current)
         current = None
 
-    df = pd.DataFrame.from_records(data, columns=["type", "name", "time_s"])
+    df = pd.DataFrame.from_records(
+        data, columns=["type", "name", "obligations", "time_s"]
+    )
     if df is None:
         sys.exit(1)
         raise ValueError()
