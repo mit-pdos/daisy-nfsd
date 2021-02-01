@@ -3,7 +3,7 @@ OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 # these arguments don't affect verification outcomes
 DAFNY_BASIC_ARGS := /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:0.5
-DAFNY_ARGS := /noNLarith /arith:5
+DAFNY_ARGS := /noNLarith /z3opt.smt.arith.nl=false /arith:5
 DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
 Q:=@
