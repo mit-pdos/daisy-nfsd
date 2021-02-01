@@ -212,11 +212,11 @@ decreases xs
 }
 
 lemma {:induction count} sum_repeat(x: nat, count: nat)
-ensures sum_nat(repeat(x, count)) == count * x
+    ensures sum_nat(repeat(x, count)) == count * x
 {
     reveal_repeat();
     mul_distr_add_r(count, -1, x);
-    mul_neg_1(x);
+    mul_neg_1_l(x);
 }
 
 // NOTE(tej): if you happen to know the proof, then Dafny can automatically

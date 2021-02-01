@@ -102,8 +102,16 @@ module Arith {
     ensures x * 1 == x
   {}
 
-  lemma mul_neg_1(x: int)
+  lemma mul_neg_1_r(x: int)
     ensures x * -1 == -x
+  {}
+
+  lemma mul_neg_1_l(x: int)
+    ensures -1 * x == -x
+  {}
+
+  lemma plus_neg(x: int, y: int)
+    ensures x + (-y) == x - y
   {}
 
 }
