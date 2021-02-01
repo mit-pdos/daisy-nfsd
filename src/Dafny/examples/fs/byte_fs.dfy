@@ -196,6 +196,7 @@ module ByteFs {
 
       if bs'.Len() == 0 {
         ok := true;
+        var _ := txn.Commit();
         return;
       }
 
@@ -207,6 +208,7 @@ module ByteFs {
       var alloc_ok, bn := fs.growInode(txn, ino, i);
       if !alloc_ok {
         ok := false;
+        // TODO: this aborts after preparing the transaction; do we want to support that?
         return;
       }
       //label post_grow:

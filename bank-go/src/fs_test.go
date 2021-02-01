@@ -12,7 +12,7 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 )
 
-func TestFsSanity(t *testing.T) {
+func TestFsSanity_Block(t *testing.T) {
 	assert := assert.New(t)
 	var d disk.Disk = disk.NewMemDisk(1000)
 	filesys := fs.New_ByteFilesys_()
@@ -26,4 +26,37 @@ func TestFsSanity(t *testing.T) {
 	bs2, ok := filesys.Get(ino, 4096, 4096)
 	assert.True(ok)
 	assert.Equal(byte(1), bs2.Data[0])
+}
+
+func TestFsSanity(t *testing.T) {
+	assert := assert.New(t)
+	var d disk.Disk = disk.NewMemDisk(1000)
+	filesys := fs.New_ByteFilesys_()
+	filesys.Init(&d)
+	ino := uint64(3)
+
+	bs := bytes.Data([]byte{1, 2, 3, 4})
+	filesys.Append(ino, bs)
+	assert.Equal(uint64(4), filesys.Size(ino))
+
+	filesys.Append(ino, bs)
+	assert.Equal(uint64(8), filesys.Size(ino))
+
+	bs2 := bytes.Data(make([]byte, 4096))
+	copy(bs2.Data[4096-8:], []byte{5, 6, 7, 8})
+
+	// requires both writing to end of file and allocating
+	filesys.Append(ino, bs2)
+
+	{
+		bs, ok := filesys.Get(ino, 0, 4)
+		assert.True(ok)
+		assert.Equal(byte(1), bs.Data[0])
+	}
+
+	{
+		bs, ok := filesys.Get(ino, 4096, 4)
+		assert.True(ok)
+		assert.Equal(byte(5), bs.Data[0])
+	}
 }
