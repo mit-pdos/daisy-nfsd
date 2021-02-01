@@ -32,7 +32,7 @@ module Machine {
 
 module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} ByteSlice {
     import opened Machine
-    import opened Collections
+    import C = Collections
 
     // the implementations in this module serve as a feasibility check for the API
     class {:extern} Bytes {
@@ -113,11 +113,11 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             modifies this
             requires bs != this
             requires off as nat + |bs.data| <= |this.data|
-            ensures data == old(data[..off as nat] + bs.data + data[off as nat + |bs.data|..])
+            ensures data == old(C.splice(data, off as nat, bs.data))
             ensures |data| == old(|data|)
             ensures bs.data == old(bs.data)
         {
-            data := data[..off as nat] + bs.data + data[off as nat + |bs.data|..];
+            data := C.splice(data, off as nat, bs.data);
         }
     }
 
@@ -125,9 +125,9 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
     returns (bs:Bytes)
     ensures fresh(bs)
     ensures bs.Valid()
-    ensures bs.data == repeat(0 as byte, sz as nat)
+    ensures bs.data == C.repeat(0 as byte, sz as nat)
     {
-        return new Bytes(repeat(0 as byte, sz as nat));
+        return new Bytes(C.repeat(0 as byte, sz as nat));
     }
 }
 

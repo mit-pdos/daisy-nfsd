@@ -6,6 +6,7 @@ module ByteFs {
   import opened JrnlSpec
   import opened Machine
   import opened ByteSlice
+  import C = Collections
 
   function inode_data(d: InodeData): (bs:seq<byte>)
     requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
@@ -91,6 +92,41 @@ module ByteFs {
       sz := fs.Size(ino);
     }
 
+    function get_last_block(d: InodeData): Block
+      requires 0 < |d.blks|
+    {
+      C.last(d.blks)
+    }
+
+    function set_last_block(d: InodeData, b: Block): InodeData
+      requires 0 < |d.blks|
+    {
+      var blks := d.blks;
+      var off := |d.blks|-1;
+      d.(blks:=blks[off := b])
+    }
+
+    lemma inode_data_splice_last(d: InodeData, d': InodeData, bs: seq<byte>)
+      requires 0 < |d.blks|
+      requires d.sz % 4096 + |bs| <= 4096
+      requires InodeData_Valid(d)
+      requires InodeData_Valid(d')
+      requires (assert is_block(get_last_block(d));
+                d' == set_last_block(d, C.splice(get_last_block(d), d.sz % 4096, bs)).(sz:=d.sz + |bs|))
+      ensures inode_data(d') == inode_data(d) + bs
+    {
+        C.concat_split_last(d.blks);
+        C.concat_homogeneous_len(d.blks, 4096);
+        C.concat_split_last(d'.blks);
+        C.concat_homogeneous_len(C.without_last(d'.blks), 4096);
+        calc {
+          inode_data(d');
+          (C.concat(C.without_last(d'.blks)) + C.last(d'.blks))[..d'.sz];
+          C.concat(C.without_last(d'.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
+          C.concat(C.without_last(d.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
+        }
+    }
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -135,35 +171,9 @@ module ByteFs {
           Filesys.reveal_Valid_inodes_to_block_used();
         }
 
-        ghost var sz := i.sz as nat;
-        ghost var sz' := i'.sz as nat;
         data := data[ino := data[ino] + bs.data];
-        ghost var i_blks: seq<Block> := old(fs.inode_blks[ino].blks);
-        ghost var i_blks': seq<Block> := fs.inode_blks[ino].blks;
-        ghost var i_data := old(data[ino]);
-        ghost var i_data' := data[ino];
 
-        // TODO: this much calc is a little excessive but I'm scared to reduce it
-
-        C.concat_split_last(i_blks);
-        C.concat_homogeneous_len(i_blks, 4096);
-        calc {
-          i_data;
-          inode_data(InodeData(sz, i_blks));
-          C.concat(i_blks)[..sz];
-          (C.concat(C.without_last(i_blks)) + C.last(i_blks))[..sz];
-          C.concat(C.without_last(i_blks)) + C.last(i_blks)[..sz % 4096];
-          C.concat(C.without_last(i_blks)) + blk.data[..sz % 4096];
-        }
-
-        C.concat_split_last(i_blks');
-        C.concat_homogeneous_len(C.without_last(i_blks'), 4096);
-        calc {
-          i_data';
-          (C.concat(C.without_last(i_blks')) + C.last(i_blks'))[..sz'];
-          C.concat(C.without_last(i_blks)) + C.last(i_blks)[..sz % 4096] + bs.data;
-          inode_data(InodeData(sz', i_blks'));
-        }
+        inode_data_splice_last(old(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data);
 
         ok := true;
         return;
@@ -171,7 +181,7 @@ module ByteFs {
 
       if i.sz % 4096 != 0 {
         // TODO: need to handle this by first doing a partial write to the last
-        // block
+        // block of (4096 - i.sz % 4096) bytes
         ok := false;
         return;
       }
@@ -184,6 +194,7 @@ module ByteFs {
       }
 
       var i' := Filesys.inode_append(i, bn);
+      // this is meant to check the remaining bytes to write
       if bs.Len() < 4096 {
         var blk := NewBytes(4096);
         blk.CopyTo(0, bs);

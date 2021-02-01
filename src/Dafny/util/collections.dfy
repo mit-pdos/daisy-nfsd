@@ -269,4 +269,27 @@ lemma concat_split_last<T>(xs: seq<seq<T>>)
     concat_app1(without_last(xs), last(xs));
 }
 
+// splice (insert sequence)
+function method splice<T>(xs: seq<T>, off: nat, ys: seq<T>): (xs':seq<T>)
+    requires off + |ys| <= |xs|
+    ensures |xs'| == |xs|
+{
+    xs[..off] + ys + xs[off+|ys|..]
+}
+
+lemma splice_get_ys<T>(xs: seq<T>, off: nat, ys: seq<T>)
+    requires off + |ys| <= |xs|
+    ensures splice(xs, off, ys)[off..off+|ys|] == ys
+{}
+
+lemma splice_at_0<T>(xs: seq<T>, ys: seq<T>)
+    requires |ys| <= |xs|
+    ensures splice(xs, 0, ys) == ys + xs[|ys|..]
+{}
+
+lemma splice_till_end<T>(xs: seq<T>, off: nat, ys: seq<T>)
+    requires off + |ys| == |xs|
+    ensures splice(xs, off, ys) == xs[..off] + ys
+{}
+
 }
