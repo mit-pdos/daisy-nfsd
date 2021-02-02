@@ -54,7 +54,7 @@ module ByteFs {
     method Get(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies {}
-      requires off % 4096 == 0 && len <= 4096
+      requires len <= 4096
       requires ino_ok(ino)
       requires Valid() ensures Valid()
       ensures ok ==>
@@ -77,10 +77,39 @@ module ByteFs {
       assert 0 < len <= 4096;
 
       var blkoff: nat := off as nat / 4096;
+      ghost var off': nat := blkoff * 4096;
+      Arith.div_mod_split(off as nat, 4096);
+
       bs := fs.getInodeBlk(txn, ino, i, blkoff);
-      C.concat_homogeneous_one_list(fs.inode_blks[ino].blks, blkoff, 4096);
-      bs.Subslice(0, len);
-      assert blkoff * 4096 == off as nat;
+
+      ghost var blks := fs.inode_blks[ino].blks;
+      C.concat_homogeneous_one_list(blks, blkoff, 4096);
+      assert bs.data == C.concat(blks)[off'..off'+4096];
+
+      if off % 4096 + len <= 4096 {
+        // we finished the entire read
+        bs.Subslice(off % 4096, off % 4096 + len);
+
+        C.double_subslice(C.concat(blks),
+          off', off'+4096,
+          off as nat % 4096, off as nat % 4096 + len as nat);
+
+        var _ := txn.Commit();
+        return;
+      }
+
+      bs.Subslice(off % 4096, 4096);
+      C.double_subslice(C.concat(blks),
+        off', off'+4096,
+        off as nat % 4096, 4096);
+      var read_bytes: uint64 := bs.Len();
+      assert bs.data == data[ino][off..off + read_bytes];
+
+      var bs2 := fs.getInodeBlk(txn, ino, i, blkoff+1);
+      C.concat_homogeneous_one_list(blks, blkoff+1, 4096);
+      assert bs2.data == C.concat(blks)[off'+4096..off'+8192];
+      bs2.Subslice(0, len - read_bytes);
+      bs.AppendBytes(bs2);
 
       var _ := txn.Commit();
     }
@@ -183,6 +212,7 @@ module ByteFs {
 
         assert old(bs.data) == bs.data + bs'.data;
         assert 0 < |bs'.data| ==> fs.inode_blks[ino].sz % 4096 == 0;
+        assert Valid();
 
         // fix up the inode for the rest of the function
         //
@@ -193,6 +223,7 @@ module ByteFs {
       }
       //label post_fixup:
       // we still need to write bs'
+      assert Valid();
 
       if bs'.Len() == 0 {
         ok := true;
@@ -200,9 +231,10 @@ module ByteFs {
         return;
       }
 
-      // if we had any remaining space from this being non-zero, we have no
+      // if we had any remaining space from this being non-zero, we have now
       // written to it
       assert fs.inode_blks[ino].sz % 4096 == 0;
+      assert data[ino] + bs'.data == old(data[ino] + bs.data);
 
       // add some garbage data to the end of the inode
       var alloc_ok, bn := fs.growInode(txn, ino, i);

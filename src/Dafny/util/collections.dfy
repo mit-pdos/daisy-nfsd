@@ -4,6 +4,19 @@ module Collections
 {
 import opened Arith
 
+// sequence indexing
+
+
+lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
+    requires a <= b <= |xs|
+    requires c <= d <= (b-a)
+    ensures xs[a..b][c..d] == xs[a+c..a+d]
+{
+    // consequence of the bounds that make xs[..a+d] well-formed
+    assert d + a <= b;
+    assert xs[a..b] == xs[a..][..(b-a)];
+}
+
 // fmap over sequences
 
 function method
