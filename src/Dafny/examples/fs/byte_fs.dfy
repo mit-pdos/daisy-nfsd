@@ -221,9 +221,10 @@ module ByteFs {
       assert Valid();
 
       label post_grow:
+        // avoid unused label in Go
+      { break post_grow; }
 
-      ghost var data_stable := data[ino][..old(fs.inode_blks[ino].sz)];
-      assert data_stable == old(data[ino]);
+      assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
 
       var i' := Filesys.inode_append(i, bn);
       assert fs.is_inode(ino, i');
