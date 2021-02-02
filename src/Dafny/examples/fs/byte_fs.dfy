@@ -54,13 +54,19 @@ module ByteFs {
     method Get(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies {}
-      requires len <= 4096
       requires ino_ok(ino)
       requires Valid() ensures Valid()
+      ensures fresh(bs) && bs.Valid()
       ensures ok ==>
       && off as nat + len as nat <= |data[ino]|
       && bs.data == data[ino][off..off+len]
     {
+      if len > 4096 {
+        ok := false;
+        bs := NewBytes(0);
+        return;
+      }
+
       var txn := fs.jrnl.Begin();
       var i := fs.getInode(txn, ino);
       if sum_overflows(off, len) || off+len > i.sz {
