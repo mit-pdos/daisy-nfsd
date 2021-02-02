@@ -19,6 +19,15 @@ module ByteFs {
     C.concat(d.blks)[..d.sz]
   }
 
+  lemma inode_data_aligned(d: InodeData)
+    requires d.sz % 4096 == 0
+    requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
+    requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
+    ensures inode_data(d) == C.concat(d.blks)
+  {
+    C.concat_homogeneous_len(d.blks, 4096);
+  }
+
   class ByteFilesys {
     ghost var data: map<Ino, seq<byte>>;
 
@@ -190,6 +199,11 @@ module ByteFs {
         ok := false;
         return;
       }
+      data := data[ino:=data[ino] + fs.data_block[bn]];
+      C.concat_app1(old(fs.inode_blks[ino].blks), fs.data_block[bn]);
+      inode_data_aligned(old(fs.inode_blks[ino]));
+      inode_data_aligned(fs.inode_blks[ino]);
+      assert Valid();
       //label post_grow:
 
       var i' := Filesys.inode_append(i, bn);
