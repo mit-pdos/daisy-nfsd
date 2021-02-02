@@ -3,3 +3,5 @@
 !/src/bank_test.go
 !/src/fs_test.go
 !.gitignore
+*.test
+*.prof

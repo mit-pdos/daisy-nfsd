@@ -60,3 +60,30 @@ func TestFsSanity(t *testing.T) {
 		assert.Equal(byte(5), bs.Data[0])
 	}
 }
+
+func BenchmarkFsInit(b *testing.B) {
+	var d disk.Disk = disk.NewMemDisk(40000)
+	filesys := fs.New_ByteFilesys_()
+	b.ResetTimer()
+	for b_iter := 0; b_iter < b.N; b_iter++ {
+		filesys.Init(&d)
+	}
+}
+
+func BenchmarkFsAppend100(b *testing.B) {
+	var d disk.Disk = disk.NewMemDisk(40000)
+	filesys := fs.New_ByteFilesys_()
+	b.ResetTimer()
+	for b_iter := 0; b_iter < b.N; b_iter++ {
+		filesys.Init(&d)
+		// FIXME: technically Append owns its input; that should probably be
+		// fixed somehow
+		bs := bytes.Data(make([]byte, 4096))
+		// every benchmark iteration we do 100 appends to a fresh filesystem
+		for i := 0; i < 10; i++ {
+			for ino := uint64(0); ino < 10; ino++ {
+				filesys.Append(ino, bs)
+			}
+		}
+	}
+}
