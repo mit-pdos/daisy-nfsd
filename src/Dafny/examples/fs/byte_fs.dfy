@@ -222,6 +222,8 @@ module ByteFs {
 
       label post_grow:
         // avoid unused label in Go
+        //
+        // see https://github.com/dafny-lang/dafny/issues/1093
       { break post_grow; }
 
       assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
