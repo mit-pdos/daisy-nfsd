@@ -238,6 +238,7 @@ module Fs {
       new;
       jrnl.reveal_Valid();
       reveal_Valid_inodes_to_block_used();
+      reveal_addrsForKinds();
       assert Valid_inodes();
     }
 

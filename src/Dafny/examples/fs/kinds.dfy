@@ -37,6 +37,7 @@ module FsKinds {
     assert ino*128*8 < 4096*8;
     Arith.mul_mod(ino as nat, 128*8);
     assert kindSize(KindInode) == 128*8;
+    reveal_addrsForKinds();
     Addr(InodeBlk, ino*128*8)
   }
   function method DataBitAddr(bn: uint64): Addr
@@ -51,6 +52,7 @@ module FsKinds {
     assert fs_kinds[513+2+bn] == KindBlock;
     assert kindSize(KindBlock) == 4096*8;
     Arith.zero_mod(4096*8);
+    reveal_addrsForKinds();
     Addr(513+2+bn, 0)
   }
 
@@ -102,6 +104,7 @@ module FsKinds {
     ensures DataBlk(bn) in jrnl.data && jrnl.size(DataBlk(bn)) == 8*4096
   {
     ghost var addr := DataBlk(bn);
+    reveal_addrsForKinds();
     jrnl.in_domain(addr);
     jrnl.has_size(addr);
   }

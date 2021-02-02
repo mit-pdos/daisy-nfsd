@@ -46,7 +46,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     }
 
     // specifies the set of addresses used for a kind schema
-    function method addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
+    function method {:opaque} addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
     {
         set blkno : Blkno, off : uint64 |
         && blkno in kinds
@@ -148,6 +148,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             ensures a in data
         {
             reveal_Valid();
+            reveal_addrsForKinds();
         }
 
         lemma has_size(a: Addr)
@@ -165,6 +166,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         ensures (reveal_Valid(); forall a:Addr :: a in data ==>
                 && data[a] == zeroObject(kinds[a.blkno]))
         {
+            reveal_addrsForKinds();
             var data: map<Addr, Object> :=
                 map a:Addr | a in addrsForKinds(kinds)
                             :: zeroObject(kinds[a.blkno]);
