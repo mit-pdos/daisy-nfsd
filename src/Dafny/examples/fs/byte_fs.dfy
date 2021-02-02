@@ -164,13 +164,76 @@ module ByteFs {
         }
     }
 
+    method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires txn.jrnl == fs.jrnl
+      requires fs.is_inode(ino, i)
+      requires i.sz % 4096 == 0
+      requires bs.Valid()
+      requires bs.Len() <= 4096
+      requires i.sz as nat + |bs.data| <= 15*4096
+      ensures ok ==> data == old(data)[ino:=old(data[ino]) + bs.data]
+      ensures !ok ==> data == old(data)
+    {
+      if bs.Len() == 0 {
+        ok := true;
+        var _ := txn.Commit();
+        assert bs.data == [];
+        assert data[ino] + bs.data == data[ino];
+        return;
+      }
+
+      // add some garbage data to the end of the inode
+      var alloc_ok, bn := fs.growInode(txn, ino, i);
+      if !alloc_ok {
+        ok := false;
+        return;
+      }
+      //label post_grow:
+
+      var i' := Filesys.inode_append(i, bn);
+      assert fs.is_inode(ino, i');
+
+      if bs.Len() < 4096 {
+        var blk := NewBytes(4096);
+        blk.CopyTo(0, bs);
+        fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
+        var i'' := i'.(sz:=i.sz + bs.Len());
+        // this truncates the inode, which growInode grows for the sake of
+        // preserving the complete inode invariant
+        fs.writeInodeSz(txn, ino, i', i'');
+        assert fs.Valid() by {
+          Filesys.reveal_Valid_inodes_to_block_used();
+        }
+
+        data := data[ino:=data[ino] + bs.data];
+
+      } else {
+        assert |bs.data| == 4096;
+        fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
+        assert fs.Valid();
+
+        assert i'.sz == i.sz + bs.Len();
+        data := data[ino:=data[ino] + bs.data];
+
+      }
+
+      assume false;
+
+      ok := true;
+    }
+
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies Repr(), bs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
-      ensures ok ==> data == old(data)[ino:=old(data[ino]) + bs.data]
+      ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
+      // FIXME: not true because we do some writes before aborting;
+      // we probably shouldn't do this in Dafny at all
+      // ensures !ok ==> data == old(data)
     {
       var txn := fs.jrnl.Begin();
 
@@ -226,61 +289,30 @@ module ByteFs {
         // fs.growInode() specifically)
         i := i';
         assert fs.is_inode(ino, i);
-      }
-      //label post_fixup:
-      // we still need to write bs'
-      assert Valid();
 
-      if bs'.Len() == 0 {
-        ok := true;
-        var _ := txn.Commit();
-        return;
+        if bs'.Len() == 0 {
+          ok := true;
+          var _ := txn.Commit();
+          assert old(bs.data) == bs.data;
+          return;
+        }
       }
+      assert Valid();
+      //label post_fixup:
+
+      // we still need to write bs'
+      assert 0 < |bs'.data| <= 4096;
 
       // if we had any remaining space from this being non-zero, we have now
       // written to it
       assert fs.inode_blks[ino].sz % 4096 == 0;
       assert data[ino] + bs'.data == old(data[ino] + bs.data);
 
-      // add some garbage data to the end of the inode
-      var alloc_ok, bn := fs.growInode(txn, ino, i);
-      if !alloc_ok {
-        ok := false;
-        // TODO: this aborts after preparing the transaction; do we want to support that?
+      // TODO: this can abort after preparing the transaction; do we want to support that?
+      ok := appendAligned(txn, ino, i, bs');
+      if !ok {
         return;
       }
-      //label post_grow:
-
-      var i' := Filesys.inode_append(i, bn);
-      assert fs.is_inode(ino, i');
-
-      if bs'.Len() < 4096 {
-        var blk := NewBytes(4096);
-        blk.CopyTo(0, bs');
-        fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
-        var i'' := i'.(sz:=i.sz + bs'.Len());
-        // this truncates the inode, which growInode grows for the sake of
-        // preserving the complete inode invariant
-        fs.writeInodeSz(txn, ino, i', i'');
-        assert fs.Valid() by {
-          Filesys.reveal_Valid_inodes_to_block_used();
-        }
-
-        data := data[ino:=data[ino] + bs'.data];
-
-      } else {
-        assert |bs'.data| == 4096;
-        fs.writeDataBlock(txn, bn, bs', ino, |i'.blks|-1);
-        assert fs.Valid();
-
-        assert i'.sz == i.sz + bs'.Len();
-        data := data[ino:=data[ino] + bs'.data];
-
-      }
-
-      assume false;
-
-      ok := true;
       var _ := txn.Commit();
     }
   }
