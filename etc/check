@@ -5,7 +5,8 @@ set -e
 ## Some simple sanity checks for code quality in infrastructure
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$SCRIPT_DIR/.."
+DIR="$SCRIPT_DIR/.."
+cd "$DIR"
 
 # Markdown
 markdown-link-check "README.md"
@@ -21,3 +22,11 @@ pytest etc
 # Bash
 shellcheck "etc/dafnyq"
 shellcheck "etc/check"
+
+# Go
+cd "src/dafny_go"
+echo "gofmt"
+gofmt -d .
+echo "go vet"
+go vet ./...
+cd "$DIR"
