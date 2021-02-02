@@ -173,6 +173,21 @@ module ByteFs {
         }
     }
 
+    lemma inode_data_replace_last(d: InodeData, d': InodeData, bs: seq<byte>, new_bytes: nat)
+      requires 0 < |d.blks|
+      requires d.sz % 4096 == 0 && |bs| == 4096
+      requires InodeData_Valid(d)
+      requires InodeData_Valid(d')
+      requires (assert is_block(get_last_block(d));
+                d' == set_last_block(d, bs).(sz:=d.sz - 4096 + new_bytes))
+      ensures inode_data(d') == inode_data(d)[..d.sz - 4096] + bs[..new_bytes]
+    {
+        C.concat_split_last(d.blks);
+        C.concat_homogeneous_len(d.blks, 4096);
+        C.concat_split_last(d'.blks);
+        assert C.concat(C.without_last(d.blks)) == inode_data(d)[..d.sz - 4096];
+    }
+
     method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -182,7 +197,7 @@ module ByteFs {
       requires bs.Valid()
       requires bs.Len() <= 4096
       requires i.sz as nat + |bs.data| <= 15*4096
-      ensures ok ==> data == old(data)[ino:=old(data[ino]) + bs.data]
+      ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
       if bs.Len() == 0 {
@@ -204,7 +219,11 @@ module ByteFs {
       inode_data_aligned(old(fs.inode_blks[ino]));
       inode_data_aligned(fs.inode_blks[ino]);
       assert Valid();
-      //label post_grow:
+
+      label post_grow:
+
+      ghost var data_stable := data[ino][..old(fs.inode_blks[ino].sz)];
+      assert data_stable == old(data[ino]);
 
       var i' := Filesys.inode_append(i, bn);
       assert fs.is_inode(ino, i');
@@ -221,19 +240,24 @@ module ByteFs {
           Filesys.reveal_Valid_inodes_to_block_used();
         }
 
-        data := data[ino:=data[ino] + bs.data];
+        data := data[ino:=old(data[ino]) + bs.data];
 
+        inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
+
+        assert blk.data[..|bs.data|] == bs.data;
+        assert Valid();
       } else {
         assert |bs.data| == 4096;
         fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
         assert fs.Valid();
 
         assert i'.sz == i.sz + bs.Len();
-        data := data[ino:=data[ino] + bs.data];
+        data := data[ino:=old(data[ino]) + bs.data];
 
+        inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data, |bs.data|);
+        assert bs.data[..|bs.data|] == bs.data;
+        assert Valid();
       }
-
-      assume false;
 
       ok := true;
     }
