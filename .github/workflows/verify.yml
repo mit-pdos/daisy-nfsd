@@ -40,5 +40,5 @@ jobs:
           cd bank-go
           export GOPATH="$PWD"
           go get -t ./src
-          go test -bench -v ./src
+          go test -bench=. -v ./src
           echo "::endgroup::"
