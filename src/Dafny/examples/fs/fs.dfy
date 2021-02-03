@@ -78,15 +78,7 @@ module Fs {
       && ino_dom(inode_blks)
     }
 
-    lemma inode_in_dom(ino: Ino)
-      requires ino_ok(ino)
-      requires Valid_domains()
-      ensures
-      && ino in inodes
-      && ino in inode_blks
-    {}
-
-    static protected predicate Valid_jrnl_to_block_used(jrnl: Jrnl, block_used: map<Blkno, Option<Ino>>)
+    static predicate {:opaque} Valid_jrnl_to_block_used(jrnl: Jrnl, block_used: map<Blkno, Option<Ino>>)
       reads jrnl
       requires blkno_dom(block_used)
       requires Valid_basics(jrnl)
@@ -96,7 +88,7 @@ module Fs {
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
     }
 
-    static protected predicate Valid_jrnl_to_data_block(jrnl: Jrnl, data_block: map<Blkno, Block>)
+    static predicate {:opaque} Valid_jrnl_to_data_block(jrnl: Jrnl, data_block: map<Blkno, Block>)
       reads jrnl
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
@@ -106,12 +98,7 @@ module Fs {
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
-    static predicate Valid_data_block(data_block: map<Blkno, Block>)
-    {
-      forall bn | bn in data_block :: is_block(data_block[bn])
-    }
-
-    static protected predicate Valid_jrnl_to_inodes(jrnl: Jrnl, inodes: map<Ino, Inode.Inode>)
+    static predicate {:opaque} Valid_jrnl_to_inodes(jrnl: Jrnl, inodes: map<Ino, Inode.Inode>)
       reads jrnl
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
@@ -144,15 +131,23 @@ module Fs {
       && Valid_inodes_to_block_used(inodes, block_used)
     }
 
+    static predicate {:opaque} blks_match?(blk_offs: seq<Blkno>, blks: seq<Block>, data_block: map<Blkno, Block>)
+      requires |blk_offs| == |blks|
+      requires blkno_dom(data_block)
+    {
+      forall k: nat | k < |blk_offs| ::
+        && blkno_ok(blk_offs[k])
+        && blks[k] == data_block[blk_offs[k]]
+    }
+
     // inode i encodes blks, using data_block to lookup indirect references
     static predicate inode_blks_match(i: Inode.Inode, d: InodeData, data_block: map<Blkno, Block>)
     {
       && i.sz as nat == d.sz
       && |d.blks| == |i.blks|
       && InodeData_Valid(d)
-      && (forall k: nat | k < |i.blks| ::
-        && i.blks[k] in data_block
-        && d.blks[k] == data_block[i.blks[k]])
+      && blkno_dom(data_block)
+      && blks_match?(i.blks, d.blks, data_block)
     }
 
     static predicate Valid_inode_blks_match(
@@ -204,6 +199,11 @@ module Fs {
       {this, balloc, jrnl}
     }
 
+    static predicate Valid_data_block(data_block: map<Blkno, Block>)
+    {
+      forall bn | bn in data_block :: is_block(data_block[bn])
+    }
+
     predicate Valid()
       reads Repr()
     {
@@ -239,6 +239,11 @@ module Fs {
       jrnl.reveal_Valid();
       reveal_Valid_inodes_to_block_used();
       reveal_addrsForKinds();
+
+      reveal_Valid_jrnl_to_block_used();
+      reveal_Valid_jrnl_to_data_block();
+      reveal_Valid_jrnl_to_inodes();
+      reveal_blks_match?();
       assert Valid_inodes();
     }
 
@@ -281,6 +286,7 @@ module Fs {
         return;
       }
       ok := true;
+      reveal_Valid_jrnl_to_block_used();
     }
 
     lemma free_block_unused(bn: Blkno)
@@ -310,6 +316,7 @@ module Fs {
             inode_blks[ino:=d'])
     {
       assert inode_blks_match(inodes[ino], inode_blks[ino], data_block);
+      reveal_blks_match?();
       datablk_inbounds(jrnl, bn);
       txn.Write(DataBlk(bn), blk);
       data_block := data_block[bn := blk.data];
@@ -330,6 +337,10 @@ module Fs {
           old(inodes), old(data_block), old(block_used),
           this_ino, bn, blk.data);
       }
+
+      reveal_Valid_jrnl_to_block_used();
+      reveal_Valid_jrnl_to_data_block();
+      reveal_Valid_jrnl_to_inodes();
     }
 
     method writeInode(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
@@ -349,6 +360,10 @@ module Fs {
       var buf' := Inode.encode_ino(i');
       txn.Write(InodeAddr(ino), buf');
       inodes := inodes[ino:=i'];
+
+      reveal_Valid_jrnl_to_block_used();
+      reveal_Valid_jrnl_to_data_block();
+      reveal_Valid_jrnl_to_inodes();
     }
 
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
@@ -384,6 +399,7 @@ module Fs {
       ensures inode_blks_match(i', InodeData(i'.sz as nat, d.blks[blkoff:=bs]), data_block[bn := bs])
     {
       Inode.reveal_blks_unique();
+      reveal_blks_match?();
     }
 
     // inode_blks_match is insensitive to changes in blocks owned by other inodes
@@ -402,6 +418,7 @@ module Fs {
       ensures ino != ino' ==> inode_blks_match(inodes[ino], d, data_block[bn:=bs])
     {
       reveal_Valid_inodes_to_block_used();
+      reveal_blks_match?();
     }
 
     predicate is_inode(ino: Ino, i: Inode.Inode)
@@ -420,6 +437,7 @@ module Fs {
       requires txn.jrnl == jrnl
       ensures is_inode(ino, i)
     {
+      reveal_Valid_jrnl_to_inodes();
       inode_inbounds(jrnl, ino);
       var buf := txn.Read(InodeAddr(ino), 128*8);
       i := Inode.decode_ino(buf, inodes[ino]);
@@ -448,6 +466,9 @@ module Fs {
       block_used := block_used[bn:=Some(ino)];
       txn.WriteBit(DataBitAddr(bn), true);
       reveal_Valid_inodes_to_block_used();
+      reveal_Valid_jrnl_to_block_used();
+      reveal_Valid_jrnl_to_data_block();
+      reveal_Valid_jrnl_to_inodes();
       return;
     }
 
@@ -494,7 +515,10 @@ module Fs {
       ghost var d0 := inode_blks[ino];
       ghost var d' := InodeData(d0.sz + 4096, d0.blks + [data]);
       inode_blks := inode_blks[ino:=d'];
-      assert inode_blks_match(i', d', data_block);
+
+      assert inode_blks_match(i', d', data_block) by {
+        reveal_blks_match?();
+      }
       assert Valid_inodes_to_block_used(inodes, block_used) by {
         reveal_Valid_inodes_to_block_used();
       }
@@ -526,13 +550,16 @@ module Fs {
       ensures
       && is_block(bs.data)
       && bs.data == inode_blks[ino].blks[blkoff]
+      && blkno_ok(i.blks[blkoff])
       && block_used[i.blks[blkoff]] == Some(ino)
     {
       assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
+      reveal_blks_match?();
       datablk_inbounds(jrnl, bn);
       bs := txn.Read(DataBlk(bn), 4096*8);
       reveal_Valid_inodes_to_block_used();
+      reveal_Valid_jrnl_to_data_block();
     }
   }
 }
