@@ -156,6 +156,7 @@ module Fs {
       data_block: map<Blkno, Block>)
       requires ino_dom(inodes)
       requires ino_dom(inode_blks)
+      requires blkno_dom(data_block)
     {
       && (forall ino: Ino | ino_ok(ino) ::
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block))

@@ -98,8 +98,10 @@ module ByteFs {
       bs := fs.getInodeBlk(txn, ino, i, blkoff);
 
       ghost var blks := fs.inode_blks[ino].blks;
-      C.concat_homogeneous_one_list(blks, blkoff, 4096);
-      assert bs.data == C.concat(blks)[off'..off'+4096];
+      assert off' + 4096 <= |C.concat(blks)| &&
+        bs.data == C.concat(blks)[off'..off'+4096] by {
+        C.concat_homogeneous_one_list(blks, blkoff, 4096);
+      }
 
       if off % 4096 + len <= 4096 {
         // we finished the entire read
@@ -114,17 +116,23 @@ module ByteFs {
       }
 
       bs.Subslice(off % 4096, 4096);
-      C.double_subslice(C.concat(blks),
-        off', off'+4096,
-        off as nat % 4096, 4096);
       var read_bytes: uint64 := bs.Len();
-      assert bs.data == data[ino][off..off + read_bytes];
+      assert bs.data == data[ino][off..off + read_bytes] by {
+        C.double_subslice(C.concat(blks),
+          off', off'+4096,
+          off as nat % 4096, 4096);
+      }
 
       var bs2 := fs.getInodeBlk(txn, ino, i, blkoff+1);
-      C.concat_homogeneous_one_list(blks, blkoff+1, 4096);
-      assert bs2.data == C.concat(blks)[off'+4096..off'+8192];
+      assert off'+8192 <= |C.concat(blks)| &&
+        bs2.data == C.concat(blks)[off'+4096..off'+8192] by {
+        C.concat_homogeneous_one_list(blks, blkoff+1, 4096);
+      }
       bs2.Subslice(0, len - read_bytes);
+      assert bs2.data == data[ino][off + read_bytes..off + len];
+
       bs.AppendBytes(bs2);
+      assert bs.data == data[ino][off..off + len];
 
       var _ := txn.Commit();
     }
@@ -215,10 +223,11 @@ module ByteFs {
         return;
       }
       data := data[ino:=data[ino] + fs.data_block[bn]];
-      C.concat_app1(old(fs.inode_blks[ino].blks), fs.data_block[bn]);
-      inode_data_aligned(old(fs.inode_blks[ino]));
-      inode_data_aligned(fs.inode_blks[ino]);
-      assert Valid();
+      assert Valid() by {
+        C.concat_app1(old(fs.inode_blks[ino].blks), fs.data_block[bn]);
+        inode_data_aligned(old(fs.inode_blks[ino]));
+        inode_data_aligned(fs.inode_blks[ino]);
+      }
 
       label post_grow:
         // avoid unused label in Go
@@ -248,8 +257,8 @@ module ByteFs {
         inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
 
         assert blk.data[..|bs.data|] == bs.data;
-        assume false;
         assert Valid();
+        assume false;
 
       } else {
         assert |bs.data| == 4096;
