@@ -130,30 +130,33 @@ module Inode {
     requires bs.data == enc(i)
     ensures i' == i
   {
+    // note that we use nat throughout since we're mostly using Dafny operations
+    // that require nats anyway and it's more efficient to stay with big
+    // integers than convert back and forth
     var dec := new Decoder();
     dec.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
-    var num_blks: uint64 := div_roundup64(sz, 4096);
-    assert num_blks as nat == |i.blks|;
+    var num_blks: nat := div_roundup64(sz, 4096) as nat;
+    assert num_blks == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 
-    var blks: array<uint64> := new uint64[num_blks as nat];
+    var blks: array<uint64> := new uint64[num_blks];
 
-    var k: uint64 := 0;
+    var k: nat := 0;
     while k < num_blks
       modifies dec, blks
       invariant dec.Valid()
       invariant Valid(i)
       invariant 0 <= k <= num_blks
-      invariant blks.Length == num_blks as nat;
-      invariant blks[..k as nat] == i.blks[..k as nat]
-      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k as nat..])
+      invariant blks.Length == num_blks;
+      invariant blks[..k] == i.blks[..k]
+      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k..])
     {
-      var blk := dec.GetInt(i.blks[k as nat]);
+      var blk := dec.GetInt(i.blks[k]);
       blks[k] := blk;
       k := k + 1;
     }
-    assert blks[..num_blks as nat] == blks[..];
+    assert blks[..num_blks] == blks[..];
     return Mk(sz, blks[..]);
   }
 }
