@@ -22,7 +22,6 @@ module Inode {
   predicate ValidBlks(blks: seq<uint64>)
   {
     && |blks| <= 15
-    && (forall bn | bn in blks :: bn != 0)
     && blks_unique(blks)
   }
 
