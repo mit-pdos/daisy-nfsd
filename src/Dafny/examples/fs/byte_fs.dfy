@@ -248,7 +248,9 @@ module ByteFs {
         inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
 
         assert blk.data[..|bs.data|] == bs.data;
+        assume false;
         assert Valid();
+
       } else {
         assert |bs.data| == 4096;
         fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
@@ -259,6 +261,7 @@ module ByteFs {
 
         inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data, |bs.data|);
         assert bs.data[..|bs.data|] == bs.data;
+        assume false;
         assert Valid();
       }
 
@@ -290,6 +293,8 @@ module ByteFs {
         assert data[ino] == data[ino] + bs.data;
         return;
       }
+      assume false;
+
       assert fs.is_inode(ino, i);
 
       var remaining_space := Round.roundup64(i.sz, 4096) - i.sz;

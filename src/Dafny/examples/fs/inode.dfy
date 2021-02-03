@@ -43,9 +43,28 @@ module Inode {
     [EncUInt64(i.sz)] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
   }
 
-  lemma {:induction xs} enc_uint64_len(xs: seq<uint64>)
-    ensures |seq_encode(seq_fmap(blkno => EncUInt64(blkno), xs))| == 8*|xs|
+  function seq_enc_uint64(xs: seq<uint64>): seq<byte>
+  {
+    seq_encode(seq_fmap(blkno => EncUInt64(blkno), xs))
+  }
+
+  lemma seq_enc_uint64_unfold(xs: seq<uint64>)
+    requires 0 < |xs|
+    ensures seq_enc_uint64(xs) == IntEncoding.le_enc64(xs[0]) + seq_enc_uint64(xs[1..])
   {}
+
+  lemma {:induction xs} enc_uint64_len(xs: seq<uint64>)
+    decreases xs
+    ensures |seq_enc_uint64(xs)| == 8*|xs|
+  {
+    if xs == [] {}
+    else {
+      seq_enc_uint64_unfold(xs);
+      enc_uint64_len(xs[1..]);
+      Arith.mul_distr_sub_l(8, |xs|, 1);
+      assert 8*|xs[1..]| == 8*|xs| - 8;
+    }
+  }
 
   function enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
@@ -118,21 +137,23 @@ module Inode {
     assert num_blks as nat == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 
-    var blks: seq<uint64> := [];
+    var blks: array<uint64> := new uint64[num_blks];
 
     var k: uint64 := 0;
     while k < num_blks
-      modifies dec
+      modifies dec, blks
       invariant dec.Valid()
       invariant Valid(i)
       invariant 0 <= k <= num_blks
-      invariant blks == i.blks[..k]
-      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k..])
+      invariant blks.Length == num_blks as nat;
+      invariant blks[..k as nat] == i.blks[..k as nat]
+      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k as nat..])
     {
       var blk := dec.GetInt(i.blks[k as nat]);
-      blks := blks + [blk];
+      blks[k] := blk;
       k := k + 1;
     }
-    return Mk(sz, blks);
+    assert blks[..num_blks as nat] == blks[..];
+    return Mk(sz, blks[..]);
   }
 }
