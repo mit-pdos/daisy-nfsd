@@ -10,7 +10,7 @@ module ByteFs {
   import opened MinMax
   import C = Collections
 
-  function inode_data(d: InodeData): (bs:seq<byte>)
+  function {:opaque} inode_data(d: InodeData): (bs:seq<byte>)
     requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
     requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
     ensures |bs| == d.sz
@@ -25,6 +25,7 @@ module ByteFs {
     requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
     ensures inode_data(d) == C.concat(d.blks)
   {
+    reveal_inode_data();
     C.concat_homogeneous_len(d.blks, 4096);
   }
 
@@ -101,6 +102,7 @@ module ByteFs {
       assert off' + 4096 <= |C.concat(blks)| &&
         bs.data == C.concat(blks)[off'..off'+4096] by {
         C.concat_homogeneous_one_list(blks, blkoff, 4096);
+        reveal_inode_data();
       }
 
       if off % 4096 + len <= 4096 {
@@ -112,6 +114,7 @@ module ByteFs {
           off as nat % 4096, off as nat % 4096 + len as nat);
 
         var _ := txn.Commit();
+        reveal_inode_data();
         return;
       }
 
@@ -121,6 +124,7 @@ module ByteFs {
         C.double_subslice(C.concat(blks),
           off', off'+4096,
           off as nat % 4096, 4096);
+          reveal_inode_data();
       }
 
       var bs2 := fs.getInodeBlk(txn, ino, i, blkoff+1);
@@ -129,7 +133,9 @@ module ByteFs {
         C.concat_homogeneous_one_list(blks, blkoff+1, 4096);
       }
       bs2.Subslice(0, len - read_bytes);
-      assert bs2.data == data[ino][off + read_bytes..off + len];
+      assert bs2.data == data[ino][off + read_bytes..off + len] by {
+        reveal_inode_data();
+      }
 
       bs.AppendBytes(bs2);
       assert bs.data == data[ino][off..off + len];
@@ -169,16 +175,17 @@ module ByteFs {
                 d' == set_last_block(d, C.splice(get_last_block(d), d.sz % 4096, bs)).(sz:=d.sz + |bs|))
       ensures inode_data(d') == inode_data(d) + bs
     {
-        C.concat_split_last(d.blks);
-        C.concat_homogeneous_len(d.blks, 4096);
-        C.concat_split_last(d'.blks);
-        C.concat_homogeneous_len(C.without_last(d'.blks), 4096);
-        calc {
-          inode_data(d');
-          (C.concat(C.without_last(d'.blks)) + C.last(d'.blks))[..d'.sz];
-          C.concat(C.without_last(d'.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
-          C.concat(C.without_last(d.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
-        }
+      reveal_inode_data();
+      C.concat_split_last(d.blks);
+      C.concat_homogeneous_len(d.blks, 4096);
+      C.concat_split_last(d'.blks);
+      C.concat_homogeneous_len(C.without_last(d'.blks), 4096);
+      calc {
+        inode_data(d');
+        (C.concat(C.without_last(d'.blks)) + C.last(d'.blks))[..d'.sz];
+        C.concat(C.without_last(d'.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
+        C.concat(C.without_last(d.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
+      }
     }
 
     lemma inode_data_replace_last(d: InodeData, d': InodeData, bs: seq<byte>, new_bytes: nat)
@@ -190,10 +197,11 @@ module ByteFs {
                 d' == set_last_block(d, bs).(sz:=d.sz - 4096 + new_bytes))
       ensures inode_data(d') == inode_data(d)[..d.sz - 4096] + bs[..new_bytes]
     {
-        C.concat_split_last(d.blks);
-        C.concat_homogeneous_len(d.blks, 4096);
-        C.concat_split_last(d'.blks);
-        assert C.concat(C.without_last(d.blks)) == inode_data(d)[..d.sz - 4096];
+      reveal_inode_data();
+      C.concat_split_last(d.blks);
+      C.concat_homogeneous_len(d.blks, 4096);
+      C.concat_split_last(d'.blks);
+      assert C.concat(C.without_last(d.blks)) == inode_data(d)[..d.sz - 4096];
     }
 
     method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bn: Blkno, bs: Bytes)
