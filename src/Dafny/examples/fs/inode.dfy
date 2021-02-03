@@ -137,7 +137,7 @@ module Inode {
     assert num_blks as nat == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 
-    var blks: array<uint64> := new uint64[num_blks];
+    var blks: array<uint64> := new uint64[num_blks as nat];
 
     var k: uint64 := 0;
     while k < num_blks
