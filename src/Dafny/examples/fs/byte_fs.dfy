@@ -228,6 +228,7 @@ module ByteFs {
         inode_data_aligned(old(fs.inode_blks[ino]));
         inode_data_aligned(fs.inode_blks[ino]);
       }
+      ok := true;
 
       label post_grow:
         // avoid unused label in Go
@@ -241,6 +242,7 @@ module ByteFs {
       assert fs.is_inode(ino, i');
 
       if bs.Len() < 4096 {
+        assume false;
         var blk := NewBytes(4096);
         blk.CopyTo(0, bs);
         fs.writeDataBlock(txn, bn, blk, ino, |i'.blks|-1);
@@ -254,13 +256,16 @@ module ByteFs {
 
         data := data[ino:=old(data[ino]) + bs.data];
 
-        inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
-
-        assert blk.data[..|bs.data|] == bs.data;
+        ghost var d' := fs.inode_blks[ino];
+        assert inode_data(d')  == old(data[ino]) + bs.data by {
+          inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
+          assert blk.data[..|bs.data|] == bs.data;
+        }
         assert Valid();
-        assume false;
+        return;
 
       } else {
+
         assert |bs.data| == 4096;
         fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
         assert fs.Valid();
@@ -268,13 +273,16 @@ module ByteFs {
         assert i'.sz == i.sz + bs.Len();
         data := data[ino:=old(data[ino]) + bs.data];
 
-        inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data, |bs.data|);
-        assert bs.data[..|bs.data|] == bs.data;
-        assume false;
+        ghost var d' := fs.inode_blks[ino];
+        assert inode_data(d') == old(data[ino]) + bs.data by {
+          inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), d', bs.data, |bs.data|);
+          assert bs.data[..|bs.data|] == bs.data;
+        }
         assert Valid();
-      }
+        return;
 
-      ok := true;
+      }
+      assert false;
     }
 
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
