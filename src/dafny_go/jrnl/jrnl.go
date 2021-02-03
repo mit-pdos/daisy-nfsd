@@ -14,29 +14,6 @@ type Txn struct {
 	btxn *buftxn.BufTxn
 }
 
-// manual definition of Addr datatype
-
-type Addr_Addr struct {
-	Blkno Blkno
-	Off   uint64
-}
-
-type Addr struct {
-	// note this is not exactly what Dafny would emit: it would put an interface
-	// here which in practice is always the Addr_Addr struct
-	Addr_Addr
-}
-
-func (_this Addr) Dtor_blkno() uint64 {
-	return _this.Addr_Addr.Blkno
-}
-
-func (_this Addr) Dtor_off() uint64 {
-	return _this.Addr_Addr.Off
-}
-
-// end of Addr datatype
-
 func dafnyAddrToAddr(a Addr) addr.Addr {
 	return addr.Addr{Blkno: a.Blkno, Off: a.Off}
 }

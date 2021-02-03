@@ -1,9 +1,7 @@
 package compile_test
 
 import (
-	// TODO: this is an auto-generated name, which is really unfortunate. Dafny
-	// master does not emit such an unpredictable name.
-	fs "68_ByteFs_Compile_"
+	fs "ByteFs_Compile"
 	"testing"
 
 	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"

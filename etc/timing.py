@@ -61,6 +61,7 @@ def parse_df(lines) -> pd.DataFrame:
         timing = get_time(line)
         if timing is None:
             print(f"did not find timing info for {current}", file=sys.stderr)
+            current = None
             continue
         current.update(timing)
         data.append(current)

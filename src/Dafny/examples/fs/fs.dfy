@@ -156,6 +156,7 @@ module Fs {
       data_block: map<Blkno, Block>)
       requires ino_dom(inodes)
       requires ino_dom(inode_blks)
+      requires blkno_dom(data_block)
     {
       && (forall ino: Ino | ino_ok(ino) ::
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block))
@@ -561,5 +562,12 @@ module Fs {
       reveal_Valid_inodes_to_block_used();
       reveal_Valid_jrnl_to_data_block();
     }
+
+    lemma inode_sz_no_overflow(ino: Ino, i: Inode.Inode, delta: uint64)
+      requires Valid()
+      requires is_inode(ino, i)
+      requires delta as nat <= 8192
+      ensures no_overflow(i.sz as nat, delta as nat)
+    {}
   }
 }

@@ -64,6 +64,14 @@ module Arith {
     ensures (x+y)*z == x*z + y*z
   {}
 
+  lemma mul_distr_sub_l(x: int, y: int, z: int)
+    ensures x*(y-z) == x*y - x*z
+  {}
+
+  lemma mul_distr_sub_r(x: int, y: int, z: int)
+    ensures (x-y)*z == x*z - y*z
+  {}
+
   lemma div_incr(x: nat, y: nat, k: nat)
     requires 0 < k
     requires x < k * y
