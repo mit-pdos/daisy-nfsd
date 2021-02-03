@@ -17,12 +17,14 @@ crash-safety reasoning in Perennial.
 
 [Bank example](./src/Dafny/examples/bank.dfy)
 
+[File-system example](./src/Dafny/examples/fs/byte_fs.dfy)
+
 ## Compiling
 
-Run `make` to verify everything and `make compile` to compile the bank example
-to Go.
+Run `make` to verify everything and `make compile` to compile the file-system
+and bank examples to Go.
 
-You'll need Dafny 2.3 on your $PATH. Compilation additionally depends on
+You'll need Dafny 3 on your $PATH. Compilation additionally depends on
 goimports to remove unused imports:
 
 ```sh
