@@ -293,7 +293,6 @@ module ByteFs {
         assert data[ino] == data[ino] + bs.data;
         return;
       }
-      assume false;
 
       assert fs.is_inode(ino, i);
 
@@ -336,6 +335,8 @@ module ByteFs {
         i := i';
         assert fs.is_inode(ino, i);
 
+        assume false;
+
         if bs'.Len() == 0 {
           ok := true;
           var _ := txn.Commit();
@@ -343,6 +344,7 @@ module ByteFs {
           return;
         }
       }
+      assume false;
       assert Valid();
       //label post_fixup:
 
