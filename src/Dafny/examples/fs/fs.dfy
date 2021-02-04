@@ -248,6 +248,39 @@ module Fs {
       assert Valid_inodes();
     }
 
+    // Recovery is needed for the file-system to recover its in-memory allocator
+    // state. Due to the use of translation validation (that is, we don't prove
+    // the allocator has the right free elements but check the on-disk value) we
+    // don't have to re-establish any invariant here, but without this code on
+    // recovery the allocator will give out used addresses and fail in practice.
+    constructor Recover(jrnl: Jrnl)
+      // not allowed to modify jrnl so can't break any invariants
+      modifies {}
+      requires Valid_basics(jrnl)
+      ensures this.jrnl == jrnl
+    {
+      var balloc := NewAllocator(4095*8);
+
+      var txn := jrnl.Begin();
+      blkno_bit_inbounds(jrnl);
+      var bn: Blkno := 1;
+      while bn < 4095*8
+        invariant txn.jrnl == jrnl
+        invariant Valid_basics(jrnl)
+        invariant balloc.Valid()
+        invariant 1 <= bn as nat <= 4095*8
+      {
+        var used := txn.ReadBit(DataBitAddr(bn));
+        if used {
+          balloc.MarkUsed(bn);
+        }
+        bn := bn + 1;
+      }
+
+      this.jrnl := jrnl;
+      this.balloc := balloc;
+    }
+
     // full block append
     static predicate can_inode_append(i: Inode.Inode, bn: Blkno)
     {
