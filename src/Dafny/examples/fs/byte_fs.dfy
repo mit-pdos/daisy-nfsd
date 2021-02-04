@@ -60,6 +60,13 @@ module ByteFs {
       data := map ino | ino_ok(ino) :: [];
     }
 
+    constructor Recover(jrnl_: Jrnl)
+      requires Filesys.Valid_basics(jrnl_)
+      ensures fs.jrnl == jrnl_
+    {
+      fs := new Filesys.Recover(jrnl_);
+    }
+
     method Get(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies {}
