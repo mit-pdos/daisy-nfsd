@@ -9,7 +9,7 @@ module FsKinds {
   type Ino = uint64
 
   const NumInodeBlocks: nat := 10
-  const NumDataBitmapBlocks: nat := 1
+  const NumDataBitmapBlocks: nat := 3
 
   predicate blkno_ok(blkno: Blkno) { blkno as nat < NumDataBitmapBlocks * (4096*8) }
   predicate ino_ok(ino: Blkno) { ino as nat < 32*NumInodeBlocks }
@@ -75,7 +75,7 @@ module FsKinds {
     }
   }
 
-  function method InodeAddr(ino: Ino): (a:Addr)
+  function method {:opaque} InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
     ensures a in addrsForKinds(fs_kinds)
   {
@@ -96,7 +96,7 @@ module FsKinds {
   {
     Addr(DataAllocBlk(bn), bn % (4096*8))
   }
-  function method DataBlk(bn: uint64): (a:Addr)
+  function method {:opaque} DataBlk(bn: uint64): (a:Addr)
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
@@ -112,6 +112,8 @@ module FsKinds {
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBitAddr(bn')
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBlk(bn')
   {
+    reveal_DataBlk();
+    reveal_InodeAddr();
     forall bn': Blkno | blkno_ok(bn')
       ensures InodeAddr(ino) != DataBitAddr(bn')
     {
@@ -124,13 +126,19 @@ module FsKinds {
     requires blkno_ok(bn)
     ensures forall ino': Ino | ino_ok(ino') :: DataBitAddr(bn) != InodeAddr(ino')
     ensures forall bn': Blkno | blkno_ok(bn') :: DataBitAddr(bn) != DataBlk(bn')
-  {}
+  {
+    reveal_DataBlk();
+    reveal_InodeAddr();
+  }
 
   lemma DataBlk_disjoint(bn: Blkno)
     requires blkno_ok(bn)
     ensures forall ino': Ino | ino_ok(ino') :: DataBlk(bn) != InodeAddr(ino')
     ensures forall bn': Ino | blkno_ok(bn') :: DataBlk(bn) != DataBitAddr(bn')
-  {}
+  {
+    reveal_DataBlk();
+    reveal_InodeAddr();
+  }
 
   const fs_kinds: map<Blkno, Kind> :=
     // NOTE(tej): trigger annotation suppresses warning (there's nothing to
@@ -168,6 +176,7 @@ module FsKinds {
     ensures InodeAddr(ino) in jrnl.data && jrnl.size(InodeAddr(ino)) == 8*128
   {
     kind_inode_size();
+    reveal_InodeAddr();
     ghost var addr := InodeAddr(ino);
     jrnl.in_domain(addr);
     jrnl.has_size(addr);
@@ -183,6 +192,7 @@ module FsKinds {
     reveal_addrsForKinds();
     jrnl.in_domain(addr);
     jrnl.has_size(addr);
+    reveal_DataBlk();
   }
 
 }

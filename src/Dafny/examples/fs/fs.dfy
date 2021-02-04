@@ -249,6 +249,8 @@ module Fs {
       reveal_Valid_jrnl_to_data_block();
       reveal_Valid_jrnl_to_inodes();
       reveal_blks_match?();
+      reveal_DataBlk();
+      reveal_InodeAddr();
       assert Valid_inodes();
     }
 
@@ -381,6 +383,7 @@ module Fs {
         reveal_Valid_jrnl_to_data_block();
         reveal_Valid_jrnl_to_inodes();
         FsKinds.DataBlk_disjoint(bn);
+        reveal_DataBlk();
       }
     }
 
@@ -404,6 +407,7 @@ module Fs {
 
       assert Valid_jrnl_to_all() by {
         InodeAddr_disjoint(ino);
+        reveal_InodeAddr();
         reveal_Valid_jrnl_to_block_used();
         reveal_Valid_jrnl_to_data_block();
         reveal_Valid_jrnl_to_inodes();
