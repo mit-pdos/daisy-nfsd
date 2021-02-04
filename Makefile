@@ -37,8 +37,8 @@ bank-go/src/bank.go: src/Dafny/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $<
 	$(Q)cd bank-go; \
-	env GOPATH="$$PWD" goimports -w ./src; \
-	env GOPATH="$$PWD" gofmt -r '(a) -> a' -w ./src
+	env GOPATH="$$PWD" goimports -w ./src/*.go ./src/*Compile/; \
+	env GOPATH="$$PWD" gofmt -r '(a) -> a' -w ./src/*.go ./src/*Compile;
 	$(Q)cd bank-go; \
 	if [ ! -d src/github.com/mit-pdos/dafny-jrnl ]; then \
 		mkdir -p src/github.com/mit-pdos; \
