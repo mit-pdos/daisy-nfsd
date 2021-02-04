@@ -17,6 +17,23 @@ lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     assert xs[a..b] == xs[a..][..(b-a)];
 }
 
+// this is a useful way to use double_subslice automatically in a controlled way
+// that generally works, because it has such a specific trigger
+//
+// see http://leino.science/papers/krml265.html for some more ideas
+lemma double_subslice_auto<T>(xs: seq<T>)
+    ensures forall a: nat, b: nat, c: nat, d: nat {:trigger xs[a..b][c..d]} |
+        a <= b <= |xs| && c <= d <= (b-a) ::
+        xs[a..b][c..d] == xs[a+c..a+d]
+{
+    forall a: nat, b: nat, c: nat, d: nat |
+        a <= b <= |xs| && c <= d <= (b-a)
+        ensures xs[a..b][c..d] == xs[a+c..a+d]
+    {
+        double_subslice(xs, a, b, c, d);
+    }
+}
+
 // fmap over sequences
 
 function method

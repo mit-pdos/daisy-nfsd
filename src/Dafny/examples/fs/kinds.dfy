@@ -25,7 +25,8 @@ module FsKinds {
     + NumDataBitmapBlocks as uint64
   const NumBlocks: nat := DataBlockStart as nat +
     NumDataBitmapBlocks*4096*8
-    // if you want to make a disk for the fs this is a usable number
+
+  // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
     ensures NumBlocks < 100_000
   {}

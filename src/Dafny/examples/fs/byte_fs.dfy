@@ -100,9 +100,7 @@ module ByteFs {
       if off + 4096 > i.sz {
         bs.Subslice(0, i.sz - off);
         ghost var bytes_read := (i.sz - off) as nat;
-        C.double_subslice(C.concat(blks),
-          off', off'+4096,
-          0, bytes_read);
+        C.double_subslice_auto(C.concat(blks));
         assert |bs.data| < 4096;
         assert off as nat + |bs.data| == |data[ino]|;
         reveal_inode_data();
@@ -156,9 +154,7 @@ module ByteFs {
 
         var _ := txn.Commit();
         if |data[ino]| > off' as nat + 4096 {
-          C.double_subslice(data[ino],
-            off' as nat, off' as nat + 4096,
-            off as nat % 4096, off as nat % 4096 + len as nat);
+          C.double_subslice_auto(data[ino]);
         }
         return;
       }
@@ -166,16 +162,16 @@ module ByteFs {
       assert bs.data == data[ino][off' as nat..off' as nat + 4096];
       bs.Subslice(off % 4096, 4096);
       assert bs.data == data[ino][off as nat..off' as nat + 4096] by {
-        C.double_subslice(data[ino],
-          off' as nat, off' as nat + 4096,
-          off as nat % 4096, 4096);
+        C.double_subslice_auto(data[ino]);
       }
       var read_bytes: uint64 := bs.Len();
 
       var off'' := off' + 4096;
       var bs2 := getInodeBlock(txn, ino, i, off'');
       bs2.Subslice(0, len - read_bytes);
-      assert bs2.data == data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat];
+      assert bs2.data == data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat] by {
+        C.double_subslice_auto(data[ino]);
+      }
 
       bs.AppendBytes(bs2);
 
