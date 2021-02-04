@@ -13,6 +13,20 @@ module Inode {
   import opened Marshal
 
   datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
+  {
+    predicate Valid()
+    {
+      && ValidBlks(blks)
+      // only direct blocks
+      && |blks| == div_roundup_alt(sz as nat, 4096)
+    }
+
+    lemma Valid_sz_bound()
+      requires ValidBlks(blks)
+      requires |blks| == div_roundup_alt(sz as nat, 4096)
+      ensures sz as nat <= |blks|*4096 <= 15*4096
+    {}
+  }
 
   predicate {:opaque} blks_unique(blks: seq<uint64>)
   {
@@ -24,19 +38,6 @@ module Inode {
     && |blks| <= 15
     && blks_unique(blks)
   }
-
-  predicate Valid(i:Inode)
-  {
-    && ValidBlks(i.blks)
-    // only direct blocks
-    && |i.blks| == div_roundup_alt(i.sz as nat, 4096)
-  }
-
-  lemma Valid_sz_bound(i:Inode)
-    requires ValidBlks(i.blks)
-    requires |i.blks| == div_roundup_alt(i.sz as nat, 4096)
-    ensures i.sz as nat <= |i.blks|*4096 <= 15*4096
-  {}
 
   function inode_enc(i: Inode): seq<Encodable>
   {
@@ -69,7 +70,7 @@ module Inode {
   function enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
-    if Valid(i) then
+    if i.Valid() then
       (enc_uint64_len(i.blks);
       assert |seq_encode(inode_enc(i))| == 8+8*|i.blks|;
       seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8+8*|i.blks|)))
@@ -79,13 +80,13 @@ module Inode {
   const zero: Inode := Mk(0, []);
 
   lemma zero_valid()
-    ensures Valid(zero)
+    ensures zero.Valid()
   {
     reveal_blks_unique();
   }
 
   lemma zero_encoding()
-    ensures Valid(zero)
+    ensures zero.Valid()
     ensures repeat(0 as byte, 128) == enc(zero)
   {
     zero_valid();
@@ -97,7 +98,7 @@ module Inode {
 
   method encode_ino(i: Inode) returns (bs:Bytes)
     modifies {}
-    requires Valid(i)
+    requires i.Valid()
     ensures fresh(bs)
     ensures bs.data == enc(i)
   {
@@ -126,7 +127,7 @@ module Inode {
   method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
     modifies {}
     requires bs.Valid()
-    requires Valid(i)
+    requires i.Valid()
     requires bs.data == enc(i)
     ensures i' == i
   {
@@ -146,7 +147,7 @@ module Inode {
     while k < num_blks
       modifies dec, blks
       invariant dec.Valid()
-      invariant Valid(i)
+      invariant i.Valid()
       invariant 0 <= k <= num_blks
       invariant blks.Length == num_blks;
       invariant blks[..k] == i.blks[..k]

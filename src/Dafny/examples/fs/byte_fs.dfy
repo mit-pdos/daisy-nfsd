@@ -352,7 +352,7 @@ module ByteFs {
       fs.writeDataBlock(txn, bn, blk, ino, blkoff);
 
       i' := i.(sz := i.sz + bs.Len());
-      assert Inode.Valid(i');
+      assert i'.Valid();
       fs.writeInodeSz(txn, ino, i, i');
 
       assert fs.Valid() by {

@@ -110,7 +110,7 @@ module Fs {
 
     static predicate Inodes_all_Valid(inodes: map<Ino, Inode.Inode>)
     {
-      forall ino: Ino | ino in inodes :: Inode.Valid(inodes[ino])
+      forall ino: Ino | ino in inodes :: inodes[ino].Valid()
     }
 
     static predicate {:opaque} Valid_inodes_to_block_used(inodes: map<Ino, Inode.Inode>, block_used: map<Blkno, Option<Ino>>)
@@ -284,7 +284,7 @@ module Fs {
     // full block append
     static predicate can_inode_append(i: Inode.Inode, bn: Blkno)
     {
-      && Inode.Valid(i)
+      && i.Valid()
       && blkno_ok(bn)
       && i.sz < 15*4096
     }
@@ -383,7 +383,7 @@ module Fs {
       requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
-      requires Inode.Valid(i')
+      requires i'.Valid()
       ensures is_inode(ino, i')
       ensures inodes == old(inodes)[ino:=i']
       ensures block_used == old(block_used)
@@ -407,7 +407,7 @@ module Fs {
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
       requires i'.blks == i.blks
-      requires Inode.Valid(i')
+      requires i'.Valid()
       ensures is_inode(ino, i')
       ensures
       && inodes == old(inodes)[ino:=i']
@@ -425,8 +425,8 @@ module Fs {
       requires inode_blks_match(i, d, data_block)
       requires blkoff < |i.blks|
       requires |bs| == 4096
-      requires Inode.Valid(i)
-      requires Inode.Valid(i')
+      requires i.Valid()
+      requires i'.Valid()
       requires i'.blks == i.blks
       requires bn in data_block
       requires i.blks[blkoff] == bn
@@ -540,7 +540,7 @@ module Fs {
       ghost var data := data_block[bn];
 
       var i' := Filesys.inode_append(i, bn);
-      assert Inode.Valid(i') by {
+      assert i'.Valid() by {
         Inode.reveal_blks_unique();
         C.unique_extend(i.blks, bn);
       }
