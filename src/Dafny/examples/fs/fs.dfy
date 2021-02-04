@@ -20,11 +20,13 @@ module Fs {
   type Block = seq<byte>
   predicate is_block(b: Block) { |b| == 4096 }
   datatype InodeData = InodeData(sz: nat, blks: seq<Block>)
-  predicate InodeData_Valid(d: InodeData)
   {
-    && |d.blks| <= 15
-    && |d.blks| == Round.div_roundup_alt(d.sz, 4096)
-    && (forall blk | blk in d.blks :: is_block(blk))
+    predicate Valid()
+    {
+      && |blks| <= 15
+      && |blks| == Round.div_roundup_alt(sz, 4096)
+      && (forall blk | blk in blks :: is_block(blk))
+    }
   }
 
   predicate blkno_dom<T>(m: map<Blkno, T>)
@@ -40,7 +42,7 @@ module Fs {
   predicate Valid_inode_blks(inode_blks: map<Ino, InodeData>)
     requires ino_dom(inode_blks)
   {
-    forall ino | ino_ok(ino) :: InodeData_Valid(inode_blks[ino])
+    forall ino | ino_ok(ino) :: inode_blks[ino].Valid()
   }
 
   class Filesys
@@ -145,7 +147,7 @@ module Fs {
     {
       && i.sz as nat == d.sz
       && |d.blks| == |i.blks|
-      && InodeData_Valid(d)
+      && d.Valid()
       && blkno_dom(data_block)
       && blks_match?(i.blks, d.blks, data_block)
     }
@@ -372,9 +374,12 @@ module Fs {
           this_ino, bn, blk.data);
       }
 
-      reveal_Valid_jrnl_to_block_used();
-      reveal_Valid_jrnl_to_data_block();
-      reveal_Valid_jrnl_to_inodes();
+      assert Valid_jrnl_to_all() by {
+        reveal_Valid_jrnl_to_block_used();
+        reveal_Valid_jrnl_to_data_block();
+        reveal_Valid_jrnl_to_inodes();
+        FsKinds.DataBlk_disjoint(bn);
+      }
     }
 
     method writeInode(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
@@ -395,9 +400,12 @@ module Fs {
       txn.Write(InodeAddr(ino), buf');
       inodes := inodes[ino:=i'];
 
-      reveal_Valid_jrnl_to_block_used();
-      reveal_Valid_jrnl_to_data_block();
-      reveal_Valid_jrnl_to_inodes();
+      assert Valid_jrnl_to_all() by {
+        InodeAddr_disjoint(ino);
+        reveal_Valid_jrnl_to_block_used();
+        reveal_Valid_jrnl_to_data_block();
+        reveal_Valid_jrnl_to_inodes();
+      }
     }
 
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
@@ -499,10 +507,16 @@ module Fs {
       blkno_bit_inbounds(jrnl);
       block_used := block_used[bn:=Some(ino)];
       txn.WriteBit(DataBitAddr(bn), true);
+
+      assert Valid_jrnl_to_all() by {
+        reveal_Valid_jrnl_to_block_used();
+        reveal_Valid_jrnl_to_data_block();
+        reveal_Valid_jrnl_to_inodes();
+        DataBitAddr_disjoint(bn);
+      }
+
       reveal_Valid_inodes_to_block_used();
-      reveal_Valid_jrnl_to_block_used();
-      reveal_Valid_jrnl_to_data_block();
-      reveal_Valid_jrnl_to_inodes();
+
       return;
     }
 

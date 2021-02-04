@@ -8,37 +8,55 @@ module FsKinds {
 
   type Ino = uint64
 
-  predicate blkno_ok(blkno: Blkno) { blkno < 4096*8 }
-  predicate ino_ok(ino: Blkno) { ino < 32 }
+  const NumInodeBlocks: nat := 10
+  const NumDataBitmapBlocks: nat := 1
+
+  predicate blkno_ok(blkno: Blkno) { blkno as nat < NumDataBitmapBlocks * 4096*8 }
+  predicate ino_ok(ino: Blkno) { ino as nat < 32*NumInodeBlocks }
 
   // disk layout, in blocks:
   //
   // 513 for the jrnl
-  // 1 inode block (32 inodes)
-  // 1 bitmap block
+  // NumInodeBlocks (each with 32 inodes)
+  // NumDataBitmapBlocks
   // 4096*8 data blocks
-  const NumBlocks: nat := 513 + 1 + 1 + 4096*8
+  const DataBlockStart: uint64 := 513 +
+    NumInodeBlocks as uint64
+    + NumDataBitmapBlocks as uint64
+  const NumBlocks: nat := DataBlockStart as nat +
+    NumDataBitmapBlocks*4096*8
     // if you want to make a disk for the fs 40,000 blocks is a usable number
   lemma NumBlocks_upper_bound()
     ensures NumBlocks < 40_000
   {}
 
-  const InodeBlk: Blkno := 513
-  const DataAllocBlk: Blkno := 514
+  function method InodeBlk(ino: Ino): Blkno
+  {
+    513 + ino / 32
+  }
+
+  function method InodeBlk?(bn: Blkno): bool
+  {
+    513 <= bn as nat < 513 + NumInodeBlocks
+  }
+
+  const DataAllocBlk: Blkno := 513 + NumInodeBlocks as uint64
 
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
     ensures a in addrsForKinds(fs_kinds)
   {
     kind_inode_size();
-    assert fs_kinds[InodeBlk] == KindInode;
-    Arith.mul_assoc(ino as nat, 128, 8);
+    var ino_blk := InodeBlk(ino);
+    var ino_off := ino % 32;
+    assert fs_kinds[ino_blk] == KindInode;
+    Arith.mul_assoc(ino_off as nat, 128, 8);
     Arith.mul_r_strictly_incr(ino as nat, 128*8, 32);
-    assert ino*128*8 < 4096*8;
+    assert ino_off*128*8 < 4096*8;
     Arith.mul_mod(ino as nat, 128*8);
     assert kindSize(KindInode) == 128*8;
     reveal_addrsForKinds();
-    Addr(InodeBlk, ino*128*8)
+    Addr(ino_blk, ino_off*128*8)
   }
   function method DataBitAddr(bn: uint64): Addr
     requires blkno_ok(bn)
@@ -49,19 +67,37 @@ module FsKinds {
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
-    assert fs_kinds[513+2+bn] == KindBlock;
+    assert fs_kinds[DataBlockStart+bn] == KindBlock;
     assert kindSize(KindBlock) == 4096*8;
     Arith.zero_mod(4096*8);
     reveal_addrsForKinds();
-    Addr(513+2+bn, 0)
+    Addr(DataBlockStart+bn, 0)
   }
+
+  lemma InodeAddr_disjoint(ino: Ino)
+    requires ino_ok(ino)
+    ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBitAddr(bn')
+    ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBlk(bn')
+  {}
+
+  lemma DataBitAddr_disjoint(bn: Blkno)
+    requires blkno_ok(bn)
+    ensures forall ino': Ino | ino_ok(ino') :: DataBitAddr(bn) != InodeAddr(ino')
+    ensures forall bn': Blkno | blkno_ok(bn') :: DataBitAddr(bn) != DataBlk(bn')
+  {}
+
+  lemma DataBlk_disjoint(bn: Blkno)
+    requires blkno_ok(bn)
+    ensures forall ino': Ino | ino_ok(ino') :: DataBlk(bn) != InodeAddr(ino')
+    ensures forall bn': Ino | blkno_ok(bn') :: DataBlk(bn) != DataBitAddr(bn')
+  {}
 
   const fs_kinds: map<Blkno, Kind> :=
     // NOTE(tej): trigger annotation suppresses warning (there's nothing to
     // trigger on here, but also nothing is necessary)
-    map blkno: Blkno {:trigger} |
+    map blkno: Blkno |
       513 <= blkno as nat < NumBlocks
-      :: (if blkno == InodeBlk
+      :: (if InodeBlk?(blkno)
       then KindInode
       else if blkno == DataAllocBlk
         then KindBit

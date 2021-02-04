@@ -175,8 +175,7 @@ module ByteFs {
     lemma inode_data_splice_last(d: InodeData, d': InodeData, bs: seq<byte>)
       requires 0 < |d.blks|
       requires d.sz % 4096 + |bs| <= 4096
-      requires InodeData_Valid(d)
-      requires InodeData_Valid(d')
+      requires d.Valid() && d'.Valid()
       requires (assert is_block(get_last_block(d));
                 d' == set_last_block(d, C.splice(get_last_block(d), d.sz % 4096, bs)).(sz:=d.sz + |bs|))
       ensures inode_data(d') == inode_data(d) + bs
@@ -197,8 +196,7 @@ module ByteFs {
     lemma inode_data_replace_last(d: InodeData, d': InodeData, bs: seq<byte>, new_bytes: nat)
       requires 0 < |d.blks|
       requires d.sz % 4096 == 0 && |bs| == 4096
-      requires InodeData_Valid(d)
-      requires InodeData_Valid(d')
+      requires d.Valid() && d'.Valid()
       requires (assert is_block(get_last_block(d));
                 d' == set_last_block(d, bs).(sz:=d.sz - 4096 + new_bytes))
       ensures inode_data(d') == inode_data(d)[..d.sz - 4096] + bs[..new_bytes]
