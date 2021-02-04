@@ -11,7 +11,7 @@ module FsKinds {
   const NumInodeBlocks: nat := 10
   const NumDataBitmapBlocks: nat := 1
 
-  predicate blkno_ok(blkno: Blkno) { blkno as nat < NumDataBitmapBlocks * 4096*8 }
+  predicate blkno_ok(blkno: Blkno) { blkno as nat < NumDataBitmapBlocks * (4096*8) }
   predicate ino_ok(ino: Blkno) { ino as nat < 32*NumInodeBlocks }
 
   // disk layout, in blocks:
@@ -25,22 +25,55 @@ module FsKinds {
     + NumDataBitmapBlocks as uint64
   const NumBlocks: nat := DataBlockStart as nat +
     NumDataBitmapBlocks*4096*8
-    // if you want to make a disk for the fs 40,000 blocks is a usable number
+    // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
-    ensures NumBlocks < 40_000
+    ensures NumBlocks < 170_000
   {}
 
-  function method InodeBlk(ino: Ino): Blkno
+  function method InodeBlk(ino: Ino): (bn':Blkno)
+    ensures ino_ok(ino) ==> InodeBlk?(bn')
   {
     513 + ino / 32
   }
 
-  function method InodeBlk?(bn: Blkno): bool
+  predicate method InodeBlk?(bn: Blkno)
   {
     513 <= bn as nat < 513 + NumInodeBlocks
   }
 
-  const DataAllocBlk: Blkno := 513 + NumInodeBlocks as uint64
+  lemma InodeBlk?_correct(bn: Blkno)
+    ensures InodeBlk?(bn) <==> exists ino' :: ino_ok(ino') && InodeBlk(ino') == bn
+  {
+    if InodeBlk?(bn) {
+      assert ino_ok((bn - 513) * 32);
+    }
+  }
+
+  function method DataAllocBlk(bn: Blkno): (bn':Blkno)
+    ensures blkno_ok(bn) ==> DataAllocBlk?(bn')
+  {
+    var bn' := 513 + NumInodeBlocks as uint64 + bn / (4096*8);
+    if bn as nat < NumDataBitmapBlocks*(4096*8) then (
+      Arith.div_incr(bn as nat, NumDataBitmapBlocks, 4096*8);
+      bn'
+    ) else bn'
+  }
+
+  predicate method DataAllocBlk?(bn: Blkno)
+  {
+    var start := 513 + NumInodeBlocks;
+    start <= bn as nat < start + NumDataBitmapBlocks as nat
+  }
+
+  lemma DataAllocBlk?_correct(bn: Blkno)
+    ensures DataAllocBlk?(bn) <==> exists bn' :: blkno_ok(bn') && DataAllocBlk(bn') == bn
+  {
+    if DataAllocBlk?(bn) {
+      var bn' := (bn - (513 + NumInodeBlocks) as uint64) * (4096*8);
+      assert blkno_ok(bn');
+      assert DataAllocBlk(bn') == bn;
+    }
+  }
 
   function method InodeAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
@@ -61,7 +94,7 @@ module FsKinds {
   function method DataBitAddr(bn: uint64): Addr
     requires blkno_ok(bn)
   {
-    Addr(DataAllocBlk, bn)
+    Addr(DataAllocBlk(bn), bn % (4096*8))
   }
   function method DataBlk(bn: uint64): (a:Addr)
     requires blkno_ok(bn)
@@ -78,7 +111,14 @@ module FsKinds {
     requires ino_ok(ino)
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBitAddr(bn')
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBlk(bn')
-  {}
+  {
+    forall bn': Blkno | blkno_ok(bn')
+      ensures InodeAddr(ino) != DataBitAddr(bn')
+    {
+      assert InodeBlk?(InodeAddr(ino).blkno);
+      assert DataAllocBlk?(DataBitAddr(bn').blkno);
+    }
+  }
 
   lemma DataBitAddr_disjoint(bn: Blkno)
     requires blkno_ok(bn)
@@ -99,7 +139,7 @@ module FsKinds {
       513 <= blkno as nat < NumBlocks
       :: (if InodeBlk?(blkno)
       then KindInode
-      else if blkno == DataAllocBlk
+      else if DataAllocBlk?(blkno)
         then KindBit
         else KindBlock) as Kind
 

@@ -164,10 +164,12 @@ module Fs {
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block))
     }
 
+    static const ballocMax: uint64 := NumDataBitmapBlocks as uint64 * 4096*8 - 8
+
     predicate Valid_balloc()
       reads this, balloc
     {
-      && this.balloc.max == 4095*8
+      && this.balloc.max == ballocMax
       && this.balloc.Valid()
     }
 
@@ -230,7 +232,7 @@ module Fs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-      var balloc := NewAllocator(4095*8);
+      var balloc := NewAllocator(ballocMax);
       this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
@@ -261,16 +263,16 @@ module Fs {
       requires Valid_basics(jrnl_)
       ensures this.jrnl == jrnl_
     {
-      var balloc := NewAllocator(4095*8);
+      var balloc := NewAllocator(ballocMax);
 
       var txn := jrnl_.Begin();
       blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
-      while bn < 4095*8
+      while bn < ballocMax
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
-        invariant 1 <= bn as nat <= 4095*8
+        invariant 1 <= bn as nat <= ballocMax as nat
       {
         var used := txn.ReadBit(DataBitAddr(bn));
         if used {
@@ -300,7 +302,7 @@ module Fs {
     static predicate is_alloc_bn(bn: Blkno)
     {
       && bn != 0
-      && bn-1 < 4095*8
+      && bn-1 < ballocMax
       && blkno_ok(bn)
     }
 
