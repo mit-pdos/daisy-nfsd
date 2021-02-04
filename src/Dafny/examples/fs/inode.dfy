@@ -67,7 +67,7 @@ module Inode {
     }
   }
 
-  function enc(i: Inode): (bs:seq<byte>)
+  function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
     if i.Valid() then
@@ -94,6 +94,7 @@ module Inode {
     //assert repeat(0 as byte, 8) == [0,0,0,0,0,0,0,0];
     repeat_split(0 as byte, 128, 8, 128-8);
     IntEncoding.lemma_enc_0();
+    reveal_enc();
   }
 
   method encode_ino(i: Inode) returns (bs:Bytes)
@@ -121,6 +122,7 @@ module Inode {
     }
     assert i.blks[..|i.blks|] == i.blks;
     assert e.enc == inode_enc(i);
+    reveal_enc();
     bs := e.Finish();
   }
 
@@ -135,6 +137,7 @@ module Inode {
     // that require nats anyway and it's more efficient to stay with big
     // integers than convert back and forth
     var dec := new Decoder();
+    reveal_enc();
     dec.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
     var num_blks: nat := div_roundup64(sz, 4096) as nat;
