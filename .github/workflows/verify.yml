@@ -11,11 +11,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
+    env:
+      DAFNY_VERSION: 3.0.0
     steps:
       - name: Install Dafny
         run: |
           cd /tmp
-          wget -O dafny.zip https://github.com/dafny-lang/dafny/releases/download/v3.0.0-Prerelease4/dafny-3.0.0-Prerelease4-x64-ubuntu-16.04.zip
+          wget -O dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v${DAFNY_VERSION}/dafny-${DAFNY_VERSION}-x64-ubuntu-16.04.zip"
           unzip dafny.zip
           echo "/tmp/dafny" >> $GITHUB_PATH
       - uses: actions/setup-go@v2
