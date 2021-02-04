@@ -253,20 +253,20 @@ module Fs {
     // the allocator has the right free elements but check the on-disk value) we
     // don't have to re-establish any invariant here, but without this code on
     // recovery the allocator will give out used addresses and fail in practice.
-    constructor Recover(jrnl: Jrnl)
+    constructor Recover(jrnl_: Jrnl)
       // not allowed to modify jrnl so can't break any invariants
       modifies {}
-      requires Valid_basics(jrnl)
-      ensures this.jrnl == jrnl
+      requires Valid_basics(jrnl_)
+      ensures this.jrnl == jrnl_
     {
       var balloc := NewAllocator(4095*8);
 
-      var txn := jrnl.Begin();
-      blkno_bit_inbounds(jrnl);
+      var txn := jrnl_.Begin();
+      blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
       while bn < 4095*8
-        invariant txn.jrnl == jrnl
-        invariant Valid_basics(jrnl)
+        invariant txn.jrnl == jrnl_
+        invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
         invariant 1 <= bn as nat <= 4095*8
       {
@@ -277,7 +277,7 @@ module Fs {
         bn := bn + 1;
       }
 
-      this.jrnl := jrnl;
+      this.jrnl := jrnl_;
       this.balloc := balloc;
     }
 

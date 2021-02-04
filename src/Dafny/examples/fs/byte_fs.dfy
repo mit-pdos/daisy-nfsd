@@ -8,7 +8,6 @@ module ByteFs {
   import opened Machine
   import opened ByteSlice
   import opened MinMax
-  import C = Collections
 
   function {:opaque} inode_data(d: InodeData): (bs:seq<byte>)
     requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
