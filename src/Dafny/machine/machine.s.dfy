@@ -164,55 +164,6 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
     }
 }
 
-module ImmutableByteSlice {
-    import opened Machine
-    import opened ByteSlice
-
-    // FIXME: this isn't actually that useful because the caller can't abstract
-    // over whether or not a byte slice is immutable, and we have to make sure
-    // not to access bs directly or we can mutate the byte slice anyway.
-    class ImmutableBytes
-    {
-        var bs: Bytes;
-        ghost const data: seq<byte>;
-
-        predicate Valid()
-        reads this, this.bs
-        {
-            && bs.Valid()
-            && data == bs.data
-        }
-
-        constructor(bs: Bytes)
-        requires bs.Valid()
-        ensures Valid()
-        ensures this.data == bs.data
-        {
-            this.bs := bs;
-            this.data := bs.data;
-        }
-
-        method Len()
-        returns (sz:uint64)
-        requires Valid()
-        modifies {}
-        ensures sz as nat == |data|
-        {
-            return bs.Len();
-        }
-
-        method Get(i: uint64)
-        returns (x:byte)
-        modifies {}
-        requires Valid()
-        requires i as nat < |data|
-        ensures x == data[i as nat]
-        {
-            return bs.Get(i);
-        }
-    }
-}
-
 module bytes_test {
     import opened Machine
     import opened ByteSlice
