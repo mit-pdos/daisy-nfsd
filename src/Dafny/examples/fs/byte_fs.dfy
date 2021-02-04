@@ -67,6 +67,53 @@ module ByteFs {
       fs := new Filesys.Recover(jrnl_);
     }
 
+    // like fs.getInodeBlk but expressed at this abstraction level
+    // trims the result if necessary to only include file data
+    method getInodeBlock(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64) returns (bs: Bytes)
+      modifies {}
+      requires Valid()
+      requires txn.jrnl == fs.jrnl
+      requires fs.is_inode(ino, i)
+      requires off % 4096 == 0
+      requires off as nat < |data[ino]|
+      ensures fresh(bs)
+      ensures off as nat + |bs.data| <= |data[ino]|
+      ensures |bs.data| <= 4096
+      ensures if |data[ino]| > off as nat + 4096 then
+      (|bs.data| == 4096 && bs.data == data[ino][off as nat..off as nat + 4096])
+      else bs.data == data[ino][off as nat..]
+    {
+      var blkoff: nat := off as nat / 4096;
+      ghost var off': nat := blkoff * 4096;
+      assert off' == off as nat;
+
+      bs := fs.getInodeBlk(txn, ino, i, blkoff);
+      assert Valid();
+
+      ghost var blks := fs.inode_blks[ino].blks;
+      assert off' + 4096 <= |C.concat(blks)| &&
+        bs.data == C.concat(blks)[off'..off'+4096] by {
+        C.concat_homogeneous_one_list(blks, blkoff, 4096);
+        reveal_inode_data();
+      }
+
+      if off + 4096 > i.sz {
+        bs.Subslice(0, i.sz - off);
+        ghost var bytes_read := (i.sz - off) as nat;
+        C.double_subslice(C.concat(blks),
+          off', off'+4096,
+          0, bytes_read);
+        assert |bs.data| < 4096;
+        assert off as nat + |bs.data| == |data[ino]|;
+        reveal_inode_data();
+        return;
+      }
+
+      assert bs.data == data[ino][off..off+4096] by {
+        reveal_inode_data();
+      }
+    }
+
     method Get(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies {}
@@ -98,53 +145,39 @@ module ByteFs {
       }
       assert 0 < len <= 4096;
 
-      var blkoff: nat := off as nat / 4096;
-      ghost var off': nat := blkoff * 4096;
-      Arith.div_mod_split(off as nat, 4096);
+      var blkoff: uint64 := off / 4096;
+      var off' := blkoff * 4096;
 
-      bs := fs.getInodeBlk(txn, ino, i, blkoff);
+      bs := getInodeBlock(txn, ino, i, off');
 
-      ghost var blks := fs.inode_blks[ino].blks;
-      assert off' + 4096 <= |C.concat(blks)| &&
-        bs.data == C.concat(blks)[off'..off'+4096] by {
-        C.concat_homogeneous_one_list(blks, blkoff, 4096);
-        reveal_inode_data();
-      }
-
-      if off % 4096 + len <= 4096 {
+      if off % 4096 + len <= bs.Len() {
         // we finished the entire read
         bs.Subslice(off % 4096, off % 4096 + len);
 
-        C.double_subslice(C.concat(blks),
-          off', off'+4096,
-          off as nat % 4096, off as nat % 4096 + len as nat);
-
         var _ := txn.Commit();
-        reveal_inode_data();
+        if |data[ino]| > off' as nat + 4096 {
+          C.double_subslice(data[ino],
+            off' as nat, off' as nat + 4096,
+            off as nat % 4096, off as nat % 4096 + len as nat);
+        }
         return;
       }
 
+      assert bs.data == data[ino][off' as nat..off' as nat + 4096];
       bs.Subslice(off % 4096, 4096);
-      var read_bytes: uint64 := bs.Len();
-      assert bs.data == data[ino][off..off + read_bytes] by {
-        C.double_subslice(C.concat(blks),
-          off', off'+4096,
+      assert bs.data == data[ino][off as nat..off' as nat + 4096] by {
+        C.double_subslice(data[ino],
+          off' as nat, off' as nat + 4096,
           off as nat % 4096, 4096);
-          reveal_inode_data();
       }
+      var read_bytes: uint64 := bs.Len();
 
-      var bs2 := fs.getInodeBlk(txn, ino, i, blkoff+1);
-      assert off'+8192 <= |C.concat(blks)| &&
-        bs2.data == C.concat(blks)[off'+4096..off'+8192] by {
-        C.concat_homogeneous_one_list(blks, blkoff+1, 4096);
-      }
+      var off'' := off' + 4096;
+      var bs2 := getInodeBlock(txn, ino, i, off'');
       bs2.Subslice(0, len - read_bytes);
-      assert bs2.data == data[ino][off + read_bytes..off + len] by {
-        reveal_inode_data();
-      }
+      assert bs2.data == data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat];
 
       bs.AppendBytes(bs2);
-      assert bs.data == data[ino][off..off + len];
 
       var _ := txn.Commit();
     }

@@ -27,7 +27,7 @@ module FsKinds {
     NumDataBitmapBlocks*4096*8
     // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
-    ensures NumBlocks < 170_000
+    ensures NumBlocks < 100_000
   {}
 
   function method InodeBlk(ino: Ino): (bn':Blkno)

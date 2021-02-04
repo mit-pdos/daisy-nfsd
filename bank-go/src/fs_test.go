@@ -12,7 +12,7 @@ import (
 
 func TestFsSanity_Block(t *testing.T) {
 	assert := assert.New(t)
-	var d disk.Disk = disk.NewMemDisk(1000)
+	var d disk.Disk = disk.NewMemDisk(100_000)
 	filesys := fs.New_ByteFilesys_()
 	filesys.Init(&d)
 	ino := uint64(3)
@@ -28,7 +28,7 @@ func TestFsSanity_Block(t *testing.T) {
 
 func TestFsSanity(t *testing.T) {
 	assert := assert.New(t)
-	var d disk.Disk = disk.NewMemDisk(1000)
+	var d disk.Disk = disk.NewMemDisk(100_000)
 	filesys := fs.New_ByteFilesys_()
 	filesys.Init(&d)
 	ino := uint64(3)
@@ -60,7 +60,7 @@ func TestFsSanity(t *testing.T) {
 }
 
 func BenchmarkFsInit(b *testing.B) {
-	var d disk.Disk = disk.NewMemDisk(40000)
+	var d disk.Disk = disk.NewMemDisk(100_000)
 	filesys := fs.New_ByteFilesys_()
 	b.ResetTimer()
 	for b_iter := 0; b_iter < b.N; b_iter++ {
@@ -69,7 +69,7 @@ func BenchmarkFsInit(b *testing.B) {
 }
 
 func BenchmarkFsAppend100(b *testing.B) {
-	var d disk.Disk = disk.NewMemDisk(40000)
+	var d disk.Disk = disk.NewMemDisk(100_000)
 	filesys := fs.New_ByteFilesys_()
 	b.ResetTimer()
 	for b_iter := 0; b_iter < b.N; b_iter++ {
