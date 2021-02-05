@@ -12,7 +12,7 @@ module Round {
     (x + (k-1)) / k
   }
 
-  function div_roundup_alt(x: nat, k: nat): nat
+  function method div_roundup_alt(x: nat, k: nat): nat
     requires k >= 1
   {
     if x % k == 0 then x/k else x/k + 1

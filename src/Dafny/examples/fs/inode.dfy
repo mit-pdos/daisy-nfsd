@@ -14,16 +14,31 @@ module Inode {
 
   datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
   {
+    // how many blocks is the inode actually referencing with its size?
+    const used_blocks: nat := div_roundup_alt(sz as nat, 4096)
+
     predicate Valid()
     {
       && ValidBlks(blks)
-      // only direct blocks
-      && |blks| == div_roundup_alt(sz as nat, 4096)
+      && used_blocks <= |blks|
+    }
+
+    function method num_blks(): uint64
+      requires Valid()
+    {
+      |blks| as uint64
+    }
+
+    function method {:opaque} used_blocks_u64(): (x:uint64)
+      requires Valid()
+      ensures x as nat == used_blocks
+    {
+      div_roundup64(sz, 4096)
     }
 
     lemma sz_bound()
       requires Valid()
-      ensures sz as nat <= |blks|*4096 <= 15*4096
+      ensures sz as nat <= |blks|*4096 <= 14*4096
     {}
   }
 
@@ -34,13 +49,15 @@ module Inode {
 
   predicate ValidBlks(blks: seq<uint64>)
   {
-    && |blks| <= 15
+    // only direct blocks that fit in the inode
+    && |blks| <= 14
     && blks_unique(blks)
   }
 
   function inode_enc(i: Inode): seq<Encodable>
+    requires i.Valid()
   {
-    [EncUInt64(i.sz)] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
+    [EncUInt64(i.sz), EncUInt64(i.num_blks())] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
   }
 
   function seq_enc_uint64(xs: seq<uint64>): seq<byte>
@@ -66,13 +83,21 @@ module Inode {
     }
   }
 
+  lemma encode_len(i: Inode)
+    requires i.Valid()
+    // this doesn't verify in Emacs for unclear reasons
+    ensures |seq_encode(inode_enc(i))| == 8*(2 + |i.blks|)
+  {
+    enc_uint64_len(i.blks);
+  }
+
   function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
     if i.Valid() then
-      (enc_uint64_len(i.blks);
-      assert |seq_encode(inode_enc(i))| == 8+8*|i.blks|;
-      seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8+8*|i.blks|)))
+      (encode_len(i);
+      assert |seq_encode(inode_enc(i))| == 8*(2+|i.blks|);
+      seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8*(2+|i.blks|))))
     else repeat(0 as byte, 128)
   }
 
@@ -104,16 +129,15 @@ module Inode {
   {
     var e := new Encoder(128);
     e.PutInt(i.sz);
-    var num_blocks: uint64 := div_roundup64(i.sz, 4096);
-    assert num_blocks as nat == |i.blks|;
+    e.PutInt(i.num_blks());
     var k: uint64 := 0;
-    while k < num_blocks
+    while k < i.num_blks()
       modifies e.Repr
       invariant e.Valid()
-      invariant 0 <= k <= num_blocks
-      invariant e.bytes_left() == 128 - ((k as nat+1)*8)
+      invariant 0 <= k <= i.num_blks()
+      invariant e.bytes_left() == 128 - ((k as nat+2)*8)
       invariant e.enc ==
-      [EncUInt64(i.sz)] +
+      [EncUInt64(i.sz), EncUInt64(i.num_blks())] +
       seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
     {
       e.PutInt(i.blks[k as nat]);
@@ -139,7 +163,8 @@ module Inode {
     reveal_enc();
     dec.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
-    var num_blks: nat := div_roundup64(sz, 4096) as nat;
+    var num_blks_ := dec.GetInt(i.num_blks());
+    var num_blks: nat := num_blks_ as nat;
     assert num_blks == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
 

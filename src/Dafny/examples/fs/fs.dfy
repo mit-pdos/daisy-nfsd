@@ -23,12 +23,25 @@ module Fs {
   predicate is_block(b: Block) { |b| == 4096 }
   datatype InodeData = InodeData(sz: nat, blks: seq<Block>)
   {
+    const num_used: nat := Round.div_roundup_alt(sz, 4096);
     predicate Valid()
     {
-      && |blks| <= 15
-      && |blks| == Round.div_roundup_alt(sz, 4096)
+      && |blks| <= 14
+      && num_used <= |blks|
       && (forall blk | blk in blks :: is_block(blk))
     }
+
+    function used_blocks(): seq<Block>
+      requires Valid()
+    {
+      blks[..num_used]
+    }
+
+    lemma used_blocks_valid()
+      requires Valid()
+      ensures |used_blocks()| == num_used <= 14
+      ensures forall blk | blk in used_blocks() :: is_block(blk)
+    {}
   }
 
   predicate blkno_dom<T>(m: map<Blkno, T>)
@@ -294,6 +307,7 @@ module Fs {
     static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
     requires i.Valid()
     {
+
       Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
@@ -521,12 +535,40 @@ module Fs {
       return;
     }
 
-    method growInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, i': Inode.Inode, bn: Blkno)
+    method useFreeBlock(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
-      requires i.sz <= 14*4096
+      requires i.used_blocks < |i.blks|
+      ensures data_block == old(data_block)
+      ensures block_used == old(block_used)
+      ensures inode_blks ==
+        old(var d0 := inode_blks[ino];
+            var d' := d0.(sz := d0.sz + 4096);
+            inode_blks[ino := d'])
+      ensures is_inode(ino, i')
+    {
+      i' := i.(sz := i.sz + 4096);
+      writeInode(txn, ino, i, i');
+      ghost var d0 := inode_blks[ino];
+      ghost var d' := d0.(sz := d0.sz + 4096);
+      inode_blks := inode_blks[ino := d'];
+      assert Valid() by {
+        reveal_Valid_inodes_to_block_used();
+      }
+      assert inode_blks_match(i', d', data_block);
+      reveal_blks_match?();
+      reveal_Valid_inodes_to_block_used();
+    }
+
+    method appendToInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, i': Inode.Inode, bn: Blkno)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      requires is_inode(ino, i)
+      requires i.sz <= 13*4096
+      requires i.used_blocks == |i.blks|
       requires i.sz % 4096 == 0
       ensures data_block == old(data_block)
       ensures ok ==> blkno_ok(bn)
@@ -536,9 +578,11 @@ module Fs {
             var d' := InodeData(d0.sz + 4096, d0.blks + [data_block[bn]]);
             inode_blks[ino := d'])
       ensures !ok ==> inode_blks == old(inode_blks)
-      ensures ok ==> is_inode(ino, i')
-      ensures ok ==> 0 < |i'.blks| && i'.blks[|i'.blks|-1] == bn
+      ensures ok ==> i'.used_blocks == |i'.blks|
+      ensures is_inode(ino, i')
+      ensures ok ==> 0 < |i'.blks| && i'.blks[i'.used_blocks-1] == bn
     {
+      i' := i;
       ok, bn := allocateTo(txn, ino, i);
       if !ok {
         return;

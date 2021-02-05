@@ -10,22 +10,22 @@ module ByteFs {
   import opened MinMax
 
   function {:opaque} inode_data(d: InodeData): (bs:seq<byte>)
-    requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
-    requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
+    requires d.Valid()
     ensures |bs| == d.sz
   {
-    C.concat_homogeneous_spec(d.blks, 4096);
-    C.concat(d.blks)[..d.sz]
+    d.used_blocks_valid();
+    C.concat_homogeneous_spec(d.used_blocks(), 4096);
+    C.concat(d.used_blocks())[..d.sz]
   }
 
   lemma inode_data_aligned(d: InodeData)
     requires d.sz % 4096 == 0
-    requires forall i:nat | i < |d.blks| :: is_block(d.blks[i])
-    requires |d.blks| == Round.div_roundup_alt(d.sz, 4096)
-    ensures inode_data(d) == C.concat(d.blks)
+    requires d.Valid()
+    ensures inode_data(d) == C.concat(d.used_blocks())
   {
     reveal_inode_data();
-    C.concat_homogeneous_len(d.blks, 4096);
+    d.used_blocks_valid();
+    C.concat_homogeneous_len(d.used_blocks(), 4096);
   }
 
   class ByteFilesys {
@@ -90,7 +90,9 @@ module ByteFs {
       bs := fs.getInodeBlk(txn, ino, i, blkoff);
       assert Valid();
 
-      ghost var blks := fs.inode_blks[ino].blks;
+      ghost var blks := fs.inode_blks[ino].used_blocks();
+      assert bs.data == blks[blkoff];
+      fs.inode_blks[ino].used_blocks_valid();
       assert off' + 4096 <= |C.concat(blks)| &&
         bs.data == C.concat(blks)[off'..off'+4096] by {
         C.concat_homogeneous_one_list(blks, blkoff, 4096);
@@ -170,13 +172,13 @@ module ByteFs {
       var bs2 := getInodeBlock(txn, ino, i, off'');
       bs2.Subslice(0, len - read_bytes);
       ghost var bs2_upper_bound: nat := off'' as nat + (len - read_bytes) as nat;
-      assert bs2_upper_bound == off as nat + len as nat;
       assert bs2.data == data[ino][off''..bs2_upper_bound] by {
         C.double_subslice_auto(data[ino]);
       }
 
       bs.AppendBytes(bs2);
 
+      assert (off + len) as nat == bs2_upper_bound;
       calc {
         bs.data;
         data[ino][off..off''] + data[ino][off''..bs2_upper_bound];
@@ -196,62 +198,84 @@ module ByteFs {
     }
 
     function get_last_block(d: InodeData): Block
-      requires 0 < |d.blks|
+      requires d.Valid()
+      requires 0 < d.num_used
     {
-      C.last(d.blks)
+      d.blks[d.num_used-1]
     }
 
     function set_last_block(d: InodeData, b: Block): InodeData
-      requires 0 < |d.blks|
+      requires d.Valid()
+      requires 0 < d.num_used
     {
       var blks := d.blks;
-      var off := |d.blks|-1;
+      var off := d.num_used-1;
       d.(blks:=blks[off := b])
     }
 
+    lemma get_set_last(d: InodeData, b: Block)
+      requires d.Valid()
+      requires 0 < d.num_used
+      requires is_block(b)
+      ensures get_last_block(set_last_block(d, b)) == b
+    {}
+
     lemma inode_data_splice_last(d: InodeData, d': InodeData, bs: seq<byte>)
-      requires 0 < |d.blks|
+      requires 0 < d.num_used
+      requires 0 < |bs|
       requires d.sz % 4096 + |bs| <= 4096
       requires d.Valid() && d'.Valid()
       requires (assert is_block(get_last_block(d));
                 d' == set_last_block(d, C.splice(get_last_block(d), d.sz % 4096, bs)).(sz:=d.sz + |bs|))
+      // don't see exactly why this would be true
+      requires d'.num_used == d.num_used
       ensures inode_data(d') == inode_data(d) + bs
     {
       reveal_inode_data();
-      C.concat_split_last(d.blks);
-      C.concat_homogeneous_len(d.blks, 4096);
-      C.concat_split_last(d'.blks);
-      C.concat_homogeneous_len(C.without_last(d'.blks), 4096);
+      ghost var blks := d.used_blocks();
+      ghost var blks' := d'.used_blocks();
+      assert is_block(C.last(blks));
+      assert C.last(blks') == get_last_block(d');
+      get_set_last(d, C.splice(get_last_block(d), d.sz % 4096, bs));
+      assert C.last(blks') == C.splice(C.last(blks), d.sz % 4096, bs);
+
+      C.concat_split_last(blks);
+      d.used_blocks_valid();
+      C.concat_homogeneous_len(blks, 4096);
+      C.concat_split_last(blks');
+      C.concat_homogeneous_len(C.without_last(blks'), 4096);
       calc {
         inode_data(d');
-        (C.concat(C.without_last(d'.blks)) + C.last(d'.blks))[..d'.sz];
-        C.concat(C.without_last(d'.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
-        C.concat(C.without_last(d.blks)) + C.last(d'.blks)[..d'.sz - (|d'.blks|-1) * 4096];
+        (C.concat(C.without_last(blks')) + C.last(blks'))[..d'.sz];
+        C.concat(C.without_last(blks')) + C.last(blks')[..d'.sz - (|blks'|-1) * 4096];
+        C.concat(C.without_last(blks)) + C.last(blks')[..d'.sz - (|blks'|-1) * 4096];
       }
     }
 
     lemma inode_data_replace_last(d: InodeData, d': InodeData, bs: seq<byte>, new_bytes: nat)
-      requires 0 < |d.blks|
+      requires 0 < d.num_used
       requires d.sz % 4096 == 0 && |bs| == 4096
       requires d.Valid() && d'.Valid()
       requires (assert is_block(get_last_block(d));
                 d' == set_last_block(d, bs).(sz:=d.sz - 4096 + new_bytes))
+      requires d'.num_used == d.num_used
       ensures inode_data(d') == inode_data(d)[..d.sz - 4096] + bs[..new_bytes]
     {
       reveal_inode_data();
-      C.concat_split_last(d.blks);
-      C.concat_homogeneous_len(d.blks, 4096);
-      C.concat_split_last(d'.blks);
-      assert C.concat(C.without_last(d.blks)) == inode_data(d)[..d.sz - 4096];
+      ghost var blks := d.used_blocks();
+      ghost var blks' := d'.used_blocks();
+      C.concat_split_last(blks);
+      d.used_blocks_valid();
+      C.concat_homogeneous_len(blks, 4096);
+      C.concat_split_last(blks');
+      assert C.concat(C.without_last(blks)) == inode_data(d)[..d.sz - 4096];
     }
 
-    method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bn: Blkno, bs: Bytes)
+    method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == fs.jrnl
       requires fs.is_inode(ino, i)
-      requires 0 < |i.blks|
-      requires i.blks[|i.blks|-1] == bn
       requires i.sz % 4096 == 0
       requires 4096 <= i.sz
       requires bs.Valid()
@@ -259,9 +283,10 @@ module ByteFs {
       ensures (var d := old(data[ino]);
             data == old(data[ino:= d[..|d|-4096] + bs.data]))
     {
+        var bn := i.blks[i.used_blocks-1];
         var blk := NewBytes(4096);
         blk.CopyTo(0, bs);
-        fs.writeDataBlock(txn, bn, blk, ino, |i.blks|-1);
+        fs.writeDataBlock(txn, bn, blk, ino, i.used_blocks-1);
         var i'' := i.(sz:=i.sz - 4096 + bs.Len());
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
@@ -281,6 +306,60 @@ module ByteFs {
         }
     }
 
+    method growInodeAligned(txn: Txn, ino: Ino, i: Inode.Inode)
+      returns (ok:bool, i': Inode.Inode, ghost b: Block)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires txn.jrnl == fs.jrnl
+      requires fs.is_inode(ino, i)
+      requires i.sz % 4096 == 0
+      requires i.sz as nat <= 13*4096
+      ensures ok ==> is_block(b)
+      ensures ok ==> data == old(data[ino:=data[ino] + b])
+      ensures !ok ==> data == old(data)
+      ensures fs.is_inode(ino, i')
+    {
+      i' := i;
+
+      ghost var d0 := fs.inode_blks[ino];
+      if i.used_blocks < |i.blks| {
+        assert d0.num_used < |d0.blks|;
+        i' := fs.useFreeBlock(txn, ino, i);
+        ghost var d' := fs.inode_blks[ino];
+
+        ok := true;
+        b := d'.blks[d'.num_used-1];
+        data := data[ino := data[ino] + b];
+        assert Valid() by {
+          assert d'.used_blocks() == d0.used_blocks() + [b];
+          C.concat_app1(d0.used_blocks(), b);
+          inode_data_aligned(d0);
+          inode_data_aligned(d');
+          assert inode_data(d') == inode_data(d0) + b;
+        }
+        return;
+      }
+      assert d0.num_used == |d0.blks|;
+
+      var bn;
+      ok, i', bn := fs.appendToInode(txn, ino, i);
+      if !ok {
+        ok := false;
+        return;
+      }
+      ok := true;
+      b := fs.data_block[bn];
+      data := data[ino:=data[ino] + b];
+      ghost var d' := fs.inode_blks[ino];
+      assert Valid() by {
+        assert d'.used_blocks() == d0.used_blocks() + [b];
+        C.concat_app1(d0.used_blocks(), b);
+        inode_data_aligned(d0);
+        inode_data_aligned(d');
+        assert inode_data(d') == inode_data(d0) + b;
+      }
+    }
+
     method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -289,21 +368,16 @@ module ByteFs {
       requires i.sz % 4096 == 0
       requires bs.Valid()
       requires 0 < bs.Len() <= 4096
-      requires i.sz as nat + |bs.data| <= 15*4096
+      requires i.sz as nat + |bs.data| <= 14*4096
       ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
       // add some garbage data to the end of the inode
-      var alloc_ok, i', bn := fs.growInode(txn, ino, i);
-      if !alloc_ok {
-        ok := false;
+      var i';
+      ghost var b;
+      ok, i', b := growInodeAligned(txn, ino, i);
+      if !ok {
         return;
-      }
-      data := data[ino:=data[ino] + fs.data_block[bn]];
-      assert Valid() by {
-        C.concat_app1(old(fs.inode_blks[ino].blks), fs.data_block[bn]);
-        inode_data_aligned(old(fs.inode_blks[ino]));
-        inode_data_aligned(fs.inode_blks[ino]);
       }
       ok := true;
 
@@ -315,30 +389,7 @@ module ByteFs {
 
       assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
 
-      if bs.Len() < 4096 {
-
-        writeLastBlock(txn, ino, i', bn, bs);
-        return;
-
-      } else {
-
-        assert |bs.data| == 4096;
-        fs.writeDataBlock(txn, bn, bs, ino, |i'.blks|-1);
-        assert fs.Valid();
-
-        assert i'.sz == i.sz + bs.Len();
-        data := data[ino:=old(data[ino]) + bs.data];
-
-        ghost var d' := fs.inode_blks[ino];
-        assert inode_data(d') == old(data[ino]) + bs.data by {
-          inode_data_replace_last(old@post_grow(fs.inode_blks[ino]), d', bs.data, |bs.data|);
-          assert bs.data[..|bs.data|] == bs.data;
-        }
-        assert Valid();
-        return;
-
-      }
-      assert false;
+      writeLastBlock(txn, ino, i', bs);
     }
 
     method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (i': Inode.Inode, ghost written: nat, bs': Bytes)
@@ -373,9 +424,7 @@ module ByteFs {
       written := to_write as nat;
       bs' := bs.Split(to_write);
       Round.roundup_distance(i.sz as nat, 4096);
-      fs.inode_blks_sz(ino);
-      var blkoff: nat := i.sz as nat/4096;
-      assert blkoff == |i.blks|-1;
+      var blkoff: nat := i.used_blocks-1;
       var blk := fs.getInodeBlk(txn, ino, i, blkoff);
       assert |bs.data| <= |old(bs.data)|;
       assert |bs.data| <= remaining_space as nat;
@@ -414,7 +463,7 @@ module ByteFs {
       // check for available space
       var i := fs.getInode(txn, ino);
       fs.inode_sz_no_overflow(ino, i, bs.Len());
-      if  i.sz + bs.Len() >= 15*4096 {
+      if i.sz + bs.Len() >= 14*4096 {
         ok := false;
         return;
       }
