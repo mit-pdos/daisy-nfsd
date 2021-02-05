@@ -21,9 +21,8 @@ module Inode {
       && |blks| == div_roundup_alt(sz as nat, 4096)
     }
 
-    lemma Valid_sz_bound()
-      requires ValidBlks(blks)
-      requires |blks| == div_roundup_alt(sz as nat, 4096)
+    lemma sz_bound()
+      requires Valid()
       ensures sz as nat <= |blks|*4096 <= 15*4096
     {}
   }
