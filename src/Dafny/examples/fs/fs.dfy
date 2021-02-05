@@ -425,8 +425,7 @@ module Fs {
 
     method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
-      requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
-      requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
+      requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_inode(ino, i)
       requires i'.blks == i.blks
@@ -440,6 +439,9 @@ module Fs {
     {
       writeInode(txn, ino, i, i');
       inode_blks := inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)];
+      assert Valid() by {
+        reveal_Valid_inodes_to_block_used();
+      }
     }
 
     static lemma inode_blks_match_change_1(

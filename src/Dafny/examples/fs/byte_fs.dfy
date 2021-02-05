@@ -291,9 +291,6 @@ module ByteFs {
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
         fs.writeInodeSz(txn, ino, i, i'');
-        assert fs.Valid() by {
-          Filesys.reveal_Valid_inodes_to_block_used();
-        }
 
         ghost var ino_d := data[ino];
         ghost var stable_d := ino_d[..|ino_d|-4096];
@@ -420,10 +417,6 @@ module ByteFs {
       i' := i.(sz := i.sz + bs.Len());
       assert i'.Valid();
       fs.writeInodeSz(txn, ino, i, i');
-
-      assert fs.Valid() by {
-        Filesys.reveal_Valid_inodes_to_block_used();
-      }
 
       data := data[ino := data[ino] + bs.data];
       assert Valid() by {
