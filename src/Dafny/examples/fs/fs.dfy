@@ -1,5 +1,6 @@
 include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
+include "../../jrnl/alloc.i.dfy"
 include "kinds.dfy"
 include "inode.dfy"
 
@@ -11,6 +12,7 @@ module Fs {
   import opened Machine
   import opened ByteSlice
   import opened JrnlSpec
+  import opened Alloc
   import opened Kinds
   import opened FsKinds
   import opened Marshal
@@ -62,7 +64,7 @@ module Fs {
     ghost var data_block: map<Blkno, Block>;
 
     const jrnl: Jrnl;
-    const balloc: Allocator;
+    const balloc: MaxAllocator;
 
     static predicate Valid_basics(jrnl: Jrnl)
       reads jrnl
@@ -167,7 +169,7 @@ module Fs {
     static const ballocMax: uint64 := NumDataBitmapBlocks as uint64 * 4096*8 - 8
 
     predicate Valid_balloc()
-      reads this, balloc
+      reads this
     {
       && this.balloc.max == ballocMax
       && this.balloc.Valid()
@@ -201,7 +203,7 @@ module Fs {
 
     function Repr(): set<object>
     {
-      {this, balloc, jrnl}
+      {this, jrnl} + balloc.Repr()
     }
 
     static predicate Valid_data_block(data_block: map<Blkno, Block>)
@@ -232,7 +234,7 @@ module Fs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-      var balloc := NewAllocator(ballocMax);
+      var balloc := new MaxAllocator(ballocMax);
       this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
@@ -265,12 +267,13 @@ module Fs {
       requires Valid_basics(jrnl_)
       ensures this.jrnl == jrnl_
     {
-      var balloc := NewAllocator(ballocMax);
+      var balloc := new MaxAllocator(ballocMax);
 
       var txn := jrnl_.Begin();
       blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
       while bn < ballocMax
+        modifies balloc.Repr()
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
@@ -309,7 +312,7 @@ module Fs {
     }
 
     method allocBlkno(txn: Txn) returns (ok:bool, bn:Blkno)
-      modifies balloc
+      modifies balloc.Repr()
       requires txn.jrnl == this.jrnl
       requires Valid() ensures Valid()
       ensures ok ==>

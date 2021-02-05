@@ -59,57 +59,32 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     // stateless, so that no issues of concurrency arise.
     class {:extern} Allocator
     {
-        const max: uint64;
-
-        predicate {:opaque} Valid()
-            reads this
-        {
-            0 < max
-        }
-
         constructor {:extern}(max: uint64)
             requires 0 < max
             requires max%8 == 0
-            ensures this.max == max
-            ensures Valid()
         {
-            this.max := max;
-            new;
-            reveal_Valid();
         }
 
         // MarkUsed prevents an index from being allocated. Used during recovery.
         method {:extern} MarkUsed(x: uint64)
-            requires Valid() ensures Valid()
             modifies this
         {
         }
 
-        method {:extern} Alloc()
-            returns (x:uint64)
-            requires Valid() ensures Valid()
-            modifies this
-            ensures x < max
+        method {:extern} Alloc() returns (x:uint64)
         {
-            reveal_Valid();
-            x := 0;
         }
 
         method {:extern} Free(x: uint64)
-            requires Valid() ensures Valid()
-            requires x < max
-            modifies this
+            requires x != 0
         {
         }
     }
 
-    method {:extern} NewAllocator(max: uint64)
-        returns (a:Allocator)
+    method {:extern} NewAllocator(max: uint64) returns (a:Allocator)
         requires 0 < max
         requires max%8 == 0
         ensures fresh(a)
-        ensures a.max == max
-        ensures a.Valid()
     {
         return new Allocator(max);
     }

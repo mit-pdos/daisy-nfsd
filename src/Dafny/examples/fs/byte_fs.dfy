@@ -175,6 +175,12 @@ module ByteFs {
 
       bs.AppendBytes(bs2);
 
+      calc {
+        bs.data;
+        data[ino][off as nat..off''] + data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat];
+        data[ino][off as nat..off as nat + len as nat];
+      }
+
       var _ := txn.Commit();
     }
 

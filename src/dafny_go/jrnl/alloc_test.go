@@ -1,10 +1,6 @@
 package jrnl
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
+import "testing"
 
 func getArbitrary(m map[uint64]bool) uint64 {
 	for x := range m {
@@ -14,15 +10,13 @@ func getArbitrary(m map[uint64]bool) uint64 {
 }
 
 func TestAllocator(t *testing.T) {
-	assert := assert.New(t)
-
+	// the allocator has no preconditions so we just attempt to exercise it a bit
 	used := make(map[uint64]bool)
 	a := NewAllocator(100)
 	a.MarkUsed(0)
 
 	for i := 0; i < 20; i++ {
 		x := a.Alloc()
-		assert.LessOrEqual(x, uint64(100), "allocated out-of-range num")
 		used[x] = true
 	}
 	for i := 0; i < 10; i++ {
