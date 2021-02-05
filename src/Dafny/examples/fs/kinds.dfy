@@ -8,27 +8,56 @@ module FsKinds {
 
   type Ino = uint64
 
-  const NumInodeBlocks: nat := 10
-  const NumDataBitmapBlocks: nat := 3
+  datatype Super = Super(inode_blocks: nat, data_bitmaps: nat)
+  {
+    static const zero := Super(0, 0)
 
-  predicate blkno_ok(blkno: Blkno) { blkno as nat < NumDataBitmapBlocks * (4096*8) }
-  predicate ino_ok(ino: Blkno) { ino as nat < 32*NumInodeBlocks }
+    predicate Valid()
+    {
+      && 0 < inode_blocks
+      && 0 < data_bitmaps
+      && disk_size() < U64.MAX
+    }
 
-  // disk layout, in blocks:
-  //
-  // 513 for the jrnl
-  // NumInodeBlocks (each with 32 inodes)
-  // NumDataBitmapBlocks
-  // 4096*8 data blocks
-  const DataBlockStart: uint64 := 513 +
-    NumInodeBlocks as uint64
-    + NumDataBitmapBlocks as uint64
-  const NumBlocks: nat := DataBlockStart as nat +
-    NumDataBitmapBlocks*4096*8
+    // prior to data, disk layout is:
+    //
+    // 513 blocks reserved for the journal
+    // inode_blocks hold the inodes
+    // data_bitmaps are allocators for the data blocks
+    //
+    // these are followed by num_data_blocks() data blocks
+    function method data_start(): nat
+    {
+      513 + inode_blocks + data_bitmaps
+    }
+
+    function method disk_size(): nat
+    {
+      data_start() as nat + num_data_blocks()
+    }
+
+    function num_inodes(): nat
+    {
+      32 * inode_blocks
+    }
+
+    function method num_data_blocks(): nat
+    {
+      data_bitmaps * (4096*8)
+    }
+  }
+
+  const super := Super.zero.(inode_blocks:=10, data_bitmaps:=3)
+  lemma super_valid()
+    ensures super.Valid()
+  {}
+
+  predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks() }
+  predicate ino_ok(ino: Blkno) { ino as nat < super.num_inodes() }
 
   // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
-    ensures NumBlocks < 100_000
+    ensures super.disk_size() < 100_000
   {}
 
   function method InodeBlk(ino: Ino): (bn':Blkno)
@@ -39,7 +68,7 @@ module FsKinds {
 
   predicate method InodeBlk?(bn: Blkno)
   {
-    513 <= bn as nat < 513 + NumInodeBlocks
+    513 <= bn as nat < 513 + super.inode_blocks
   }
 
   lemma InodeBlk?_correct(bn: Blkno)
@@ -53,24 +82,24 @@ module FsKinds {
   function method DataAllocBlk(bn: Blkno): (bn':Blkno)
     ensures blkno_ok(bn) ==> DataAllocBlk?(bn')
   {
-    var bn' := 513 + NumInodeBlocks as uint64 + bn / (4096*8);
-    if bn as nat < NumDataBitmapBlocks*(4096*8) then (
-      Arith.div_incr(bn as nat, NumDataBitmapBlocks, 4096*8);
+    var bn' := 513 + super.inode_blocks as uint64 + bn / (4096*8);
+    if bn as nat < super.data_bitmaps*(4096*8) then (
+      Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
       bn'
     ) else bn'
   }
 
   predicate method DataAllocBlk?(bn: Blkno)
   {
-    var start := 513 + NumInodeBlocks;
-    start <= bn as nat < start + NumDataBitmapBlocks as nat
+    var start := 513 + super.inode_blocks;
+    start <= bn as nat < start + super.data_bitmaps as nat
   }
 
   lemma DataAllocBlk?_correct(bn: Blkno)
     ensures DataAllocBlk?(bn) <==> exists bn' :: blkno_ok(bn') && DataAllocBlk(bn') == bn
   {
     if DataAllocBlk?(bn) {
-      var bn' := (bn - (513 + NumInodeBlocks) as uint64) * (4096*8);
+      var bn' := (bn - (513 + super.inode_blocks) as uint64) * (4096*8);
       assert blkno_ok(bn');
       assert DataAllocBlk(bn') == bn;
     }
@@ -101,11 +130,11 @@ module FsKinds {
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
-    assert fs_kinds[DataBlockStart+bn] == KindBlock;
+    assert fs_kinds[super.data_start() as uint64+bn] == KindBlock;
     assert kindSize(KindBlock) == 4096*8;
     Arith.zero_mod(4096*8);
     reveal_addrsForKinds();
-    Addr(DataBlockStart+bn, 0)
+    Addr(super.data_start() as uint64+bn, 0)
   }
 
   lemma InodeAddr_disjoint(ino: Ino)
@@ -145,7 +174,7 @@ module FsKinds {
     // NOTE(tej): trigger annotation suppresses warning (there's nothing to
     // trigger on here, but also nothing is necessary)
     map blkno: Blkno |
-      513 <= blkno as nat < NumBlocks
+      513 <= blkno as nat < super.disk_size()
       :: (if InodeBlk?(blkno)
       then KindInode
       else if DataAllocBlk?(blkno)

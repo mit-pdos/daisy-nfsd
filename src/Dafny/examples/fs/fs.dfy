@@ -166,7 +166,7 @@ module Fs {
          && inode_blks_match(inodes[ino], inode_blks[ino], data_block))
     }
 
-    static const ballocMax: uint64 := NumDataBitmapBlocks as uint64 * 4096*8 - 8
+    static const ballocMax: uint64 := super.data_bitmaps as uint64 * 4096*8 - 8
 
     predicate Valid_balloc()
       reads this
