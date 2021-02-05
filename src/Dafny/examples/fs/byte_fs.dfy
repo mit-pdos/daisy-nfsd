@@ -294,7 +294,7 @@ module ByteFs {
       ensures !ok ==> data == old(data)
     {
       // add some garbage data to the end of the inode
-      var alloc_ok, bn := fs.growInode(txn, ino, i);
+      var alloc_ok, i', bn := fs.growInode(txn, ino, i);
       if !alloc_ok {
         ok := false;
         return;
@@ -314,9 +314,6 @@ module ByteFs {
       { break post_grow; }
 
       assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
-
-      var i' := Filesys.inode_append(i, bn);
-      assert fs.is_inode(ino, i');
 
       if bs.Len() < 4096 {
 

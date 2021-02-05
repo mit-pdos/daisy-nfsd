@@ -521,7 +521,7 @@ module Fs {
       return;
     }
 
-    method growInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, bn: Blkno)
+    method growInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, i': Inode.Inode, bn: Blkno)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
@@ -536,7 +536,8 @@ module Fs {
             var d' := InodeData(d0.sz + 4096, d0.blks + [data_block[bn]]);
             inode_blks[ino := d'])
       ensures !ok ==> inode_blks == old(inode_blks)
-      ensures ok ==> is_inode(ino, inode_append(i, bn))
+      ensures ok ==> is_inode(ino, i')
+      ensures ok ==> 0 < |i'.blks| && i'.blks[|i'.blks|-1] == bn
     {
       ok, bn := allocateTo(txn, ino, i);
       if !ok {
@@ -547,7 +548,7 @@ module Fs {
       // this is the garbage data we're adding to the inode
       ghost var data := data_block[bn];
 
-      var i' := Filesys.inode_append(i, bn);
+      i' := Filesys.inode_append(i, bn);
       assert i'.Valid() by {
         Inode.reveal_blks_unique();
         C.unique_extend(i.blks, bn);
