@@ -159,9 +159,9 @@ module ByteFs {
         return;
       }
 
-      assert bs.data == data[ino][off' as nat..off' as nat + 4096];
+      assert bs.data == data[ino][off'..off' + 4096];
       bs.Subslice(off % 4096, 4096);
-      assert bs.data == data[ino][off as nat..off' as nat + 4096] by {
+      assert bs.data == data[ino][off..off' + 4096] by {
         C.double_subslice_auto(data[ino]);
       }
       var read_bytes: uint64 := bs.Len();
@@ -169,7 +169,9 @@ module ByteFs {
       var off'' := off' + 4096;
       var bs2 := getInodeBlock(txn, ino, i, off'');
       bs2.Subslice(0, len - read_bytes);
-      assert bs2.data == data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat] by {
+      ghost var bs2_upper_bound: nat := off'' as nat + (len - read_bytes) as nat;
+      assert bs2_upper_bound == off as nat + len as nat;
+      assert bs2.data == data[ino][off''..bs2_upper_bound] by {
         C.double_subslice_auto(data[ino]);
       }
 
@@ -177,8 +179,8 @@ module ByteFs {
 
       calc {
         bs.data;
-        data[ino][off as nat..off''] + data[ino][off'' as nat..off'' as nat + (len - read_bytes) as nat];
-        data[ino][off as nat..off as nat + len as nat];
+        data[ino][off..off''] + data[ino][off''..bs2_upper_bound];
+        data[ino][off..off + len];
       }
 
       var _ := txn.Commit();
