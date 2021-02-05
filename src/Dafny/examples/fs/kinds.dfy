@@ -10,13 +10,16 @@ module FsKinds {
 
   datatype Super = Super(inode_blocks: nat, data_bitmaps: nat)
   {
+    const num_inodes: nat := 32 * inode_blocks
+    const num_data_blocks: nat := data_bitmaps * (4096*8)
+
     static const zero := Super(0, 0)
 
     predicate Valid()
     {
       && 0 < inode_blocks
       && 0 < data_bitmaps
-      && disk_size() < U64.MAX
+      && disk_size < U64.MAX
     }
 
     // prior to data, disk layout is:
@@ -25,39 +28,23 @@ module FsKinds {
     // inode_blocks hold the inodes
     // data_bitmaps are allocators for the data blocks
     //
-    // these are followed by num_data_blocks() data blocks
-    function method data_start(): nat
-    {
-      513 + inode_blocks + data_bitmaps
-    }
-
-    function method disk_size(): nat
-    {
-      data_start() as nat + num_data_blocks()
-    }
-
-    function num_inodes(): nat
-    {
-      32 * inode_blocks
-    }
-
-    function method num_data_blocks(): nat
-    {
-      data_bitmaps * (4096*8)
-    }
+    // these are followed by num_data_blocks data blocks
+    const data_start: nat := 513 + inode_blocks + data_bitmaps
+    const disk_size: nat := data_start + num_data_blocks
   }
 
+  // we initialize the superblock this way to get named arguments
   const super := Super.zero.(inode_blocks:=10, data_bitmaps:=3)
   lemma super_valid()
     ensures super.Valid()
   {}
 
-  predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks() }
-  predicate ino_ok(ino: Blkno) { ino as nat < super.num_inodes() }
+  predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
+  predicate ino_ok(ino: Blkno) { ino as nat < super.num_inodes }
 
   // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
-    ensures super.disk_size() < 100_000
+    ensures super.disk_size < 100_000
   {}
 
   function method InodeBlk(ino: Ino): (bn':Blkno)
@@ -130,11 +117,11 @@ module FsKinds {
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
-    assert fs_kinds[super.data_start() as uint64+bn] == KindBlock;
+    assert fs_kinds[super.data_start as uint64+bn] == KindBlock;
     assert kindSize(KindBlock) == 4096*8;
     Arith.zero_mod(4096*8);
     reveal_addrsForKinds();
-    Addr(super.data_start() as uint64+bn, 0)
+    Addr(super.data_start as uint64+bn, 0)
   }
 
   lemma InodeAddr_disjoint(ino: Ino)
@@ -174,7 +161,7 @@ module FsKinds {
     // NOTE(tej): trigger annotation suppresses warning (there's nothing to
     // trigger on here, but also nothing is necessary)
     map blkno: Blkno |
-      513 <= blkno as nat < super.disk_size()
+      513 <= blkno as nat < super.disk_size
       :: (if InodeBlk?(blkno)
       then KindInode
       else if DataAllocBlk?(blkno)
