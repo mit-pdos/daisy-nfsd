@@ -291,23 +291,15 @@ module Fs {
     }
 
     // full block append
-    static predicate can_inode_append(i: Inode.Inode, bn: Blkno)
-    {
-      && i.Valid()
-      && blkno_ok(bn)
-      && i.sz < 15*4096
-    }
-
     static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
-    requires can_inode_append(i, bn)
+    requires i.Valid()
     {
       Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
     static predicate is_alloc_bn(bn: Blkno)
     {
-      && bn != 0
-      && bn-1 < ballocMax
+      && 0 < bn < ballocMax
       && blkno_ok(bn)
     }
 
@@ -320,12 +312,12 @@ module Fs {
          && block_used[bn].None?
         )
     {
-      bn := balloc.Alloc(); bn := bn + 1;
+      bn := balloc.Alloc();
       blkno_bit_inbounds(jrnl);
       var used := txn.ReadBit(DataBitAddr(bn));
       if used {
         ok := false;
-        balloc.Free(bn-1);
+        balloc.Free(bn);
         return;
       }
       ok := true;
@@ -334,7 +326,7 @@ module Fs {
 
     lemma free_block_unused(bn: Blkno)
       requires Valid()
-      requires blkno_ok(bn) && bn != 0 && block_used[bn].None?
+      requires blkno_ok(bn) && block_used[bn].None?
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {
       reveal_Valid_inodes_to_block_used();
@@ -528,13 +520,6 @@ module Fs {
 
       return;
     }
-
-    // freeing is not as simple as allocation: to maintain invariants, we need
-    // to simultaneously free a block and remove it from the blocks of an inode
-    //
-    // TODO: need to track is_alloc_bn for all blks in an inode, not the weaker
-    // != 0 property being tracked by Inode.Valid or blkno_ok from
-    // Valid_inodes_to_block_used
 
     method growInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, bn: Blkno)
       modifies Repr()
