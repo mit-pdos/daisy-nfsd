@@ -572,7 +572,6 @@ module Fs {
       requires i.sz % 4096 == 0
       ensures data_block == old(data_block)
       ensures ok ==> blkno_ok(bn)
-      ensures ok ==> block_used[bn] == Some(ino)
       ensures ok ==> inode_blks ==
         old(var d0 := inode_blks[ino];
             var d' := InodeData(d0.sz + 4096, d0.blks + [data_block[bn]]);
@@ -580,7 +579,6 @@ module Fs {
       ensures !ok ==> inode_blks == old(inode_blks)
       ensures ok ==> i'.used_blocks == |i'.blks|
       ensures is_inode(ino, i')
-      ensures ok ==> 0 < |i'.blks| && i'.blks[i'.used_blocks-1] == bn
     {
       i' := i;
       ok, bn := allocateTo(txn, ino, i);

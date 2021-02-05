@@ -319,40 +319,25 @@ module ByteFs {
       ensures !ok ==> data == old(data)
       ensures fs.is_inode(ino, i')
     {
-      i' := i;
-
       ghost var d0 := fs.inode_blks[ino];
       if i.used_blocks < |i.blks| {
-        assert d0.num_used < |d0.blks|;
         i' := fs.useFreeBlock(txn, ino, i);
-        ghost var d' := fs.inode_blks[ino];
-
-        ok := true;
-        b := d'.blks[d'.num_used-1];
-        data := data[ino := data[ino] + b];
-        assert Valid() by {
-          assert d'.used_blocks() == d0.used_blocks() + [b];
-          C.concat_app1(d0.used_blocks(), b);
-          inode_data_aligned(d0);
-          inode_data_aligned(d');
-          assert inode_data(d') == inode_data(d0) + b;
+      } else {
+        var bn;
+        ok, i', bn := fs.appendToInode(txn, ino, i);
+        if !ok {
+          ok := false;
+          return;
         }
-        return;
-      }
-      assert d0.num_used == |d0.blks|;
-
-      var bn;
-      ok, i', bn := fs.appendToInode(txn, ino, i);
-      if !ok {
-        ok := false;
-        return;
       }
       ok := true;
-      b := fs.data_block[bn];
-      data := data[ino:=data[ino] + b];
       ghost var d' := fs.inode_blks[ino];
+      b := C.last(d'.used_blocks());
+      // this assertion should join the two branches above
+      assert d'.used_blocks() == d0.used_blocks() + [b];
+
+      data := data[ino := data[ino] + b];
       assert Valid() by {
-        assert d'.used_blocks() == d0.used_blocks() + [b];
         C.concat_app1(d0.used_blocks(), b);
         inode_data_aligned(d0);
         inode_data_aligned(d');
