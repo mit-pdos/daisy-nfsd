@@ -124,6 +124,13 @@ module FsKinds {
     Addr(super.data_start as uint64+bn, 0)
   }
 
+  lemma InodeAddr_inj()
+    ensures forall ino: Ino, ino': Ino | ino_ok(ino) && ino_ok(ino') ::
+    InodeAddr(ino) == InodeAddr(ino') ==> ino == ino'
+  {
+    reveal_InodeAddr();
+  }
+
   lemma InodeAddr_disjoint(ino: Ino)
     requires ino_ok(ino)
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBitAddr(bn')

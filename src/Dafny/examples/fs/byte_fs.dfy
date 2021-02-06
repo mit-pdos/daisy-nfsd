@@ -49,7 +49,15 @@ module ByteFs {
     predicate Valid()
       reads this.Repr()
     {
+      && fs.ValidQ()
+      && inode_blks_to_data(fs.inode_blks, data)
+    }
+
+    predicate ValidIno(ino: Ino, i: Inode.Inode)
+      reads this.Repr()
+    {
       && fs.Valid()
+      && fs.is_cur_inode(ino, i)
       && inode_blks_to_data(fs.inode_blks, data)
     }
 
@@ -271,11 +279,10 @@ module ByteFs {
       assert C.concat(C.without_last(blks)) == inode_data(d)[..d.sz - 4096];
     }
 
-    method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+    method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (i': Inode.Inode)
       modifies Repr()
-      requires Valid() ensures Valid()
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires txn.jrnl == fs.jrnl
-      requires fs.is_inode(ino, i)
       requires i.sz % 4096 == 0
       requires 4096 <= i.sz
       requires bs.Valid()
@@ -287,10 +294,10 @@ module ByteFs {
         var blk := NewBytes(4096);
         blk.CopyTo(0, bs);
         fs.writeDataBlock(txn, bn, blk, ino, i.used_blocks-1);
-        var i'' := i.(sz:=i.sz - 4096 + bs.Len());
+        i' := i.(sz:=i.sz - 4096 + bs.Len());
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
-        fs.writeInodeSz(txn, ino, i, i'');
+        fs.writeInodeSz(txn, ino, i, i');
 
         ghost var ino_d := data[ino];
         ghost var stable_d := ino_d[..|ino_d|-4096];
@@ -306,15 +313,13 @@ module ByteFs {
     method growInodeAligned(txn: Txn, ino: Ino, i: Inode.Inode)
       returns (ok:bool, i': Inode.Inode, ghost b: Block)
       modifies Repr()
-      requires Valid() ensures Valid()
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires txn.jrnl == fs.jrnl
-      requires fs.is_inode(ino, i)
       requires i.sz % 4096 == 0
       requires i.sz as nat <= 13*4096
       ensures ok ==> is_block(b)
       ensures ok ==> data == old(data[ino:=data[ino] + b])
       ensures !ok ==> data == old(data)
-      ensures fs.is_inode(ino, i')
     {
       ghost var d0 := fs.inode_blks[ino];
       if i.used_blocks < |i.blks| {
@@ -334,7 +339,7 @@ module ByteFs {
       assert d'.used_blocks() == d0.used_blocks() + [b];
 
       data := data[ino := data[ino] + b];
-      assert Valid() by {
+      assert ValidIno(ino, i') by {
         C.concat_app1(d0.used_blocks(), b);
         inode_data_aligned(d0);
         inode_data_aligned(d');
@@ -342,9 +347,9 @@ module ByteFs {
       }
     }
 
-    method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool)
+    method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool, i': Inode.Inode)
       modifies Repr()
-      requires Valid() ensures Valid()
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires txn.jrnl == fs.jrnl
       requires fs.is_inode(ino, i)
       requires i.sz % 4096 == 0
@@ -355,7 +360,6 @@ module ByteFs {
       ensures !ok ==> data == old(data)
     {
       // add some garbage data to the end of the inode
-      var i';
       ghost var b;
       ok, i', b := growInodeAligned(txn, ino, i);
       if !ok {
@@ -371,14 +375,14 @@ module ByteFs {
 
       assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
 
-      writeLastBlock(txn, ino, i', bs);
+      i' := writeLastBlock(txn, ino, i', bs);
     }
 
-    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (i': Inode.Inode, ghost written: nat, bs': Bytes)
+    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (i': Inode.Inode, ghost written: nat, bs': Bytes)
       modifies Repr(), bs
       requires txn.jrnl == fs.jrnl
-      requires Valid() ensures Valid()
-      requires fs.is_inode(ino, i)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires bs.Valid()
       requires |data[ino]| + |bs.data| < 15*4096
       requires 0 < |bs.data| <= 4096
@@ -419,7 +423,7 @@ module ByteFs {
       fs.writeInodeSz(txn, ino, i, i');
 
       data := data[ino := data[ino] + bs.data];
-      assert Valid() by {
+      assert ValidIno(ino, i') by {
         assert fs.is_inode(ino, i');
         inode_data_splice_last(old(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data);
       }
@@ -452,26 +456,31 @@ module ByteFs {
         return;
       }
 
+      fs.startInode(ino, i);
+
       ghost var written;
       var bs';
       i, written, bs' := appendAtEnd(txn, ino, i, bs);
       if bs'.Len() == 0 {
         ok := true;
+        fs.finishInode(txn, ino, i);
         var _ := txn.Commit();
         assert old(bs.data[..written]) == old(bs.data);
         return;
       }
       assert i.sz % 4096 == 0;
-      assert fs.is_inode(ino, i);
+      assert fs.is_cur_inode(ino, i);
 
       // we still need to write bs'
       assert data[ino] + bs'.data == old(data[ino] + bs.data);
 
       // TODO: this can abort after preparing the transaction; do we want to support that?
-      ok := appendAligned(txn, ino, i, bs');
+      ok, i := appendAligned(txn, ino, i, bs');
       if !ok {
+        fs.finishInode(txn, ino, i);
         return;
       }
+      fs.finishInode(txn, ino, i);
       var _ := txn.Commit();
     }
   }

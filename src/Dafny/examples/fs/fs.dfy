@@ -71,6 +71,7 @@ module Fs {
 
     // encoded inodes on disk
     ghost var inodes: map<Ino, Inode.Inode>;
+    ghost var cur_inode: Option<(Ino, Inode.Inode)>;
     // allocator state + the inode that owns the block
     ghost var block_used: map<Blkno, Option<Ino>>;
     // on-disk value for all the data blocks
@@ -116,13 +117,29 @@ module Fs {
     }
 
     predicate {:opaque} Valid_jrnl_to_inodes(inodes: map<Ino, Inode.Inode>)
-      reads jrnl
+      reads this, jrnl
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
     {
-      && (forall ino: Ino | ino_ok(ino) ::
+      forall ino: Ino | ino_ok(ino) ::
         inode_inbounds(jrnl, ino);
-        && jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino])))
+        if on_inode(ino)
+          then jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(cur_inode.x.1))
+          else jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]))
+    }
+
+    predicate quiescent()
+      reads this
+    {
+      cur_inode == None
+    }
+
+    predicate on_inode(ino: Ino)
+      reads this
+    {
+      && ino_ok(ino)
+      && cur_inode.Some?
+      && cur_inode.x.0 == ino
     }
 
     static predicate Inodes_all_Valid(inodes: map<Ino, Inode.Inode>)
@@ -235,6 +252,13 @@ module Fs {
       && this.Valid_balloc()
     }
 
+    predicate ValidQ()
+      reads Repr()
+    {
+      && Valid()
+      && quiescent()
+    }
+
     lemma Valid_inode_data()
       requires Valid_domains()
       requires Valid_data()
@@ -242,7 +266,7 @@ module Fs {
     {}
 
     constructor Init(d: Disk)
-      ensures Valid()
+      ensures ValidQ()
       ensures inode_blks == map ino | ino_ok(ino) :: InodeData(0, [])
     {
       var jrnl := NewJrnl(d, fs_kinds);
@@ -251,6 +275,7 @@ module Fs {
       this.balloc := balloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
+      this.cur_inode := None;
       this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData(0, []);
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
@@ -357,6 +382,7 @@ module Fs {
       requires inodes[ino].blks[blkoff] == bn
       ensures
       && inodes == old(inodes)
+      && cur_inode == old(cur_inode)
       && block_used == old(block_used)
       && data_block == old(data_block)[bn := blk.data]
       && inode_blks ==
@@ -396,51 +422,97 @@ module Fs {
       }
     }
 
-    method writeInode(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
+    ghost method startInode(ino: Ino, i: Inode.Inode)
+      modifies this
+      requires ValidQ()
+      requires is_inode(ino, i)
+      ensures Valid()
+      ensures is_cur_inode(ino, i)
+      ensures inode_blks == old(inode_blks)
+      ensures inodes == old(inodes)
+      ensures block_used == old(block_used)
+      ensures data_block == old(data_block)
+    {
+      cur_inode := Some( (ino, i) );
+      reveal_Valid_jrnl_to_inodes();
+    }
+
+    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies this, jrnl
+      requires Valid()
+      requires on_inode(ino)
+      requires txn.jrnl == this.jrnl
+      requires is_inode(ino, i)
+      ensures ValidQ()
+      ensures inode_blks == old(inode_blks)
+      ensures inodes == old(inodes)
+    {
+      cur_inode := None;
+      inode_inbounds(jrnl, ino);
+      var buf' := Inode.encode_ino(i);
+      txn.Write(InodeAddr(ino), buf');
+      assert jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]));
+      assert Valid_jrnl_to_inodes(inodes) by {
+        reveal_Valid_jrnl_to_inodes();
+        InodeAddr_inj();
+        // NOTE: good example of debugging
+        // forall ino' | ino_ok(ino')
+        //   ensures jrnl.data[InodeAddr(ino')] == ObjData(Inode.enc(inodes[ino']))
+        // {
+        //   if ino' == ino {} else {
+        //     assert InodeAddr(ino) != InodeAddr(ino') by {
+        //       reveal_InodeAddr();
+        //     }
+        //   }
+        // }
+      }
+      assert Valid() by {
+        reveal_Valid_jrnl_to_data_block();
+        reveal_Valid_jrnl_to_block_used();
+      }
+    }
+
+    ghost method writeInode(txn: Txn, ino: Ino, i': Inode.Inode)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
       requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
       requires txn.jrnl == jrnl
-      requires is_inode(ino, i)
+      requires on_inode(ino);
       requires i'.Valid()
-      ensures is_inode(ino, i')
+      ensures is_cur_inode(ino, i')
       ensures inodes == old(inodes)[ino:=i']
       ensures block_used == old(block_used)
       ensures data_block == old(data_block)
       ensures inode_blks == old(inode_blks)
     {
-      inode_inbounds(jrnl, ino);
-      var buf' := Inode.encode_ino(i');
-      txn.Write(InodeAddr(ino), buf');
       inodes := inodes[ino:=i'];
 
       assert Valid_jrnl_to_all() by {
-        InodeAddr_disjoint(ino);
-        reveal_InodeAddr();
         reveal_Valid_jrnl_to_block_used();
         reveal_Valid_jrnl_to_data_block();
         reveal_Valid_jrnl_to_inodes();
       }
     }
 
-    method writeInodeSz(txn: Txn, ino: Ino, ghost i: Inode.Inode, i': Inode.Inode)
+    ghost method writeInodeSz(txn: Txn, ino: Ino, i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires is_inode(ino, i)
+      requires is_cur_inode(ino, i)
       requires i'.blks == i.blks
       requires i'.Valid()
-      ensures is_inode(ino, i')
+      ensures is_cur_inode(ino, i')
       ensures
       && inodes == old(inodes)[ino:=i']
       && block_used == old(block_used)
       && data_block == old(data_block)
       && inode_blks == old(inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)])
     {
-      writeInode(txn, ino, i, i');
+      writeInode(txn, ino, i');
       inode_blks := inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)];
       assert Valid() by {
         reveal_Valid_inodes_to_block_used();
+        reveal_Valid_jrnl_to_inodes();
       }
     }
 
@@ -489,9 +561,18 @@ module Fs {
       && inodes[ino] == i
     }
 
+    predicate is_cur_inode(ino: Ino, i: Inode.Inode)
+      reads this, jrnl
+      requires Valid_basics(jrnl)
+      requires Valid_domains()
+    {
+      && is_inode(ino, i)
+      && on_inode(ino)
+    }
+
     method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
       modifies {}
-      requires Valid()
+      requires ValidQ()
       requires ino_ok(ino)
       requires txn.jrnl == jrnl
       ensures is_inode(ino, i)
@@ -509,6 +590,7 @@ module Fs {
       requires is_inode(ino, i)
       ensures inode_blks == old(inode_blks)
       ensures inodes == old(inodes)
+      ensures cur_inode == old(cur_inode)
       ensures !ok ==> block_used == old(block_used)
       ensures data_block == old(data_block)
       ensures ok ==> forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
@@ -541,7 +623,7 @@ module Fs {
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires is_inode(ino, i)
+      requires is_cur_inode(ino, i)
       requires i.used_blocks < |i.blks|
       ensures data_block == old(data_block)
       ensures block_used == old(block_used)
@@ -549,15 +631,16 @@ module Fs {
         old(var d0 := inode_blks[ino];
             var d' := d0.(sz := d0.sz + 4096);
             inode_blks[ino := d'])
-      ensures is_inode(ino, i')
+      ensures is_cur_inode(ino, i')
     {
       i' := i.(sz := i.sz + 4096);
-      writeInode(txn, ino, i, i');
+      writeInode(txn, ino, i');
       ghost var d0 := inode_blks[ino];
       ghost var d' := d0.(sz := d0.sz + 4096);
       inode_blks := inode_blks[ino := d'];
       assert Valid() by {
         reveal_Valid_inodes_to_block_used();
+        reveal_Valid_jrnl_to_inodes();
       }
       assert inode_blks_match(i', d', data_block);
       reveal_blks_match?();
@@ -568,7 +651,7 @@ module Fs {
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires is_inode(ino, i)
+      requires is_cur_inode(ino, i)
       requires i.sz <= 13*4096
       requires i.used_blocks == |i.blks|
       requires i.sz % 4096 == 0
@@ -580,7 +663,7 @@ module Fs {
             inode_blks[ino := d'])
       ensures !ok ==> inode_blks == old(inode_blks)
       ensures ok ==> i'.used_blocks == |i'.blks|
-      ensures is_inode(ino, i')
+      ensures is_cur_inode(ino, i')
     {
       i' := i;
       ok, bn := allocateTo(txn, ino, i);
@@ -597,7 +680,7 @@ module Fs {
         Inode.reveal_blks_unique();
         C.unique_extend(i.blks, bn);
       }
-      writeInode(txn, ino, i, i');
+      writeInode(txn, ino, i');
 
       ghost var d0 := inode_blks[ino];
       ghost var d' := InodeData(d0.sz + 4096, d0.blks + [data]);
@@ -609,13 +692,16 @@ module Fs {
       assert Valid_inodes_to_block_used(inodes, block_used) by {
         reveal_Valid_inodes_to_block_used();
       }
+      assert Valid() by {
+        reveal_Valid_jrnl_to_inodes();
+      }
 
       return;
     }
 
     method Size(ino: Ino) returns (sz: uint64)
       modifies {}
-      requires Valid() ensures Valid()
+      requires ValidQ()
       requires ino_ok(ino)
       ensures sz as nat == inodes[ino].sz as nat
     {
