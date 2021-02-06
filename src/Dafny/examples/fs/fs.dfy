@@ -95,7 +95,7 @@ module Fs {
       && ino_dom(inode_blks)
     }
 
-    static predicate {:opaque} Valid_jrnl_to_block_used(jrnl: Jrnl, block_used: map<Blkno, Option<Ino>>)
+    predicate {:opaque} Valid_jrnl_to_block_used(block_used: map<Blkno, Option<Ino>>)
       reads jrnl
       requires blkno_dom(block_used)
       requires Valid_basics(jrnl)
@@ -105,7 +105,7 @@ module Fs {
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
     }
 
-    static predicate {:opaque} Valid_jrnl_to_data_block(jrnl: Jrnl, data_block: map<Blkno, Block>)
+    predicate {:opaque} Valid_jrnl_to_data_block(data_block: map<Blkno, Block>)
       reads jrnl
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
@@ -115,7 +115,7 @@ module Fs {
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
-    static predicate {:opaque} Valid_jrnl_to_inodes(jrnl: Jrnl, inodes: map<Ino, Inode.Inode>)
+    predicate {:opaque} Valid_jrnl_to_inodes(inodes: map<Ino, Inode.Inode>)
       reads jrnl
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
@@ -193,9 +193,9 @@ module Fs {
     {
       && Valid_basics(jrnl)
       && Valid_domains()
-      && Valid_jrnl_to_block_used(jrnl, block_used)
-      && Valid_jrnl_to_data_block(jrnl, data_block)
-      && Valid_jrnl_to_inodes(jrnl, inodes)
+      && Valid_jrnl_to_block_used(block_used)
+      && Valid_jrnl_to_data_block(data_block)
+      && Valid_jrnl_to_inodes(inodes)
     }
 
     predicate Valid_data()
