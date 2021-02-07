@@ -617,6 +617,64 @@ module Fs {
       return;
     }
 
+    method freeFrom(txn: Txn, ghost ino: Ino, ghost i: Inode.Inode, bn: Blkno)
+      returns (ghost i': Inode.Inode)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      requires is_cur_inode(ino, i)
+      requires |i.blks|-1 >= i.used_blocks
+      requires i.blks[|i.blks|-1] == bn
+      ensures is_cur_inode(ino, i')
+      ensures i' == i.(blks := i.blks[..|i.blks|-1])
+    {
+      assert blkno_ok(bn) by {
+        reveal_blks_match?();
+      }
+      balloc.Free(bn);
+
+      blkno_bit_inbounds(jrnl);
+      txn.WriteBit(DataBitAddr(bn), false);
+      block_used := block_used[bn := None];
+
+      assert Valid_jrnl_to_all() by {
+        reveal_Valid_jrnl_to_block_used();
+        reveal_Valid_jrnl_to_inodes();
+        reveal_Valid_jrnl_to_data_block();
+      }
+
+      i' := i.(blks := i.blks[..|i.blks|-1]);
+      assert i'.Valid() by {
+        reveal Inode.blks_unique();
+      }
+
+      writeInode(ino, i');
+
+      ghost var d0 := inode_blks[ino];
+      inode_blks := inode_blks[ino := d0.(blks := d0.blks[..|i.blks|-1])];
+
+      assert Valid_jrnl_to_all() by {
+        reveal_Valid_jrnl_to_block_used();
+        reveal_Valid_jrnl_to_inodes();
+        reveal_Valid_jrnl_to_data_block();
+      }
+
+      assert Valid_data() by {
+        reveal_blks_match?();
+      }
+
+      assert Valid_inodes() by {
+        reveal_Valid_inodes_to_block_used();
+        Inode.reveal_blks_unique();
+        forall bn | bn in inodes[ino].blks
+          ensures blkno_ok(bn)
+          ensures block_used[bn] == Some(ino)
+        {
+          assert bn in old(inodes[ino].blks);
+        }
+      }
+    }
+
     method useFreeBlock(ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -739,7 +797,8 @@ module Fs {
       ensures no_overflow(i.sz as nat, delta as nat)
     {}
 
-    method freeUnused(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
+    method {:verify false} freeUnused(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
+      modifies Repr()
       requires Valid()
       requires is_cur_inode(ino, i)
       ensures Valid()
@@ -748,7 +807,21 @@ module Fs {
       // i.used_blocks())
       ensures inode_blks == old(inode_blks)
     {
-      // TODO: implement this
+      var k: uint64 := |i.blks| as uint64;
+      var last_unused: uint64 := i.used_blocks_u64();
+      while k > last_unused
+        modifies Repr()
+        invariant last_unused as nat <= k as nat <= |i.blks|
+        invariant Valid()
+      {
+        var bn := i.blks[k-1];
+        assert blkno_ok(bn) by {
+          reveal_blks_match?();
+        }
+        balloc.Free(bn);
+        txn.WriteBit(DataBitAddr(bn), false);
+        k := k - 1;
+      }
       i' := i;
     }
 
