@@ -47,21 +47,13 @@ module ByteFs {
     assert blks == blks[..num_used] + blks[num_used..];
   }
 
-  lemma inode_data_truncate(d: InodeData, d': InodeData)
+  lemma inode_data_free(d: InodeData, d': InodeData)
     requires d.Valid() && d'.Valid()
     requires d'.used_blocks() == d.used_blocks()
-    requires d'.sz <= d.sz
-    ensures inode_data(d') == inode_data(d)[..d'.sz]
+    requires d'.sz == d.sz
+    ensures inode_data(d') == inode_data(d)
   {
-    reveal_inode_data_better(d);
-    reveal_inode_data_better(d');
-    assert d'.num_used <= d.num_used;
-    calc {
-      inode_data(d');
-      C.concat(d'.used_blocks())[..d'.sz];
-      C.concat(d.used_blocks())[..d'.sz];
-      C.concat(d.used_blocks())[..d.sz][..d'.sz];
-    }
+    reveal_inode_data();
   }
 
   class ByteFilesys {
@@ -520,6 +512,27 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
+    method inodeTruncate(ino: Ino, i: Inode.Inode, sz: uint64) returns (i': Inode.Inode)
+      modifies Repr()
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
+      requires sz as nat <= |data[ino]|
+      ensures data == old(data[ino:= data[ino][..sz as nat]])
+    {
+      i' := i.(sz:=sz);
+
+      ghost var d0 := fs.inode_blks[ino];
+      fs.writeInodeSz(ino, i, i');
+      ghost var d1 := fs.inode_blks[ino];
+
+      assert d1 == d0.(sz := sz as nat);
+      assert inode_data(d1) == inode_data(d0)[..sz as nat] by {
+        inode_data_all_blks(d1);
+        inode_data_all_blks(d0);
+      }
+
+      data := data[ino := data[ino][..sz as nat]];
+    }
+
     method Shrink(ino: Ino, sz: uint64) returns (ok:bool)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -539,18 +552,16 @@ module ByteFs {
 
       fs.startInode(ino, i);
 
-      var i' := i.(sz:=sz);
-      fs.writeInodeSz(ino, i, i');
-      i' := fs.freeUnused(txn, ino, i');
+      var i' := inodeTruncate(ino, i, sz);
 
-      var d0 := old(fs.inode_blks[ino]);
-      var d' := fs.inode_blks[ino];
-      assert d' == d0.(sz := sz as nat);
-      assert inode_data(d') == inode_data(d0)[..sz as nat] by {
-        inode_data_all_blks(d');
-        inode_data_all_blks(d0);
+      ghost var d1 := fs.inode_blks[ino];
+      i' := fs.freeUnused(txn, ino, i');
+      ghost var d' := fs.inode_blks[ino];
+
+      assert inode_data(d') == inode_data(d1) by {
+        inode_data_free(d1, d');
       }
-      data := data[ino := data[ino][..sz as nat]];
+
       assert ValidIno(ino, i');
 
       fs.finishInode(txn, ino, i');
