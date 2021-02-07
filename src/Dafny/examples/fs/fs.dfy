@@ -472,11 +472,10 @@ module Fs {
       }
     }
 
-    ghost method writeInode(txn: Txn, ino: Ino, i': Inode.Inode)
+    ghost method writeInode(ino: Ino, i': Inode.Inode)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
       requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
-      requires txn.jrnl == jrnl
       requires on_inode(ino);
       requires i'.Valid()
       ensures is_cur_inode(ino, i')
@@ -494,10 +493,9 @@ module Fs {
       }
     }
 
-    ghost method writeInodeSz(txn: Txn, ino: Ino, i: Inode.Inode, i': Inode.Inode)
+    ghost method writeInodeSz(ino: Ino, i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
       requires Valid() ensures Valid()
-      requires txn.jrnl == jrnl
       requires is_cur_inode(ino, i)
       requires i'.blks == i.blks
       requires i'.Valid()
@@ -508,7 +506,7 @@ module Fs {
       && data_block == old(data_block)
       && inode_blks == old(inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)])
     {
-      writeInode(txn, ino, i');
+      writeInode(ino, i');
       inode_blks := inode_blks[ino:=inode_blks[ino].(sz := i'.sz as nat)];
       assert Valid() by {
         reveal_Valid_inodes_to_block_used();
@@ -619,10 +617,9 @@ module Fs {
       return;
     }
 
-    method useFreeBlock(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
+    method useFreeBlock(ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid() ensures Valid()
-      requires txn.jrnl == jrnl
       requires is_cur_inode(ino, i)
       requires i.used_blocks < |i.blks|
       ensures data_block == old(data_block)
@@ -634,7 +631,7 @@ module Fs {
       ensures is_cur_inode(ino, i')
     {
       i' := i.(sz := i.sz + 4096);
-      writeInode(txn, ino, i');
+      writeInode(ino, i');
       ghost var d0 := inode_blks[ino];
       ghost var d' := d0.(sz := d0.sz + 4096);
       inode_blks := inode_blks[ino := d'];
@@ -680,7 +677,7 @@ module Fs {
         Inode.reveal_blks_unique();
         C.unique_extend(i.blks, bn);
       }
-      writeInode(txn, ino, i');
+      writeInode(ino, i');
 
       ghost var d0 := inode_blks[ino];
       ghost var d' := InodeData(d0.sz + 4096, d0.blks + [data]);
@@ -741,5 +738,19 @@ module Fs {
       requires delta as nat <= 8192
       ensures no_overflow(i.sz as nat, delta as nat)
     {}
+
+    method freeUnused(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
+      requires Valid()
+      requires is_cur_inode(ino, i)
+      ensures Valid()
+      ensures is_cur_inode(ino, i')
+      // won't be true, need to remove blks from i (but i'.used_blocks() ==
+      // i.used_blocks())
+      ensures inode_blks == old(inode_blks)
+    {
+      // TODO: implement this
+      i' := i;
+    }
+
   }
 }

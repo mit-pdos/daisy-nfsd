@@ -18,14 +18,50 @@ module ByteFs {
     C.concat(d.used_blocks())[..d.sz]
   }
 
+  lemma reveal_inode_data_better(d: InodeData)
+    requires d.Valid()
+    ensures |C.concat(d.used_blocks())| == 4096 * d.num_used
+    ensures inode_data(d) == C.concat(d.used_blocks())[..d.sz]
+  {
+    reveal_inode_data();
+    d.used_blocks_valid();
+    C.concat_homogeneous_spec(d.used_blocks(), 4096);
+  }
+
   lemma inode_data_aligned(d: InodeData)
     requires d.sz % 4096 == 0
     requires d.Valid()
     ensures inode_data(d) == C.concat(d.used_blocks())
   {
-    reveal_inode_data();
-    d.used_blocks_valid();
-    C.concat_homogeneous_len(d.used_blocks(), 4096);
+    reveal_inode_data_better(d);
+  }
+
+  lemma inode_data_all_blks(d: InodeData)
+    requires d.Valid()
+    ensures d.sz <= |C.concat(d.blks)| && inode_data(d) == C.concat(d.blks)[..d.sz]
+  {
+    reveal_inode_data_better(d);
+    ghost var num_used := d.num_used;
+    ghost var blks := d.blks;
+    C.concat_app(blks[..num_used], blks[num_used..]);
+    assert blks == blks[..num_used] + blks[num_used..];
+  }
+
+  lemma inode_data_truncate(d: InodeData, d': InodeData)
+    requires d.Valid() && d'.Valid()
+    requires d'.used_blocks() == d.used_blocks()
+    requires d'.sz <= d.sz
+    ensures inode_data(d') == inode_data(d)[..d'.sz]
+  {
+    reveal_inode_data_better(d);
+    reveal_inode_data_better(d');
+    assert d'.num_used <= d.num_used;
+    calc {
+      inode_data(d');
+      C.concat(d'.used_blocks())[..d'.sz];
+      C.concat(d.used_blocks())[..d'.sz];
+      C.concat(d.used_blocks())[..d.sz][..d'.sz];
+    }
   }
 
   class ByteFilesys {
@@ -297,7 +333,7 @@ module ByteFs {
         i' := i.(sz:=i.sz - 4096 + bs.Len());
         // this truncates the inode, which growInode grows for the sake of
         // preserving the complete inode invariant
-        fs.writeInodeSz(txn, ino, i, i');
+        fs.writeInodeSz(ino, i, i');
 
         ghost var ino_d := data[ino];
         ghost var stable_d := ino_d[..|ino_d|-4096];
@@ -323,7 +359,7 @@ module ByteFs {
     {
       ghost var d0 := fs.inode_blks[ino];
       if i.used_blocks < |i.blks| {
-        i' := fs.useFreeBlock(txn, ino, i);
+        i' := fs.useFreeBlock(ino, i);
       } else {
         var bn;
         ok, i', bn := fs.appendToInode(txn, ino, i);
@@ -420,7 +456,7 @@ module ByteFs {
 
       i' := i.(sz := i.sz + bs.Len());
       assert i'.Valid();
-      fs.writeInodeSz(txn, ino, i, i');
+      fs.writeInodeSz(ino, i, i');
 
       data := data[ino := data[ino] + bs.data];
       assert ValidIno(ino, i') by {
@@ -483,5 +519,45 @@ module ByteFs {
       fs.finishInode(txn, ino, i);
       var _ := txn.Commit();
     }
+
+    method Shrink(ino: Ino, sz: uint64) returns (ok:bool)
+      modifies Repr()
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures ok ==> sz as nat <= old(|data[ino]|)
+              && data == old(data[ino:=data[ino][..sz as nat]])
+    {
+      var txn := fs.jrnl.Begin();
+
+      // check for available space
+      var i := fs.getInode(txn, ino);
+      if sz > i.sz {
+        ok := false;
+        return;
+      }
+      ok := true;
+
+      fs.startInode(ino, i);
+
+      var i' := i.(sz:=sz);
+      fs.writeInodeSz(ino, i, i');
+      i' := fs.freeUnused(txn, ino, i');
+
+      var d0 := old(fs.inode_blks[ino]);
+      var d' := fs.inode_blks[ino];
+      assert d' == d0.(sz := sz as nat);
+      assert inode_data(d') == inode_data(d0)[..sz as nat] by {
+        inode_data_all_blks(d');
+        inode_data_all_blks(d0);
+      }
+      data := data[ino := data[ino][..sz as nat]];
+      assert ValidIno(ino, i');
+
+      fs.finishInode(txn, ino, i');
+
+      var _ := txn.Commit();
+      return;
+    }
+
   }
 }
