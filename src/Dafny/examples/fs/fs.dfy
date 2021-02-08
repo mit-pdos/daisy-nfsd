@@ -26,7 +26,7 @@ module Fs {
     const num_used: nat := Round.div_roundup_alt(sz, 4096);
     predicate Valid()
     {
-      && |blks| <= 14
+      && |blks| <= 15
       && num_used <= |blks|
       && (forall blk | blk in blks :: is_block(blk))
     }
@@ -39,7 +39,7 @@ module Fs {
 
     lemma used_blocks_valid()
       requires Valid()
-      ensures |used_blocks()| == num_used <= 14
+      ensures |used_blocks()| == num_used <= 15
       ensures forall blk | blk in used_blocks() :: is_block(blk)
     {}
   }
@@ -712,7 +712,7 @@ module Fs {
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_cur_inode(ino, i)
-      requires i.sz <= 13*4096
+      requires i.sz <= 14*4096
       requires i.used_blocks == |i.blks|
       requires i.sz % 4096 == 0
       ensures data_block == old(data_block)

@@ -344,7 +344,7 @@ module ByteFs {
       requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires txn.jrnl == fs.jrnl
       requires i.sz % 4096 == 0
-      requires i.sz as nat <= 13*4096
+      requires i.sz as nat <= 14*4096
       ensures ok ==> is_block(b)
       ensures ok ==> data == old(data[ino:=data[ino] + b])
       ensures !ok ==> data == old(data)
@@ -383,7 +383,7 @@ module ByteFs {
       requires i.sz % 4096 == 0
       requires bs.Valid()
       requires 0 < bs.Len() <= 4096
-      requires i.sz as nat + |bs.data| <= 14*4096
+      requires i.sz as nat + |bs.data| <= 15*4096
       ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
       ensures !ok ==> data == old(data)
     {
@@ -406,7 +406,6 @@ module ByteFs {
       requires txn.jrnl == fs.jrnl
       requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires bs.Valid()
-      requires |data[ino]| + |bs.data| < 15*4096
       requires 0 < |bs.data| <= 4096
       ensures written <= old(|bs.data|)
       ensures bs'.Valid()
@@ -467,7 +466,7 @@ module ByteFs {
       // check for available space
       var i := fs.getInode(txn, ino);
       fs.inode_sz_no_overflow(ino, i, bs.Len());
-      if i.sz + bs.Len() >= 14*4096 {
+      if i.sz + bs.Len() >= 15*4096 {
         ok := false;
         return;
       }

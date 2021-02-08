@@ -38,7 +38,7 @@ module Inode {
 
     lemma sz_bound()
       requires Valid()
-      ensures sz as nat <= |blks|*4096 <= 14*4096
+      ensures sz as nat <= |blks|*4096 <= 15*4096
     {}
   }
 
@@ -50,14 +50,14 @@ module Inode {
   predicate ValidBlks(blks: seq<uint64>)
   {
     // only direct blocks that fit in the inode
-    && |blks| <= 14
+    && |blks| <= 15
     && blks_unique(blks)
   }
 
   function inode_enc(i: Inode): seq<Encodable>
     requires i.Valid()
   {
-    [EncUInt64(i.sz), EncUInt64(i.num_blks())] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
+    [EncUInt32(i.sz as uint32), EncUInt32(i.num_blks() as uint32)] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
   }
 
   function seq_enc_uint64(xs: seq<uint64>): seq<byte>
@@ -86,15 +86,15 @@ module Inode {
   lemma encode_len(i: Inode)
     requires i.Valid()
     // this doesn't verify in Emacs for unclear reasons
-    ensures |seq_encode(inode_enc(i))| == 8*(2 + |i.blks|)
+    ensures |seq_encode(inode_enc(i))| == 8*(1 + |i.blks|)
   {
     enc_uint64_len(i.blks);
-    var e1 := EncUInt64(i.sz);
-    var e2 := EncUInt64(i.num_blks());
+    var e1 := EncUInt32(i.sz as uint32);
+    var e2 := EncUInt32(i.num_blks() as uint32);
     calc {
       |seq_encode(inode_enc(i))|;
       |enc_encode(e1) + enc_encode(e2) + seq_enc_uint64(i.blks)|;
-      8 + 8 + 8*|i.blks|;
+      4 + 4 + 8*|i.blks|;
     }
   }
 
@@ -103,8 +103,8 @@ module Inode {
   {
     if i.Valid() then
       (encode_len(i);
-      assert |seq_encode(inode_enc(i))| == 8*(2+|i.blks|);
-      seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8*(2+|i.blks|))))
+      assert |seq_encode(inode_enc(i))| == 8*(1+|i.blks|);
+      seq_encode(inode_enc(i)) + repeat(0 as byte, 128-(8*(1+|i.blks|))))
     else repeat(0 as byte, 128)
   }
 
@@ -125,6 +125,7 @@ module Inode {
     //assert repeat(0 as byte, 8) == [0,0,0,0,0,0,0,0];
     repeat_split(0 as byte, 128, 8, 128-8);
     IntEncoding.lemma_enc_0();
+    IntEncoding.lemma_enc_32_0();
     reveal_enc();
   }
 
@@ -135,16 +136,16 @@ module Inode {
     ensures bs.data == enc(i)
   {
     var e := new Encoder(128);
-    e.PutInt(i.sz);
-    e.PutInt(i.num_blks());
+    e.PutInt32(i.sz as uint32);
+    e.PutInt32(i.num_blks() as uint32);
     var k: uint64 := 0;
     while k < i.num_blks()
       modifies e.Repr
       invariant e.Valid()
       invariant 0 <= k <= i.num_blks()
-      invariant e.bytes_left() == 128 - ((k as nat+2)*8)
+      invariant e.bytes_left() == 128 - ((k as nat+1)*8)
       invariant e.enc ==
-      [EncUInt64(i.sz), EncUInt64(i.num_blks())] +
+      [EncUInt32(i.sz as uint32), EncUInt32(i.num_blks() as uint32)] +
       seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
     {
       e.PutInt(i.blks[k as nat]);
@@ -168,8 +169,8 @@ module Inode {
     // integers than convert back and forth
     reveal_enc();
     var dec := new Decoder.Init(bs, inode_enc(i));
-    var sz := dec.GetInt(i.sz);
-    var num_blks_ := dec.GetInt(i.num_blks());
+    var sz: uint32 := dec.GetInt32(i.sz as uint32);
+    var num_blks_ := dec.GetInt32(i.num_blks() as uint32);
     var num_blks: nat := num_blks_ as nat;
     assert num_blks == |i.blks|;
     assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
@@ -191,6 +192,6 @@ module Inode {
       k := k + 1;
     }
     assert blks[..num_blks] == blks[..];
-    return Mk(sz, blks[..]);
+    return Mk(sz as uint64, blks[..]);
   }
 }
