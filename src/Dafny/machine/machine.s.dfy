@@ -2,7 +2,8 @@ include "../util/collections.dfy"
 
 module Machine {
     type byte = bv8
-    newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < 0x1_0000_0000_0000_0000
+    newtype {:nativeType "uint"} uint32 = x:int | 0 <= x < U32.MAX
+    newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < U64.MAX
 
     predicate no_overflow(x: nat, y: int)
     {
@@ -45,6 +46,10 @@ module Machine {
 
     module U64 {
         const MAX: nat := 0x1_0000_0000_0000_0000
+    }
+
+    module U32 {
+        const MAX: nat := 0x1_0000_0000
     }
 }
 
