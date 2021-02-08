@@ -9,12 +9,13 @@ import opened IntEncoding
 import opened ByteSlice
 import opened Collections
 
-datatype Encodable = EncUInt64(x:uint64)
+datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32)
 
 function enc_encode(e: Encodable): seq<byte>
 {
     match e
     case EncUInt64(x) => le_enc64(x)
+    case EncUInt32(x) => le_enc32(x)
 }
 
 function seq_encode(es: seq<Encodable>): seq<byte>
@@ -98,6 +99,20 @@ class Encoder
         seq_encode_app(old(enc), [EncUInt64(x)]);
     }
 
+    method PutInt32(x: uint32)
+    modifies Repr
+    requires Valid() ensures Valid()
+    requires bytes_left() >= 4
+    ensures bytes_left() == old(bytes_left()) - 4
+    ensures enc == old(enc) + [EncUInt32(x)]
+    {
+        UInt32Put(x, off, data);
+        assert data.data[off..off+4] == le_enc32(x);
+        off := off + 4;
+        enc := enc + [EncUInt32(x)];
+        seq_encode_app(old(enc), [EncUInt32(x)]);
+    }
+
     method Finish() returns (bs:Bytes)
     requires Valid() ensures Valid()
     ensures bs.Valid()
@@ -161,6 +176,23 @@ class Decoder
         off := off + 8;
         enc := enc[1..];
         assert Valid();
+    }
+
+    method GetInt32(ghost x: uint32) returns (x': uint32)
+        modifies this
+        requires Valid() ensures Valid()
+        requires |enc| > 0 && enc[0] == EncUInt32(x)
+        ensures x' == x
+        ensures enc == old(enc[1..])
+    {
+        prefix_of_app2(seq_encode(enc), data.data[off..], 4);
+        x' := UInt32Get(data, off);
+        assert x == x' by {
+            assert data.data[off..off+4] == enc_encode(EncUInt32(x));
+            lemma_le_enc_dec32(x);
+        }
+        off := off + 4;
+        enc := enc[1..];
     }
 }
 

@@ -44,13 +44,13 @@ module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/encodin
     requires off as nat + u64_bytes <= |bytes.data|
     ensures x == le_dec64(bytes.data[off as nat..off as nat+u64_bytes])
 
-    method {:extern} UInt32Put(x: uint32, off: uint32, bytes: Bytes)
+    method {:extern} UInt32Put(x: uint32, off: uint64, bytes: Bytes)
     modifies bytes
     requires bytes.Valid() ensures bytes.Valid()
     requires off as nat + u32_bytes <= |bytes.data|
     ensures bytes.data == old(bytes.data[..off as nat] + le_enc32(x) + bytes.data[off as nat+u32_bytes..])
 
-    method {:extern} UInt32Get(bytes: Bytes, off: uint32)
+    method {:extern} UInt32Get(bytes: Bytes, off: uint64)
     returns (x:uint32)
     requires bytes.Valid()
     requires off as nat + u32_bytes <= |bytes.data|

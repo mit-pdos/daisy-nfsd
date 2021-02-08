@@ -14,10 +14,10 @@ func UInt64Get(bs *bytes.Bytes, off uint64) uint64 {
 	return binary.LittleEndian.Uint64(bs.Data[off:])
 }
 
-func UInt32Put(x uint32, off uint32, bs *bytes.Bytes) {
+func UInt32Put(x uint32, off uint64, bs *bytes.Bytes) {
 	binary.LittleEndian.PutUint32(bs.Data[off:], x)
 }
 
-func UInt32Get(bs *bytes.Bytes, off uint32) uint32 {
+func UInt32Get(bs *bytes.Bytes, off uint64) uint32 {
 	return binary.LittleEndian.Uint32(bs.Data[off:])
 }
