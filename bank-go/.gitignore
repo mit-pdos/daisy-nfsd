@@ -1,7 +1,6 @@
 /src/*
 /pkg/*
-!/src/bank_test.go
-!/src/fs_test.go
+!/src/*_test.go
 !.gitignore
 *.test
 *.prof
