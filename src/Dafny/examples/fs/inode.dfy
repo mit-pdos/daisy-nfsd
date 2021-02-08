@@ -89,6 +89,13 @@ module Inode {
     ensures |seq_encode(inode_enc(i))| == 8*(2 + |i.blks|)
   {
     enc_uint64_len(i.blks);
+    var e1 := EncUInt64(i.sz);
+    var e2 := EncUInt64(i.num_blks());
+    calc {
+      |seq_encode(inode_enc(i))|;
+      |enc_encode(e1) + enc_encode(e2) + seq_enc_uint64(i.blks)|;
+      8 + 8 + 8*|i.blks|;
+    }
   }
 
   function {:opaque} enc(i: Inode): (bs:seq<byte>)
@@ -159,9 +166,8 @@ module Inode {
     // note that we use nat throughout since we're mostly using Dafny operations
     // that require nats anyway and it's more efficient to stay with big
     // integers than convert back and forth
-    var dec := new Decoder();
     reveal_enc();
-    dec.Init(bs, inode_enc(i));
+    var dec := new Decoder.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
     var num_blks_ := dec.GetInt(i.num_blks());
     var num_blks: nat := num_blks_ as nat;

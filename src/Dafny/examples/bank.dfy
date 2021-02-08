@@ -85,8 +85,7 @@ class Bank
     requires seq_encode([EncUInt64(x as uint64)]) == bs.data
     ensures x' as nat == x
     {
-        var dec := new Decoder();
-        dec.Init(bs, [EncUInt64(x as uint64)]);
+        var dec := new Decoder.Init(bs, [EncUInt64(x as uint64)]);
         x' := dec.GetInt(x as uint64);
     }
 

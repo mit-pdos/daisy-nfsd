@@ -119,7 +119,7 @@ class Encoder
 class Decoder
 {
     ghost var enc: seq<Encodable>;
-    var data: Bytes;
+    const data: Bytes;
     var off: uint64;
 
     predicate Valid()
@@ -130,16 +130,7 @@ class Decoder
         && prefix_of(seq_encode(enc), data.data[off..])
     }
 
-    constructor()
-    {
-        // FIXME: dummy assignment because of "definite assignment rules"
-        var bs := NewBytes(0);
-        data := bs;
-    }
-
-    // not a constructor due to https://github.com/dafny-lang/dafny/issues/374
-    method Init(data: Bytes, ghost enc: seq<Encodable>)
-    modifies this
+    constructor Init(data: Bytes, ghost enc: seq<Encodable>)
     requires data.Valid()
     requires prefix_of(seq_encode(enc), data.data)
     ensures Valid()
@@ -157,7 +148,6 @@ class Decoder
     requires |enc| > 0 && enc[0] == EncUInt64(x)
     ensures x' == x
     ensures enc == old(enc)[1..]
-    ensures data == old(data)
     {
         //assert enc == [enc[0]] + enc[1..];
         //seq_encode_app([enc[0]], enc[1..]);
