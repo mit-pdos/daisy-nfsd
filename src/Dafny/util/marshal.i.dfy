@@ -145,6 +145,16 @@ class Decoder
         && prefix_of(seq_encode(enc), data.data[off..])
     }
 
+    lemma decode_peel1(e: Encodable)
+        requires Valid()
+        requires |enc| > 0 && enc[0] == e
+        ensures enc_encode(e) == data.data[off..off as nat + |enc_encode(e)|]
+        ensures prefix_of(seq_encode(enc[1..]), data.data[off as nat+|enc_encode(e)|..])
+    {
+        // not entirely sure why this works, seems to trigger something useful
+        prefix_of_app2(seq_encode(enc), data.data[off..], |enc_encode(e)|);
+    }
+
     constructor Init(data: Bytes, ghost enc: seq<Encodable>)
     requires data.Valid()
     requires prefix_of(seq_encode(enc), data.data)
@@ -168,14 +178,17 @@ class Decoder
         //seq_encode_app([enc[0]], enc[1..]);
         //assert data[off..] == data[off..off+8] + data[off+8..];
         //assert |enc_encode(enc[0])| == 8;
-        prefix_of_app2(seq_encode(enc), data.data[off..], 8);
+        //prefix_of_app2(seq_encode(enc), data.data[off..], 8);
         //assert prefix_of(seq_encode(enc[1..]), data[off+8..]);
+
+
+        decode_peel1(EncUInt64(x));
         x' := UInt64Get(data, off);
-        lemma_le_enc_dec64(x);
-        assert data.data[off..off+8] == enc_encode(EncUInt64(x));
+        assert x == x' by {
+            lemma_le_enc_dec64(x);
+        }
         off := off + 8;
         enc := enc[1..];
-        assert Valid();
     }
 
     method GetInt32(ghost x: uint32) returns (x': uint32)
@@ -185,10 +198,9 @@ class Decoder
         ensures x' == x
         ensures enc == old(enc[1..])
     {
-        prefix_of_app2(seq_encode(enc), data.data[off..], 4);
+        decode_peel1(EncUInt32(x));
         x' := UInt32Get(data, off);
         assert x == x' by {
-            assert data.data[off..off+4] == enc_encode(EncUInt32(x));
             lemma_le_enc_dec32(x);
         }
         off := off + 4;
