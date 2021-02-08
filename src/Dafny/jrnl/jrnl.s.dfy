@@ -94,12 +94,6 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     class {:extern} Jrnl
     {
         var data: JrnlData;
-        // we cache the domain of data to easily show that it's constant
-        // NOTE: the entire Jrnl object is a spec, so having ghost state in it is
-        // really strange (it's state that isn't even needed to specify the object's
-        // behavior)
-        // NOTE: since Valid is now opaque domain doesn't really do anything
-        ghost const domain: set<Addr>;
         ghost const kinds: map<Blkno, Kind>;
 
         predicate {:opaque} Valid()
@@ -109,9 +103,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             && (forall a :: a in data ==>
                 && a.blkno in kinds
                 && objSize(data[a]) == kindSize(kinds[a.blkno]))
-            && (forall a :: a in data <==> a in domain)
-            && addrsForKinds(kinds) == domain
-            && (forall a :: a in data <==> a in domain)
+            && (forall a :: a in addrsForKinds(kinds) <==> a in data)
         }
 
         lemma in_domain(a: Addr)
@@ -119,7 +111,6 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
             requires a.blkno in kinds
             requires a.off as nat % kindSize(kinds[a.blkno]) == 0
             requires a.off < 8*4096
-            ensures a in domain
             ensures a in data
         {
             reveal_Valid();
@@ -128,7 +119,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
 
         lemma has_size(a: Addr)
             requires Valid()
-            requires a in domain
+            requires a in data
             ensures (reveal_Valid(); objSize(this.data[a]) == this.size(a))
         {
             reveal_Valid();
@@ -147,7 +138,6 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
                             :: zeroObject(kinds[a.blkno]);
             this.kinds := kinds;
             this.data := data;
-            this.domain := map_domain(data);
             new;
             reveal_Valid();
         }

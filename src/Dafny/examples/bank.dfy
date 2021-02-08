@@ -121,7 +121,9 @@ class Bank
         invariant n <= 512
         invariant forall k {:trigger Acct(k)} :: 0 <= k < n ==> acct_val(jrnl, k, init_bal as nat)
         {
-            txn.Write(Acct(n), init_acct);
+            var acct := Acct(n);
+            jrnl.in_domain(acct);
+            txn.Write(acct, init_acct);
             n := n + 1;
         }
         var _ := txn.Commit();
@@ -135,6 +137,15 @@ class Bank
         sum_repeat(init_bal as nat, 512);
         accts := new_accts;
         acct_sum := 512*(init_bal as nat);
+
+        forall n: uint64 | n < 512
+            ensures (var acct := Acct(n);
+                     acct in jrnl.data)
+        {
+            ghost var acct := Acct(n);
+            jrnl.in_domain(acct);
+        }
+
     }
 
     constructor Recover(jrnl: Jrnl, ghost accts: seq<nat>, ghost acct_sum: nat)
