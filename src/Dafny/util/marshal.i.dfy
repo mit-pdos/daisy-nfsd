@@ -25,6 +25,10 @@ decreases es
     else enc_encode(es[0]) + seq_encode(es[1..])
 }
 
+lemma seq_encode_concat(es: seq<Encodable>)
+    ensures seq_encode(es) == C.concat(seq_fmap(enc_encode, es))
+{}
+
 lemma {:induction es1} seq_encode_app(es1: seq<Encodable>, es2: seq<Encodable>)
 ensures seq_encode(es1 + es2) == seq_encode(es1) + seq_encode(es2)
 {
@@ -39,6 +43,22 @@ ensures seq_encode(es1 + es2) == seq_encode(es1) + seq_encode(es2)
         // NOTE(tej): discovered with a calc statement
         assert ([es1[0]] + es1[1..] + es2)[1..] == es1[1..] + es2;
     }
+}
+
+// BUG: Dafny cannot reason about equality of the lambda x => EncUInt64(x)
+// without a global definition
+function encUInt64(x: uint64): Encodable { EncUInt64(x) }
+
+function seq_enc_uint64(xs: seq<uint64>): seq<byte>
+{
+    seq_encode(seq_fmap(encUInt64, xs))
+}
+
+lemma enc_uint64_len(xs: seq<uint64>)
+ensures |seq_enc_uint64(xs)| == 8*|xs|
+{
+    seq_encode_concat(seq_fmap(encUInt64, xs));
+    C.concat_homogeneous_len(seq_fmap(enc_encode, seq_fmap(encUInt64, xs)), 8);
 }
 
 class Encoder

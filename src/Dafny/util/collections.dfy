@@ -43,6 +43,10 @@ ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
     if xs == [] then [] else [f(xs[0])] + seq_fmap(f, xs[1..])
 }
 
+lemma seq_fmap_compose<T,U,V>(f: T -> U, g: U -> V, xs: seq<T>)
+    ensures seq_fmap(g, seq_fmap(f, xs)) == seq_fmap(x => g(f(x)), xs)
+{}
+
 // repeat
 
 function method {:opaque} repeat<T>(x: T, count: nat): (xs:seq<T>)

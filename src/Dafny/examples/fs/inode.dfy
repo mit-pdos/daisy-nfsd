@@ -57,45 +57,14 @@ module Inode {
   function inode_enc(i: Inode): seq<Encodable>
     requires i.Valid()
   {
-    [EncUInt32(i.sz as uint32), EncUInt32(i.num_blks() as uint32)] + seq_fmap(blkno => EncUInt64(blkno), i.blks)
-  }
-
-  function seq_enc_uint64(xs: seq<uint64>): seq<byte>
-  {
-    seq_encode(seq_fmap(blkno => EncUInt64(blkno), xs))
-  }
-
-  lemma seq_enc_uint64_unfold(xs: seq<uint64>)
-    requires 0 < |xs|
-    ensures seq_enc_uint64(xs) == IntEncoding.le_enc64(xs[0]) + seq_enc_uint64(xs[1..])
-  {}
-
-  lemma {:induction xs} enc_uint64_len(xs: seq<uint64>)
-    decreases xs
-    ensures |seq_enc_uint64(xs)| == 8*|xs|
-  {
-    if xs == [] {}
-    else {
-      seq_enc_uint64_unfold(xs);
-      enc_uint64_len(xs[1..]);
-      Arith.mul_distr_sub_l(8, |xs|, 1);
-      assert 8*|xs[1..]| == 8*|xs| - 8;
-    }
+    [EncUInt32(i.sz as uint32), EncUInt32(i.num_blks() as uint32)] + seq_fmap(encUInt64, i.blks)
   }
 
   lemma encode_len(i: Inode)
     requires i.Valid()
-    // this doesn't verify in Emacs for unclear reasons
     ensures |seq_encode(inode_enc(i))| == 8*(1 + |i.blks|)
   {
     enc_uint64_len(i.blks);
-    var e1 := EncUInt32(i.sz as uint32);
-    var e2 := EncUInt32(i.num_blks() as uint32);
-    calc {
-      |seq_encode(inode_enc(i))|;
-      |enc_encode(e1) + enc_encode(e2) + seq_enc_uint64(i.blks)|;
-      4 + 4 + 8*|i.blks|;
-    }
   }
 
   function {:opaque} enc(i: Inode): (bs:seq<byte>)
