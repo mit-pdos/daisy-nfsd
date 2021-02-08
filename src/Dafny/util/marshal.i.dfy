@@ -133,6 +133,26 @@ class Encoder
         seq_encode_app(old(enc), [EncUInt32(x)]);
     }
 
+    method PutInts(xs: seq<uint64>)
+        modifies Repr
+        requires Valid() ensures Valid()
+        requires bytes_left() >= 8*|xs|
+        ensures bytes_left() == old(bytes_left()) - 8*|xs|
+        ensures enc == old(enc) + seq_fmap(encUInt64, xs)
+    {
+        var i: nat := 0;
+        while i < |xs|
+            invariant i <= |xs|
+            invariant Valid()
+            invariant bytes_left() == old(bytes_left()) - 8*i
+            invariant enc == old(enc + seq_fmap(encUInt64, xs[..i]))
+        {
+            PutInt(xs[i]);
+            i := i + 1;
+        }
+        assert xs[..|xs|] == xs;
+    }
+
     method Finish() returns (bs:Bytes)
     requires Valid() ensures Valid()
     ensures bs.Valid()
@@ -225,6 +245,30 @@ class Decoder
         }
         off := off + 4;
         enc := enc[1..];
+    }
+
+    method GetInts(num: uint64, ghost xs: seq<uint64>) returns (xs': seq<uint64>)
+        modifies this
+        requires Valid() ensures Valid()
+        requires num as nat == |xs|
+        requires |enc| >= |xs| && enc[..|xs|] == seq_fmap(encUInt64, xs)
+        ensures xs' == xs
+        ensures enc == old(enc[|xs|..])
+    {
+        var num_ := num as nat;
+        var xs_a := new uint64[num_];
+        var i: nat := 0;
+        while i < num_
+            invariant Valid()
+            invariant i <= num_
+            invariant xs_a.Length == num_
+            invariant xs_a[..i] == xs[..i]
+            invariant enc == old(enc[i..])
+        {
+            xs_a[i] := GetInt(xs[i]);
+            i := i + 1;
+        }
+        return xs_a[..];
     }
 }
 

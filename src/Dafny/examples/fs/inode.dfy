@@ -107,20 +107,7 @@ module Inode {
     var e := new Encoder(128);
     e.PutInt32(i.sz as uint32);
     e.PutInt32(i.num_blks() as uint32);
-    var k: uint64 := 0;
-    while k < i.num_blks()
-      modifies e.Repr
-      invariant e.Valid()
-      invariant 0 <= k <= i.num_blks()
-      invariant e.bytes_left() == 128 - ((k as nat+1)*8)
-      invariant e.enc ==
-      [EncUInt32(i.sz as uint32), EncUInt32(i.num_blks() as uint32)] +
-      seq_fmap(blkno => EncUInt64(blkno), i.blks[..k])
-    {
-      e.PutInt(i.blks[k as nat]);
-      k := k + 1;
-    }
-    assert i.blks[..|i.blks|] == i.blks;
+    e.PutInts(i.blks);
     assert e.enc == inode_enc(i);
     reveal_enc();
     bs := e.Finish();
@@ -139,28 +126,9 @@ module Inode {
     reveal_enc();
     var dec := new Decoder.Init(bs, inode_enc(i));
     var sz: uint32 := dec.GetInt32(i.sz as uint32);
-    var num_blks_ := dec.GetInt32(i.num_blks() as uint32);
-    var num_blks: nat := num_blks_ as nat;
-    assert num_blks == |i.blks|;
-    assert dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks);
-
-    var blks: array<uint64> := new uint64[num_blks];
-
-    var k: nat := 0;
-    while k < num_blks
-      modifies dec, blks
-      invariant dec.Valid()
-      invariant i.Valid()
-      invariant 0 <= k <= num_blks
-      invariant blks.Length == num_blks;
-      invariant blks[..k] == i.blks[..k]
-      invariant dec.enc == seq_fmap(blkno => EncUInt64(blkno), i.blks[k..])
-    {
-      var blk := dec.GetInt(i.blks[k]);
-      blks[k] := blk;
-      k := k + 1;
-    }
-    assert blks[..num_blks] == blks[..];
-    return Mk(sz as uint64, blks[..]);
+    var num_blks := dec.GetInt32(i.num_blks() as uint32);
+    assert num_blks as nat == |i.blks|;
+    var blks := dec.GetInts(num_blks as uint64, i.blks);
+    return Mk(sz as uint64, blks);
   }
 }
