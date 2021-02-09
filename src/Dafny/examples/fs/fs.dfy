@@ -347,6 +347,7 @@ module Fs {
       && blkno_ok(bn)
     }
 
+    // private
     method allocBlkno(txn: Txn) returns (ok:bool, bn:Blkno)
       modifies balloc.Repr()
       requires txn.jrnl == this.jrnl
@@ -376,6 +377,7 @@ module Fs {
       reveal_Valid_inodes_to_block_used();
     }
 
+    // public
     method writeDataBlock(txn: Txn, bn: Blkno, blk: Bytes,
       ghost ino: Ino, ghost blkoff: nat)
       modifies this, jrnl
@@ -427,6 +429,7 @@ module Fs {
       }
     }
 
+    // public
     ghost method startInode(ino: Ino, i: Inode.Inode)
       modifies this
       requires ValidQ()
@@ -442,6 +445,7 @@ module Fs {
       reveal_Valid_jrnl_to_inodes();
     }
 
+    // public
     method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
       modifies this, jrnl
       requires Valid()
@@ -477,6 +481,7 @@ module Fs {
       }
     }
 
+    // private
     ghost method writeInode(ino: Ino, i': Inode.Inode)
       modifies this, jrnl
       requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
@@ -498,6 +503,7 @@ module Fs {
       }
     }
 
+    // public
     ghost method writeInodeSz(ino: Ino, i: Inode.Inode, i': Inode.Inode)
       modifies this, jrnl
       requires Valid() ensures Valid()
@@ -573,6 +579,7 @@ module Fs {
       && on_inode(ino)
     }
 
+    // public
     method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
       modifies {}
       requires ValidQ()
@@ -586,6 +593,7 @@ module Fs {
       i := Inode.decode_ino(buf, inodes[ino]);
     }
 
+    // public
     method allocateTo(txn: Txn, ino: Ino, ghost i: Inode.Inode) returns (ok: bool, bn:Blkno)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -685,6 +693,7 @@ module Fs {
       }
     }
 
+    // public
     method useFreeBlock(ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -712,6 +721,7 @@ module Fs {
       reveal_Valid_inodes_to_block_used();
     }
 
+    // public
     method appendToInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, i': Inode.Inode, bn: Blkno)
       modifies Repr()
       requires Valid() ensures Valid()
@@ -764,6 +774,7 @@ module Fs {
       return;
     }
 
+    // public
     method Size(ino: Ino) returns (sz: uint64)
       modifies {}
       requires ValidQ()
@@ -776,6 +787,7 @@ module Fs {
       var _ := txn.Commit();
     }
 
+    // public
     method getInodeBlk(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
       returns (bs: Bytes)
       modifies {}
@@ -807,6 +819,7 @@ module Fs {
       ensures no_overflow(i.sz as nat, delta as nat)
     {}
 
+    // public
     method freeUnused(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid()
