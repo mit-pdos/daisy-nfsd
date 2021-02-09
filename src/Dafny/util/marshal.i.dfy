@@ -25,9 +25,16 @@ decreases es
     else enc_encode(es[0]) + seq_encode(es[1..])
 }
 
+lemma seq_encode_unfold(es: seq<Encodable>)
+    requires 0 < |es|
+    ensures seq_encode(es) == enc_encode(es[0]) + seq_encode(es[1..])
+{}
+
 lemma seq_encode_concat(es: seq<Encodable>)
     ensures seq_encode(es) == C.concat(seq_fmap(enc_encode, es))
-{}
+{
+    reveal_seq_fmap();
+}
 
 lemma {:induction es1} seq_encode_app(es1: seq<Encodable>, es2: seq<Encodable>)
 ensures seq_encode(es1 + es2) == seq_encode(es1) + seq_encode(es2)
@@ -60,6 +67,40 @@ ensures |seq_enc_uint64(xs)| == 8*|xs|
     seq_encode_concat(seq_fmap(encUInt64, xs));
     C.concat_homogeneous_len(seq_fmap(enc_encode, seq_fmap(encUInt64, xs)), 8);
 }
+
+lemma zero_encode_seq_uint64_helper(n: nat)
+  ensures seq_enc_uint64(C.repeat(0 as uint64, n)) == seq_encode(C.repeat(EncUInt64(0), n))
+{
+  C.seq_ext_eq(C.seq_fmap(encUInt64, C.repeat(0 as uint64, n)), C.repeat(EncUInt64(0), n));
+}
+
+lemma zero_encode_as_repeat()
+  ensures enc_encode(EncUInt64(0)) == C.repeat(0 as byte, 8)
+{
+  IntEncoding.lemma_enc_0();
+}
+
+lemma zero_encode_seq_uint64(n: nat)
+  ensures seq_enc_uint64(repeat(0 as uint64, n)) == repeat(0 as byte, 8*n)
+{
+  var zero_encs := repeat(EncUInt64(0), n);
+  calc {
+    seq_enc_uint64(repeat(0 as uint64, n));
+    { zero_encode_seq_uint64_helper(n);
+      seq_encode_concat(zero_encs); }
+    concat(seq_fmap(enc_encode, zero_encs));
+    { seq_ext_eq(seq_fmap(enc_encode, zero_encs), repeat(enc_encode(EncUInt64(0)), n)); }
+    concat(repeat(enc_encode(EncUInt64(0)), n));
+    { zero_encode_as_repeat(); }
+    concat(repeat(repeat(0 as byte, 8), n));
+    { var s := repeat(repeat(0 as byte, 8), n);
+      concat_homogeneous_spec_alt(s, 8);
+      seq_ext_eq(concat(s), repeat(0 as byte, 8*n));
+    }
+    repeat(0 as byte, 8*n);
+  }
+}
+
 
 class Encoder
 {
@@ -251,7 +292,7 @@ class Decoder
         modifies this
         requires Valid() ensures Valid()
         requires num as nat == |xs|
-        requires |enc| >= |xs| && enc[..|xs|] == seq_fmap(encUInt64, xs)
+        requires |enc| >= num as nat && enc[..num as nat] == seq_fmap(encUInt64, xs)
         ensures xs' == xs
         ensures enc == old(enc[|xs|..])
     {

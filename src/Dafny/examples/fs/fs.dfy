@@ -44,6 +44,11 @@ module Fs {
     {}
   }
 
+  const block0: Block := C.repeat(0 as byte, 4096)
+  lemma block0_ok()
+    ensures is_block(block0)
+  {}
+
   predicate blkno_dom<T>(m: map<Blkno, T>)
   {
     forall bn: Blkno :: blkno_ok(bn) <==> bn in m

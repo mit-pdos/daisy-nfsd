@@ -7,6 +7,12 @@ import opened Arith
 // sequence indexing
 
 
+lemma seq_ext_eq<T>(xs: seq<T>, ys: seq<T>)
+  requires |xs| == |ys|
+  requires forall i :: 0 <= i < |xs| ==> xs[i] == ys[i]
+  ensures xs == ys
+{}
+
 lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     requires a <= b <= |xs|
     requires c <= d <= (b-a)
@@ -36,7 +42,7 @@ lemma double_subslice_auto<T>(xs: seq<T>)
 
 // fmap over sequences
 
-function method
+function method {:opaque}
 seq_fmap<T,U>(f: T -> U, xs: seq<T>): (ys:seq<U>) decreases xs
 ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
 {
