@@ -34,10 +34,9 @@ func DecodeIno(bs *bytes.Bytes) inode.Inode {
 
 func decodeIno(bs []byte) (sz uint64, blks []uint64) {
 	dec := marshal.NewDec(bs)
-	sz = uint64(dec.GetInt32())
-	num_blks := int(dec.GetInt32())
-	blks = make([]uint64, num_blks)
-	for i := 0; i < num_blks; i++ {
+	sz = dec.GetInt()
+	blks = make([]uint64, 15)
+	for i := 0; i < 15; i++ {
 		blks[i] = dec.GetInt()
 	}
 	return
@@ -48,7 +47,7 @@ func ManualDecodeIno(bs *bytes.Bytes) inode.Inode {
 	return MkInode(sz, blks)
 }
 
-var i inode.Inode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8})
+var i inode.Inode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
 
 func BenchmarkInodeDecode(b *testing.B) {
 	bs := EncodeIno(i)
@@ -70,7 +69,7 @@ func TestDecodeIno(t *testing.T) {
 	bs := EncodeIno(i).Data
 	sz, blks := decodeIno(bs)
 	assert.Equal(t, uint64(5000), sz, "size incorrect")
-	assert.Equal(t, 8, len(blks), "len(blks) incorrect")
+	assert.Equal(t, 15, len(blks), "len(blks) incorrect")
 	assert.Equal(t, uint64(3), blks[2], "blks values incorrect")
 }
 
@@ -79,7 +78,7 @@ func Benchmark_DecodeIno(b *testing.B) {
 	b.ResetTimer()
 	for k := 0; k < b.N; k++ {
 		sz, blks := decodeIno(bs)
-		if sz != 5000 || len(blks) != 8 {
+		if sz != 5000 || len(blks) != 15 {
 			b.FailNow()
 		}
 	}
