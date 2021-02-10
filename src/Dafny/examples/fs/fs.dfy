@@ -756,8 +756,8 @@ module Fs {
       }
       writeInode(ino, i');
 
-      var d0 := inode_blks[ino];
-      var d' := d0.(blks := d0.blks[blkoff := data]);
+      ghost var d0 := inode_blks[ino];
+      ghost var d' := d0.(blks := d0.blks[blkoff := data]);
       inode_blks := inode_blks[ino := d'];
 
       assert inode_blks_match(i', d', data_block) by {
