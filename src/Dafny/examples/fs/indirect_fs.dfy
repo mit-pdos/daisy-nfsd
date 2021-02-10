@@ -177,7 +177,10 @@ module IndFs
       && (forall ino | ino_ok(ino) :: ino_data[ino].Valid())
     }
 
-    static predicate ino_ind_match?(d: InodeData, meta: seq<IndBlock>, id: IndInodeData, data_block: map<Blkno, Block>)
+    static predicate ino_ind_match?(
+      d: InodeData, meta: seq<IndBlock>, id: IndInodeData,
+      // all data blocks for looking up data from meta block numbers
+      data_block: map<Blkno, Block>)
       requires blkno_dom(data_block)
       requires meta_valid?(meta)
       requires id.Valid()
@@ -210,6 +213,7 @@ module IndFs
       && fs.Valid()
       && ValidMeta()
       && ValidData()
+      && Valid_ino_data()
     }
 
     constructor(d: Disk)
@@ -218,7 +222,14 @@ module IndFs
       this.fs := new Filesys.Init(d);
       this.ino_meta := map ino: Ino | ino_ok(ino) :: C.repeat(IndBlock.zero, 5);
       this.ino_data := map ino: Ino | ino_ok(ino) :: IndInodeData.zero;
+      new;
       IndInodeData.zero_valid();
+      assert Valid_ino_data() by {
+        assert ino_ind_match?(
+          InodeData.zero, C.repeat(IndBlock.zero, 5), IndInodeData.zero,
+          fs.data_block);
+        reveal Valid_ino_data();
+      }
     }
   }
 

@@ -23,13 +23,20 @@ module Fs {
   predicate is_block(b: Block) { |b| == 4096 }
   datatype InodeData = InodeData(sz: nat, blks: seq<Block>)
   {
-    const num_used: nat := Round.div_roundup_alt(sz, 4096);
+    static const zero: InodeData := InodeData(0, C.repeat(block0, 15))
+
+    const num_used: nat := Round.div_roundup_alt(sz, 4096)
+
     predicate Valid()
     {
       && |blks| == 15
       && sz <= Inode.MAX_SZ
       && (forall blk | blk in blks :: is_block(blk))
     }
+
+    static lemma zero_valid()
+      ensures zero.Valid()
+    {}
 
     function used_blocks(): seq<Block>
       requires Valid()
@@ -282,7 +289,7 @@ module Fs {
 
     constructor Init(d: Disk)
       ensures ValidQ()
-      ensures inode_blks == map ino | ino_ok(ino) :: InodeData(0, C.repeat(block0, 15))
+      ensures inode_blks == map ino | ino_ok(ino) :: InodeData.zero
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
@@ -291,11 +298,12 @@ module Fs {
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       this.cur_inode := None;
-      this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData(0, C.repeat(block0, 15));
+      this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData.zero;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
       this.data_block := map bn: uint64 | blkno_ok(bn) :: zeroObject(KindBlock).bs;
       new;
+      InodeData.zero_valid();
       jrnl.reveal_Valid();
       reveal_Valid_inodes_to_block_used();
       reveal_addrsForKinds();
