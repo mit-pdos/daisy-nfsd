@@ -10,13 +10,12 @@ module IndFs
   import opened Marshal
   import C = Collections
 
-  datatype IndBlock = IndBlock(bn: Blkno, blknos: seq<Blkno>, blocks: seq<Block>)
+  datatype IndBlock = IndBlock(bn: Blkno, blknos: seq<Blkno>)
   {
     predicate Valid()
     {
       && blkno_ok(bn)
       && |blknos| == 512
-      && |blocks| == 512
       && (forall k: int | 0 <= k < 512 :: blkno_ok(blknos[k]))
     }
 
@@ -27,15 +26,6 @@ module IndFs
       [bn] + blknos
     }
 
-    function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
-      requires blkno_dom(m)
-      requires blkno_ok(bn)
-    {
-      if bn == 0
-        then block0
-        else m[bn]
-    }
-
     predicate in_fs(fs: Filesys)
       reads fs.Repr()
       requires fs.Valid()
@@ -43,8 +33,6 @@ module IndFs
     {
       var b := zero_lookup(fs.data_block, this.bn);
       && block_has_blknos(b, this.blknos)
-      && (forall k | 0 <= k < 512 ::
-        zero_lookup(fs.data_block, this.blknos[k]) == this.blocks[k])
     }
   }
 
@@ -93,6 +81,30 @@ module IndFs
     assert dec.enc[..512] == dec.enc;
     blknos' := dec.GetInts(512, blknos);
     return;
+  }
+
+
+  datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
+  {
+  }
+
+  class IndFilesys
+  {
+    ghost var ind_blocks: map<Blkno, IndBlock>
+    const fs: Filesys
+
+    predicate Valid()
+      reads fs.Repr()
+    {
+      && fs.Valid()
+    }
+
+    constructor(fs: Filesys)
+      requires fs.Valid()
+      ensures Valid()
+    {
+      this.fs := fs;
+    }
   }
 
 }

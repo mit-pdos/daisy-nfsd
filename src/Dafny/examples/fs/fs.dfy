@@ -26,8 +26,8 @@ module Fs {
     const num_used: nat := Round.div_roundup_alt(sz, 4096);
     predicate Valid()
     {
-      && |blks| <= 15
-      && num_used <= |blks|
+      && |blks| == 15
+      && sz <= Inode.MAX_SZ
       && (forall blk | blk in blks :: is_block(blk))
     }
 
@@ -39,9 +39,18 @@ module Fs {
 
     lemma used_blocks_valid()
       requires Valid()
-      ensures |used_blocks()| == num_used <= 15
+      ensures |used_blocks()| == num_used
       ensures forall blk | blk in used_blocks() :: is_block(blk)
     {}
+  }
+
+  function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
+    requires blkno_dom(m)
+    requires blkno_ok(bn)
+  {
+    if bn == 0
+      then block0
+      else m[bn]
   }
 
   const block0: Block := C.repeat(0 as byte, 4096)
@@ -116,7 +125,7 @@ module Fs {
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
     {
-      && (forall bn | blkno_ok(bn) ::
+      && (forall bn | blkno_ok(bn) && bn != 0 ::
         datablk_inbounds(jrnl, bn);
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
@@ -157,6 +166,7 @@ module Fs {
     {
       && (forall ino: Ino | ino in inodes ::
         && (forall bn | bn in inodes[ino].blks ::
+          bn != 0 ==>
           && blkno_ok(bn)
           && block_used[bn] == Some(ino))
         )
@@ -176,7 +186,7 @@ module Fs {
     {
       forall k: nat | k < |blk_offs| ::
         && blkno_ok(blk_offs[k])
-        && blks[k] == data_block[blk_offs[k]]
+        && blks[k] == zero_lookup(data_block, blk_offs[k])
     }
 
     // inode i encodes blks, using data_block to lookup indirect references
@@ -272,7 +282,7 @@ module Fs {
 
     constructor Init(d: Disk)
       ensures ValidQ()
-      ensures inode_blks == map ino | ino_ok(ino) :: InodeData(0, [])
+      ensures inode_blks == map ino | ino_ok(ino) :: InodeData(0, C.repeat(block0, 15))
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
@@ -281,7 +291,7 @@ module Fs {
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       this.cur_inode := None;
-      this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData(0, []);
+      this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData(0, C.repeat(block0, 15));
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
       this.data_block := map bn: uint64 | blkno_ok(bn) :: zeroObject(KindBlock).bs;
@@ -371,6 +381,7 @@ module Fs {
 
     lemma free_block_unused(bn: Blkno)
       requires Valid()
+      requires bn != 0
       requires blkno_ok(bn) && block_used[bn].None?
       ensures forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
     {
@@ -387,6 +398,7 @@ module Fs {
       requires ino_ok(ino)
       requires blkoff < |inode_blks[ino].blks|
       requires inodes[ino].blks[blkoff] == bn
+      requires bn != 0
       ensures
       && inodes == old(inodes)
       && cur_inode == old(cur_inode)
@@ -535,6 +547,7 @@ module Fs {
       requires i'.Valid()
       requires i'.blks == i.blks
       requires bn in data_block
+      requires bn != 0
       requires i.blks[blkoff] == bn
       ensures inode_blks_match(i', InodeData(i'.sz as nat, d.blks[blkoff:=bs]), data_block[bn := bs])
     {
@@ -593,8 +606,8 @@ module Fs {
       i := Inode.decode_ino(buf, inodes[ino]);
     }
 
-    // public
-    method allocateTo(txn: Txn, ino: Ino, ghost i: Inode.Inode) returns (ok: bool, bn:Blkno)
+    // private
+    method allocateTo(txn: Txn, ghost ino: Ino, ghost i: Inode.Inode) returns (ok: bool, bn:Blkno)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
@@ -607,6 +620,7 @@ module Fs {
       ensures ok ==> forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
       ensures ok ==> block_used == old(block_used[bn:=Some(ino)])
       ensures ok ==> is_alloc_bn(bn)
+      ensures ok ==> old(block_used[bn].None?)
     {
       ok, bn := allocBlkno(txn);
       if !ok {
@@ -630,25 +644,39 @@ module Fs {
       return;
     }
 
-    method freeFrom(txn: Txn, ghost ino: Ino, ghost i: Inode.Inode, bn: Blkno)
-      returns (ghost i': Inode.Inode)
+    // private
+    // TODO: not used yet to reclaim blocks
+    method zeroFrom(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
+      returns (i': Inode.Inode)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_cur_inode(ino, i)
       requires |i.blks|-1 >= i.used_blocks
-      requires C.last(i.blks) == bn
+      requires blkoff < 15
       ensures is_cur_inode(ino, i')
-      ensures i' == i.(blks := C.without_last(i.blks))
+      ensures i' == i.(blks := i.blks[blkoff := 0])
       ensures (
       var d0 := old(inode_blks[ino]);
-      var d' := d0.(blks := C.without_last(d0.blks));
+      var d' := d0.(blks := d0.blks[blkoff := block0]);
       inode_blks == old(inode_blks[ino:=d'])
       )
     {
+      var bn := i.blks[blkoff];
+      if bn == 0 {
+        i' := i;
+        ghost var d0 := inode_blks[ino];
+        assert d0.blks[blkoff] == block0 by {
+          reveal_blks_match?();
+        }
+        assert d0.(blks := d0.blks[blkoff := block0]) == d0;
+        return;
+      }
+
       assert blkno_ok(bn) by {
         reveal_blks_match?();
       }
+
       balloc.Free(bn);
 
       blkno_bit_inbounds(jrnl);
@@ -661,15 +689,16 @@ module Fs {
         reveal_Valid_jrnl_to_data_block();
       }
 
-      i' := i.(blks := C.without_last(i.blks));
+      i' := i.(blks := i.blks[blkoff := 0]);
       assert i'.Valid() by {
+        // TODO: use this syntax everywhere
         reveal Inode.blks_unique();
       }
 
       writeInode(ino, i');
 
       ghost var d0 := inode_blks[ino];
-      inode_blks := inode_blks[ino := d0.(blks := C.without_last(d0.blks))];
+      inode_blks := inode_blks[ino := d0.(blks := d0.blks[blkoff := block0])];
 
       assert Valid_jrnl_to_all() by {
         reveal_Valid_jrnl_to_block_used();
@@ -684,7 +713,7 @@ module Fs {
       assert Valid_inodes() by {
         reveal_Valid_inodes_to_block_used();
         Inode.reveal_blks_unique();
-        forall bn | bn in inodes[ino].blks
+        forall bn | bn in inodes[ino].blks && bn != 0
           ensures blkno_ok(bn)
           ensures block_used[bn] == Some(ino)
         {
@@ -694,55 +723,26 @@ module Fs {
     }
 
     // public
-    method useFreeBlock(ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
-      modifies Repr()
-      requires Valid() ensures Valid()
-      requires is_cur_inode(ino, i)
-      requires i.used_blocks < |i.blks|
-      ensures data_block == old(data_block)
-      ensures block_used == old(block_used)
-      ensures inode_blks ==
-        old(var d0 := inode_blks[ino];
-            var d' := d0.(sz := d0.sz + 4096);
-            inode_blks[ino := d'])
-      ensures is_cur_inode(ino, i')
-    {
-      i' := i.(sz := i.sz + 4096);
-      writeInode(ino, i');
-      ghost var d0 := inode_blks[ino];
-      ghost var d' := d0.(sz := d0.sz + 4096);
-      inode_blks := inode_blks[ino := d'];
-      assert Valid() by {
-        reveal_Valid_inodes_to_block_used();
-        reveal_Valid_jrnl_to_inodes();
-      }
-      assert inode_blks_match(i', d', data_block);
-      reveal_blks_match?();
-      reveal_Valid_inodes_to_block_used();
-    }
-
-    // public
-    method appendToInode(txn: Txn, ino: Ino, i: Inode.Inode) returns (ok:bool, i': Inode.Inode, bn: Blkno)
+    method allocateToInode(txn: Txn, ghost ino: Ino, i: Inode.Inode, blkoff: nat)
+      returns (ok: bool, i': Inode.Inode, bn: Blkno)
       modifies Repr()
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires is_cur_inode(ino, i)
-      requires i.sz <= 14*4096
-      requires i.used_blocks == |i.blks|
-      requires i.sz % 4096 == 0
-      ensures data_block == old(data_block)
-      ensures ok ==> blkno_ok(bn)
+      requires is_cur_inode(ino, i) ensures is_cur_inode(ino, i')
+      requires blkoff < 15 && i.blks[blkoff] == 0
+      // guarantees bn != 0
+      ensures ok ==> is_alloc_bn(bn)
       ensures ok ==> inode_blks ==
         old(var d0 := inode_blks[ino];
-            var d' := InodeData(d0.sz + 4096, d0.blks + [data_block[bn]]);
+            var d' := d0.(blks := d0.blks[blkoff:= data_block[bn]]);
             inode_blks[ino := d'])
       ensures !ok ==> inode_blks == old(inode_blks)
-      ensures ok ==> i'.used_blocks == |i'.blks|
-      ensures is_cur_inode(ino, i')
+      ensures ok ==> i' == i.(blks := i.blks[blkoff := bn])
+      ensures ok ==> old(block_used[bn].None?)
     {
-      i' := i;
       ok, bn := allocateTo(txn, ino, i);
       if !ok {
+        i' := i;
         return;
       }
       ok := true;
@@ -750,28 +750,28 @@ module Fs {
       // this is the garbage data we're adding to the inode
       ghost var data := data_block[bn];
 
-      i' := Filesys.inode_append(i, bn);
+      i' := i.(blks := i.blks[blkoff := bn]);
       assert i'.Valid() by {
-        Inode.reveal_blks_unique();
-        C.unique_extend(i.blks, bn);
+        Inode.blks_unique_extend(i.blks, blkoff, bn);
       }
       writeInode(ino, i');
 
-      ghost var d0 := inode_blks[ino];
-      ghost var d' := InodeData(d0.sz + 4096, d0.blks + [data]);
-      inode_blks := inode_blks[ino:=d'];
+      var d0 := inode_blks[ino];
+      var d' := d0.(blks := d0.blks[blkoff := data]);
+      inode_blks := inode_blks[ino := d'];
 
       assert inode_blks_match(i', d', data_block) by {
         reveal_blks_match?();
       }
-      assert Valid_inodes_to_block_used(inodes, block_used) by {
-        reveal_Valid_inodes_to_block_used();
-      }
-      assert Valid() by {
-        reveal_Valid_jrnl_to_inodes();
+
+      assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_to_inodes();
+        reveal Valid_jrnl_to_block_used();
       }
 
-      return;
+      assert Valid() by {
+        reveal Valid_inodes_to_block_used();
+      }
     }
 
     // public
@@ -795,17 +795,20 @@ module Fs {
       requires
       && this.jrnl == txn.jrnl
       && is_inode(ino, i)
-      requires blkoff * 4096 < i.sz as nat
+      requires blkoff < 15
       ensures fresh(bs)
       ensures
       && is_block(bs.data)
       && bs.data == inode_blks[ino].blks[blkoff]
-      && blkno_ok(i.blks[blkoff])
-      && block_used[i.blks[blkoff]] == Some(ino)
+      // && blkno_ok(i.blks[blkoff])
+      // && block_used[i.blks[blkoff]] == Some(ino)
     {
-      assert blkoff as nat < |inodes[ino].blks|;
       var bn := i.blks[blkoff];
       reveal_blks_match?();
+      if bn == 0 {
+        bs := NewBytes(4096);
+        return;
+      }
       datablk_inbounds(jrnl, bn);
       bs := txn.Read(DataBlk(bn), 4096*8);
       reveal_Valid_inodes_to_block_used();
@@ -820,6 +823,7 @@ module Fs {
     {}
 
     // public
+    // TODO: change this to zero a specified tail of the file
     method freeUnused(txn: Txn, ino: Ino, i: Inode.Inode) returns (i': Inode.Inode)
       modifies Repr()
       requires Valid()
@@ -827,32 +831,9 @@ module Fs {
       requires is_cur_inode(ino, i)
       ensures Valid()
       ensures is_cur_inode(ino, i')
-      // won't be true, need to remove blks from i (but i'.used_blocks() ==
-      // i.used_blocks())
-      ensures (var d0 := old(inode_blks[ino]);
-               var d' := d0.(blks := d0.blks[..d0.num_used]);
-               inode_blks == old(inode_blks[ino := d']))
+      ensures inode_blks == old(inode_blks)
     {
-      var k: uint64 := |i.blks| as uint64;
-      var last_unused: uint64 := i.used_blocks_u64();
-      // assert |inode_blks[ino].blks| == k as nat;
-      assert inode_blks[ino].blks == inode_blks[ino].blks[..k as nat];
-      ghost var i_tmp := i;
-      while k > last_unused
-        modifies Repr()
-        invariant Valid()
-        invariant last_unused as nat <= k as nat <= |i.blks|
-        invariant i_tmp == i.(blks := i.blks[..k as nat])
-        invariant is_cur_inode(ino, i_tmp)
-        invariant (var d0 := old(inode_blks[ino]);
-                  var d' := d0.(blks := d0.blks[..k as nat]);
-                  inode_blks == old(inode_blks[ino := d']))
-      {
-        k := k - 1;
-        i_tmp := freeFrom(txn, ino, i_tmp, i.blks[k]);
-        assert inode_blks[ino].blks == old(inode_blks[ino].blks[..k as nat]);
-      }
-      i' := i.(blks := i.blks[..i.used_blocks]);
+      i' := i;
     }
 
   }
