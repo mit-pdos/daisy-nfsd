@@ -55,12 +55,16 @@ lemma seq_fmap_compose<T,U,V>(f: T -> U, g: U -> V, xs: seq<T>)
 
 // repeat
 
-function method {:opaque} repeat<T>(x: T, count: nat): (xs:seq<T>)
-    decreases count
-    ensures |xs| == count && forall i :: 0 <= i < |xs| ==> xs[i] == x
+function method repeat<T>(x: T, count: nat): (xs:seq<T>)
 {
-    if count == 0 then [] else [x] + repeat(x, count-1)
+    seq(count, _ => x)
 }
+
+// equation for repeat for induction on count
+lemma repeat_unfold<T>(x: T, count: nat)
+    requires 0 < count
+    ensures repeat(x, count) == [x] + repeat(x, count-1)
+{}
 
 lemma repeat_split<T>(x: T, count: nat, count1: nat, count2: nat)
     requires count == count1 + count2
@@ -254,9 +258,10 @@ decreases xs
 lemma {:induction count} sum_repeat(x: nat, count: nat)
     ensures sum_nat(repeat(x, count)) == count * x
 {
-    reveal_repeat();
-    mul_distr_add_r(count, -1, x);
-    mul_neg_1_l(x);
+    if count > 0 {
+        repeat_unfold(x, count);
+    }
+    mul_distr_sub_r(count, 1, x);
 }
 
 // NOTE(tej): if you happen to know the proof, then Dafny can automatically
@@ -278,7 +283,7 @@ ensures sum_nat(xs[i:=x]) == sum_nat(xs)-xs[i]+x
 
 predicate unique<T>(xs: seq<T>)
 {
-  forall i, j | 0 <= i < |xs| && 0 <= j < |xs| && xs[i] == xs[j] :: i == j
+  forall i, j | 0 <= i < |xs| && 0 <= j < |xs| :: xs[i] == xs[j] ==> i == j
 }
 
 lemma unique_extend<T>(xs: seq<T>, x: T)

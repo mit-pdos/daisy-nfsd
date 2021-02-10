@@ -27,11 +27,6 @@ module Inode {
       && sz as nat <= MAX_SZ
     }
 
-    function method num_blks(): uint64
-    {
-      15
-    }
-
     function method {:opaque} used_blocks_u64(): (x:uint64)
       requires Valid()
       ensures x as nat == used_blocks
