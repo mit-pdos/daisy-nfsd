@@ -54,37 +54,8 @@ module IndFs
     {}
   }
 
-  datatype IndBlock = IndBlock(bn: Blkno, blknos: seq<Blkno>)
-  {
-    static const zero: IndBlock := IndBlock(0, C.repeat(0 as Blkno, 512))
-
-    predicate Valid()
-    {
-      && blkno_ok(bn)
-      && |blknos| == 512
-      && (forall k: int | 0 <= k < 512 :: blkno_ok(blknos[k]))
-    }
-
-    static lemma zero_ok()
-      ensures zero.Valid()
-    {}
-
-    static lemma zero_in_fs(fs: Filesys)
-      requires fs.Valid()
-      ensures zero.in_fs(fs)
-    {
-      zero_block_blknos();
-    }
-
-    predicate in_fs(fs: Filesys)
-      reads fs.Repr()
-      requires fs.Valid()
-      requires Valid()
-    {
-      var b := zero_lookup(fs.data_block, this.bn);
-      && block_has_blknos(b, this.blknos)
-    }
-  }
+  type Meta = s:seq<IndBlknos> | |s| == 5 witness C.repeat(indBlknos0, 5)
+  const meta0: Meta := C.repeat(indBlknos0, 5)
 
   datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
   {
@@ -101,9 +72,14 @@ module IndFs
     {}
   }
 
+  predicate indblknos_ok(bns: IndBlknos)
+  {
+    forall k | 0 <= k < 512 :: blkno_ok(bns[k])
+  }
+
   class IndFilesys
   {
-    ghost var ino_meta: map<Ino, seq<IndBlock>>
+    ghost var ino_meta: map<Ino, Meta>
     ghost var ino_data: map<Ino, IndInodeData>
     const fs: Filesys
 
@@ -112,10 +88,9 @@ module IndFs
       {this} + fs.Repr()
     }
 
-    static predicate meta_valid?(meta: seq<IndBlock>)
+    static predicate meta_valid?(meta: Meta)
     {
-      && |meta| == 5
-      && (forall k: nat | k < 5 :: meta[k].Valid())
+      forall k: nat | k < 5 :: indblknos_ok(meta[k])
     }
 
     predicate ValidMeta()
@@ -133,7 +108,7 @@ module IndFs
     }
 
     static predicate ino_ind_match?(
-      d: InodeData, meta: seq<IndBlock>, id: IndInodeData,
+      d: InodeData, meta: Meta, id: IndInodeData,
       // all data blocks for looking up data from meta block numbers
       data_block: map<Blkno, Block>)
       requires blkno_dom(data_block)
@@ -146,7 +121,7 @@ module IndFs
       (match idx {
         case direct(k) => d.blks[k] == id.blks[idx.flat()]
         case indirect(k, m) =>
-          zero_lookup(data_block, meta[k].blknos[m]) == id.blks[idx.flat()]
+          zero_lookup(data_block, to_seq(meta[k])[m]) == id.blks[idx.flat()]
       })
     }
 
@@ -175,13 +150,12 @@ module IndFs
       ensures Valid()
     {
       this.fs := new Filesys.Init(d);
-      this.ino_meta := map ino: Ino | ino_ok(ino) :: C.repeat(IndBlock.zero, 5);
+      this.ino_meta := map ino: Ino | ino_ok(ino) :: meta0;
       this.ino_data := map ino: Ino | ino_ok(ino) :: IndInodeData.zero;
       new;
       IndInodeData.zero_valid();
       assert Valid_ino_data() by {
-        assert ino_ind_match?(
-          InodeData.zero, C.repeat(IndBlock.zero, 5), IndInodeData.zero,
+        assert ino_ind_match?(InodeData.zero, meta0, IndInodeData.zero,
           fs.data_block);
         reveal Valid_ino_data();
       }

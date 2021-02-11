@@ -10,30 +10,21 @@ module IndBlocks
   import opened ByteSlice
   import opened Marshal
 
-  predicate block_has_blknos(b: Block, blknos: seq<Blkno>)
+  type IndBlknos = bns:seq<Blkno> | |bns| == 512 witness C.repeat(0 as Blkno, 512)
+  const indBlknos0: IndBlknos := C.repeat(0 as Blkno, 512)
+
+  predicate block_has_blknos(b: Block, blknos: IndBlknos)
   {
     && b == seq_enc_uint64(blknos)
-    && |blknos| == 512
-  }
-
-  // there are two redundant length expressions in block_has_blknos, we can use
-  // either of them to prove block_has_blknos
-  lemma block_has_blknos_len(b: Block, blknos: seq<Blkno>)
-    requires b == seq_enc_uint64(blknos)
-    ensures block_has_blknos(b, blknos)
-  {
-    enc_uint64_len(blknos);
-    assert 4096 == 512*8;
   }
 
   lemma zero_block_blknos()
-    ensures block_has_blknos(block0, C.repeat(0 as Blkno, 512))
+    ensures block_has_blknos(block0, indBlknos0)
   {
     zero_encode_seq_uint64(512);
   }
 
-  method encode_blknos(blknos: seq<Blkno>) returns (bs: Bytes)
-    requires |blknos| == 512
+  method encode_blknos(blknos: IndBlknos) returns (bs: Bytes)
     ensures fresh(bs)
     ensures is_block(bs.data) && block_has_blknos(bs.data, blknos)
   {
@@ -45,7 +36,7 @@ module IndBlocks
     return;
   }
 
-  method decode_blknos(bs: Bytes, ghost blknos: seq<Blkno>) returns (blknos': seq<Blkno>)
+  method decode_blknos(bs: Bytes, ghost blknos: IndBlknos) returns (blknos': seq<Blkno>)
     requires is_block(bs.data) && block_has_blknos(bs.data, blknos)
     ensures blknos' == blknos
   {

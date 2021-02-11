@@ -24,7 +24,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     const block0: Block := C.repeat(0 as byte, 4096)
 
     // workaround for Dafny bug https://github.com/dafny-lang/dafny/issues/1113
-    function block_to_seq(b: Block): seq<byte> { b }
+    function to_seq<T>(s: seq<T>): seq<T> { s }
 
     function id<T>(x: T): T { x }
 
