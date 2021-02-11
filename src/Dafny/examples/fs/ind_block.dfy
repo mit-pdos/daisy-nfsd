@@ -12,7 +12,6 @@ module IndBlocks
 
   predicate block_has_blknos(b: Block, blknos: seq<Blkno>)
   {
-    && is_block(b)
     && b == seq_enc_uint64(blknos)
     && |blknos| == 512
   }
@@ -21,7 +20,6 @@ module IndBlocks
   // either of them to prove block_has_blknos
   lemma block_has_blknos_len(b: Block, blknos: seq<Blkno>)
     requires b == seq_enc_uint64(blknos)
-    requires is_block(b) || |blknos| == 512
     ensures block_has_blknos(b, blknos)
   {
     enc_uint64_len(blknos);
@@ -37,7 +35,7 @@ module IndBlocks
   method encode_blknos(blknos: seq<Blkno>) returns (bs: Bytes)
     requires |blknos| == 512
     ensures fresh(bs)
-    ensures block_has_blknos(bs.data, blknos)
+    ensures is_block(bs.data) && block_has_blknos(bs.data, blknos)
   {
     var enc := new Encoder(4096);
     enc.PutInts(blknos);
@@ -48,7 +46,7 @@ module IndBlocks
   }
 
   method decode_blknos(bs: Bytes, ghost blknos: seq<Blkno>) returns (blknos': seq<Blkno>)
-    requires block_has_blknos(bs.data, blknos)
+    requires is_block(bs.data) && block_has_blknos(bs.data, blknos)
     ensures blknos' == blknos
   {
     var dec := new Decoder.Init(bs, C.seq_fmap(encUInt64, blknos));

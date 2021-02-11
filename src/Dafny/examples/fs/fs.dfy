@@ -294,7 +294,7 @@ module Fs {
       this.inode_blks := map ino: Ino | ino_ok(ino) :: InodeData.zero;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
-      this.data_block := map bn: uint64 | blkno_ok(bn) :: zeroObject(KindBlock).bs;
+      this.data_block := map bn: uint64 | blkno_ok(bn) :: block0;
       new;
       InodeData.zero_valid();
       jrnl.reveal_Valid();
@@ -539,7 +539,7 @@ module Fs {
     }
 
     static lemma inode_blks_match_change_1(
-      i: Inode.Inode, d: InodeData, data_block: map<Blkno, seq<byte>>,
+      i: Inode.Inode, d: InodeData, data_block: map<Blkno, Block>,
       i': Inode.Inode, bn: Blkno, blkoff: nat, bs: seq<byte>)
       requires inode_blks_match(i, d, data_block)
       requires blkoff < |i.blks|
@@ -560,10 +560,10 @@ module Fs {
     static lemma inode_blks_match_change_other(
       ino: Ino, d: InodeData,
       inodes: map<Ino, Inode.Inode>,
-      data_block: map<Blkno, seq<byte>>,
+      data_block: map<Blkno, Block>,
       block_used: map<Blkno, Option<Ino>>,
       // stuff that changed in an unrelated inode ino':
-      ino': Ino, bn: Blkno, bs: seq<byte>)
+      ino': Ino, bn: Blkno, bs: Block)
       requires && blkno_dom(data_block) && blkno_dom(block_used) && blkno_ok(bn)
       requires && ino_dom(inodes) && ino_ok(ino) && ino_ok(ino')
       requires inode_blks_match(inodes[ino], d, data_block)

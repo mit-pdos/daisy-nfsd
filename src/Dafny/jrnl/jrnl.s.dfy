@@ -19,12 +19,14 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
 
     type Blkno = uint64
 
-    type Block = seq<byte>
-    predicate is_block(b: Block) { |b| == 4096 }
+    type Block = b:seq<byte> | |b| == 4096 witness C.repeat(0 as byte, 4096)
+    predicate is_block(b: seq<byte>) { |b| == 4096 }
     const block0: Block := C.repeat(0 as byte, 4096)
-    lemma block0_ok()
-        ensures is_block(block0)
-    {}
+
+    // workaround for Dafny bug https://github.com/dafny-lang/dafny/issues/1113
+    function block_to_seq(b: Block): seq<byte> { b }
+
+    function id<T>(x: T): T { x }
 
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
