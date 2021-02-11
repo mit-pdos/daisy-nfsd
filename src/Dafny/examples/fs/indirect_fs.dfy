@@ -107,6 +107,16 @@ module IndFs
       && (forall ino | ino_ok(ino) :: ino_data[ino].Valid())
     }
 
+    // this is a strange definition for doubly-indirect blocks: we can't exactly
+    // reach the metadata for the inode, only the first layer of metadata (after
+    // that we have to resolve through the data_blocks, just like we currently
+    // do to get from Meta to IndInodeData)
+    static predicate meta_in_inode(d: InodeData, meta: Meta)
+      requires d.Valid()
+    {
+      forall k | 0 <= k < 5 :: block_has_blknos(d.blks[10+k], meta[k])
+    }
+
     static predicate ino_ind_match?(
       d: InodeData, meta: Meta, id: IndInodeData,
       // all data blocks for looking up data from meta block numbers
@@ -117,6 +127,7 @@ module IndFs
     {
       && d.Valid()
       && id.sz == d.sz
+      && meta_in_inode(d, meta)
       && forall idx: Idx | idx.Valid() ::
       (match idx {
         case direct(k) => d.blks[k] == id.blks[idx.flat()]
@@ -155,6 +166,9 @@ module IndFs
       new;
       IndInodeData.zero_valid();
       assert Valid_ino_data() by {
+        assert meta_in_inode(InodeData.zero, meta0) by {
+          zero_block_blknos();
+        }
         assert ino_ind_match?(InodeData.zero, meta0, IndInodeData.zero,
           fs.data_block);
         reveal Valid_ino_data();
