@@ -13,11 +13,19 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
     import opened Machine
     import opened Kinds
     import opened ByteSlice
-    import opened Collections
+    import C = Collections
 
     class {:extern} Disk{}
 
     type Blkno = uint64
+
+    type Block = seq<byte>
+    predicate is_block(b: Block) { |b| == 4096 }
+    const block0: Block := C.repeat(0 as byte, 4096)
+    lemma block0_ok()
+        ensures is_block(block0)
+    {}
+
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
     datatype Object =
@@ -37,7 +45,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         if k == 0 then ObjBit(false)
         else
             kind_at_least_byte(k);
-            ObjData(repeat(0 as bv8, kindSize(k)/8))
+            ObjData(C.repeat(0 as bv8, kindSize(k)/8))
     }
 
     predicate kindsValid(kinds: map<Blkno, Kind>)

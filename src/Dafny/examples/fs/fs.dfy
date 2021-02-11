@@ -19,8 +19,6 @@ module Fs {
 
   datatype Option<T> = Some(x:T) | None
 
-  type Block = seq<byte>
-  predicate is_block(b: Block) { |b| == 4096 }
   datatype InodeData = InodeData(sz: nat, blks: seq<Block>)
   {
     static const zero: InodeData := InodeData(0, C.repeat(block0, 15))
@@ -59,11 +57,6 @@ module Fs {
       then block0
       else m[bn]
   }
-
-  const block0: Block := C.repeat(0 as byte, 4096)
-  lemma block0_ok()
-    ensures is_block(block0)
-  {}
 
   predicate blkno_dom<T>(m: map<Blkno, T>)
   {
