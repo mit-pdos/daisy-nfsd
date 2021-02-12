@@ -4,14 +4,17 @@ module Collections
 {
 import opened Arith
 
-// sequence indexing
-
-
 lemma seq_ext_eq<T>(xs: seq<T>, ys: seq<T>)
   requires |xs| == |ys|
   requires forall i :: 0 <= i < |xs| ==> xs[i] == ys[i]
   ensures xs == ys
 {}
+
+// workaround for Dafny bug https://github.com/dafny-lang/dafny/issues/1113
+function to_seq<T>(s: seq<T>): seq<T> { s }
+
+// sequence indexing
+
 
 lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     requires a <= b <= |xs|

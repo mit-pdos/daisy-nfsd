@@ -11,6 +11,7 @@ module Fs {
   import Round
   import opened Machine
   import opened ByteSlice
+  import opened JrnlTypes
   import opened JrnlSpec
   import opened Alloc
   import opened Kinds

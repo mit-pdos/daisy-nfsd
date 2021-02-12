@@ -3,6 +3,7 @@ include "../../jrnl/jrnl.s.dfy"
 module FsKinds {
   import Arith
   import opened Machine
+  import opened JrnlTypes
   import opened JrnlSpec
   import opened Kinds
 

@@ -4,6 +4,7 @@ include "../../util/min_max.dfy"
 module ByteFs {
   import opened Fs
   import opened FsKinds
+  import opened JrnlTypes
   import opened JrnlSpec
   import opened Machine
   import opened ByteSlice
@@ -283,8 +284,8 @@ module ByteFs {
       calc {
         inode_data(d');
         (C.concat(C.without_last(blks')) + C.last(blks'))[..d'.sz];
-        C.concat(C.without_last(blks')) + to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
-        C.concat(C.without_last(blks)) + to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
+        C.concat(C.without_last(blks')) + C.to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
+        C.concat(C.without_last(blks)) + C.to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
       }
     }
 

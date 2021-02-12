@@ -6,6 +6,7 @@ module Bank {
 import Arith
 import opened Machine
 import opened ByteSlice
+import opened JrnlTypes
 import opened JrnlSpec
 import opened Kinds
 import opened Marshal

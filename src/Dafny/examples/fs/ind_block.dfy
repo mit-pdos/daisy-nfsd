@@ -5,6 +5,7 @@ include "../../util/marshal.i.dfy"
 module IndBlocks
 {
   import opened Machine
+  import opened JrnlTypes
   import opened JrnlSpec
 
   import opened ByteSlice

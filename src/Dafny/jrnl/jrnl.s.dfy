@@ -3,6 +3,17 @@ include "../util/pow.dfy"
 include "../util/collections.dfy"
 include "kinds.s.dfy"
 
+module JrnlTypes
+{
+    import opened Machine
+    import C = Collections
+    type Blkno = uint64
+
+    type Block = b:seq<byte> | |b| == 4096 witness C.repeat(0 as byte, 4096)
+    predicate is_block(b: seq<byte>) { |b| == 4096 }
+    const block0: Block := C.repeat(0 as byte, 4096)
+}
+
 /*
 Spec for sequential journal API, assuming we're using 2PL.
 */
@@ -10,23 +21,13 @@ Spec for sequential journal API, assuming we're using 2PL.
 module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} JrnlSpec
 {
 
+    import opened JrnlTypes
     import opened Machine
     import opened Kinds
     import opened ByteSlice
     import C = Collections
 
     class {:extern} Disk{}
-
-    type Blkno = uint64
-
-    type Block = b:seq<byte> | |b| == 4096 witness C.repeat(0 as byte, 4096)
-    predicate is_block(b: seq<byte>) { |b| == 4096 }
-    const block0: Block := C.repeat(0 as byte, 4096)
-
-    // workaround for Dafny bug https://github.com/dafny-lang/dafny/issues/1113
-    function to_seq<T>(s: seq<T>): seq<T> { s }
-
-    function id<T>(x: T): T { x }
 
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 

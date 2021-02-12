@@ -6,6 +6,7 @@ module IndFs
   import opened Machine
   import opened ByteSlice
   import opened FsKinds
+  import opened JrnlTypes
   import opened JrnlSpec
   import opened Fs
   import opened Marshal
@@ -132,7 +133,7 @@ module IndFs
       (match idx {
         case direct(k) => d.blks[k] == id.blks[idx.flat()]
         case indirect(k, m) =>
-          zero_lookup(data_block, to_seq(meta[k])[m]) == id.blks[idx.flat()]
+          zero_lookup(data_block, C.to_seq(meta[k])[m]) == id.blks[idx.flat()]
       })
     }
 
