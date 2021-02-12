@@ -20,9 +20,10 @@ module Fs {
 
   datatype Option<T> = Some(x:T) | None
 
-  datatype InodeData = InodeData(sz: nat, blks: seq<Block>)
+  datatype preInodeData = InodeData(sz: nat, blks: seq<Block>)
   {
-    static const zero: InodeData := InodeData(0, C.repeat(block0, 15))
+    static const preZero: preInodeData := InodeData(0, C.repeat(block0, 15))
+    static const zero: InodeData := preZero
 
     const num_used: nat := Round.div_roundup_alt(sz, 4096)
 
@@ -30,7 +31,6 @@ module Fs {
     {
       && |blks| == 15
       && sz <= Inode.MAX_SZ
-      && (forall blk | blk in blks :: is_block(blk))
     }
 
     static lemma zero_valid()
@@ -42,13 +42,8 @@ module Fs {
     {
       blks[..num_used]
     }
-
-    lemma used_blocks_valid()
-      requires Valid()
-      ensures |used_blocks()| == num_used
-      ensures forall blk | blk in used_blocks() :: is_block(blk)
-    {}
   }
+  type InodeData = d:preInodeData | d.Valid() witness preInodeData.preZero
 
   function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
     requires blkno_dom(m)

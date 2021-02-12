@@ -13,7 +13,7 @@ module IndFs
   import opened IndBlocks
   import C = Collections
 
-  datatype Idx = direct(k: nat) | indirect(k: nat, m: nat)
+  datatype preIdx = direct(k: nat) | indirect(k: nat, m: nat)
   {
     predicate Valid()
     {
@@ -54,6 +54,8 @@ module IndFs
       ensures from_flat(n).flat() == n
     {}
   }
+
+  type Idx = i:preIdx | i.Valid() witness direct(0)
 
   type Meta = s:seq<IndBlknos> | |s| == 5 witness C.repeat(indBlknos0, 5)
   const meta0: Meta := C.repeat(indBlknos0, 5)
@@ -148,11 +150,11 @@ module IndFs
       && d.Valid()
       && id.sz == d.sz
       && meta_in_inode(d, meta)
-      && forall idx: Idx | idx.Valid() ::
-      (match idx {
-        case direct(k) => d.blks[k] == id.blks[idx.flat()]
+      && forall n | 0 <= n < 10 + 5*512 ::
+      (match Idx.from_flat(n) {
+        case direct(k) => d.blks[k] == id.blks[n]
         case indirect(k, m) =>
-          zero_lookup(data_block, C.to_seq(meta[k])[m]) == id.blks[idx.flat()]
+          zero_lookup(data_block, C.to_seq(meta[k])[m]) == id.blks[n]
       })
     }
 

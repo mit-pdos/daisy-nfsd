@@ -14,7 +14,6 @@ module ByteFs {
     requires d.Valid()
     ensures |bs| == d.sz
   {
-    d.used_blocks_valid();
     C.concat_homogeneous_spec(d.used_blocks(), 4096);
     C.concat(d.used_blocks())[..d.sz]
   }
@@ -25,7 +24,6 @@ module ByteFs {
     ensures inode_data(d) == C.concat(d.used_blocks())[..d.sz]
   {
     reveal_inode_data();
-    d.used_blocks_valid();
     C.concat_homogeneous_spec(d.used_blocks(), 4096);
   }
 
@@ -129,7 +127,6 @@ module ByteFs {
 
       ghost var blks := fs.inode_blks[ino].used_blocks();
       assert bs.data == blks[blkoff];
-      fs.inode_blks[ino].used_blocks_valid();
       assert off' + 4096 <= |C.concat(blks)| &&
         bs.data == C.concat(blks)[off'..off'+4096] by {
         C.concat_homogeneous_one_list(blks, blkoff, 4096);
@@ -277,7 +274,6 @@ module ByteFs {
       assert C.last(blks') == C.splice(C.last(blks), d.sz % 4096, bs);
 
       C.concat_split_last(blks);
-      d.used_blocks_valid();
       C.concat_homogeneous_len(blks, 4096);
       C.concat_split_last(blks');
       C.concat_homogeneous_len(C.without_last(blks'), 4096);
@@ -302,7 +298,6 @@ module ByteFs {
       ghost var blks := d.used_blocks();
       ghost var blks' := d'.used_blocks();
       C.concat_split_last(blks);
-      d.used_blocks_valid();
       C.concat_homogeneous_len(blks, 4096);
       C.concat_split_last(blks');
       assert C.concat(C.without_last(blks)) == inode_data(d)[..d.sz - 4096];
