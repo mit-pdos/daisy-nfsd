@@ -58,6 +58,11 @@ module IndFs
   type Meta = s:seq<IndBlknos> | |s| == 5 witness C.repeat(indBlknos0, 5)
   const meta0: Meta := C.repeat(indBlknos0, 5)
 
+  function meta_blknos(m: Meta): seq<Blkno>
+  {
+    C.concat(m)
+  }
+
   datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
   {
     static const zero: IndInodeData := IndInodeData(0, C.repeat(block0, 10 + 5*512))
@@ -78,6 +83,11 @@ module IndFs
     forall k | 0 <= k < 512 :: blkno_ok(bns[k])
   }
 
+  predicate meta_ok?(meta: Meta)
+  {
+    forall k: nat | k < 5 :: indblknos_ok(meta[k])
+  }
+
   class IndFilesys
   {
     ghost var ino_meta: map<Ino, Meta>
@@ -89,16 +99,11 @@ module IndFs
       {this} + fs.Repr()
     }
 
-    static predicate meta_valid?(meta: Meta)
-    {
-      forall k: nat | k < 5 :: indblknos_ok(meta[k])
-    }
-
     predicate ValidMeta()
       reads this
     {
       && ino_dom(ino_meta)
-      && (forall ino | ino_ok(ino) :: meta_valid?(ino_meta[ino]))
+      && (forall ino | ino_ok(ino) :: meta_ok?(ino_meta[ino]))
     }
 
     predicate ValidData()
@@ -106,6 +111,20 @@ module IndFs
     {
       && ino_dom(ino_data)
       && (forall ino | ino_ok(ino) :: ino_data[ino].Valid())
+    }
+
+    // this ensures inodes are separate from each other, but not that inode
+    // metadata is separate from inode data
+    predicate {:opaque} ValidOwnership()
+      reads Repr()
+      requires fs.Valid()
+      requires ino_dom(ino_meta)
+    {
+      forall ino: Ino | ino_ok(ino) ::
+        (forall bn | bn in meta_blknos(ino_meta[ino]) ::
+        bn != 0 ==>
+        && blkno_ok(bn)
+        && fs.block_used[bn] == Some(ino))
     }
 
     // this is a strange definition for doubly-indirect blocks: we can't exactly
@@ -123,7 +142,7 @@ module IndFs
       // all data blocks for looking up data from meta block numbers
       data_block: map<Blkno, Block>)
       requires blkno_dom(data_block)
-      requires meta_valid?(meta)
+      requires meta_ok?(meta)
       requires id.Valid()
     {
       && d.Valid()

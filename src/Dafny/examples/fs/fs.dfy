@@ -617,8 +617,8 @@ module Fs {
       ensures inode_blks == old(inode_blks)
       ensures inodes == old(inodes)
       ensures cur_inode == old(cur_inode)
-      ensures !ok ==> block_used == old(block_used)
       ensures data_block == old(data_block)
+      ensures !ok ==> block_used == old(block_used)
       ensures ok ==> forall ino | ino_ok(ino) :: bn !in inodes[ino].blks
       ensures ok ==> block_used == old(block_used[bn:=Some(ino)])
       ensures ok ==> is_alloc_bn(bn)
