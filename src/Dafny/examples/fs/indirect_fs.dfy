@@ -88,9 +88,9 @@ module IndFs
         s[i1].s[j1] == s[i2].s[j2] ==> unique_at(i1, j1, i2, j2)
     }
 
-    lemma unique_intro(i1: nat, j1: nat, i2: nat, j2: nat)
+    lemma unique_elim(i1: nat, j1: nat, i2: nat, j2: nat)
       requires Valid() && unique()
-      requires i1 < 5 && j1 < 512 && i2 < 5 && j2 < 512
+      requires i1 < 5 && i2 < 5 && j1 < 512 && j2 < 512
       ensures s[i1].s[j1] == s[i2].s[j2] ==> s[i1].s[j1] != 0 ==> i1 == i2 && j1 == j2
     {
     }
@@ -106,7 +106,7 @@ module IndFs
         ensures C.concat(s')[i1] == C.concat(s')[i2] ==>
         i1 == i2 || C.concat(s')[i1] == 0
       {
-        unique_intro(i1/512, i1%512, i2/512, i2%512);
+        unique_elim(i1/512, i1%512, i2/512, i2%512);
       }
       reveal Inode.blks_unique();
       assert blknos() == C.concat(s');
@@ -116,12 +116,21 @@ module IndFs
       requires Valid()
       ensures Inode.blks_unique(blknos()) ==> unique()
     {
+      if !Inode.blks_unique(blknos()) { return; }
       var s' := C.seq_fmap(blknos_to_seq, this.s);
       C.concat_homogeneous_spec_alt(s', 512);
       C.concat_homogeneous_spec(s', 512);
       reveal Inode.blks_unique();
-      // TODO: finish this proof with a forall statement
-      assume false;
+      forall i1, j1, i2, j2 | 0 <= i1 < 5 && 0 <= i2 < 5 && 0 <= j1 < 512 && 0 <= j2 < 512 &&
+      s[i1].s[j1] == s[i2].s[j2]
+      ensures unique_at(i1, j1, i2, j2)
+      {
+        var k1 := i1*512 + j1;
+        var k2 := i2*512 + j2;
+        assert s[i1].s[j1] == C.concat(s')[k1];
+        assert s[i2].s[j2] == C.concat(s')[k2];
+        assert k1 == k2 || C.concat(s')[k1] == 0;
+      }
     }
 
     lemma unique_alt()
@@ -137,6 +146,9 @@ module IndFs
   datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
   {
     static const zero: IndInodeData := IndInodeData(0, C.repeat(block0, 10 + 5*512))
+    static lemma zero_valid()
+      ensures zero.Valid()
+    {}
 
     predicate Valid()
     {
@@ -144,9 +156,6 @@ module IndFs
       && |blks| == 10 + 5 * 512
     }
 
-    static lemma zero_valid()
-      ensures zero.Valid()
-    {}
   }
 
   predicate indblknos_ok(bns: IndBlknos)
