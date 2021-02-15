@@ -63,6 +63,10 @@ function method repeat<T>(x: T, count: nat): (xs:seq<T>)
     seq(count, _ => x)
 }
 
+lemma repeat_seq_fmap_auto<T, U>()
+    ensures forall f: T -> U, x:T, count {:trigger seq_fmap(f, repeat(x, count))} :: seq_fmap(f, repeat(x, count)) == repeat(f(x), count)
+{}
+
 // equation for repeat for induction on count
 lemma repeat_unfold<T>(x: T, count: nat)
     requires 0 < count
@@ -180,6 +184,27 @@ lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
     }
 }
 
+lemma {:induction ls} concat_in<T>(ls: seq<seq<T>>, x: T)
+    ensures x in concat(ls) <==> exists i:nat :: i < |ls| && x in ls[i]
+{}
+
+lemma concat_in_intro<T>(ls: seq<seq<T>>, x: T, i: nat)
+    requires i < |ls|
+    requires x in ls[i]
+    ensures x in concat(ls)
+{
+    concat_in(ls, x);
+}
+
+lemma {:induction ls} concat_in_elim<T>(ls: seq<seq<T>>, x: T) returns (i: nat)
+    requires x in concat(ls)
+    ensures i < |ls| && x in ls[i]
+{
+    concat_in(ls, x);
+    i :| i < |ls| && x in ls[i];
+}
+
+
 lemma {:induction ls} concat_app1<T>(ls: seq<seq<T>>, x: seq<T>)
     decreases ls
     ensures concat(ls + [x]) == concat(ls) + x
@@ -210,6 +235,14 @@ lemma concat_homogeneous_one_list<T>(ls: seq<seq<T>>, k: nat, len: nat)
     {
         assert concat_spec(ls, k, i, len);
     }
+}
+
+lemma concat_repeat<T>(x: T, count1: nat, count2: nat)
+    ensures 0 <= count2*count1
+    ensures concat(repeat(repeat(x, count1), count2)) == repeat(x, count2*count1)
+{
+    mul_positive(count1, count2);
+    concat_homogeneous_spec_alt(repeat(repeat(x, count1), count2), count1);
 }
 
 // map to domain as a set

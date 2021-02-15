@@ -11,16 +11,25 @@ module IndBlocks
   import opened ByteSlice
   import opened Marshal
 
-  type IndBlknos = bns:seq<Blkno> | |bns| == 512 witness C.repeat(0 as Blkno, 512)
-  const indBlknos0: IndBlknos := C.repeat(0 as Blkno, 512)
+  datatype preIndBlknos = IndBlknos(s: seq<Blkno>)
+  {
+    static const preZero := IndBlknos(C.repeat(0 as Blkno, 512))
+    static const zero: IndBlknos := preZero
+
+    predicate Valid()
+    {
+      |s| == 512
+    }
+  }
+  type IndBlknos = x:preIndBlknos | x.Valid() witness preIndBlknos.preZero
 
   predicate block_has_blknos(b: Block, blknos: IndBlknos)
   {
-    && b == seq_enc_uint64(blknos)
+    && b == seq_enc_uint64(blknos.s)
   }
 
   lemma zero_block_blknos()
-    ensures block_has_blknos(block0, indBlknos0)
+    ensures block_has_blknos(block0, IndBlknos.zero)
   {
     zero_encode_seq_uint64(512);
   }
@@ -30,8 +39,8 @@ module IndBlocks
     ensures is_block(bs.data) && block_has_blknos(bs.data, blknos)
   {
     var enc := new Encoder(4096);
-    enc.PutInts(blknos);
-    assert enc.enc == C.seq_fmap(encUInt64, blknos);
+    enc.PutInts(blknos.s);
+    assert enc.enc == C.seq_fmap(encUInt64, blknos.s);
     enc.is_complete();
     bs := enc.Finish();
     return;
@@ -39,11 +48,11 @@ module IndBlocks
 
   method decode_blknos(bs: Bytes, ghost blknos: IndBlknos) returns (blknos': seq<Blkno>)
     requires is_block(bs.data) && block_has_blknos(bs.data, blknos)
-    ensures blknos' == blknos
+    ensures blknos' == blknos.s
   {
-    var dec := new Decoder.Init(bs, C.seq_fmap(encUInt64, blknos));
+    var dec := new Decoder.Init(bs, C.seq_fmap(encUInt64, blknos.s));
     assert dec.enc[..512] == dec.enc;
-    blknos' := dec.GetInts(512, blknos);
+    blknos' := dec.GetInts(512, blknos.s);
     return;
   }
 

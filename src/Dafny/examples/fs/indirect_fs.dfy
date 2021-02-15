@@ -57,13 +57,82 @@ module IndFs
 
   type Idx = i:preIdx | i.Valid() witness direct(0)
 
-  type Meta = s:seq<IndBlknos> | |s| == 5 witness C.repeat(indBlknos0, 5)
-  const meta0: Meta := C.repeat(indBlknos0, 5)
-
-  function meta_blknos(m: Meta): seq<Blkno>
+  datatype preMeta = Meta(s: seq<IndBlknos>)
   {
-    C.concat(m)
+    static const preZero := Meta(C.repeat(IndBlknos.zero, 5))
+    static const zero: Meta := preZero
+
+    predicate Valid()
+    {
+      |s| == 5
+    }
+
+    static function blknos_to_seq(s: IndBlknos): seq<Blkno> { s.s }
+
+    function blknos(): seq<Blkno>
+    {
+      C.concat(C.seq_fmap(blknos_to_seq, this.s))
+    }
+
+    predicate unique_at(i1: nat, j1: nat, i2: nat, j2: nat)
+      requires Valid()
+      requires i1 < 5 && i2 < 5 && j1 < 512 && j2 < 512
+    {
+      s[i1].s[j1] != 0 ==> i1 == i2 && j1 == j2
+    }
+
+    predicate unique()
+      requires Valid()
+    {
+      forall i1, j1, i2, j2 | 0 <= i1 < 5 && 0 <= i2 < 5 && 0 <= j1 < 512 && 0 <= j2 < 512 ::
+        s[i1].s[j1] == s[i2].s[j2] ==> unique_at(i1, j1, i2, j2)
+    }
+
+    lemma unique_intro(i1: nat, j1: nat, i2: nat, j2: nat)
+      requires Valid() && unique()
+      requires i1 < 5 && j1 < 512 && i2 < 5 && j2 < 512
+      ensures s[i1].s[j1] == s[i2].s[j2] ==> s[i1].s[j1] != 0 ==> i1 == i2 && j1 == j2
+    {
+    }
+
+    lemma unique_alt1()
+      requires Valid()
+      ensures unique() ==> Inode.blks_unique(blknos())
+    {
+      if !unique() { return; }
+      var s' := C.seq_fmap(blknos_to_seq, this.s);
+      C.concat_homogeneous_spec_alt(s', 512);
+      forall i1, i2 | 0 <= i1 < 5*512 && 0 <= i2 < 5*512
+        ensures C.concat(s')[i1] == C.concat(s')[i2] ==>
+        i1 == i2 || C.concat(s')[i1] == 0
+      {
+        unique_intro(i1/512, i1%512, i2/512, i2%512);
+      }
+      reveal Inode.blks_unique();
+      assert blknos() == C.concat(s');
+    }
+
+    lemma unique_alt2()
+      requires Valid()
+      ensures Inode.blks_unique(blknos()) ==> unique()
+    {
+      var s' := C.seq_fmap(blknos_to_seq, this.s);
+      C.concat_homogeneous_spec_alt(s', 512);
+      C.concat_homogeneous_spec(s', 512);
+      reveal Inode.blks_unique();
+      // TODO: finish this proof with a forall statement
+      assume false;
+    }
+
+    lemma unique_alt()
+      requires Valid()
+      ensures unique() <==> Inode.blks_unique(blknos())
+    {
+      unique_alt1();
+      unique_alt2();
+    }
   }
+  type Meta = s:preMeta | s.Valid() witness preMeta.preZero
 
   datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
   {
@@ -82,12 +151,13 @@ module IndFs
 
   predicate indblknos_ok(bns: IndBlknos)
   {
-    forall k | 0 <= k < 512 :: blkno_ok(bns[k])
+    forall k | 0 <= k < 512 :: blkno_ok(bns.s[k])
   }
 
   predicate meta_ok?(meta: Meta)
   {
-    forall k: nat | k < 5 :: indblknos_ok(meta[k])
+    assert meta.Valid();
+    forall k: nat | k < 5 :: indblknos_ok(meta.s[k])
   }
 
   class IndFilesys
@@ -123,10 +193,43 @@ module IndFs
       requires ino_dom(ino_meta)
     {
       forall ino: Ino | ino_ok(ino) ::
-        (forall bn | bn in meta_blknos(ino_meta[ino]) ::
+        (forall bn | bn in ino_meta[ino].blknos() ::
         bn != 0 ==>
         && blkno_ok(bn)
         && fs.block_used[bn] == Some(ino))
+    }
+
+    static predicate blks_disjoint(blks1: seq<uint64>, blks2: seq<uint64>)
+    {
+      forall bn1, bn2 | bn1 in blks1 && bn2 in blks2 :: bn1 == bn2 ==> bn1 == 0
+    }
+
+    // TODO: also need uniqueness of metadata (maybe would be better to assign
+    // every block a more precise role in fs.dfy itself, like Free | Data(ino) |
+    // Metadata(ino, level); then this part would be unnecessary)
+    predicate {:opaque} meta_disjoint_from_data()
+      reads Repr()
+      requires fs.Valid()
+      requires ino_dom(ino_meta)
+    {
+      forall ino: Ino | ino_ok(ino) ::
+        blks_disjoint(ino_meta[ino].blknos(), fs.inodes[ino].blks)
+    }
+
+    predicate {:opaque} meta_unique()
+      reads this
+      requires ino_dom(ino_meta)
+    {
+      forall ino: Ino | ino_ok(ino) :: ino_meta[ino].unique()
+    }
+
+    predicate Valid_meta_separation()
+      reads Repr()
+      requires fs.Valid()
+      requires ino_dom(ino_meta)
+    {
+      && meta_disjoint_from_data()
+      && meta_unique()
     }
 
     // this is a strange definition for doubly-indirect blocks: we can't exactly
@@ -136,7 +239,8 @@ module IndFs
     static predicate meta_in_inode(d: InodeData, meta: Meta)
       requires d.Valid()
     {
-      forall k | 0 <= k < 5 :: block_has_blknos(d.blks[10+k], meta[k])
+      assert meta.Valid();
+      forall k | 0 <= k < 5 :: block_has_blknos(d.blks[10+k], meta.s[k])
     }
 
     static predicate ino_ind_match?(
@@ -154,7 +258,7 @@ module IndFs
       (match Idx.from_flat(n) {
         case direct(k) => d.blks[k] == id.blks[n]
         case indirect(k, m) =>
-          zero_lookup(data_block, C.to_seq(meta[k])[m]) == id.blks[n]
+          zero_lookup(data_block, meta.s[k].s[m]) == id.blks[n]
       })
     }
 
@@ -177,23 +281,39 @@ module IndFs
       && ValidMeta()
       && ValidData()
       && Valid_ino_data()
+      && ValidOwnership()
+      && Valid_meta_separation()
     }
 
     constructor(d: Disk)
       ensures Valid()
     {
       this.fs := new Filesys.Init(d);
-      this.ino_meta := map ino: Ino | ino_ok(ino) :: meta0;
+      this.ino_meta := map ino: Ino | ino_ok(ino) :: Meta.zero;
       this.ino_data := map ino: Ino | ino_ok(ino) :: IndInodeData.zero;
       new;
       IndInodeData.zero_valid();
       assert Valid_ino_data() by {
-        assert meta_in_inode(InodeData.zero, meta0) by {
+        assert meta_in_inode(InodeData.zero, Meta.zero) by {
           zero_block_blknos();
         }
-        assert ino_ind_match?(InodeData.zero, meta0, IndInodeData.zero,
+        assert ino_ind_match?(InodeData.zero, Meta.zero, IndInodeData.zero,
           fs.data_block);
         reveal Valid_ino_data();
+      }
+      forall ino: Ino | ino_ok(ino)
+        ensures ino_meta[ino].blknos() == C.repeat(0 as Blkno, 5*512)
+      {
+        C.concat_repeat(0 as Blkno, 512, 5);
+        C.repeat_seq_fmap_auto<IndBlknos, seq<Blkno>>();
+        assert Meta.zero.blknos() == C.repeat(0 as Blkno, 5*512);
+      }
+      assert ValidOwnership() by {
+        reveal ValidOwnership();
+      }
+      assert Valid_meta_separation() by {
+        reveal meta_disjoint_from_data();
+        reveal meta_unique();
       }
     }
   }
