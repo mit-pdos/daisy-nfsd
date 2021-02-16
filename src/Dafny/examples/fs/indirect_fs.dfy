@@ -125,16 +125,27 @@ module IndFs
     forall i | 0 <= i <= 15
       ensures Config.configTotal(config.ilevels[..i]) == totals[i]
     {
-      // TODO: how to brute force this?
-      assume false;
+      if i == 0 {}
+      else if i == 1 {}
+      else if i == 2 {
+        // this first assertion is needed for the second to work (but
+        // Config.configTotal([0,0]) == 2 is easy on its own)
+        assert config.ilevels[..2] == [0,0];
+        assert Config.configTotal(config.ilevels[..2]) == 2;
+        //calc {
+        //  Config.configTotal(config.ilevels[..2]);
+        //  // these constant subslices aren't automatically triggered
+        //  { assert config.ilevels[..2] == [0,0]; }
+        //  Config.configTotal([0,0]);
+        //  2;
+        //}
+      }
+      // TODO: how to brute force this? it's just calculation...
+      else { assume false; }
     }
     assert config.totals[0] == totals[0];
     assert config.ilevels[..1] == config.ilevels[..1];
-    calc {
-      config.totals[1];
-      Config.configTotal(config.ilevels[..1]);
-      1;
-    }
+    assert config.totals[1] == 1;
   }
 
   datatype preIdx = Idx(k: nat, off: IndOff)
