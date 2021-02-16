@@ -20,8 +20,17 @@ module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/encodin
         requires |bs| == u64_bytes
     lemma {:axiom} lemma_le_enc_dec64(x: uint64)
         ensures le_dec64(le_enc64(x)) == x
+    lemma {:axiom} lemma_le_dec_enc64(bs: seq<byte>)
+        requires |bs| == u64_bytes
+        ensures le_enc64(le_dec64(bs)) == bs
     lemma {:axiom} lemma_enc_0()
         ensures le_enc64(0) == [0,0,0,0,0,0,0,0]
+    lemma lemma_dec_0()
+        ensures le_dec64([0,0,0,0,0,0,0,0]) == 0
+    {
+        lemma_enc_0();
+        lemma_le_enc_dec64(0);
+    }
 
     function method {:axiom} le_enc32(x: uint32): (bs:seq<byte>)
         ensures |bs| == u32_bytes

@@ -101,6 +101,26 @@ lemma zero_encode_seq_uint64(n: nat)
   }
 }
 
+function decode_uint64(bs: seq<byte>): (x:uint64)
+    requires |bs| == u64_bytes
+    ensures enc_encode(EncUInt64(x)) == bs
+{
+    lemma_le_dec_enc64(bs);
+    le_dec64(bs)
+}
+
+function decode_uint64_seq(bs: seq<byte>): (es: seq<uint64>)
+    requires |bs| % 8 == 0
+    ensures seq_encode(seq_fmap(encUInt64, es)) == bs
+    ensures |es| == |bs|/8
+{
+    if bs == [] then []
+    else (
+        var es := [decode_uint64(bs[..8])] + decode_uint64_seq(bs[8..]);
+        assert seq_fmap(encUInt64, es) == [EncUInt64(es[0])] + seq_fmap(encUInt64, es[1..]);
+        es
+    )
+}
 
 class Encoder
 {
