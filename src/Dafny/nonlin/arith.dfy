@@ -78,9 +78,17 @@ module Arith {
     ensures x / k < y
   {}
 
+  lemma div_incr_auto()
+    ensures forall x:nat, y:nat, k:nat | 0 < k && x < k * y :: x / k < y
+  {}
+
   lemma div_positive(x: nat, y: int)
     requires 0 < y
     ensures 0 <= x / y
+  {}
+
+  lemma div_positive_auto()
+    ensures forall x: nat, y: int | 0 < y :: 0 <= x / y
   {}
 
   // TODO: prove these basic properties of mul, mod, div
