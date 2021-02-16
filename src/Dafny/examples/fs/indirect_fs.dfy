@@ -38,6 +38,13 @@ module IndFs
       Arith.div_incr_auto();
       (IndOff(1, j / k), IndOff(ilevel-1, j % k))
     }
+
+    function parent(): IndOff
+      requires Valid()
+      requires ilevel > 0
+    {
+      IndOff(ilevel-1, j / 512)
+    }
   }
   type IndOff = x:preIndOff | x.Valid() witness IndOff(0, 0)
 
@@ -220,25 +227,63 @@ module IndFs
   }
   type Idx = x:preIdx | x.Valid() witness Idx(0, IndOff(0, 0))
 
+  datatype preRole = Role(ino: Ino, Idx)
+  {
+    predicate Valid()
+    {
+      ino_ok(ino)
+    }
+  }
+  type Role = x:preRole | x.Valid() witness Role(0, Idx(0, IndOff(0,0)))
+
+  predicate role_dom<T>(m: imap<Role, T>)
+  {
+    forall r:Role :: r in m
+  }
+
   class IndFilesys
   {
-    const fs: Filesys<()>
+    // filesys contains a mapping from allocated Blkno's to roles
+    const fs: Filesys<Role>
+    // this is a complete map; every position in every inode has a value, but
+    // it might be a zero block encoded efficiently via 0's.
+    ghost var to_blkno: imap<Role, Blkno>
 
     function Repr(): set<object>
     {
       {this} + fs.Repr()
     }
 
+    predicate ValidBasics()
+      reads Repr()
+    {
+      && fs.Valid()
+      && role_dom(to_blkno)
+    }
+
+    predicate ValidRoles()
+      reads Repr()
+      requires ValidBasics()
+    {
+      && (forall bn:Blkno | blkno_ok(bn) ::
+          fs.block_used[bn].Some? ==> to_blkno[fs.block_used[bn].x] == bn)
+      && (forall role:Role ::
+          var bn := to_blkno[role];
+          bn != 0 ==> blkno_ok(bn) && fs.block_used[bn] == Some(role))
+    }
+
     predicate Valid()
       reads this.Repr()
     {
-      && fs.Valid()
+      && ValidBasics()
+      && ValidRoles()
     }
 
     constructor(d: Disk)
       ensures Valid()
     {
       this.fs := new Filesys.Init(d);
+      this.to_blkno := imap role: Role | role.Valid() :: 0;
     }
   }
 
