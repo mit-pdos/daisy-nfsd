@@ -114,6 +114,29 @@ module IndFs
     ensures config.total * 4 / 1024 /* MB */ > 10_000
   {}
 
+  lemma config_totals()
+    ensures config.totals == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4+512 + 512*512*512]
+  {
+    var totals := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4+512 + 512*512*512];
+    forall i | 0 <= i <= 15
+      ensures config.totals[i] == Config.configTotal(config.ilevels[..i])
+    {
+    }
+    forall i | 0 <= i <= 15
+      ensures Config.configTotal(config.ilevels[..i]) == totals[i]
+    {
+      // TODO: how to brute force this?
+      assume false;
+    }
+    assert config.totals[0] == totals[0];
+    assert config.ilevels[..1] == config.ilevels[..1];
+    calc {
+      config.totals[1];
+      Config.configTotal(config.ilevels[..1]);
+      1;
+    }
+  }
+
   datatype preIdx = Idx(k: nat, off: IndOff)
   {
     function data?(): bool
@@ -128,6 +151,7 @@ module IndFs
       && off.ilevel <= config.ilevels[k]
     }
 
+    // "flat" indices are logical block addresses (LBAs) for the inode
     function flat(): nat
       requires Valid()
       requires this.data?()
@@ -135,6 +159,9 @@ module IndFs
       config.totals[k] + off.j
     }
 
+    // from_flat gives us a structured way to find an LBA (we go to its
+    // appropriate root block and deference indirect blocks one at a time with
+    // i.split() until we get a direct block)
     static function from_flat(n: nat): (i:Idx)
       requires n < config.total
       ensures i.data?()
@@ -147,9 +174,36 @@ module IndFs
           Idx(10+n/512, IndOff(1, n%512))
         else (
           var n: nat := n-4*512;
-          Idx(14, IndOff(3, n%(512*512*512)))
+          // there's only one triply-indirect block so no complicated
+          // calculations are needed here
+          Idx(14, IndOff(3, n))
         )
       )
+    }
+
+    lemma from_to_flat_id(n: nat)
+      requires n < config.total
+      ensures from_flat(n).flat() == n
+    {
+      config_totals();
+      if n < 10 { return; }
+      assert n >= 10;
+      var n0 := n;
+      var n := n-10;
+      if n < 4*512 {
+        assert 10 <= from_flat(n0).k < 14;
+        if n < 512 {
+          return;
+        }
+        if n < 2*512 {
+          return;
+        }
+        if n < 3*512 {
+          return;
+        }
+        return;
+      }
+      assert from_flat(n0).flat() == 10+4*512 + (n-4*512);
     }
 
   }
