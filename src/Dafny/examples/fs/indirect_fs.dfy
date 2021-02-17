@@ -283,9 +283,9 @@ module IndFs
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Role, Blkno>
-    // only maps blocks which are used for data (this hides when other blocks
-    // change but exposes newly-allocated data blocks)
-    ghost var data: map<Blkno, Block>
+    // only maps data roles (this hides when other blocks change but exposes
+    // newly-allocated data blocks)
+    ghost var data: imap<Role, Block>
     ghost var metadata: map<Ino, uint64>
 
     function blkno_role(bn: Blkno): Option<Role>
@@ -365,10 +365,9 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall bn:Blkno | bn != 0  && blkno_ok(bn) ::
-        blkno_role(bn).Some? && blkno_role(bn).x.idx.data?() ==>
-        && bn in data
-        && data[bn] == fs.data_block[bn]
+      forall role:Role | role.idx.data?() ::
+        && role in data
+        && data[role] == zero_lookup(fs.data_block, to_blkno[role])
     }
 
     predicate Valid()
@@ -394,9 +393,8 @@ module IndFs
       ensures fs.quiescent()
     {
       this.fs := new Filesys.Init(d);
-      this.to_blkno := imap role: Role | role.Valid() :: 0;
-      // no allocated data blocks initially
-      this.data := map[];
+      this.to_blkno := imap role: Role {:trigger} :: 0 as Blkno;
+      this.data := imap role: Role | role.idx.data?() :: block0;
       this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
       new;
       IndBlocks.to_blknos_zero();
@@ -411,6 +409,7 @@ module IndFs
       ensures ValidIno(ino, i')
     {
       i' := i;
+      ghost var role := MkRole(ino, idx);
       if idx.ilevel == 0 {
         assert idx.off == IndOff.direct;
         // this index is found directly in the inode
@@ -424,11 +423,11 @@ module IndFs
           fs.writeInode(ino, i');
           to_blkno := to_blkno[Role(ino, idx):=bn];
           fs.writeDataBlock(txn, bn, blk);
-          data := data[bn := blk.data];
+          data := data[role := blk.data];
           return;
         }
         fs.writeDataBlock(txn, bn, blk);
-        data := data[bn := blk.data];
+        data := data[role := blk.data];
         return;
       }
       // TODO
