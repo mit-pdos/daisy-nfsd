@@ -31,7 +31,7 @@ TIME_RE = re.compile(
     (?P<time>[0-9.]*)
     \s s,
     \s* (?P<num_obligations>[0-9]*)\ proof\ obligations?\]
-    \s*verified
+    \s*(?P<result>verified|error)
     """,
     re.VERBOSE,
 )
@@ -44,6 +44,7 @@ def get_time(line):
     return {
         "time_s": float(m.group("time")),
         "obligations": int(m.group("num_obligations")),
+        "result": m.group("result"),
     }
 
 
@@ -61,6 +62,7 @@ def parse_df(lines) -> pd.DataFrame:
         timing = get_time(line)
         if timing is None:
             print(f"did not find timing info for {current}", file=sys.stderr)
+            print(line)
             current = None
             continue
         current.update(timing)
@@ -68,7 +70,7 @@ def parse_df(lines) -> pd.DataFrame:
         current = None
 
     df = pd.DataFrame.from_records(
-        data, columns=["type", "name", "obligations", "time_s"]
+        data, columns=["type", "name", "obligations", "result", "time_s"]
     )
     if df is None:
         sys.exit(1)
