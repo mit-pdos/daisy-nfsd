@@ -319,6 +319,24 @@ module Fs {
       }
     }
 
+    predicate is_inode(ino: Ino, i: Inode.Inode)
+      reads this, jrnl
+      requires Valid_basics(jrnl)
+      requires Valid_domains()
+    {
+      && ino_ok(ino)
+      && inodes[ino] == i
+    }
+
+    predicate is_cur_inode(ino: Ino, i: Inode.Inode)
+      reads this, jrnl
+      requires Valid_basics(jrnl)
+      requires Valid_domains()
+    {
+      && is_inode(ino, i)
+      && on_inode(ino)
+    }
+
     // public
     ghost method startInode(ino: Ino, i: Inode.Inode)
       modifies this
@@ -387,9 +405,8 @@ module Fs {
 
     // public
     ghost method writeInode(ino: Ino, i': Inode.Inode)
-      modifies this, jrnl
-      requires Valid_jrnl_to_all() ensures Valid_jrnl_to_all()
-      requires Inodes_all_Valid(inodes) ensures Inodes_all_Valid(inodes)
+      modifies this
+      requires Valid() ensures Valid()
       requires on_inode(ino);
       requires i'.Valid()
       ensures is_cur_inode(ino, i')
@@ -404,24 +421,6 @@ module Fs {
         reveal_Valid_jrnl_to_data_block();
         reveal_Valid_jrnl_to_inodes();
       }
-    }
-
-    predicate is_inode(ino: Ino, i: Inode.Inode)
-      reads this, jrnl
-      requires Valid_basics(jrnl)
-      requires Valid_domains()
-    {
-      && ino_ok(ino)
-      && inodes[ino] == i
-    }
-
-    predicate is_cur_inode(ino: Ino, i: Inode.Inode)
-      reads this, jrnl
-      requires Valid_basics(jrnl)
-      requires Valid_domains()
-    {
-      && is_inode(ino, i)
-      && on_inode(ino)
     }
 
     // public

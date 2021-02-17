@@ -53,7 +53,6 @@ module Inode {
   predicate ValidBlks(blks: seq<uint64>)
   {
     && |blks| == 15
-    && blks_unique(blks)
   }
 
   function inode_enc(i: Inode): seq<Encodable>

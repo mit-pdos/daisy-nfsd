@@ -45,6 +45,13 @@ module IndFs
     {
       IndOff(ilevel-1, j / 512)
     }
+
+    function child(): IndOff
+      requires Valid()
+      requires ilevel > 0
+    {
+      IndOff(1, j % 512)
+    }
   }
   type IndOff = x:preIndOff | x.Valid() witness IndOff(0, 0)
 
@@ -157,10 +164,18 @@ module IndFs
 
   datatype preIdx = Idx(k: nat, off: IndOff)
   {
+    const ilevel: nat := off.ilevel
+
     function data?(): bool
       requires Valid()
     {
       off.ilevel == config.ilevels[k]
+    }
+
+    static function from_inode(k: nat): Idx
+      requires k < |config.ilevels|
+    {
+      Idx(k, IndOff.direct)
     }
 
     predicate Valid()
@@ -227,7 +242,7 @@ module IndFs
   }
   type Idx = x:preIdx | x.Valid() witness Idx(0, IndOff(0, 0))
 
-  datatype preRole = Role(ino: Ino, Idx)
+  datatype preRole = Role(ino: Ino, idx: Idx)
   {
     predicate Valid()
     {
@@ -235,6 +250,11 @@ module IndFs
     }
   }
   type Role = x:preRole | x.Valid() witness Role(0, Idx(0, IndOff(0,0)))
+  function MkRole(ino: Ino, idx: Idx): Role
+    requires Role(ino, idx).Valid()
+  {
+    Role(ino, idx)
+  }
 
   predicate role_dom<T>(m: imap<Role, T>)
   {
@@ -248,6 +268,18 @@ module IndFs
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Role, Blkno>
+    // only maps blocks which are used for data (this hides when other blocks
+    // change but exposes newly-allocated data blocks)
+    ghost var data: map<Blkno, Block>
+    ghost var metadata: map<Ino, uint64>
+
+    function blkno_role(bn: Blkno): Option<Role>
+      reads fs.Repr()
+      requires blkno_ok(bn)
+      requires fs.Valid()
+    {
+      fs.block_used[bn]
+    }
 
     function Repr(): set<object>
     {
@@ -259,17 +291,64 @@ module IndFs
     {
       && fs.Valid()
       && role_dom(to_blkno)
+      && ino_dom(metadata)
+      // no blkno_dom(data) - domain is a non-trivial subset of blocks
     }
 
     predicate ValidRoles()
       reads Repr()
       requires ValidBasics()
     {
-      && (forall bn:Blkno | blkno_ok(bn) ::
+      && fs.block_used[0].None?
+      && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
           fs.block_used[bn].Some? ==> to_blkno[fs.block_used[bn].x] == bn)
       && (forall role:Role ::
           var bn := to_blkno[role];
-          bn != 0 ==> blkno_ok(bn) && fs.block_used[bn] == Some(role))
+          && blkno_ok(bn)
+          && (bn != 0 ==> fs.block_used[bn] == Some(role)))
+    }
+
+    lemma blkno_unused(bn: Blkno)
+      requires ValidBasics() && ValidRoles()
+      requires blkno_ok(bn) && bn != 0 && blkno_role(bn).None?
+      ensures forall role: Role :: to_blkno[role] != bn
+    {}
+
+    predicate ValidMetadata()
+      reads Repr()
+      requires ValidBasics()
+    {
+      forall ino: Ino | ino_ok(ino) :: fs.inodes[ino].sz == metadata[ino]
+    }
+
+    predicate ValidInodes()
+      reads Repr()
+      requires ValidBasics()
+    {
+      forall ino:Ino | ino_ok(ino) ::
+        forall k | 0 <= k < 15 ::
+        var bn := fs.inodes[ino].blks[k];
+        && blkno_ok(bn)
+        && to_blkno[Role(ino, Idx.from_inode(k))] == bn
+        && (bn != 0 ==> fs.block_used[bn] == Some(MkRole(ino, Idx.from_inode(k))))
+    }
+
+    predicate ValidIndirect()
+      reads Repr()
+      requires ValidBasics()
+    {
+      // TODO: say something about every ilevel > 0 being located in its parent
+      true
+    }
+
+    predicate ValidData()
+      reads Repr()
+      requires ValidBasics()
+    {
+      forall bn:Blkno | bn != 0  && blkno_ok(bn) ::
+        blkno_role(bn).Some? && blkno_role(bn).x.idx.data?() ==>
+        && bn in data
+        && data[bn] == fs.data_block[bn]
     }
 
     predicate Valid()
@@ -277,13 +356,62 @@ module IndFs
     {
       && ValidBasics()
       && ValidRoles()
+      && ValidInodes()
+      && ValidMetadata()
+      && ValidIndirect()
+      && ValidData()
+    }
+
+    predicate ValidIno(ino: Ino, i: Inode.Inode)
+      reads this.Repr()
+    {
+      && Valid()
+      && fs.is_cur_inode(ino, i)
     }
 
     constructor(d: Disk)
       ensures Valid()
+      ensures fs.quiescent()
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap role: Role | role.Valid() :: 0;
+      // no allocated data blocks initially
+      this.data := map[];
+      this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
+    }
+
+    method write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
+      modifies Repr()
+      requires txn.jrnl == fs.jrnl
+      requires ValidIno(ino, i)
+      requires idx.data?()
+      requires is_block(blk.data)
+      ensures ValidIno(ino, i')
+    {
+      i' := i;
+      if idx.ilevel == 0 {
+        assert idx.off == IndOff.direct;
+        // this index is found directly in the inode
+        var bn := i.blks[idx.k];
+        if bn == 0 {
+          ok, bn := fs.allocateTo(txn, Role(ino, idx));
+          if !ok {
+            return;
+          }
+          i' := i.(blks := i.blks[idx.k:=bn]);
+          fs.writeInode(ino, i');
+          to_blkno := to_blkno[Role(ino, idx):=bn];
+          fs.writeDataBlock(txn, bn, blk);
+          data := data[bn := blk.data];
+          return;
+        }
+        fs.writeDataBlock(txn, bn, blk);
+        data := data[bn := blk.data];
+        return;
+      }
+      // TODO
+      i' := i;
+      assume false;
     }
   }
 
