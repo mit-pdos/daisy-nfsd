@@ -56,4 +56,17 @@ module IndBlocks
     return;
   }
 
+  function to_blknos(bs: Block): (blknos:IndBlknos)
+    ensures block_has_blknos(bs, blknos)
+  {
+    IndBlknos(decode_uint64_seq(bs))
+  }
+
+  lemma to_blknos_zero()
+    ensures to_blknos(block0) == IndBlknos.zero
+  {
+    // TODO: figure out the best way to prove this
+    assume false;
+  }
+
 }

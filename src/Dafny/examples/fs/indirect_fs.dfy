@@ -248,6 +248,14 @@ module IndFs
     {
       ino_ok(ino)
     }
+
+    function parent(): Role
+      requires Valid()
+      requires idx.ilevel > 0
+    {
+      Role(ino, Idx(idx.k, idx.off.parent()))
+    }
+
   }
   type Role = x:preRole | x.Valid() witness Role(0, Idx(0, IndOff(0,0)))
   function MkRole(ino: Ino, idx: Idx): Role
@@ -293,6 +301,7 @@ module IndFs
       && role_dom(to_blkno)
       && ino_dom(metadata)
       // no blkno_dom(data) - domain is a non-trivial subset of blocks
+      && (forall role:Role :: blkno_ok(to_blkno[role]))
     }
 
     predicate ValidRoles()
@@ -301,11 +310,11 @@ module IndFs
     {
       && fs.block_used[0].None?
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
-          fs.block_used[bn].Some? ==> to_blkno[fs.block_used[bn].x] == bn)
+          blkno_role(bn).Some? ==> to_blkno[blkno_role(bn).x] == bn)
       && (forall role:Role ::
           var bn := to_blkno[role];
           && blkno_ok(bn)
-          && (bn != 0 ==> fs.block_used[bn] == Some(role)))
+          && (bn != 0 ==> blkno_role(bn) == Some(role)))
     }
 
     lemma blkno_unused(bn: Blkno)
@@ -330,15 +339,19 @@ module IndFs
         var bn := fs.inodes[ino].blks[k];
         && blkno_ok(bn)
         && to_blkno[Role(ino, Idx.from_inode(k))] == bn
-        && (bn != 0 ==> fs.block_used[bn] == Some(MkRole(ino, Idx.from_inode(k))))
+        && (bn != 0 ==> blkno_role(bn) == Some(MkRole(ino, Idx.from_inode(k))))
     }
 
     predicate ValidIndirect()
       reads Repr()
       requires ValidBasics()
     {
-      // TODO: say something about every ilevel > 0 being located in its parent
-      true
+      forall role: Role | role.idx.ilevel > 0 ::
+        var parent := to_blkno[role.parent()];
+        var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
+        var j := role.idx.off.child().j;
+        var bn := to_blkno[role];
+        blknos.s[j] == bn
     }
 
     predicate ValidData()
@@ -378,6 +391,8 @@ module IndFs
       // no allocated data blocks initially
       this.data := map[];
       this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
+      new;
+      IndBlocks.to_blknos_zero();
     }
 
     method write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
