@@ -242,6 +242,13 @@ module IndFs
   }
   type Idx = x:preIdx | x.Valid() witness Idx(0, IndOff(0, 0))
 
+  // TODO: rename this; it's the main type used in the exposed abstraction
+  //
+  // This is really the primary notion of an "index" as an abstract location in
+  // the file system. A data index has three dimensions: inode, top-level block
+  // in inode, and offset within that block. Indirect blocks have an inode and
+  // top-level block as well as an indirection level which might be higher than
+  // the bottom where the data lives.
   datatype preRole = Role(ino: Ino, idx: Idx)
   {
     predicate Valid()
