@@ -17,6 +17,7 @@ def test_timing_parse1():
     assert d is not None
     assert d["time_s"] == 0.409
     assert d["obligations"] == 1
+    assert d["result"] == "ok"
 
 
 def test_timing_parse2():
@@ -25,6 +26,14 @@ def test_timing_parse2():
     assert d is not None
     assert d["time_s"] == 0.360
     assert d["obligations"] == 50
+
+
+def test_timing_parse3():
+    line = r"""  [60.987 s, 161 proof obligations]  timed out"""
+    d = get_time(line)
+    assert d is not None
+    assert d["time_s"] == 60.987
+    assert d["result"] == "timeout"
 
 
 def test_df_parse():

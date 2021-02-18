@@ -31,7 +31,7 @@ TIME_RE = re.compile(
     (?P<time>[0-9.]*)
     \s s,
     \s* (?P<num_obligations>[0-9]*)\ proof\ obligations?\]
-    \s*(?P<result>verified|error)
+    \s*(?P<result>verified|error|timed\ out)
     """,
     re.VERBOSE,
 )
@@ -41,10 +41,15 @@ def get_time(line):
     m = TIME_RE.match(line)
     if m is None:
         return None
+    result = m.group("result")
+    if result == "timed out":
+        result = "timeout"
+    if result == "verified":
+        result = "ok"
     return {
         "time_s": float(m.group("time")),
         "obligations": int(m.group("num_obligations")),
-        "result": m.group("result"),
+        "result": result,
     }
 
 
