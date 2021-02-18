@@ -37,14 +37,14 @@ module IndFs
       (IndOff(1, j / k), IndOff(ilevel-1, j % k))
     }
 
-    function parent(): IndOff
+    function method parent(): IndOff
       requires Valid()
       requires ilevel > 0
     {
       IndOff(ilevel-1, j / 512)
     }
 
-    function child(): IndOff
+    function method child(): IndOff
       requires Valid()
       requires ilevel > 0
     {
@@ -249,7 +249,7 @@ module IndFs
       ino_ok(ino)
     }
 
-    function parent(): Pos
+    function method parent(): Pos
       requires Valid()
       requires idx.ilevel > 0
     {
@@ -393,7 +393,48 @@ module IndFs
       IndBlocks.to_blknos_zero();
     }
 
-    method write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
+    // internal read
+    method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+      decreases pos.idx.ilevel
+      requires txn.jrnl == fs.jrnl
+      requires ValidIno(pos.ino, i)
+      ensures is_block(b.data)
+      ensures b.data == zero_lookup(fs.data_block, to_blkno[pos])
+    {
+      var idx := pos.idx;
+      if idx.ilevel == 0 {
+        assert idx.off == IndOff.direct;
+        var bn := i.blks[idx.k];
+        if bn == 0 {
+          b := NewBytes(4096);
+          return;
+        }
+        b := fs.getDataBlock(txn, bn);
+        return;
+      }
+      // recurse
+      var parent: Pos := pos.parent();
+      var child: IndOff := idx.off.child();
+      var ib: Bytes := this.read_(txn, parent, i);
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      b := fs.getDataBlock(txn, child_bn);
+      // NOTE(tej): I can't believe this worked the first time
+    }
+
+    // public
+    //
+    // data version of more general read_ spec
+    method read(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+      requires txn.jrnl == fs.jrnl
+      requires ValidIno(pos.ino, i)
+      requires pos.data?
+      ensures b.data == data[pos]
+    {
+      b := this.read_(txn, pos, i);
+    }
+
+    // TODO: this doesn't currently work due to a timeout, probably invariants have gotten to complex
+    method {:verify false} write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(ino, i)

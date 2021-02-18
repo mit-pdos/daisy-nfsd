@@ -69,4 +69,15 @@ module IndBlocks
     assume false;
   }
 
+  method decode_one(bs: Bytes, k: nat) returns (bn:Blkno)
+    requires is_block(bs.data)
+    requires k < 512
+    ensures bn == to_blknos(bs.data).s[k]
+  {
+    // TODO: this can be implemented directly more efficiently by skipping
+    // marshal entirely
+    var blknos := decode_blknos(bs, to_blknos(bs.data));
+    bn := blknos[k];
+  }
+
 }
