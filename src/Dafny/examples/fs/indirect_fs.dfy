@@ -304,7 +304,7 @@ module IndFs
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate ValidPoss()
+    predicate {:opaque} ValidPos()
       reads Repr()
       requires ValidBasics()
     {
@@ -318,10 +318,12 @@ module IndFs
     }
 
     lemma blkno_unused(bn: Blkno)
-      requires ValidBasics() && ValidPoss()
+      requires ValidBasics() && ValidPos()
       requires blkno_ok(bn) && bn != 0 && blkno_pos(bn).None?
       ensures forall pos: Pos :: to_blkno[pos] != bn
-    {}
+    {
+      reveal ValidPos();
+    }
 
     predicate ValidMetadata()
       reads Repr()
@@ -330,7 +332,7 @@ module IndFs
       forall ino: Ino | ino_ok(ino) :: fs.inodes[ino].sz == metadata[ino]
     }
 
-    predicate ValidInodes()
+    predicate {:opaque} ValidInodes()
       reads Repr()
       requires ValidBasics()
     {
@@ -367,7 +369,7 @@ module IndFs
       reads this.Repr()
     {
       && ValidBasics()
-      && ValidPoss()
+      && ValidPos()
       && ValidInodes()
       && ValidMetadata()
       && ValidIndirect()
@@ -391,6 +393,8 @@ module IndFs
       this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
       new;
       IndBlocks.to_blknos_zero();
+      reveal ValidPos();
+      reveal ValidInodes();
     }
 
     // internal read
@@ -401,8 +405,10 @@ module IndFs
       ensures is_block(b.data)
       ensures b.data == zero_lookup(fs.data_block, to_blkno[pos])
     {
+      reveal ValidInodes();
       var idx := pos.idx;
       if idx.ilevel == 0 {
+        reveal ValidPos();
         assert idx.off == IndOff.direct;
         var bn := i.blks[idx.k];
         if bn == 0 {
@@ -432,6 +438,12 @@ module IndFs
     {
       b := this.read_(txn, pos, i);
     }
+
+    // caller can extract size themselves
+    lemma inode_metadata(ino: Ino, i: Inode.Inode)
+      requires ValidIno(ino, i)
+      ensures i.sz == metadata[ino]
+    {}
 
     // TODO: this doesn't currently work due to a timeout, probably invariants have gotten to complex
     method {:verify false} write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
