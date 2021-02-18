@@ -249,46 +249,46 @@ module IndFs
   // in inode, and offset within that block. Indirect blocks have an inode and
   // top-level block as well as an indirection level which might be higher than
   // the bottom where the data lives.
-  datatype preRole = Role(ino: Ino, idx: Idx)
+  datatype prePos = Pos(ino: Ino, idx: Idx)
   {
     predicate Valid()
     {
       ino_ok(ino)
     }
 
-    function parent(): Role
+    function parent(): Pos
       requires Valid()
       requires idx.ilevel > 0
     {
-      Role(ino, Idx(idx.k, idx.off.parent()))
+      Pos(ino, Idx(idx.k, idx.off.parent()))
     }
 
   }
-  type Role = x:preRole | x.Valid() witness Role(0, Idx(0, IndOff(0,0)))
-  function MkRole(ino: Ino, idx: Idx): Role
-    requires Role(ino, idx).Valid()
+  type Pos = x:prePos | x.Valid() witness Pos(0, Idx(0, IndOff(0,0)))
+  function MkPos(ino: Ino, idx: Idx): Pos
+    requires Pos(ino, idx).Valid()
   {
-    Role(ino, idx)
+    Pos(ino, idx)
   }
 
-  predicate role_dom<T>(m: imap<Role, T>)
+  predicate pos_dom<T>(m: imap<Pos, T>)
   {
-    forall r:Role :: r in m
+    forall p:Pos :: p in m
   }
 
   class IndFilesys
   {
-    // filesys contains a mapping from allocated Blkno's to roles
-    const fs: Filesys<Role>
+    // filesys contains a mapping from allocated Blkno's to poss
+    const fs: Filesys<Pos>
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
-    ghost var to_blkno: imap<Role, Blkno>
-    // only maps data roles (this hides when other blocks change but exposes
+    ghost var to_blkno: imap<Pos, Blkno>
+    // only maps data poss (this hides when other blocks change but exposes
     // newly-allocated data blocks)
-    ghost var data: imap<Role, Block>
+    ghost var data: imap<Pos, Block>
     ghost var metadata: map<Ino, uint64>
 
-    function blkno_role(bn: Blkno): Option<Role>
+    function blkno_pos(bn: Blkno): Option<Pos>
       reads fs.Repr()
       requires blkno_ok(bn)
       requires fs.Valid()
@@ -305,29 +305,29 @@ module IndFs
       reads Repr()
     {
       && fs.Valid()
-      && role_dom(to_blkno)
+      && pos_dom(to_blkno)
       && ino_dom(metadata)
       // no blkno_dom(data) - domain is a non-trivial subset of blocks
-      && (forall role:Role :: blkno_ok(to_blkno[role]))
+      && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate ValidRoles()
+    predicate ValidPoss()
       reads Repr()
       requires ValidBasics()
     {
       && fs.block_used[0].None?
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
-          blkno_role(bn).Some? ==> to_blkno[blkno_role(bn).x] == bn)
-      && (forall role:Role ::
-          var bn := to_blkno[role];
+          blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
+      && (forall pos:Pos ::
+          var bn := to_blkno[pos];
           && blkno_ok(bn)
-          && (bn != 0 ==> blkno_role(bn) == Some(role)))
+          && (bn != 0 ==> blkno_pos(bn) == Some(pos)))
     }
 
     lemma blkno_unused(bn: Blkno)
-      requires ValidBasics() && ValidRoles()
-      requires blkno_ok(bn) && bn != 0 && blkno_role(bn).None?
-      ensures forall role: Role :: to_blkno[role] != bn
+      requires ValidBasics() && ValidPoss()
+      requires blkno_ok(bn) && bn != 0 && blkno_pos(bn).None?
+      ensures forall pos: Pos :: to_blkno[pos] != bn
     {}
 
     predicate ValidMetadata()
@@ -345,19 +345,19 @@ module IndFs
         forall k | 0 <= k < 15 ::
         var bn := fs.inodes[ino].blks[k];
         && blkno_ok(bn)
-        && to_blkno[Role(ino, Idx.from_inode(k))] == bn
-        && (bn != 0 ==> blkno_role(bn) == Some(MkRole(ino, Idx.from_inode(k))))
+        && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
+        && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
     }
 
     predicate ValidIndirect()
       reads Repr()
       requires ValidBasics()
     {
-      forall role: Role | role.idx.ilevel > 0 ::
-        var parent := to_blkno[role.parent()];
+      forall pos: Pos | pos.idx.ilevel > 0 ::
+        var parent := to_blkno[pos.parent()];
         var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
-        var j := role.idx.off.child().j;
-        var bn := to_blkno[role];
+        var j := pos.idx.off.child().j;
+        var bn := to_blkno[pos];
         blknos.s[j] == bn
     }
 
@@ -365,16 +365,16 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall role:Role | role.idx.data?() ::
-        && role in data
-        && data[role] == zero_lookup(fs.data_block, to_blkno[role])
+      forall pos:Pos | pos.idx.data?() ::
+        && pos in data
+        && data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
 
     predicate Valid()
       reads this.Repr()
     {
       && ValidBasics()
-      && ValidRoles()
+      && ValidPoss()
       && ValidInodes()
       && ValidMetadata()
       && ValidIndirect()
@@ -393,8 +393,8 @@ module IndFs
       ensures fs.quiescent()
     {
       this.fs := new Filesys.Init(d);
-      this.to_blkno := imap role: Role {:trigger} :: 0 as Blkno;
-      this.data := imap role: Role | role.idx.data?() :: block0;
+      this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
+      this.data := imap pos: Pos | pos.idx.data?() :: block0;
       this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
       new;
       IndBlocks.to_blknos_zero();
@@ -409,25 +409,25 @@ module IndFs
       ensures ValidIno(ino, i')
     {
       i' := i;
-      ghost var role := MkRole(ino, idx);
+      ghost var pos := MkPos(ino, idx);
       if idx.ilevel == 0 {
         assert idx.off == IndOff.direct;
         // this index is found directly in the inode
         var bn := i.blks[idx.k];
         if bn == 0 {
-          ok, bn := fs.allocateTo(txn, Role(ino, idx));
+          ok, bn := fs.allocateTo(txn, Pos(ino, idx));
           if !ok {
             return;
           }
           i' := i.(blks := i.blks[idx.k:=bn]);
           fs.writeInode(ino, i');
-          to_blkno := to_blkno[Role(ino, idx):=bn];
+          to_blkno := to_blkno[Pos(ino, idx):=bn];
           fs.writeDataBlock(txn, bn, blk);
-          data := data[role := blk.data];
+          data := data[pos := blk.data];
           return;
         }
         fs.writeDataBlock(txn, bn, blk);
-        data := data[role := blk.data];
+        data := data[pos := blk.data];
         return;
       }
       // TODO
