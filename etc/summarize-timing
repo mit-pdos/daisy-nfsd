@@ -2,13 +2,27 @@
 
 import sys
 from timing import parse_df
+import argparse
 
 
 def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--max",
+                        type=int,
+                        default=10,
+                        help="number of methods to show (0 for all)")
+    args = parser.parse_args()
+
     df = parse_df(sys.stdin)
-    print(df.sort_values(by="time_s", ascending=False).head(10))
+    df.sort_values(by="time_s", ascending=False, inplace=True)
+
+    top_df = df.head(args.max) if args.max > 0 else df
+    print(top_df)
+
     total_s = df.time_s.sum()
-    print(f"total: {total_s:0.2f}")
+    total_methods = len(df)
+    print(f"total: {total_s:0.2f}  methods: {total_methods}")
 
 
 if __name__ == "__main__":
