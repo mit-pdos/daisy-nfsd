@@ -538,7 +538,7 @@ module IndFs
       }
     }
 
-    method allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
+    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
       modifies Repr(), pblock
       requires txn.jrnl == fs.jrnl
@@ -698,21 +698,18 @@ module IndFs
       data := data[pos := blk.data];
 
       assert ValidPos() by {
-        assume false;
         reveal ValidPos();
       }
       assert ValidInodes() by {
-        assume false;
         reveal ValidPos();
         reveal ValidInodes();
       }
       assert ValidData() by {
-        assume false;
         reveal ValidPos();
         reveal ValidData();
       }
       assert ValidIndirect() by {
-        assume false;
+        reveal ValidPos();
         reveal ValidIndirect();
       }
     }
