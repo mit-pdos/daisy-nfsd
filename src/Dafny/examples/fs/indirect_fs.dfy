@@ -407,7 +407,7 @@ module IndFs
       reveal ValidData();
     }
 
-    // internal read
+    // private read
     method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
       decreases pos.idx.ilevel
       requires txn.jrnl == fs.jrnl
@@ -465,6 +465,32 @@ module IndFs
       assert inode_pos_match(pos.ino, i'.blks, to_blkno);
     }
 
+    twostate predicate state_unchanged()
+      reads this, fs
+    {
+      && data == old(data)
+      && metadata == old(metadata)
+    }
+
+    twostate lemma Valid_allocation_fail()
+      requires old(Valid())
+      requires
+          && fs.Valid()
+          && fs.data_block == old(fs.data_block)
+          && fs.inodes == old(fs.inodes)
+          && fs.block_used == old(fs.block_used)
+          && data == old(data)
+          && metadata == old(metadata)
+          && to_blkno == old(to_blkno)
+      ensures Valid()
+    {
+      reveal ValidPos();
+      reveal ValidInodes();
+      reveal ValidData();
+      reveal ValidIndirect();
+    }
+
+    // private
     method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
       returns (ok: bool, i': Inode.Inode, bn: Blkno)
       modifies Repr()
@@ -472,8 +498,7 @@ module IndFs
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       requires !pos.data? && pos.idx.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
-      ensures data == old(data)
-      ensures metadata == old(metadata)
+      ensures state_unchanged()
     {
       var idx := pos.idx;
       assert to_blkno[pos] == 0 by {
@@ -482,12 +507,7 @@ module IndFs
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
         i' := i;
-        assert ValidPos() && ValidInodes() by {
-          reveal ValidPos();
-          reveal ValidInodes();
-        }
-        assert ValidIndirect() by { reveal ValidIndirect(); }
-        assert ValidData() by { reveal ValidData(); }
+        Valid_allocation_fail();
         return;
       }
 
@@ -504,60 +524,115 @@ module IndFs
       assert ValidInodes() by {
         ValidInodes_change_one(pos, i', bn);
       }
-      assert ValidIndirect() by {
+      assert ValidIndirect() && ValidData() by {
+        reveal ValidPos();
         reveal ValidIndirect();
-        reveal ValidPos();
-      }
-      assert ValidData() by {
-        reveal ValidPos();
         reveal ValidData();
       }
     }
 
-    // internal
-    method {:verify false} resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
+    method allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
+      returns (ok: bool, bn: Blkno)
+      modifies Repr(), pblock
+      requires txn.jrnl == fs.jrnl
+      requires Valid() ensures Valid()
+      requires pos.idx.ilevel > 0 && !pos.idx.data? && to_blkno[pos] == 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ibn != 0
+      requires pblock.data == zero_lookup(fs.data_block, ibn)
+      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures fs.cur_inode == old(fs.cur_inode)
+      ensures fs.inodes == old(fs.inodes)
+      ensures state_unchanged()
+    {
+      ok, bn := fs.allocateTo(txn, pos);
+      if !ok {
+        Valid_allocation_fail();
+        return;
+      }
+      to_blkno := to_blkno[pos := bn];
+
+      assert ValidPos() by {
+        ValidPos_alloc_one(bn, pos);
+      }
+
+      var child := pos.idx.off.child();
+      // this chunk could be done in-place on pblock more efficiently
+      var pblknos := IndBlocks.decode_blknos(pblock, to_blknos(pblock.data));
+      pblknos := pblknos[child.j:=bn];
+      var pblock' := IndBlocks.encode_blknos(IndBlknos(pblknos));
+      fs.writeDataBlock(txn, ibn, pblock');
+
+      assert ValidPos() by {
+        reveal ValidPos();
+      }
+
+      assert ValidInodes() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+
+      assert ValidIndirect() by {
+        assume false;
+        reveal ValidPos();
+        reveal ValidIndirect();
+      }
+    }
+
+    // private
+    method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
+      decreases pos.idx.ilevel
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       requires !pos.data?
-      ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
-      ensures data == old(data)
-      ensures metadata == old(metadata)
+      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures state_unchanged()
     {
       reveal ValidInodes();
       i' := i;
       var idx := pos.idx;
       if idx.ilevel == 0 {
-        reveal ValidPos();
         assert idx.off == IndOff.direct;
         bn := i.blks[idx.k];
-        if bn == 0 {
-          // need to allocate a top-level indirect block
-          ok, bn := fs.allocateTo(txn, pos);
-          if !ok {
-            return;
-          }
-          i' := i.(blks := i.blks[idx.k := bn]);
-          fs.writeInode(pos.ino, i');
-
-          to_blkno := to_blkno[pos:=bn];
-          var zeroblk := NewBytes(4096);
-          fs.writeDataBlock(txn, bn, zeroblk);
+        if bn != 0 {
+          // we haven't actually written anything, just resolved existing metadata
+          return;
         }
-        assert ValidPos() by {
-          reveal ValidPos();
-          reveal ValidInodes();
-        }
-        assert ValidInodes() by {
-          reveal ValidInodes();
-        }
+        assert bn == 0;
+        // need to allocate a top-level indirect block
+        ok, i', bn := allocateRootMetadata(txn, pos, i');
         return;
       }
       // recurse
       var parent: Pos := pos.parent();
       var child: IndOff := idx.off.child();
-      // TODO: resolveMetadata on parent
-      assume false;
+      var ibn;
+      ok, i', ibn := this.resolveMetadata(txn, parent, i');
+      if !ok { return; }
+      // now we have somewhere to store the reference to this block, but might
+      // need to allocate into the parent
+      var pblock := fs.getDataBlock(txn, ibn);
+      bn := IndBlocks.decode_one(pblock, child.j);
+      assert bn == to_blkno[pos] by {
+        reveal ValidIndirect();
+      }
+      assert ValidIno(pos.ino, i');
+      assert state_unchanged();
+      if bn != 0 {
+        return;
+      }
+
+      ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
+      assert ValidIno(pos.ino, i');
+      if !ok {
+        return;
+      }
     }
 
     // public
