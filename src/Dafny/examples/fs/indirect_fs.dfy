@@ -23,20 +23,6 @@ module IndFs
       j < pow(512, ilevel)
     }
 
-    // to dereference an offset, we can decompose it into a single indirection
-    // then the remaining lookup at one level lower
-    function split(): (p: (IndOff, IndOff))
-      requires Valid()
-      requires ilevel > 0
-    {
-      Arith.div_positive_auto();
-      var k := pow(512, ilevel-1);
-      Arith.div_mod_split(j, k);
-      assert pow(512, ilevel) == k * 512;
-      Arith.div_incr_auto();
-      (IndOff(1, j / k), IndOff(ilevel-1, j % k))
-    }
-
     function method parent(): IndOff
       requires Valid()
       requires ilevel > 0
@@ -242,6 +228,7 @@ module IndFs
   // the data lives.
   datatype prePos = Pos(ino: Ino, idx: Idx)
   {
+    const ilevel: nat := idx.off.ilevel;
     const data?: bool := idx.data?
 
     predicate Valid()
@@ -251,9 +238,16 @@ module IndFs
 
     function method parent(): Pos
       requires Valid()
-      requires idx.ilevel > 0
+      requires ilevel > 0
     {
       Pos(ino, Idx(idx.k, idx.off.parent()))
+    }
+
+    function method child(): IndOff
+      requires Valid()
+      requires ilevel > 0
+    {
+      idx.off.child()
     }
 
   }
@@ -354,12 +348,12 @@ module IndFs
 
     predicate valid_parent(pos: Pos)
       reads Repr()
-      requires pos.idx.ilevel > 0
+      requires pos.ilevel > 0
       requires ValidBasics()
     {
       var parent := to_blkno[pos.parent()];
       var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
-      var j := pos.idx.off.child().j;
+      var j := pos.child().j;
       var bn := to_blkno[pos];
       blknos.s[j] == bn
     }
@@ -368,7 +362,7 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall pos: Pos | pos.idx.ilevel > 0 :: valid_parent(pos)
+      forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
     }
 
     predicate {:opaque} ValidData()
@@ -416,7 +410,7 @@ module IndFs
 
     // private read
     method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
-      decreases pos.idx.ilevel
+      decreases pos.ilevel
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i)
       ensures is_block(b.data)
@@ -424,7 +418,7 @@ module IndFs
     {
       reveal ValidInodes();
       var idx := pos.idx;
-      if idx.ilevel == 0 {
+      if pos.ilevel == 0 {
         reveal ValidPos();
         assert idx.off == IndOff.direct;
         var bn := i.blks[idx.k];
@@ -437,7 +431,7 @@ module IndFs
       }
       // recurse
       var parent: Pos := pos.parent();
-      var child: IndOff := idx.off.child();
+      var child: IndOff := pos.child();
       var ib: Bytes := this.read_(txn, parent, i);
       var child_bn := IndBlocks.decode_one(ib, child.j);
       reveal ValidIndirect();
@@ -460,7 +454,7 @@ module IndFs
 
     twostate lemma ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
-      requires pos.idx.ilevel == 0
+      requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
       requires fs.inodes == old(fs.inodes[pos.ino:=i'])
       requires blkno_ok(bn)
@@ -503,7 +497,7 @@ module IndFs
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
-      requires  pos.idx.ilevel == 0 && i.blks[pos.idx.k] == 0
+      requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
       ensures state_unchanged()
     {
@@ -543,7 +537,7 @@ module IndFs
       modifies Repr(), pblock
       requires txn.jrnl == fs.jrnl
       requires Valid() ensures Valid()
-      requires pos.idx.ilevel > 0 &&  to_blkno[pos] == 0
+      requires pos.ilevel > 0 &&  to_blkno[pos] == 0
       requires ibn == to_blkno[pos.parent()]
       requires ibn != 0
       requires pblock.data == zero_lookup(fs.data_block, ibn)
@@ -567,7 +561,7 @@ module IndFs
         ValidPos_alloc_one(bn, pos);
       }
 
-      var child := pos.idx.off.child();
+      var child := pos.child();
       var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
       fs.writeDataBlock(txn, ibn, pblock');
       assert valid_parent(pos);
@@ -590,14 +584,16 @@ module IndFs
         reveal ValidIndirect();
         // reveal ValidPos();
         var pos0 := pos;
-        forall pos: Pos | pos.idx.ilevel > 0
+        forall pos: Pos | pos.ilevel > 0
           ensures valid_parent(pos)
         {
           if pos == pos0  {}
           else {
-            // something complicated is going on here - what about the descendants
-            // of pos0?
-            assume false;
+            if pos.parent() == pos0 {
+              assume false;
+            } else {
+              reveal ValidPos();
+            }
           }
         }
       }
@@ -606,7 +602,7 @@ module IndFs
 
     // private
     method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
-      decreases pos.idx.ilevel
+      decreases pos.ilevel
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
@@ -616,7 +612,7 @@ module IndFs
       reveal ValidInodes();
       i' := i;
       var idx := pos.idx;
-      if idx.ilevel == 0 {
+      if pos.ilevel == 0 {
         assert idx.off == IndOff.direct;
         bn := i.blks[idx.k];
         if bn != 0 {
@@ -630,7 +626,7 @@ module IndFs
       }
       // recurse
       var parent: Pos := pos.parent();
-      var child: IndOff := idx.off.child();
+      var child: IndOff := pos.child();
       var ibn;
       ok, i', ibn := this.resolveMetadata(txn, parent, i');
       if !ok { return; }
