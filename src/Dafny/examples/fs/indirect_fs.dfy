@@ -302,13 +302,13 @@ module IndFs
       && ino_dom(metadata)
       // no blkno_dom(data) - domain is a non-trivial subset of blocks
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
+      && fs.block_used[0].None?
     }
 
     predicate {:opaque} ValidPos()
       reads Repr()
       requires ValidBasics()
     {
-      && fs.block_used[0].None?
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
           blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
       && (forall pos:Pos ::
@@ -332,19 +332,27 @@ module IndFs
       forall ino: Ino | ino_ok(ino) :: fs.inodes[ino].sz == metadata[ino]
     }
 
+    static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
+      requires ino_ok(ino)
+      requires |blks| == 15
+      requires pos_dom(to_blkno)
+    {
+      forall k: nat | k < 15 ::
+        var bn := blks[k];
+        && blkno_ok(bn)
+        && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
+        // && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
+    }
+
     predicate {:opaque} ValidInodes()
       reads Repr()
       requires ValidBasics()
     {
       forall ino:Ino | ino_ok(ino) ::
-        forall k | 0 <= k < 15 ::
-        var bn := fs.inodes[ino].blks[k];
-        && blkno_ok(bn)
-        && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
-        && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
+        inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
-    predicate ValidIndirect()
+    predicate {:opaque} ValidIndirect()
       reads Repr()
       requires ValidBasics()
     {
@@ -356,7 +364,7 @@ module IndFs
         blknos.s[j] == bn
     }
 
-    predicate ValidData()
+    predicate {:opaque} ValidData()
       reads Repr()
       requires ValidBasics()
     {
@@ -395,6 +403,8 @@ module IndFs
       IndBlocks.to_blknos_zero();
       reveal ValidPos();
       reveal ValidInodes();
+      reveal ValidIndirect();
+      reveal ValidData();
     }
 
     // internal read
@@ -423,8 +433,131 @@ module IndFs
       var child: IndOff := idx.off.child();
       var ib: Bytes := this.read_(txn, parent, i);
       var child_bn := IndBlocks.decode_one(ib, child.j);
+      reveal ValidIndirect();
       b := fs.getDataBlock(txn, child_bn);
       // NOTE(tej): I can't believe this worked the first time
+      reveal ValidData();
+    }
+
+    twostate lemma ValidPos_alloc_one(bn: Blkno, pos: Pos)
+      requires old(ValidBasics()) && ValidBasics()
+      requires blkno_ok(bn)
+      requires old(blkno_pos(bn).None?) && old(to_blkno[pos] == 0)
+      requires fs.block_used == old(fs.block_used[bn:=Some(pos)])
+      requires to_blkno == old(to_blkno[pos:=bn])
+      requires old(ValidPos())
+      ensures ValidPos()
+    {
+      reveal ValidPos();
+    }
+
+    twostate lemma ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
+      requires old(ValidBasics()) && ValidBasics()
+      requires pos.idx.ilevel == 0
+      requires to_blkno == old(to_blkno[pos:=bn])
+      requires fs.inodes == old(fs.inodes[pos.ino:=i'])
+      requires blkno_ok(bn)
+      requires i' == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
+      requires old(ValidInodes())
+      ensures ValidInodes()
+    {
+      reveal ValidInodes();
+      assert inode_pos_match(pos.ino, i'.blks, to_blkno);
+    }
+
+    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
+      returns (ok: bool, i': Inode.Inode, bn: Blkno)
+      modifies Repr()
+      requires txn.jrnl == fs.jrnl
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      requires !pos.data? && pos.idx.ilevel == 0 && i.blks[pos.idx.k] == 0
+      ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+    {
+      var idx := pos.idx;
+      assert to_blkno[pos] == 0 by {
+        reveal ValidInodes();
+      }
+      ok, bn := fs.allocateTo(txn, pos);
+      if !ok {
+        i' := i;
+        assert ValidPos() && ValidInodes() by {
+          reveal ValidPos();
+          reveal ValidInodes();
+        }
+        assert ValidIndirect() by { reveal ValidIndirect(); }
+        assert ValidData() by { reveal ValidData(); }
+        return;
+      }
+
+      i' := i.(blks := i.blks[idx.k := bn]);
+      fs.writeInode(pos.ino, i');
+
+      to_blkno := to_blkno[pos:=bn];
+      var zeroblk := NewBytes(4096);
+      fs.writeDataBlock(txn, bn, zeroblk);
+
+      assert ValidPos() by {
+        ValidPos_alloc_one(bn, pos);
+      }
+      assert ValidInodes() by {
+        ValidInodes_change_one(pos, i', bn);
+      }
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        reveal ValidPos();
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+    }
+
+    // internal
+    method {:verify false} resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
+      modifies Repr()
+      requires txn.jrnl == fs.jrnl
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      requires !pos.data?
+      ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+    {
+      reveal ValidInodes();
+      i' := i;
+      var idx := pos.idx;
+      if idx.ilevel == 0 {
+        reveal ValidPos();
+        assert idx.off == IndOff.direct;
+        bn := i.blks[idx.k];
+        if bn == 0 {
+          // need to allocate a top-level indirect block
+          ok, bn := fs.allocateTo(txn, pos);
+          if !ok {
+            return;
+          }
+          i' := i.(blks := i.blks[idx.k := bn]);
+          fs.writeInode(pos.ino, i');
+
+          to_blkno := to_blkno[pos:=bn];
+          var zeroblk := NewBytes(4096);
+          fs.writeDataBlock(txn, bn, zeroblk);
+        }
+        assert ValidPos() by {
+          reveal ValidPos();
+          reveal ValidInodes();
+        }
+        assert ValidInodes() by {
+          reveal ValidInodes();
+        }
+        return;
+      }
+      // recurse
+      var parent: Pos := pos.parent();
+      var child: IndOff := idx.off.child();
+      // TODO: resolveMetadata on parent
+      assume false;
     }
 
     // public
@@ -434,9 +567,10 @@ module IndFs
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i)
       requires pos.data?
-      ensures b.data == data[pos]
+      ensures pos in data && b.data == data[pos]
     {
       b := this.read_(txn, pos, i);
+      reveal ValidData();
     }
 
     // caller can extract size themselves
