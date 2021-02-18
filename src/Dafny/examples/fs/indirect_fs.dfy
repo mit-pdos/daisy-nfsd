@@ -503,7 +503,7 @@ module IndFs
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
-      requires !pos.data? && pos.idx.ilevel == 0 && i.blks[pos.idx.k] == 0
+      requires  pos.idx.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
       ensures state_unchanged()
     {
@@ -543,7 +543,7 @@ module IndFs
       modifies Repr(), pblock
       requires txn.jrnl == fs.jrnl
       requires Valid() ensures Valid()
-      requires pos.idx.ilevel > 0 && !pos.idx.data? && to_blkno[pos] == 0
+      requires pos.idx.ilevel > 0 &&  to_blkno[pos] == 0
       requires ibn == to_blkno[pos.parent()]
       requires ibn != 0
       requires pblock.data == zero_lookup(fs.data_block, ibn)
@@ -558,6 +558,10 @@ module IndFs
         return;
       }
       to_blkno := to_blkno[pos := bn];
+      if pos.data? {
+        var zeroblock := NewBytes(4096);
+        fs.writeDataBlock(txn, bn, zeroblock);
+      }
 
       assert ValidPos() by {
         ValidPos_alloc_one(bn, pos);
@@ -606,7 +610,6 @@ module IndFs
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
-      requires !pos.data?
       ensures ok ==> bn != 0 && bn == to_blkno[pos]
       ensures state_unchanged()
     {
@@ -670,40 +673,48 @@ module IndFs
       ensures i.sz == metadata[ino]
     {}
 
-    // TODO: this doesn't currently work due to a timeout, probably invariants have gotten to complex
-    method {:verify false} write(txn: Txn, ghost ino: Ino, i: Inode.Inode, idx: Idx, blk: Bytes) returns (ok: bool, i':Inode.Inode)
+    method write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
+      returns (ok: bool, i':Inode.Inode)
       modifies Repr()
       requires txn.jrnl == fs.jrnl
-      requires ValidIno(ino, i)
-      requires idx.data?
+      requires ValidIno(pos.ino, i)
+      requires pos.data?
       requires is_block(blk.data)
-      ensures ValidIno(ino, i')
+      ensures ValidIno(pos.ino, i')
+      ensures ok ==> data == old(data[pos := blk.data])
+      ensures !ok ==> data == old(data)
+      ensures metadata == old(metadata)
     {
       i' := i;
-      ghost var pos := MkPos(ino, idx);
-      if idx.ilevel == 0 {
-        assert idx.off == IndOff.direct;
-        // this index is found directly in the inode
-        var bn := i.blks[idx.k];
-        if bn == 0 {
-          ok, bn := fs.allocateTo(txn, Pos(ino, idx));
-          if !ok {
-            return;
-          }
-          i' := i.(blks := i.blks[idx.k:=bn]);
-          fs.writeInode(ino, i');
-          to_blkno := to_blkno[Pos(ino, idx):=bn];
-          fs.writeDataBlock(txn, bn, blk);
-          data := data[pos := blk.data];
-          return;
-        }
-        fs.writeDataBlock(txn, bn, blk);
-        data := data[pos := blk.data];
-        return;
+      var idx := pos.idx;
+      var bn;
+      ok, i', bn := this.resolveMetadata(txn, pos, i');
+      if !ok {
+         return;
       }
-      // TODO
-      i' := i;
-      assume false;
+      assert ValidIno(pos.ino, i');
+
+      fs.writeDataBlock(txn, bn, blk);
+      data := data[pos := blk.data];
+
+      assert ValidPos() by {
+        assume false;
+        reveal ValidPos();
+      }
+      assert ValidInodes() by {
+        assume false;
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      assert ValidData() by {
+        assume false;
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert ValidIndirect() by {
+        assume false;
+        reveal ValidIndirect();
+      }
     }
   }
 
