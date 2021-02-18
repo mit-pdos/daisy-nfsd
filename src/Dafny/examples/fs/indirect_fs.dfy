@@ -17,8 +17,6 @@ module IndFs
   datatype preIndOff = IndOff(ilevel: nat, j: nat)
   {
     static const direct: IndOff := IndOff(0, 0)
-    // if this is true then this IndOff points directly to data
-    const data?: bool := ilevel == 0
 
     predicate Valid()
     {
@@ -165,12 +163,7 @@ module IndFs
   datatype preIdx = Idx(k: nat, off: IndOff)
   {
     const ilevel: nat := off.ilevel
-
-    function data?(): bool
-      requires Valid()
-    {
-      off.ilevel == config.ilevels[k]
-    }
+    const data?: bool := k < |config.ilevels| && off.ilevel == config.ilevels[k]
 
     static function from_inode(k: nat): Idx
       requires k < |config.ilevels|
@@ -187,7 +180,7 @@ module IndFs
     // "flat" indices are logical block addresses (LBAs) for the inode
     function flat(): nat
       requires Valid()
-      requires this.data?()
+      requires this.data?
     {
       config.totals[k] + off.j
     }
@@ -197,7 +190,7 @@ module IndFs
     // i.split() until we get a direct block)
     static function from_flat(n: nat): (i:Idx)
       requires n < config.total
-      ensures i.data?()
+      ensures i.data?
     {
       if n < 10 then
         Idx(n, IndOff.direct)
@@ -242,15 +235,15 @@ module IndFs
   }
   type Idx = x:preIdx | x.Valid() witness Idx(0, IndOff(0, 0))
 
-  // TODO: rename this; it's the main type used in the exposed abstraction
-  //
-  // This is really the primary notion of an "index" as an abstract location in
-  // the file system. A data index has three dimensions: inode, top-level block
-  // in inode, and offset within that block. Indirect blocks have an inode and
-  // top-level block as well as an indirection level which might be higher than
-  // the bottom where the data lives.
+  // This is the primary notion of an abstract location in the file system. A
+  // data Pos has three dimensions: inode, top-level block in inode, and
+  // offset within that block. Indirect blocks have an inode and top-level block
+  // as well as an indirection level which might be higher than the bottom where
+  // the data lives.
   datatype prePos = Pos(ino: Ino, idx: Idx)
   {
+    const data?: bool := idx.data?
+
     predicate Valid()
     {
       ino_ok(ino)
@@ -365,7 +358,7 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall pos:Pos | pos.idx.data?() ::
+      forall pos:Pos | pos.idx.data? ::
         && pos in data
         && data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
@@ -394,7 +387,7 @@ module IndFs
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
-      this.data := imap pos: Pos | pos.idx.data?() :: block0;
+      this.data := imap pos: Pos | pos.idx.data? :: block0;
       this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
       new;
       IndBlocks.to_blknos_zero();
@@ -404,7 +397,7 @@ module IndFs
       modifies Repr()
       requires txn.jrnl == fs.jrnl
       requires ValidIno(ino, i)
-      requires idx.data?()
+      requires idx.data?
       requires is_block(blk.data)
       ensures ValidIno(ino, i')
     {
