@@ -80,4 +80,22 @@ module IndBlocks
     bn := blknos[k];
   }
 
+  // this could be done in-place on bs more efficiently (and the spec allows it
+  // to return bs)
+  method modify_one(bs: Bytes, k: nat, bn: Blkno) returns (bs': Bytes)
+    modifies bs
+    requires is_block(bs.data)
+    requires k < 512
+    ensures is_block(bs'.data)
+    ensures (
+    var blknos' := to_blknos(bs'.data);
+    var blknos := old(to_blknos(bs.data));
+    blknos' == blknos.(s:=blknos.s[k := bn]))
+  {
+    var blknos := decode_blknos(bs, to_blknos(bs.data));
+    blknos := blknos[k := bn];
+    bs' := encode_blknos(IndBlknos(blknos));
+    decode_encode_uint64_seq_id(blknos);
+  }
+
 }

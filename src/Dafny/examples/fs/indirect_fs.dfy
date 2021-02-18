@@ -352,16 +352,23 @@ module IndFs
         inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
+    predicate valid_parent(pos: Pos)
+      reads Repr()
+      requires pos.idx.ilevel > 0
+      requires ValidBasics()
+    {
+      var parent := to_blkno[pos.parent()];
+      var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
+      var j := pos.idx.off.child().j;
+      var bn := to_blkno[pos];
+      blknos.s[j] == bn
+    }
+
     predicate {:opaque} ValidIndirect()
       reads Repr()
       requires ValidBasics()
     {
-      forall pos: Pos | pos.idx.ilevel > 0 ::
-        var parent := to_blkno[pos.parent()];
-        var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
-        var j := pos.idx.off.child().j;
-        var bn := to_blkno[pos];
-        blknos.s[j] == bn
+      forall pos: Pos | pos.idx.ilevel > 0 :: valid_parent(pos)
     }
 
     predicate {:opaque} ValidData()
@@ -557,11 +564,9 @@ module IndFs
       }
 
       var child := pos.idx.off.child();
-      // this chunk could be done in-place on pblock more efficiently
-      var pblknos := IndBlocks.decode_blknos(pblock, to_blknos(pblock.data));
-      pblknos := pblknos[child.j:=bn];
-      var pblock' := IndBlocks.encode_blknos(IndBlknos(pblknos));
+      var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
       fs.writeDataBlock(txn, ibn, pblock');
+      assert valid_parent(pos);
 
       assert ValidPos() by {
         reveal ValidPos();
@@ -578,10 +583,21 @@ module IndFs
       }
 
       assert ValidIndirect() by {
-        assume false;
-        reveal ValidPos();
         reveal ValidIndirect();
+        // reveal ValidPos();
+        var pos0 := pos;
+        forall pos: Pos | pos.idx.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            // something complicated is going on here - what about the descendants
+            // of pos0?
+            assume false;
+          }
+        }
       }
+      assume false;
     }
 
     // private
