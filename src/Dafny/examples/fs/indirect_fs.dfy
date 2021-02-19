@@ -15,6 +15,16 @@ module IndFs
   import opened IndirectPos
   import C = Collections
 
+  predicate pos_dom<T>(m: imap<Pos, T>)
+  {
+    forall p:Pos :: p in m
+  }
+
+  predicate data_dom<T>(m: imap<Pos, T>)
+  {
+    forall pos: Pos | pos.data? :: pos in m
+  }
+
   lemma inode_size_ok()
     ensures config.total == Inode.MAX_SZ
   {}
@@ -60,7 +70,7 @@ module IndFs
     {
       && fs.Valid()
       && ino_dom(metadata)
-      // no blkno_dom(data) - domain is a non-trivial subset of blocks
+      && data_dom(data)
       && ValidBlknos()
       && fs.block_used[0].None?
     }
@@ -136,8 +146,7 @@ module IndFs
       requires ValidBasics()
     {
       forall pos:Pos | pos.data? ::
-        && pos in data
-        && data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
+        data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
 
     predicate Valid()
@@ -169,6 +178,8 @@ module IndFs
     constructor(d: Disk)
       ensures Valid()
       ensures fs.quiescent()
+      ensures data == imap pos: Pos | pos.idx.data? :: block0
+      ensures metadata == map ino: Ino | ino_ok(ino) :: 0 as uint64
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;

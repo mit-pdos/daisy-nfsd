@@ -238,6 +238,13 @@ module IndirectPos
       ino_ok(ino)
     }
 
+    static function from_flat(ino: Ino, n: nat): Pos
+      requires ino_ok(ino)
+      requires n < config.total
+    {
+      Pos(ino, Idx.from_flat(n))
+    }
+
     function method parent(): Pos
       requires Valid()
       requires ilevel > 0
@@ -258,11 +265,6 @@ module IndirectPos
     requires Pos(ino, idx).Valid()
   {
     Pos(ino, idx)
-  }
-
-  predicate pos_dom<T>(m: imap<Pos, T>)
-  {
-    forall p:Pos :: p in m
   }
 
 }
