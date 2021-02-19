@@ -40,14 +40,20 @@ module IndFs
       {this} + fs.Repr()
     }
 
+    predicate ValidBlknos()
+      reads this
+    {
+      && pos_dom(to_blkno)
+      && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
+    }
+
     predicate ValidBasics()
       reads Repr()
     {
       && fs.Valid()
-      && pos_dom(to_blkno)
       && ino_dom(metadata)
       // no blkno_dom(data) - domain is a non-trivial subset of blocks
-      && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
+      && ValidBlknos()
       && fs.block_used[0].None?
     }
 
@@ -130,6 +136,7 @@ module IndFs
       reads this.Repr()
     {
       && ValidBasics()
+      && ValidBlknos()
       && ValidPos()
       && ValidInodes()
       && ValidMetadata()
