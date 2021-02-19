@@ -96,26 +96,50 @@ module ByteFs {
       raw_inode_index_one(d, off);
     }
 
-    method readInternal(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+    method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
-      requires 0 < len
+      requires 0 < len <= 4096
       requires off as nat + len as nat <= |data()[ino]|
       ensures fresh(bs)
       ensures bs.data == this.data()[ino][off..off+len]
     {
       var off' := off / 4096 * 4096;
+      Arith.div_mod_split(off' as nat, 4096);
       assert off' + 4096 <= 4096*Inode.MAX_SZ_u64 by {
         Arith.div_incr(off' as nat, Inode.MAX_SZ, 4096);
       }
       bs := alignedRead(txn, ino, i, off');
-      assume false;
       if off' + 4096 >= off + len {
         // we finished the entire read
         bs.Subslice(off % 4096, off % 4096 + len);
-        C.double_subslice_auto(data()[ino]);
+        assert bs.data == raw_data(ino)[off as nat .. off as nat + len as nat] by {
+          C.double_subslice_auto(raw_data(ino));
+        }
         return;
+      }
+
+      // only keep data starting at off
+      bs.Subslice(off % 4096, 4096);
+      assert bs.data == raw_data(ino)[off as nat..off' + 4096] by {
+        C.double_subslice_auto(raw_data(ino));
+      }
+      var read_bytes: uint64 := bs.Len();
+      var off'' := off' + 4096;
+      var bs2 := alignedRead(txn, ino, i, off'');
+      bs2.Subslice(0, len - read_bytes);
+      ghost var bs2_upper_bound: nat := off'' as nat + (len - read_bytes) as nat;
+      assert bs2.data == raw_data(ino)[off''..bs2_upper_bound] by {
+        C.double_subslice_auto(raw_data(ino));
+      }
+
+      bs.AppendBytes(bs2);
+      assert (off + len) as nat == bs2_upper_bound;
+      calc {
+        bs.data;
+        raw_data(ino)[off..off''] + raw_data(ino)[off''..bs2_upper_bound];
+        raw_data(ino)[off..off + len];
       }
     }
 
