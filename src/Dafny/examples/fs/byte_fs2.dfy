@@ -70,7 +70,17 @@ module ByteFs {
       new;
     }
 
-    method {:timeLimitMultiplier 2} alignedRead(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64)
+    lemma raw_inode_index_one(d: InodeData, off: uint64)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= 4096*Inode.MAX_SZ
+      ensures d.blks[off as nat/4096] == raw_inode_data(d)[off as nat..off as nat + 4096]
+    {
+      var blkoff := off as nat / 4096;
+      C.concat_homogeneous_one_list(d.blks, blkoff, 4096);
+      reveal raw_inode_data();
+    }
+
+    method alignedRead(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -79,20 +89,11 @@ module ByteFs {
       ensures bs.data == this.raw_data(ino)[off as nat..off as nat + 4096]
       ensures fresh(bs)
     {
-      var blkoff: nat := (off/4096) as nat;
+      var blkoff: nat := off as nat / 4096;
       bs := BlockFs.Read(this.fs, txn, ino, i, blkoff);
       ghost var d := block_data(fs.data)[ino];
       assert bs.data == d.blks[blkoff];
-      C.concat_homogeneous_one_list(d.blks, blkoff, 4096);
-      assert off as nat == 4096*blkoff;
-      assert off as nat + 4096 == 4096*blkoff + 4096;
-      // TODO: this is super slow even though it matches the postcondition of
-      // C.concat_homogeneous_one_list, up to congruence
-      assert d.blks[blkoff] == C.concat(d.blks)[off as nat..off as nat + 4096];
-      // TODO: this is slow even with the above assumed
-      assert bs.data == this.raw_data(ino)[off as nat..off as nat + 4096] by {
-        reveal raw_inode_data();
-      }
+      raw_inode_index_one(d, off);
     }
 
     method readInternal(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
@@ -113,8 +114,6 @@ module ByteFs {
       if off' + 4096 >= off + len {
         // we finished the entire read
         bs.Subslice(off % 4096, off % 4096 + len);
-        fs.finishInodeReadonly(ino, i);
-        var _ := txn.Commit();
         C.double_subslice_auto(data()[ino]);
         return;
       }
