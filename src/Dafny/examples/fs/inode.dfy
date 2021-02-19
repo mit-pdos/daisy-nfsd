@@ -12,8 +12,7 @@ module Inode {
   import opened ByteSlice
   import opened Marshal
 
-  // TODO: increase this to correct number
-  const MAX_SZ: nat := 15*4096;
+  const MAX_SZ: nat := 10 + 4*512 + 512*512*512;
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
   datatype Inode = Mk(sz: uint64, blks: seq<uint64>)

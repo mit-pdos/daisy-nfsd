@@ -15,6 +15,10 @@ module IndFs
   import opened IndirectPos
   import C = Collections
 
+  lemma inode_size_ok()
+    ensures config.total == Inode.MAX_SZ
+  {}
+
   class IndFilesys
   {
     // filesys contains a mapping from allocated Blkno's to poss
