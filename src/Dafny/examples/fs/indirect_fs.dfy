@@ -369,7 +369,7 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall pos:Pos | pos.idx.data? ::
+      forall pos:Pos | pos.data? ::
         && pos in data
         && data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
@@ -546,20 +546,22 @@ module IndFs
       ensures fs.inodes == old(fs.inodes)
       ensures state_unchanged()
     {
+      assert IndBlocks.to_blknos(zero_lookup(fs.data_block, to_blkno[pos])) == IndBlknos.zero by {
+        IndBlocks.to_blknos_zero();
+      }
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
         Valid_allocation_fail();
         return;
       }
       to_blkno := to_blkno[pos := bn];
-      if pos.data? {
-        var zeroblock := NewBytes(4096);
-        fs.writeDataBlock(txn, bn, zeroblock);
-      }
-
-      assert ValidPos() by {
-        ValidPos_alloc_one(bn, pos);
-      }
+      // NOTE(tej): I was formerly only doing this for data blocks, but I think
+      // it might be necessary for metadata blocks to preserve that children are
+      // still zeros (I was unable to prove ValidIndirect() without this for the
+      // special case of pos where pos.parent() == pos0). In that case
+      // verification caught a bug! (Albeit one only with holes but still.)
+      var zeroblock := NewBytes(4096);
+      fs.writeDataBlock(txn, bn, zeroblock);
 
       var child := pos.child();
       var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
@@ -567,7 +569,7 @@ module IndFs
       assert valid_parent(pos);
 
       assert ValidPos() by {
-        reveal ValidPos();
+        ValidPos_alloc_one(bn, pos);
       }
 
       assert ValidInodes() by {
@@ -590,14 +592,14 @@ module IndFs
           if pos == pos0  {}
           else {
             if pos.parent() == pos0 {
-              assume false;
+              IndBlocks.to_blknos_zero();
+              reveal ValidPos();
             } else {
               reveal ValidPos();
             }
           }
         }
       }
-      assume false;
     }
 
     // private
