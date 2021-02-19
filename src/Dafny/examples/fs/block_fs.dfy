@@ -115,10 +115,11 @@ module BlockFs
     requires is_lba(n)
     requires is_block(blk.data)
     ensures fs.metadata == old(fs.metadata)
-    ensures ok ==> block_data(fs.data) == (
-        var data := old(block_data(fs.data));
+    ensures ok ==> block_data(fs.data) == old(
+        var data := block_data(fs.data);
         var d0 := data[ino];
         data[ino := d0.(blks := d0.blks[n := blk.data])])
+    ensures blk.data == old(blk.data)
     ensures !ok ==> block_data(fs.data) == old(block_data(fs.data))
   {
     ok, i' := fs.write(txn, Pos.from_flat(ino, n), i, blk);

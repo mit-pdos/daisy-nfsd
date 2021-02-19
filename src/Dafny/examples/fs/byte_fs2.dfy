@@ -204,5 +204,51 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
+    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr()
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires is_block(bs.data)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= |data()[ino]|
+      ensures bs.data == old(bs.data)
+      ensures ok ==> data() == old(
+      var d0 := data()[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data()[ino := d])
+    {
+      i' := i;
+      var blkoff: nat := off as nat / 4096;
+      ok, i' := BlockFs.Write(fs, txn, ino, i, blkoff as nat, bs);
+      if !ok {
+        return;
+      }
+      ghost var d0 := old(block_data(fs.data)[ino]);
+      ghost var d := block_data(fs.data)[ino];
+      assert off as nat == blkoff * 4096;
+      C.concat_homogeneous_len(d0.blks, 4096);
+      assert d.blks == d0.blks[blkoff:=bs.data];
+      ghost var blk: Block := bs.data;
+      assert C.concat(d.blks) == C.splice(C.concat(d0.blks), off as nat, blk) by {
+        C.concat_homogeneous_splice_one(d0.blks, blkoff, bs.data, 4096);
+      }
+      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, blk) by {
+        reveal raw_inode_data();
+        assert C.concat(d.blks) == raw_data(ino);
+        assert C.concat(d0.blks) == old(raw_data(ino));
+      }
+      ghost var sz := fs.metadata[ino];
+      calc {
+        inode_data(sz, d);
+        raw_data(ino)[..sz];
+        C.splice(old(raw_data(ino)), off as nat, blk)[..sz];
+        { C.splice_prefix_comm(old(raw_data(ino)), off as nat, blk, sz); }
+        C.splice(old(raw_data(ino))[..sz], off as nat, blk);
+        C.splice(inode_data(sz, d0), off as nat, blk);
+      }
+      map_update_eq(old(data()), ino, inode_data(sz, d), data());
+    }
+
   }
 }

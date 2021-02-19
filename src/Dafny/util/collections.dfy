@@ -373,4 +373,58 @@ lemma splice_till_end<T>(xs: seq<T>, off: nat, ys: seq<T>)
     ensures splice(xs, off, ys) == xs[..off] + ys
 {}
 
+lemma splice_prefix_comm<T>(xs: seq<T>, off: nat, ys: seq<T>, max: nat)
+    requires off + |ys| <= max <= |xs|
+    ensures splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
+{}
+
+lemma splice_prefix_comm_auto<T>(xs: seq<T>)
+    ensures forall off: nat, ys: seq<T>, max: nat {:trigger {splice(xs, off, ys)[..max]}}
+        | off + |ys| <= max <= |xs| ::
+        splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
+{}
+
+lemma concat_homogeneous_splice_one<T>(xs: seq<seq<T>>, off: nat, ys: seq<T>, len: nat)
+    requires 0 < len
+    requires forall l | l in xs :: |l| == len
+    requires |ys| == len
+    requires off < |xs|
+    ensures 0 <= off*len < off*len+len <= |concat(xs)|
+    ensures concat(xs[off:=ys]) == splice(concat(xs), off*len, ys)
+{
+    concat_homogeneous_len(xs, len);
+    assert (off+1)* len == off*len + len by {
+        mul_distr_add_r(off, 1, len);
+    }
+    assert 0 <= off*len < off*len + len <= |concat(xs)| by {
+        mul_positive(off, len);
+        mul_r_incr(off+1, |xs|, len);
+    }
+    var l1: seq<T> := concat(xs[off:=ys]);
+    var l2: seq<T> := splice(concat(xs), off*len, ys);
+    concat_homogeneous_len(xs[off:=ys], len);
+    concat_homogeneous_spec_alt(xs, len);
+    concat_homogeneous_spec_alt(xs[off:=ys], len);
+    forall i:nat | i < |xs|*len
+        ensures l1[i] == l2[i]
+    {
+        assert l1[i] == xs[off:=ys][i / len][i % len];
+        if off*len <= i < (off+1)*len {
+            Arith.div_mod_spec(i, off, len);
+            assert i / len == off;
+        } else {
+            assert i / len != off by {
+                if i < off*len {
+                    div_incr(i, off, len);
+                } else {
+                    assert (off+1)*len <= i;
+                    Arith.div_increasing((off+1)*len, i, len);
+                    Arith.mul_div_id(off+1, len);
+                }
+            }
+        }
+    }
+    assert l1 == l2;
+}
+
 }
