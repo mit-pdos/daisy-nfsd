@@ -204,19 +204,23 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
-    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+    // private
+    method alignedRawWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr()
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires is_block(bs.data)
       requires off % 4096 == 0
-      requires off as nat + 4096 <= |data()[ino]|
+      requires off as nat + 4096 <= Inode.MAX_SZ
       ensures bs.data == old(bs.data)
-      ensures ok ==> data() == old(
-      var d0 := data()[ino];
-      var d := C.splice(d0, off as nat, bs.data);
-      data()[ino := d])
+      ensures (var ino0 := ino;
+        forall ino:Ino | ino_ok(ino) && ino != ino0 ::
+          data()[ino] == old(data()[ino]))
+      ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
+      ensures fs.metadata == old(fs.metadata)
+      ensures !ok ==> raw_data(ino) == old(raw_data(ino))
+      ensures !ok ==> data() == old(data())
     {
       i' := i;
       var blkoff: nat := off as nat / 4096;
@@ -238,6 +242,33 @@ module ByteFs {
         assert C.concat(d.blks) == raw_data(ino);
         assert C.concat(d0.blks) == old(raw_data(ino));
       }
+    }
+
+    // private
+    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr()
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires is_block(bs.data)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= |data()[ino]|
+      ensures bs.data == old(bs.data)
+      ensures ok ==> data() == old(
+      var d0 := data()[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data()[ino := d])
+      ensures !ok ==> data() == old(data())
+    {
+      i' := i;
+      ok, i' := alignedRawWrite(txn, ino, i, bs, off);
+      if !ok {
+        return;
+      }
+      ghost var d0 := old(block_data(fs.data)[ino]);
+      ghost var d := block_data(fs.data)[ino];
+      C.concat_homogeneous_len(d0.blks, 4096);
+      ghost var blk: Block := bs.data;
       ghost var sz := fs.metadata[ino];
       calc {
         inode_data(sz, d);
@@ -249,6 +280,15 @@ module ByteFs {
       }
       map_update_eq(old(data()), ino, inode_data(sz, d), data());
     }
+
+    // public
+    method Append(ino: Ino, bs: Bytes, off: uint64) returns (ok:bool)
+      modifies Repr(), bs
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      requires bs.Valid()
+      requires bs.Len() <= 4096
+    {}
 
   }
 }
