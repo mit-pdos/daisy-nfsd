@@ -35,21 +35,6 @@ module Inode {
     }
   }
 
-  predicate {:opaque} blks_unique(blks: seq<uint64>)
-  {
-    forall i, j | 0 <= i < |blks| && 0 <= j < |blks| ::
-      blks[i] == blks[j] ==> i == j || blks[i] == 0
-  }
-
-  lemma blks_unique_extend(blks: seq<uint64>, blkoff: nat, bn: uint64)
-    requires blkoff < |blks|
-    requires blks_unique(blks)
-    requires bn != 0 && bn !in blks
-    ensures blks_unique(blks[blkoff := bn])
-  {
-    reveal_blks_unique();
-  }
-
   predicate ValidBlks(blks: seq<uint64>)
   {
     && |blks| == 15
@@ -82,9 +67,7 @@ module Inode {
 
   lemma zero_valid()
     ensures zero.Valid()
-  {
-    reveal_blks_unique();
-  }
+  {}
 
   lemma zero_encoding()
     ensures zero.Valid()
