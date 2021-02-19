@@ -53,6 +53,12 @@ module IndFs
       fs.block_used[bn]
     }
 
+    predicate has_jrnl(txn: Txn)
+      reads fs
+    {
+      txn.jrnl == fs.jrnl
+    }
+
     function Repr(): set<object>
     {
       {this} + fs.Repr()
@@ -196,7 +202,7 @@ module IndFs
     // private read
     method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
       decreases pos.ilevel
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
       ensures is_block(b.data)
       ensures b.data == zero_lookup(fs.data_block, to_blkno[pos])
@@ -279,7 +285,7 @@ module IndFs
     method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
       returns (ok: bool, i': Inode.Inode, bn: Blkno)
       modifies Repr()
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
@@ -319,7 +325,7 @@ module IndFs
     method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
       modifies Repr(), pblock
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires Valid() ensures Valid()
       requires pos.ilevel > 0 &&  to_blkno[pos] == 0
       requires ibn == to_blkno[pos.parent()]
@@ -390,7 +396,7 @@ module IndFs
     method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
       decreases pos.ilevel
       modifies Repr()
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       ensures ok ==> bn != 0 && bn == to_blkno[pos]
       ensures state_unchanged()
@@ -440,7 +446,7 @@ module IndFs
     //
     // data version of more general read_ spec
     method read(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
       requires pos.data?
       ensures pos in data && b.data == data[pos]
@@ -458,7 +464,7 @@ module IndFs
     method write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
       returns (ok: bool, i':Inode.Inode)
       modifies Repr()
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
       requires pos.data?
       requires is_block(blk.data)
@@ -496,13 +502,15 @@ module IndFs
       }
     }
 
-    method startInodeWrites(txn: Txn, ino: Ino)
+    // public
+    method startInode(txn: Txn, ino: Ino)
       returns (i: Inode.Inode)
       modifies fs
       requires ino_ok(ino)
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       requires ValidQ()
       ensures ValidIno(ino, i)
+      ensures fs.cur_inode == Some((ino, i))
       ensures state_unchanged()
     {
       i := fs.getInode(txn, ino);
@@ -510,6 +518,7 @@ module IndFs
       Valid_unchanged();
     }
 
+    // public
     method writeInodeSz(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode)
       modifies Repr()
@@ -532,11 +541,22 @@ module IndFs
     method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
       modifies Repr()
       requires ValidIno(ino, i)
-      requires txn.jrnl == fs.jrnl
+      requires has_jrnl(txn)
       ensures ValidQ()
       ensures state_unchanged()
     {
       fs.finishInode(txn, ino, i);
+      Valid_unchanged();
+    }
+
+    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+      modifies fs
+      requires ValidIno(ino, i)
+      requires fs.cur_inode == Some((ino, i))
+      ensures ValidQ()
+      ensures state_unchanged()
+    {
+      fs.finishInodeReadonly(ino, i);
       Valid_unchanged();
     }
 

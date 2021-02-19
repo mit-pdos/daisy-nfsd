@@ -344,6 +344,7 @@ module Fs {
       requires is_inode(ino, i)
       ensures Valid()
       ensures is_cur_inode(ino, i)
+      ensures cur_inode == Some((ino, i))
       ensures inodes == old(inodes)
       ensures block_used == old(block_used)
       ensures data_block == old(data_block)
@@ -389,6 +390,30 @@ module Fs {
       }
     }
 
+    // For read-only calls, we can still use the on_inode machinery to "focus"
+    // on an inode but also keep track of the fact that the inode doesn't need
+    // to be written back out. Then finishInodeReadonly allows to restore the
+    // quiescent state without involving the transaction.
+    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+      modifies this
+      requires Valid()
+      requires is_inode(ino, i)
+      requires cur_inode == Some((ino, i))
+      ensures ValidQ()
+      ensures inodes == old(inodes)
+      ensures data_block == old(data_block)
+      ensures block_used == old(block_used)
+    {
+      cur_inode := None;
+      assert Valid_jrnl_to_inodes(inodes) by {
+        reveal Valid_jrnl_to_inodes();
+      }
+      assert Valid() by {
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_block_used();
+      }
+    }
+
     // public
     method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
       modifies {}
@@ -413,6 +438,7 @@ module Fs {
       ensures inodes == old(inodes)[ino:=i']
       ensures block_used == old(block_used)
       ensures data_block == old(data_block)
+      ensures cur_inode == old(cur_inode)
     {
       inodes := inodes[ino:=i'];
 

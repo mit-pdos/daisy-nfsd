@@ -176,7 +176,7 @@ module IndirectPos
     // from_flat gives us a structured way to find an LBA (we go to its
     // appropriate root block and deference indirect blocks one at a time with
     // i.split() until we get a direct block)
-    static function from_flat(n: nat): (i:Idx)
+    static function method from_flat(n: nat): (i:Idx)
       requires n < config.total
       ensures i.data?
     {
@@ -195,7 +195,7 @@ module IndirectPos
       )
     }
 
-    lemma from_to_flat_id(n: nat)
+    static lemma from_to_flat_id(n: nat)
       requires n < config.total
       ensures from_flat(n).flat() == n
     {
@@ -220,6 +220,16 @@ module IndirectPos
       assert from_flat(n0).flat() == 10+4*512 + (n-4*512);
     }
 
+    static lemma from_flat_inj(n1: nat, n2: nat)
+      requires n1 < config.total && n2 < config.total
+      ensures from_flat(n1) == from_flat(n2) ==> n1 == n2
+    {
+      if from_flat(n1) != from_flat(n2) { return; }
+      assert from_flat(n1).flat() == from_flat(n2).flat();
+      from_to_flat_id(n1);
+      from_to_flat_id(n2);
+    }
+
   }
   type Idx = x:preIdx | x.Valid() witness Idx(0, IndOff(0, 0))
 
@@ -238,7 +248,7 @@ module IndirectPos
       ino_ok(ino)
     }
 
-    static function from_flat(ino: Ino, n: nat): Pos
+    static function method from_flat(ino: Ino, n: nat): Pos
       requires ino_ok(ino)
       requires n < config.total
     {
