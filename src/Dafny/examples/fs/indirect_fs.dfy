@@ -22,9 +22,13 @@ module IndFs
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Pos, Blkno>
-    // only maps data poss (this hides when other blocks change but exposes
-    // newly-allocated data blocks)
+
+    // public abstract state
+
+    // only maps pos where pos.data? (this hides when other blocks change but
+    // exposes newly-allocated data blocks)
     ghost var data: imap<Pos, Block>
+    // bubbles up inode sizes
     ghost var metadata: map<Ino, uint64>
 
     function blkno_pos(bn: Blkno): Option<Pos>
@@ -151,6 +155,13 @@ module IndFs
       && fs.is_cur_inode(ino, i)
     }
 
+    predicate ValidQ()
+      reads Repr()
+    {
+      && Valid()
+      && fs.quiescent()
+    }
+
     constructor(d: Disk)
       ensures Valid()
       ensures fs.quiescent()
@@ -232,15 +243,14 @@ module IndFs
       && metadata == old(metadata)
     }
 
-    twostate lemma Valid_allocation_fail()
+    twostate lemma Valid_unchanged()
       requires old(Valid())
       requires
           && fs.Valid()
           && fs.data_block == old(fs.data_block)
           && fs.inodes == old(fs.inodes)
           && fs.block_used == old(fs.block_used)
-          && data == old(data)
-          && metadata == old(metadata)
+          && state_unchanged()
           && to_blkno == old(to_blkno)
       ensures Valid()
     {
@@ -267,7 +277,7 @@ module IndFs
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
         i' := i;
-        Valid_allocation_fail();
+        Valid_unchanged();
         return;
       }
 
@@ -310,7 +320,7 @@ module IndFs
       }
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
-        Valid_allocation_fail();
+        Valid_unchanged();
         return;
       }
       to_blkno := to_blkno[pos := bn];
@@ -470,6 +480,51 @@ module IndFs
         reveal ValidIndirect();
       }
     }
+
+    method startInodeWrites(txn: Txn, ino: Ino)
+      returns (i: Inode.Inode)
+      modifies fs
+      requires ino_ok(ino)
+      requires txn.jrnl == fs.jrnl
+      requires ValidQ()
+      ensures ValidIno(ino, i)
+      ensures state_unchanged()
+    {
+      i := fs.getInode(txn, ino);
+      fs.startInode(ino, i);
+      Valid_unchanged();
+    }
+
+    method writeInodeSz(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode)
+      modifies Repr()
+      requires ValidIno(ino, i)
+      requires sz' <= Inode.MAX_SZ_u64
+      ensures ValidIno(ino, i')
+      ensures i'.sz == sz'
+      ensures data == old(data)
+      ensures metadata == old(metadata[ino := sz'])
+    {
+      i' := i.(sz := sz');
+      fs.writeInode(ino, i');
+      metadata := metadata[ino := sz'];
+      assert ValidInodes() by { reveal ValidInodes(); }
+      assert ValidPos() by { reveal ValidPos(); }
+      assert ValidIndirect() by { reveal ValidIndirect(); }
+      assert ValidData() by { reveal ValidData(); }
+    }
+
+    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies Repr()
+      requires ValidIno(ino, i)
+      requires txn.jrnl == fs.jrnl
+      ensures ValidQ()
+      ensures state_unchanged()
+    {
+      fs.finishInode(txn, ino, i);
+      Valid_unchanged();
+    }
+
   }
 
 }

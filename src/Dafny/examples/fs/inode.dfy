@@ -12,6 +12,7 @@ module Inode {
   import opened ByteSlice
   import opened Marshal
 
+  // TODO: increase this to correct number
   const MAX_SZ: nat := 15*4096;
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
