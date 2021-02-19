@@ -189,5 +189,20 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
+    method Size(ino: Ino) returns (sz: uint64)
+      modifies fs.fs
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures data() == old(data())
+      ensures sz as nat == |data()[ino]|
+    {
+      var txn := fs.fs.jrnl.Begin();
+      var i := fs.startInode(txn, ino);
+      sz := i.sz;
+      fs.inode_metadata(ino, i);
+      fs.finishInodeReadonly(ino, i);
+      var _ := txn.Commit();
+    }
+
   }
 }
