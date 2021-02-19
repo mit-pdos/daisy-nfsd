@@ -43,7 +43,7 @@ module IndFs
     // exposes newly-allocated data blocks)
     ghost var data: imap<Pos, Block>
     // bubbles up inode sizes
-    ghost var metadata: map<Ino, uint64>
+    ghost var metadata: map<Ino, nat>
 
     function blkno_pos(bn: Blkno): Option<Pos>
       reads fs.Repr()
@@ -105,7 +105,9 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
-      forall ino: Ino | ino_ok(ino) :: fs.inodes[ino].sz == metadata[ino]
+      forall ino: Ino | ino_ok(ino) ::
+        && fs.inodes[ino].sz as nat == metadata[ino]
+        && metadata[ino] <= config.total
     }
 
     static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
@@ -181,16 +183,16 @@ module IndFs
       && fs.quiescent()
     }
 
-    constructor(d: Disk)
+    constructor Init(d: Disk)
       ensures Valid()
       ensures fs.quiescent()
       ensures data == imap pos: Pos | pos.idx.data? :: block0
-      ensures metadata == map ino: Ino | ino_ok(ino) :: 0 as uint64
+      ensures metadata == map ino: Ino | ino_ok(ino) :: 0 as nat
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data? :: block0;
-      this.metadata := map ino: Ino | ino_ok(ino) :: 0 as uint64;
+      this.metadata := map ino: Ino | ino_ok(ino) :: 0 as nat;
       new;
       IndBlocks.to_blknos_zero();
       reveal ValidPos();
@@ -206,6 +208,7 @@ module IndFs
       requires ValidIno(pos.ino, i)
       ensures is_block(b.data)
       ensures b.data == zero_lookup(fs.data_block, to_blkno[pos])
+      ensures fresh(b)
     {
       reveal ValidInodes();
       var idx := pos.idx;
@@ -450,6 +453,7 @@ module IndFs
       requires ValidIno(pos.ino, i)
       requires pos.data?
       ensures pos in data && b.data == data[pos]
+      ensures fresh(b)
     {
       b := this.read_(txn, pos, i);
       reveal ValidData();
@@ -458,10 +462,10 @@ module IndFs
     // caller can extract size themselves
     lemma inode_metadata(ino: Ino, i: Inode.Inode)
       requires ValidIno(ino, i)
-      ensures i.sz == metadata[ino]
+      ensures i.sz as nat == metadata[ino]
     {}
 
-    method write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
+    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
       returns (ok: bool, i':Inode.Inode)
       modifies Repr()
       requires has_jrnl(txn)
@@ -527,11 +531,11 @@ module IndFs
       ensures ValidIno(ino, i')
       ensures i'.sz == sz'
       ensures data == old(data)
-      ensures metadata == old(metadata[ino := sz'])
+      ensures metadata == old(metadata[ino := sz' as nat])
     {
       i' := i.(sz := sz');
       fs.writeInode(ino, i');
-      metadata := metadata[ino := sz'];
+      metadata := metadata[ino := sz' as nat];
       assert ValidInodes() by { reveal ValidInodes(); }
       assert ValidPos() by { reveal ValidPos(); }
       assert ValidIndirect() by { reveal ValidIndirect(); }

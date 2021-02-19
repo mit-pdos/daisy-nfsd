@@ -24,7 +24,7 @@ module BlockFs
   }
   type InodeData = x:preInodeData | x.Valid() witness preInodeData.preZero
 
-  function inode_data(ino: Ino, data: imap<Pos, Block>): InodeData
+  function inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
     requires ino_ok(ino)
     requires data_dom(data)
   {
@@ -41,32 +41,29 @@ module BlockFs
   function block_data(data: imap<Pos, Block>): map<Ino, InodeData>
     requires data_dom(data)
   {
-    map ino:Ino | ino_ok(ino) :: inode_data(ino, data)
+    map ino:Ino | ino_ok(ino) :: inode_blocks(ino, data)
   }
 
   method New(d: Disk) returns (fs: IndFilesys)
     ensures fs.ValidQ()
     ensures block_data(fs.data) == map ino: Ino | ino_ok(ino) :: InodeData.zero
+    ensures fs.metadata == map ino: Ino | ino_ok(ino) :: 0
   {
-    fs := new IndFilesys(d);
-    assert forall ino: Ino | ino_ok(ino) :: inode_data(ino, fs.data) == InodeData.zero;
+    fs := new IndFilesys.Init(d);
+    assert forall ino: Ino | ino_ok(ino) :: inode_blocks(ino, fs.data) == InodeData.zero;
   }
 
   // public
-  method Read(fs: IndFilesys, txn: Txn, ino: Ino, n: nat)
+  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: nat)
     returns (bs: Bytes)
-    modifies fs.fs
-    requires fs.ValidQ() ensures fs.ValidQ()
+    requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
     requires ino_ok(ino)
     requires is_lba(n)
+    ensures fresh(bs)
     ensures bs.data == block_data(fs.data)[ino].blks[n]
-    // this should be unnecessary due to the precise modifies clause
-    // ensures fs.state_unchanged()
   {
-    var i := fs.startInode(txn, ino);
     bs := fs.read(txn, Pos.from_flat(ino, n), i);
-    fs.finishInodeReadonly(ino, i);
   }
 
   lemma map_update_eq<K,V>(m1: map<K, V>, k0: K, v: V, m2: map<K, V>)
@@ -80,22 +77,23 @@ module BlockFs
     requires ino_ok(ino)
     requires is_lba(n)
     requires data_dom(data)
-    ensures inode_data(ino, data[Pos.from_flat(ino, n) := blk]).blks ==
-            inode_data(ino, data).blks[n := blk]
+    ensures inode_blocks(ino, data[Pos.from_flat(ino, n) := blk]).blks ==
+            inode_blocks(ino, data).blks[n := blk]
   {
     ghost var data' := data[Pos.from_flat(ino, n) := blk];
     ghost var n0 := n;
-    ghost var d0 := inode_data(ino, data);
-    ghost var d := inode_data(ino, data');
+    ghost var d0 := inode_blocks(ino, data);
+    ghost var d := inode_blocks(ino, data');
     forall n | is_lba(n)
       ensures d.blks[n] == d0.blks[n0 := blk][n]
     {
-      if n == n0 {}
-      else {
-        assert Idx.from_flat(n) != Idx.from_flat(n0) by {
-          Idx.from_flat_inj(n, n0);
-        }
-      }
+      Idx.from_flat_inj(n, n0);
+      // if n == n0 {}
+      // else {
+      //   assert Idx.from_flat(n) != Idx.from_flat(n0) by {
+      //     Idx.from_flat_inj(n, n0);
+      //   }
+      // }
     }
   }
 
@@ -104,8 +102,8 @@ module BlockFs
     requires ino_ok(ino0) && ino_ok(ino) && ino0 != ino
     requires is_lba(n)
     requires data_dom(data)
-    ensures inode_data(ino, data[Pos.from_flat(ino0, n) := blk]) ==
-            inode_data(ino, data)
+    ensures inode_blocks(ino, data[Pos.from_flat(ino0, n) := blk]) ==
+            inode_blocks(ino, data)
   {}
 
   // public
