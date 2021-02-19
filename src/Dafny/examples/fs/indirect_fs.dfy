@@ -48,8 +48,9 @@ module IndFs
     function blkno_pos(bn: Blkno): Option<Pos>
       reads fs.Repr()
       requires blkno_ok(bn)
-      requires fs.Valid()
+      requires fsValid()
     {
+      reveal fsValid();
       fs.block_used[bn]
     }
 
@@ -71,10 +72,17 @@ module IndFs
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
+    predicate {:opaque} fsValid()
+      reads fs.Repr()
+    {
+      fs.Valid()
+    }
+
     predicate ValidBasics()
       reads Repr()
     {
-      && fs.Valid()
+      reveal fsValid();
+      && fsValid()
       && ino_dom(metadata)
       && data_dom(data)
       && ValidBlknos()
@@ -85,6 +93,7 @@ module IndFs
       reads Repr()
       requires ValidBasics()
     {
+      reveal fsValid();
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
           blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
       && (forall pos:Pos ::
@@ -107,7 +116,7 @@ module IndFs
     {
       forall ino: Ino | ino_ok(ino) ::
         && fs.inodes[ino].sz as nat == metadata[ino]
-        && metadata[ino] <= config.total
+        && metadata[ino] <= Inode.MAX_SZ
     }
 
     static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
@@ -529,13 +538,15 @@ module IndFs
       requires ValidIno(ino, i)
       requires sz' <= Inode.MAX_SZ_u64
       ensures ValidIno(ino, i')
-      ensures i'.sz == sz'
       ensures data == old(data)
       ensures metadata == old(metadata[ino := sz' as nat])
     {
+      reveal fsValid();
       i' := i.(sz := sz');
       fs.writeInode(ino, i');
       metadata := metadata[ino := sz' as nat];
+      assert ValidBasics();
+      assert ValidMetadata();
       assert ValidInodes() by { reveal ValidInodes(); }
       assert ValidPos() by { reveal ValidPos(); }
       assert ValidIndirect() by { reveal ValidIndirect(); }
