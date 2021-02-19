@@ -117,18 +117,6 @@ module Fs {
       && cur_inode.x.0 == ino
     }
 
-    static predicate Inodes_all_Valid(inodes: map<Ino, Inode.Inode>)
-    {
-      forall ino: Ino | ino in inodes :: inodes[ino].Valid()
-    }
-
-    predicate Valid_inodes()
-      requires Valid_domains()
-      reads this
-    {
-      && Inodes_all_Valid(inodes)
-    }
-
     static const ballocMax: uint64 := super.data_bitmaps as uint64 * 4096*8 - 8
 
     predicate Valid_balloc()
@@ -163,7 +151,6 @@ module Fs {
     {
       && Valid_data_block(data_block)
       && Valid_jrnl_to_all()
-      && this.Valid_inodes()
 
       && this.Valid_balloc()
     }
@@ -201,7 +188,6 @@ module Fs {
       reveal Valid_jrnl_to_inodes();
       reveal DataBlk();
       reveal InodeAddr();
-      assert Valid_inodes();
     }
 
     // Recovery is needed for the file-system to recover its in-memory allocator
@@ -236,14 +222,6 @@ module Fs {
 
       this.jrnl := jrnl_;
       this.balloc := balloc;
-    }
-
-    // full block append
-    static function method inode_append(i: Inode.Inode, bn: Blkno): (i':Inode.Inode)
-    requires i.Valid()
-    {
-
-      Inode.Mk(i.sz + 4096, i.blks + [bn])
     }
 
     static predicate is_alloc_bn(bn: Blkno)

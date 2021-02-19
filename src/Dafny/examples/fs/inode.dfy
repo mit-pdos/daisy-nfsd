@@ -15,7 +15,7 @@ module Inode {
   const MAX_SZ: nat := 10 + 4*512 + 512*512*512;
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
-  datatype Inode = Mk(sz: uint64, blks: seq<uint64>)
+  datatype preInode = Mk(sz: uint64, blks: seq<uint64>)
   {
 
     // how many blocks is the inode actually referencing with its size?
@@ -34,6 +34,7 @@ module Inode {
       div_roundup64(sz, 4096)
     }
   }
+  type Inode = x:preInode | x.Valid() witness Mk(0, C.repeat(0 as uint64, 15))
 
   predicate ValidBlks(blks: seq<uint64>)
   {
@@ -41,13 +42,11 @@ module Inode {
   }
 
   function inode_enc(i: Inode): seq<Encodable>
-    requires i.Valid()
   {
     [EncUInt64(i.sz)] + seq_fmap(encUInt64, i.blks)
   }
 
   lemma encode_len(i: Inode)
-    requires i.Valid()
     ensures |seq_encode(inode_enc(i))| == 128
   {
     enc_uint64_len(i.blks);
@@ -56,24 +55,16 @@ module Inode {
   function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
-    if i.Valid() then
-      (encode_len(i);
-      assert |seq_encode(inode_enc(i))| == 128;
-      seq_encode(inode_enc(i)))
-    else repeat(0 as byte, 128)
+    encode_len(i);
+    assert |seq_encode(inode_enc(i))| == 128;
+    seq_encode(inode_enc(i))
   }
 
   const zero: Inode := Mk(0, repeat(0 as uint64, 15));
 
-  lemma zero_valid()
-    ensures zero.Valid()
-  {}
-
   lemma zero_encoding()
-    ensures zero.Valid()
     ensures repeat(0 as byte, 128) == enc(zero)
   {
-    zero_valid();
     assert inode_enc(zero) == [EncUInt64(0)] + repeat(EncUInt64(0), 15);
     IntEncoding.lemma_enc_0();
     zero_encode_seq_uint64(15);
@@ -82,7 +73,6 @@ module Inode {
 
   method encode_ino(i: Inode) returns (bs:Bytes)
     modifies {}
-    requires i.Valid()
     ensures fresh(bs)
     ensures bs.data == enc(i)
   {
@@ -97,7 +87,6 @@ module Inode {
   method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
     modifies {}
     requires bs.Valid()
-    requires i.Valid()
     requires bs.data == enc(i)
     ensures i' == i
   {
