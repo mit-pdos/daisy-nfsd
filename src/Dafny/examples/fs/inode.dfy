@@ -12,7 +12,7 @@ module Inode {
   import opened ByteSlice
   import opened Marshal
 
-  const MAX_SZ: nat := 10 + 4*512 + 512*512*512;
+  const MAX_SZ: nat := 4096 * (10 + 4*512 + 512*512*512);
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
   datatype preInode = Mk(sz: uint64, blks: seq<uint64>)

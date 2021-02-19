@@ -26,7 +26,7 @@ module IndFs
   }
 
   lemma inode_size_ok()
-    ensures config.total == Inode.MAX_SZ
+    ensures 4096*config.total == Inode.MAX_SZ
   {}
 
   class IndFilesys
@@ -523,7 +523,7 @@ module IndFs
     }
 
     // public
-    method writeInodeSz(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
+    method writeInodeSz(ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode)
       modifies Repr()
       requires ValidIno(ino, i)

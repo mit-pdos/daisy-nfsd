@@ -1,4 +1,5 @@
 include "block_fs.dfy"
+include "../../util/min_max.dfy"
 
 module ByteFs {
   import Fs
@@ -10,6 +11,8 @@ module ByteFs {
   import opened JrnlSpec
   import opened Machine
   import opened ByteSlice
+  import opened MinMax
+  import Round
   import Inode
 
   function num_used(sz: nat): nat
@@ -18,7 +21,7 @@ module ByteFs {
   }
 
   function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
-    ensures |bs| == 4096*Inode.MAX_SZ
+    ensures |bs| == Inode.MAX_SZ
   {
     C.concat_homogeneous_len(d.blks, 4096);
     C.concat(d.blks)
@@ -72,7 +75,7 @@ module ByteFs {
 
     lemma raw_inode_index_one(d: InodeData, off: uint64)
       requires off % 4096 == 0
-      requires off as nat + 4096 <= 4096*Inode.MAX_SZ
+      requires off as nat + 4096 <= Inode.MAX_SZ
       ensures d.blks[off as nat/4096] == raw_inode_data(d)[off as nat..off as nat + 4096]
     {
       var blkoff := off as nat / 4096;
@@ -85,7 +88,7 @@ module ByteFs {
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
       requires off % 4096 == 0
-      requires off as nat + 4096 <= 4096*Inode.MAX_SZ
+      requires off as nat + 4096 <= Inode.MAX_SZ
       ensures bs.data == this.raw_data(ino)[off as nat..off as nat + 4096]
       ensures fresh(bs)
     {
@@ -107,8 +110,8 @@ module ByteFs {
     {
       var off' := off / 4096 * 4096;
       Arith.div_mod_split(off' as nat, 4096);
-      assert off' + 4096 <= 4096*Inode.MAX_SZ_u64 by {
-        Arith.div_incr(off' as nat, Inode.MAX_SZ, 4096);
+      assert off' + 4096 <= Inode.MAX_SZ_u64 by {
+        Arith.div_incr(off' as nat, IndirectPos.config.total, 4096);
       }
       bs := alignedRead(txn, ino, i, off');
       if off' + 4096 >= off + len {
@@ -281,6 +284,75 @@ module ByteFs {
       map_update_eq(old(data()), ino, inode_data(sz, d), data());
     }
 
+    // private
+    //
+    // grow an inode with junk so that it can be filled with in-bounds writes
+    method growBy(ghost ino: Ino, i: Inode.Inode, delta: uint64)
+      returns (i': Inode.Inode, ghost junk: seq<byte>)
+      modifies Repr()
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires i.sz as nat + delta as nat <= Inode.MAX_SZ
+      ensures |junk| == delta as nat
+      ensures data() == old(data()[ino := data()[ino] + junk])
+    {
+      ghost var sz := i.sz;
+      var sz' := i.sz + delta;
+      i' := fs.writeInodeSz(ino, i, sz');
+      assert raw_data(ino) == old(raw_data(ino));
+      junk := raw_data(ino)[sz..sz'];
+      assert data()[ino] == old(data()[ino] + junk) by {
+        reveal raw_inode_data();
+      }
+    }
+
+    // private
+    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
+      modifies Repr(), bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires bs.Valid()
+      requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
+      requires 0 < |bs.data| <= 4096
+      ensures written <= old(|bs.data|)
+      ensures ok ==> (
+      && bs'.Valid()
+      && (bs'.Len() == 0 ==> written == old(|bs.data|))
+      && (bs'.Len() != 0 ==> i'.sz % 4096 == 0 && written < old(|bs.data|)))
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
+      ensures !ok ==> data == old(data)
+    {
+      i' := i;
+      if i.sz % 4096 == 0 {
+        ok := true;
+        // sz is already aligned
+        written := 0;
+        bs' := bs;
+        assert data()[ino] + bs.data[..written] == data()[ino];
+        return;
+      }
+
+      var remaining_space := 4096 - i.sz % 4096;
+      var to_write: uint64 := min_u64(remaining_space, bs.Len());
+      ghost var junk;
+      i', junk := this.growBy(ino, i', remaining_space);
+
+      bs' := bs.Split(to_write);
+      Round.roundup_distance(i.sz as nat, 4096);
+      var blkoff: uint64 := i.sz / 4096;
+      var off': uint64 := blkoff * 4096;
+      Arith.mul_mod(blkoff as nat, 4096);
+      assert off' as nat + 4096 <= Inode.MAX_SZ;
+      var blk := this.alignedRead(txn, ino, i', off');
+      assume false;
+      assert |bs.data| <= |old(bs.data)|;
+      assert |bs.data| <= remaining_space as nat;
+      blk.CopyTo(i.sz % 4096, bs);
+      ok, i' := this.alignedWrite(txn, ino, i', blk, blkoff * 4096);
+
+      assume false;
+    }
+
     // public
     method Append(ino: Ino, bs: Bytes, off: uint64) returns (ok:bool)
       modifies Repr(), bs
@@ -288,7 +360,29 @@ module ByteFs {
       requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
-    {}
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
+    {
+      var txn := fs.fs.jrnl.Begin();
+      var i := fs.startInode(txn, ino);
+      if i.sz + bs.Len() >= Inode.MAX_SZ_u64 {
+        ok := false;
+        fs.finishInodeReadonly(ino, i);
+        return;
+      }
+
+      if bs.Len() == 0 {
+        ok := true;
+        assert bs.data == [];
+        assert data()[ino] == data()[ino] + bs.data;
+        fs.finishInodeReadonly(ino, i);
+        var _ := txn.Commit();
+        return;
+      }
+
+      assume false;
+      fs.finishInode(txn, ino, i);
+      var _ := txn.Commit();
+    }
 
   }
 }
