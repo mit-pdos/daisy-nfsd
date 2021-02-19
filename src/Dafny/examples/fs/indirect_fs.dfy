@@ -10,7 +10,7 @@ module IndFs
   import opened JrnlSpec
   import opened Fs
   import opened Marshal
-  import opened IndBlocks
+  import IndBlocks
   import opened Pow
   import C = Collections
 
@@ -546,7 +546,7 @@ module IndFs
       ensures fs.inodes == old(fs.inodes)
       ensures state_unchanged()
     {
-      assert IndBlocks.to_blknos(zero_lookup(fs.data_block, to_blkno[pos])) == IndBlknos.zero by {
+      assert IndBlocks.to_blknos(block0) == IndBlocks.IndBlknos.zero by {
         IndBlocks.to_blknos_zero();
       }
       ok, bn := fs.allocateTo(txn, pos);
