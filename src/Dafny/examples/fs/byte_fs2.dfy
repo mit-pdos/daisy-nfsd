@@ -433,11 +433,15 @@ module ByteFs {
         assert |data0| == i.sz as nat;
         assert off' as nat == i.sz as nat / 4096 * 4096;
         assert |data0| + |bs.data| == desired_size as nat;
+        assert i.sz as nat % 4096 == (i.sz % 4096) as nat;
         assume false;
+        // this is apparently hard to prove (though it should just be congruence
+        // with the spec of CopyTo)
         assert blk.data == C.splice(data1[off'..off' + 4096], i.sz as nat % 4096, bs.data);
         data_append_at_end(data0, junk, bs.data,
           data1, blk.data, data2, data3);
       }
+      assume false;
     }
 
     // public
