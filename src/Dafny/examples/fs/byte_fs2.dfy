@@ -371,7 +371,7 @@ module ByteFs {
 
     method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
-      modifies Repr(), bs
+      modifies Repr()
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
@@ -430,10 +430,7 @@ module ByteFs {
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
       ensures written <= old(|bs.data|)
-      ensures ok ==> (
-      && bs'.Valid()
-      && (bs'.Len() == 0 ==> written == old(|bs.data|))
-      && (bs'.Len() != 0 ==> i'.sz % 4096 == 0 && written < old(|bs.data|)))
+      ensures ok ==> bs'.Valid() && bs'.data == old(bs.data[written..])
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
     {
@@ -461,16 +458,28 @@ module ByteFs {
       written := to_write as nat;
 
       bs' := bs.Split(to_write);
+      assert bs.data == old(bs.data[..written]);
       Round.roundup_distance(i.sz as nat, 4096);
       ok, i' := this.updateInPlace(txn, ino, i', i.sz, bs);
       if !ok {
         return;
       }
       fs.inode_metadata(ino, i');
-      i' := shrinkTo(ino, i', desired_size);
       ghost var data2 := data()[ino];
-      assert |data2| == |data0| + written;
-      assume false;
+      assert desired_size as nat == i.sz as nat + to_write as nat;
+
+      i' := shrinkTo(ino, i', desired_size);
+      ghost var data3 := data()[ino];
+
+      assert |data3| == |data0| + written;
+      assert data3[..|data0|] == data0;
+      assert data3[|data0|..] == bs.data;
+      calc {
+        data3;
+        data3[..|data0|] + data3[|data0|..];
+        data0 + bs.data;
+      }
+      assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
     }
 
     // public
