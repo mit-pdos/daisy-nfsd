@@ -430,19 +430,13 @@ module ByteFs {
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
       ensures written <= old(|bs.data|)
+      // we don't make this abstract because it's needed to guarantee progress
+      ensures written == old(min(4096 - |data()[ino]| % 4096, |bs.data|))
       ensures ok ==> bs'.Valid() && bs'.data == old(bs.data[written..])
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
     {
       i' := i;
-      if i.sz % 4096 == 0 {
-        ok := true;
-        // sz is already aligned
-        written := 0;
-        bs' := bs;
-        assert data()[ino] + bs.data[..written] == data()[ino];
-        return;
-      }
       fs.inode_metadata(ino, i');
 
       var remaining_space := 4096 - i.sz % 4096;
