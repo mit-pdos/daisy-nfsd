@@ -1,594 +1,538 @@
-include "fs.dfy"
+include "block_fs.dfy"
 include "../../util/min_max.dfy"
 
 module ByteFs {
-  import opened Fs
+  import Fs
+  import opened BlockFs
+  import IndirectPos
+  import opened IndFs
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
   import opened Machine
   import opened ByteSlice
   import opened MinMax
+  import Round
+  import Inode
 
-  function {:opaque} inode_data(d: InodeData): (bs:seq<byte>)
-    requires d.Valid()
-    ensures |bs| == d.sz
+  function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
+    ensures |bs| == Inode.MAX_SZ
   {
-    C.concat_homogeneous_spec(d.used_blocks(), 4096);
-    C.concat(d.used_blocks())[..d.sz]
+    C.concat_homogeneous_len(d.blks, 4096);
+    C.concat(d.blks)
   }
 
-  lemma reveal_inode_data_better(d: InodeData)
-    requires d.Valid()
-    ensures |C.concat(d.used_blocks())| == 4096 * d.num_used
-    ensures inode_data(d) == C.concat(d.used_blocks())[..d.sz]
+  function inode_data(sz: nat, d: InodeData): (bs:seq<byte>)
+    requires sz <= Inode.MAX_SZ
+    ensures sz <= Inode.MAX_SZ && |bs| == sz as nat
   {
-    reveal_inode_data();
-    C.concat_homogeneous_spec(d.used_blocks(), 4096);
+    raw_inode_data(d)[..sz]
   }
 
-  lemma inode_data_aligned(d: InodeData)
-    requires d.sz % 4096 == 0
-    requires d.Valid()
-    ensures inode_data(d) == C.concat(d.used_blocks())
+  class ByteFilesys
   {
-    reveal_inode_data_better(d);
-  }
-
-  lemma inode_data_all_blks(d: InodeData)
-    requires d.Valid()
-    ensures d.sz <= |C.concat(d.blks)| && inode_data(d) == C.concat(d.blks)[..d.sz]
-  {
-    reveal_inode_data_better(d);
-    ghost var num_used := d.num_used;
-    ghost var blks := d.blks;
-    C.concat_app(blks[..num_used], blks[num_used..]);
-    assert blks == blks[..num_used] + blks[num_used..];
-  }
-
-  lemma inode_data_free(d: InodeData, d': InodeData)
-    requires d.Valid() && d'.Valid()
-    requires d'.used_blocks() == d.used_blocks()
-    requires d'.sz == d.sz
-    ensures inode_data(d') == inode_data(d)
-  {
-    reveal_inode_data();
-  }
-
-  class ByteFilesys {
-    ghost var data: map<Ino, seq<byte>>;
-
-    const fs: Filesys;
+    const fs: IndFilesys;
 
     function Repr(): set<object>
     {
-      {this} + fs.Repr()
-    }
-
-    static predicate inode_blks_to_data(inode_blks: map<Ino, InodeData>, data: map<Ino, seq<byte>>)
-    {
-      && ino_dom(inode_blks)
-      && ino_dom(data)
-      && Valid_inode_blks(inode_blks)
-      && (forall ino | ino_ok(ino) :: data[ino] == inode_data(inode_blks[ino]))
+      fs.Repr()
     }
 
     predicate Valid()
       reads this.Repr()
     {
       && fs.ValidQ()
-      && inode_blks_to_data(fs.inode_blks, data)
     }
 
-    predicate ValidIno(ino: Ino, i: Inode.Inode)
-      reads this.Repr()
+    function data(): map<Ino, seq<byte>>
+      reads Repr()
+      requires fs.Valid()
     {
-      && fs.Valid()
-      && fs.is_cur_inode(ino, i)
-      && inode_blks_to_data(fs.inode_blks, data)
+      map ino:Ino | ino_ok(ino) ::
+        (fs.metadata_bound(ino);
+        inode_data(fs.metadata[ino], block_data(fs.data)[ino]))
+    }
+
+    function raw_data(ino: Ino): seq<byte>
+      reads Repr()
+      requires ino_ok(ino)
+      requires fs.Valid()
+    {
+      raw_inode_data(block_data(fs.data)[ino])
     }
 
     constructor Init(d: Disk)
       ensures Valid()
+      ensures data() == map ino: Ino | ino_ok(ino) :: []
     {
-      fs := new Filesys.Init(d);
-      data := map ino | ino_ok(ino) :: [];
+      var the_fs := BlockFs.New(d);
+      this.fs := the_fs;
+      new;
     }
 
-    constructor Recover(jrnl_: Jrnl)
-      requires Filesys.Valid_basics(jrnl_)
-      ensures fs.jrnl == jrnl_
-    {
-      fs := new Filesys.Recover(jrnl_);
-    }
-
-    // like fs.getInodeBlk but expressed at this abstraction level
-    // trims the result if necessary to only include file data
-    method getInodeBlock(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64) returns (bs: Bytes)
-      modifies {}
-      requires Valid()
-      requires txn.jrnl == fs.jrnl
-      requires fs.is_inode(ino, i)
+    lemma raw_inode_index_one(d: InodeData, off: uint64)
       requires off % 4096 == 0
-      requires off as nat < |data[ino]|
+      requires off as nat + 4096 <= Inode.MAX_SZ
+      ensures d.blks[off as nat/4096] == raw_inode_data(d)[off as nat..off as nat + 4096]
+    {
+      var blkoff := off as nat / 4096;
+      C.concat_homogeneous_one_list(d.blks, blkoff, 4096);
+      reveal raw_inode_data();
+    }
+
+    method alignedRead(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64)
+      returns (bs: Bytes)
+      requires fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= Inode.MAX_SZ
+      ensures bs.data == this.raw_data(ino)[off as nat..off as nat + 4096]
       ensures fresh(bs)
-      ensures off as nat + |bs.data| <= |data[ino]|
-      ensures |bs.data| <= 4096
-      ensures if |data[ino]| > off as nat + 4096 then
-      (|bs.data| == 4096 && bs.data == data[ino][off as nat..off as nat + 4096])
-      else bs.data == data[ino][off as nat..]
     {
       var blkoff: nat := off as nat / 4096;
-      ghost var off': nat := blkoff * 4096;
-      assert off' == off as nat;
+      bs := BlockFs.Read(this.fs, txn, ino, i, blkoff);
+      ghost var d := block_data(fs.data)[ino];
+      assert bs.data == d.blks[blkoff];
+      raw_inode_index_one(d, off);
+    }
 
-      bs := fs.getInodeBlk(txn, ino, i, blkoff);
-      assert Valid();
-
-      ghost var blks := fs.inode_blks[ino].used_blocks();
-      assert bs.data == blks[blkoff];
-      assert off' + 4096 <= |C.concat(blks)| &&
-        bs.data == C.concat(blks)[off'..off'+4096] by {
-        C.concat_homogeneous_one_list(blks, blkoff, 4096);
-        reveal_inode_data();
+    method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+      returns (bs: Bytes)
+      requires fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      requires 0 < len <= 4096
+      requires off as nat + len as nat <= |data()[ino]|
+      ensures fresh(bs)
+      ensures bs.data == this.data()[ino][off..off as nat +len as nat]
+    {
+      fs.inode_metadata(ino, i);
+      var off' := off / 4096 * 4096;
+      Arith.div_mod_split(off' as nat, 4096);
+      assert off' + 4096 <= Inode.MAX_SZ_u64 by {
+        Arith.div_incr(off' as nat, IndirectPos.config.total, 4096);
       }
-
-      if off + 4096 > i.sz {
-        bs.Subslice(0, i.sz - off);
-        ghost var bytes_read := (i.sz - off) as nat;
-        C.double_subslice_auto(C.concat(blks));
-        assert |bs.data| < 4096;
-        assert off as nat + |bs.data| == |data[ino]|;
-        reveal_inode_data();
+      bs := alignedRead(txn, ino, i, off');
+      if off' + 4096 >= off + len {
+        // we finished the entire read
+        bs.Subslice(off % 4096, off % 4096 + len);
+        assert bs.data == raw_data(ino)[off as nat .. off as nat + len as nat] by {
+          C.double_subslice_auto(raw_data(ino));
+        }
         return;
       }
 
-      assert bs.data == data[ino][off..off+4096] by {
-        reveal_inode_data();
+      // only keep data starting at off
+      bs.Subslice(off % 4096, 4096);
+      assert bs.data == raw_data(ino)[off as nat..off' + 4096] by {
+        C.double_subslice_auto(raw_data(ino));
+      }
+      var read_bytes: uint64 := bs.Len();
+      var off'' := off' + 4096;
+      var bs2 := alignedRead(txn, ino, i, off'');
+      bs2.Subslice(0, len - read_bytes);
+      ghost var bs2_upper_bound: nat := off'' as nat + (len - read_bytes) as nat;
+      assert bs2.data == raw_data(ino)[off''..bs2_upper_bound] by {
+        C.double_subslice_auto(raw_data(ino));
+      }
+
+      bs.AppendBytes(bs2);
+      assert (off + len) as nat == bs2_upper_bound;
+      calc {
+        bs.data;
+        raw_data(ino)[off..off''] + raw_data(ino)[off''..bs2_upper_bound];
+        raw_data(ino)[off..off + len];
       }
     }
 
-    method Get(ino: Ino, off: uint64, len: uint64)
+    // TODO: why is this so slow?
+    method {:timeLimitMultiplier 2} Read(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
-      modifies {}
-      requires ino_ok(ino)
+      modifies fs.fs
       requires Valid() ensures Valid()
-      ensures fresh(bs) && bs.Valid()
+      requires ino_ok(ino)
       ensures ok ==>
-      && off as nat + len as nat <= |data[ino]|
-      && bs.data == data[ino][off..off+len]
+          && off as nat + len as nat <= |data()[ino]|
+          && bs.data == this.data()[ino][off..off+len]
     {
       if len > 4096 {
         ok := false;
         bs := NewBytes(0);
         return;
       }
+      var txn := fs.fs.jrnl.Begin();
+      var i := fs.startInode(txn, ino);
 
-      var txn := fs.jrnl.Begin();
-      var i := fs.getInode(txn, ino);
+      fs.inode_metadata(ino, i);
+
       if sum_overflows(off, len) || off+len > i.sz {
         ok := false;
         bs := NewBytes(0);
+        fs.finishInodeReadonly(ino, i);
         return;
       }
+      assert off as nat + len as nat <= |data()[ino]|;
 
       ok := true;
       if len == 0 {
         bs := NewBytes(0);
-        return;
-      }
-      assert 0 < len <= 4096;
-
-      var blkoff: uint64 := off / 4096;
-      var off' := blkoff * 4096;
-
-      bs := getInodeBlock(txn, ino, i, off');
-
-      if off % 4096 + len <= bs.Len() {
-        // we finished the entire read
-        bs.Subslice(off % 4096, off % 4096 + len);
-
-        var _ := txn.Commit();
-        if |data[ino]| > off' as nat + 4096 {
-          C.double_subslice_auto(data[ino]);
+        fs.finishInodeReadonly(ino, i);
+        calc {
+          this.data()[ino][off..off+len];
+          { assert off+len == off; }
+          this.data()[ino][off..off];
+          [];
+          bs.data;
         }
         return;
       }
-
-      assert bs.data == data[ino][off'..off' + 4096];
-      bs.Subslice(off % 4096, 4096);
-      assert bs.data == data[ino][off..off' + 4096] by {
-        C.double_subslice_auto(data[ino]);
-      }
-      var read_bytes: uint64 := bs.Len();
-
-      var off'' := off' + 4096;
-      var bs2 := getInodeBlock(txn, ino, i, off'');
-      bs2.Subslice(0, len - read_bytes);
-      ghost var bs2_upper_bound: nat := off'' as nat + (len - read_bytes) as nat;
-      assert bs2.data == data[ino][off''..bs2_upper_bound] by {
-        C.double_subslice_auto(data[ino]);
-      }
-
-      bs.AppendBytes(bs2);
-
-      assert (off + len) as nat == bs2_upper_bound;
-      calc {
-        bs.data;
-        data[ino][off..off''] + data[ino][off''..bs2_upper_bound];
-        data[ino][off..off + len];
-      }
-
+      assert 0 < len <= 4096;
+      bs := readInternal(txn, ino, i, off, len);
+      fs.finishInodeReadonly(ino, i);
+      assert data() == old(data());
       var _ := txn.Commit();
     }
 
     method Size(ino: Ino) returns (sz: uint64)
-      modifies {}
+      modifies fs.fs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
-      ensures sz as nat == |data[ino]|
+      ensures data() == old(data())
+      ensures sz as nat == |data()[ino]|
     {
-      sz := fs.Size(ino);
+      var txn := fs.fs.jrnl.Begin();
+      var i := fs.startInode(txn, ino);
+      sz := i.sz;
+      fs.inode_metadata(ino, i);
+      fs.finishInodeReadonly(ino, i);
+      var _ := txn.Commit();
     }
 
-    function get_last_block(d: InodeData): Block
-      requires d.Valid()
-      requires 0 < d.num_used
-    {
-      d.blks[d.num_used-1]
-    }
-
-    function set_last_block(d: InodeData, b: Block): InodeData
-      requires d.Valid()
-      requires 0 < d.num_used
-    {
-      var blks := d.blks;
-      var off := d.num_used-1;
-      d.(blks:=blks[off := b])
-    }
-
-    lemma get_set_last(d: InodeData, b: Block)
-      requires d.Valid()
-      requires 0 < d.num_used
-      requires is_block(b)
-      ensures get_last_block(set_last_block(d, b)) == b
-    {}
-
-    lemma inode_data_splice_last(d: InodeData, d': InodeData, bs: seq<byte>)
-      requires 0 < d.num_used
-      requires 0 < |bs|
-      requires d.sz % 4096 + |bs| <= 4096
-      requires d.Valid() && d'.Valid()
-      requires (assert is_block(get_last_block(d));
-                d' == set_last_block(d, C.splice(get_last_block(d), d.sz % 4096, bs)).(sz:=d.sz + |bs|))
-      // don't see exactly why this would be true
-      requires d'.num_used == d.num_used
-      ensures inode_data(d') == inode_data(d) + bs
-    {
-      reveal_inode_data();
-      ghost var blks := d.used_blocks();
-      ghost var blks' := d'.used_blocks();
-      assert is_block(C.last(blks));
-      assert C.last(blks') == get_last_block(d');
-      get_set_last(d, C.splice(get_last_block(d), d.sz % 4096, bs));
-      assert C.last(blks') == C.splice(C.last(blks), d.sz % 4096, bs);
-
-      C.concat_split_last(blks);
-      C.concat_homogeneous_len(blks, 4096);
-      C.concat_split_last(blks');
-      C.concat_homogeneous_len(C.without_last(blks'), 4096);
-      calc {
-        inode_data(d');
-        (C.concat(C.without_last(blks')) + C.last(blks'))[..d'.sz];
-        C.concat(C.without_last(blks')) + C.to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
-        C.concat(C.without_last(blks)) + C.to_seq(C.last(blks'))[..d'.sz - (|blks'|-1) * 4096];
-      }
-    }
-
-    lemma inode_data_replace_last(d: InodeData, d': InodeData, bs: seq<byte>, new_bytes: nat)
-      requires 0 < d.num_used
-      requires d.sz % 4096 == 0 && |bs| == 4096
-      requires d.Valid() && d'.Valid()
-      requires (assert is_block(get_last_block(d));
-                d' == set_last_block(d, bs).(sz:=d.sz - 4096 + new_bytes))
-      requires d'.num_used == d.num_used
-      ensures inode_data(d') == inode_data(d)[..d.sz - 4096] + bs[..new_bytes]
-    {
-      reveal_inode_data();
-      ghost var blks := d.used_blocks();
-      ghost var blks' := d'.used_blocks();
-      C.concat_split_last(blks);
-      C.concat_homogeneous_len(blks, 4096);
-      C.concat_split_last(blks');
-      assert C.concat(C.without_last(blks)) == inode_data(d)[..d.sz - 4096];
-    }
-
-    method writeLastBlock(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (i': Inode.Inode)
+    // private
+    method alignedRawWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+      returns (ok: bool, i': Inode.Inode)
       modifies Repr()
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
-      requires txn.jrnl == fs.jrnl
-      requires i.sz % 4096 == 0
-      requires 4096 <= i.sz
-      requires i.blks[i.used_blocks-1] != 0
-      requires bs.Valid()
-      requires 0 < bs.Len() <= 4096
-      ensures (var d := old(data[ino]);
-            data == old(data[ino:= d[..|d|-4096] + bs.data]))
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires is_block(bs.data)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= Inode.MAX_SZ
+      ensures bs.data == old(bs.data)
+      ensures (var ino0 := ino;
+        forall ino:Ino | ino_ok(ino) && ino != ino0 ::
+          data()[ino] == old(data()[ino]))
+      ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
+      ensures fs.metadata == old(fs.metadata)
+      ensures !ok ==> raw_data(ino) == old(raw_data(ino))
+      ensures !ok ==> data() == old(data())
     {
-        var bn := i.blks[i.used_blocks-1];
-        var blk := NewBytes(4096);
-        blk.CopyTo(0, bs);
-        fs.writeDataBlock(txn, bn, blk, ino, i.used_blocks-1);
-        i' := i.(sz:=i.sz - 4096 + bs.Len());
-        // this truncates the inode, which growInode grows for the sake of
-        // preserving the complete inode invariant
-        fs.writeInodeSz(ino, i, i');
-
-        ghost var ino_d := data[ino];
-        ghost var stable_d := ino_d[..|ino_d|-4096];
-        data := data[ino:= stable_d + bs.data];
-
-        ghost var d' := fs.inode_blks[ino];
-        assert inode_data(d') == stable_d + bs.data by {
-          inode_data_replace_last(old(fs.inode_blks[ino]), fs.inode_blks[ino], blk.data, |bs.data|);
-          assert blk.data[..|bs.data|] == bs.data;
-        }
-    }
-
-    method growInodeAligned(txn: Txn, ino: Ino, i: Inode.Inode)
-      returns (ok:bool, i': Inode.Inode, ghost b: Block)
-      modifies Repr()
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
-      requires txn.jrnl == fs.jrnl
-      requires i.sz % 4096 == 0
-      requires i.sz as nat <= 14*4096
-      ensures ok ==> is_block(b)
-      ensures ok ==> data == old(data[ino:=data[ino] + b])
-      ensures ok ==> i'.blks[i'.used_blocks-1] != 0
-      ensures !ok ==> data == old(data)
-    {
-      var blkoff_ := i.used_blocks_u64();
-      var blkoff := blkoff_ as nat;
-      assert blkoff < 15;
-
-      ghost var d0 := fs.inode_blks[ino];
-
-      if i.blks[blkoff] != 0 {
-        ok := true;
-        i' := i.(sz := i.sz + 4096);
-        fs.writeInodeSz(ino, i, i');
-      } else {
-        var bn;
-        ok, i', bn := fs.allocateToInode(txn, ino, i, blkoff);
-        if !ok {
-          return;
-        }
-        var cur_i := i';
-        i' := i'.(sz := i'.sz + 4096);
-        fs.writeInodeSz(ino, cur_i, i');
-      }
-      assert ok;
-
-      ghost var d' := fs.inode_blks[ino];
-      b := C.last(d'.used_blocks());
-      data := data[ino := data[ino] + b];
-
-      // this assertion should join the two branches above
-      assert d'.used_blocks() == d0.used_blocks() + [b];
-
-      assert ValidIno(ino, i') by {
-        C.concat_app1(d0.used_blocks(), b);
-        inode_data_aligned(d0);
-        inode_data_aligned(d');
-        assert inode_data(d') == inode_data(d0) + b;
-      }
-    }
-
-    method appendAligned(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes) returns (ok:bool, i': Inode.Inode)
-      modifies Repr()
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
-      requires txn.jrnl == fs.jrnl
-      requires fs.is_inode(ino, i)
-      requires i.sz % 4096 == 0
-      requires bs.Valid()
-      requires 0 < bs.Len() <= 4096
-      requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
-      ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
-      ensures !ok ==> data == old(data)
-    {
-      // add some garbage data to the end of the inode
-      ghost var b;
-      ok, i', b := growInodeAligned(txn, ino, i);
+      i' := i;
+      var blkoff: nat := off as nat / 4096;
+      ok, i' := BlockFs.Write(fs, txn, ino, i, blkoff as nat, bs);
       if !ok {
         return;
       }
-      ok := true;
-
-      assert data[ino][..old(fs.inode_blks[ino].sz)] == old(data[ino]);
-
-      i' := writeLastBlock(txn, ino, i', bs);
+      ghost var d0 := old(block_data(fs.data)[ino]);
+      ghost var d := block_data(fs.data)[ino];
+      assert off as nat == blkoff * 4096;
+      C.concat_homogeneous_len(d0.blks, 4096);
+      assert d.blks == d0.blks[blkoff:=bs.data];
+      ghost var blk: Block := bs.data;
+      assert C.concat(d.blks) == C.splice(C.concat(d0.blks), off as nat, blk) by {
+        C.concat_homogeneous_splice_one(d0.blks, blkoff, bs.data, 4096);
+      }
+      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, blk) by {
+        reveal raw_inode_data();
+        assert C.concat(d.blks) == raw_data(ino);
+        assert C.concat(d0.blks) == old(raw_data(ino));
+      }
     }
 
-    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
-      modifies Repr(), bs
-      requires txn.jrnl == fs.jrnl
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
-      requires bs.Valid()
-      requires 0 < |bs.data| <= 4096
-      ensures written <= old(|bs.data|)
-      ensures ok ==> (
-            && bs'.Valid()
-            && (bs'.Len() == 0 ==> written == old(|bs.data|))
-            && (bs'.Len() != 0 ==> i'.sz % 4096 == 0 && written < old(|bs.data|)))
-      ensures ok ==> data == old(data[ino:=data[ino] + bs.data[..written]])
-      // bs' reports the remainder to be written
-      ensures ok ==> bs'.data == old(bs.data[written..])
-      ensures !ok ==> data == old(data)
+    // private
+    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr()
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires is_block(bs.data)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= |data()[ino]|
+      ensures bs.data == old(bs.data)
+      ensures ok ==> data() == old(
+      var d0 := data()[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data()[ino := d])
+      ensures !ok ==> data() == old(data())
     {
-      var remaining_space := Round.roundup64(i.sz, 4096) - i.sz;
-      if remaining_space == 0 {
-        ok := true;
-        // sz is already aligned
-        written := 0;
-        i' := i;
-        bs' := bs;
-        assert data[ino] + bs.data[..written] == data[ino];
+      i' := i;
+      ok, i' := alignedRawWrite(txn, ino, i, bs, off);
+      if !ok {
         return;
       }
-
-      assert remaining_space == 4096 - i.sz % 4096;
-      var to_write: uint64 := min_u64(remaining_space, bs.Len());
-      written := to_write as nat;
-      bs' := bs.Split(to_write);
-      Round.roundup_distance(i.sz as nat, 4096);
-      var blkoff: nat := i.used_blocks-1;
-      var blk := fs.getInodeBlk(txn, ino, i, blkoff);
-      assert |bs.data| <= |old(bs.data)|;
-      assert |bs.data| <= remaining_space as nat;
-      blk.CopyTo(i.sz % 4096, bs);
-
-      // we manage the i' variable a bit weirdly so cur_i always has the current inode
-      // (verification conditions check this pretty well so it's not that concerning)
-      var cur_i := i;
-      var bn := i.blks[blkoff];
-      if bn == 0 {
-        ok, i', bn := fs.allocateToInode(txn, ino, i, blkoff);
-        if !ok {
-          return;
-        }
-        cur_i := i';
+      ghost var d0 := old(block_data(fs.data)[ino]);
+      ghost var d := block_data(fs.data)[ino];
+      C.concat_homogeneous_len(d0.blks, 4096);
+      ghost var blk: Block := bs.data;
+      ghost var sz := fs.metadata[ino];
+      calc {
+        inode_data(sz, d);
+        raw_data(ino)[..sz];
+        C.splice(old(raw_data(ino)), off as nat, blk)[..sz];
+        { C.splice_prefix_comm(old(raw_data(ino)), off as nat, blk, sz); }
+        C.splice(old(raw_data(ino))[..sz], off as nat, blk);
+        C.splice(inode_data(sz, d0), off as nat, blk);
       }
-      assert fs.is_cur_inode(ino, cur_i);
-      ok := true;
-      fs.writeDataBlock(txn, bn, blk, ino, blkoff);
+      map_update_eq(old(data()), ino, inode_data(sz, d), data());
+    }
 
-      i' := cur_i.(sz := i.sz + bs.Len());
-      assert i'.Valid();
-      fs.writeInodeSz(ino, cur_i, i');
-
-      data := data[ino := data[ino] + bs.data];
-      assert ValidIno(ino, i') by {
-        assert fs.is_inode(ino, i');
-        inode_data_splice_last(old(fs.inode_blks[ino]), fs.inode_blks[ino], bs.data);
+    // private
+    //
+    // grow an inode with junk so that it can be filled with in-bounds writes
+    method growBy(ghost ino: Ino, i: Inode.Inode, delta: uint64)
+      returns (i': Inode.Inode, ghost junk: seq<byte>)
+      modifies Repr()
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires i.sz as nat + delta as nat <= Inode.MAX_SZ
+      ensures |junk| == delta as nat
+      ensures data() == old(data()[ino := data()[ino] + junk])
+    {
+      fs.inode_metadata(ino, i);
+      ghost var sz := i.sz;
+      var sz' := i.sz + delta;
+      i' := fs.writeInodeSz(ino, i, sz');
+      fs.inode_metadata(ino, i');
+      assert raw_data(ino) == old(raw_data(ino));
+      junk := raw_data(ino)[sz..sz'];
+      assert data()[ino] == old(data()[ino] + junk) by {
+        reveal raw_inode_data();
       }
     }
 
-    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
+    method shrinkTo(ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode)
+      modifies Repr()
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires sz' <= i.sz
+      ensures sz' as nat <= old(|data()[ino]|)
+      ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
+    {
+      fs.inode_metadata(ino, i);
+      i' := fs.writeInodeSz(ino, i, sz');
+      fs.inode_metadata(ino, i');
+      assert raw_data(ino) == old(raw_data(ino));
+      assert data()[ino] == old(data()[ino][..sz' as nat]) by {
+        reveal raw_inode_data();
+      }
+    }
+
+    /*
+    lemma data_append_at_end(data: seq<byte>, junk: seq<byte>, bs: seq<byte>)
+      requires (
+      var sz := |data|;
+      var remaining_space := 4096 - sz % 4096;
+      var written := |bs|;
+      var sz' := |data| + written;
+      && sz % 4096 != 0
+      && |junk| == remaining_space
+      && |bs| <= remaining_space
+      )
+      ensures (
+      var sz := |data|;
+      var data0 := data;
+      var data1 := data0 + junk;
+      var off' := sz / 4096 * 4096;
+      var blk := C.splice(data1[off'..off' + 4096], sz % 4096, bs);
+      var data2 := C.splice(data1, off' as nat, blk);
+      var data3 := data2[..|data0| + |bs|];
+      data3 == data0 + bs
+      )
+    {
+      assume false;
+    }
+    */
+
+    lemma data_append_at_end(data0: seq<byte>, junk: seq<byte>, bs: seq<byte>,
+      data1: seq<byte>, blk: seq<byte>, data2: seq<byte>, data3: seq<byte>)
+      requires (
+      var sz := |data0|;
+      var remaining_space := 4096 - sz % 4096;
+      var off' := sz / 4096 * 4096;
+      && sz % 4096 != 0
+      && |junk| == remaining_space
+      && |bs| <= remaining_space
+      && data1 == data0 + junk
+      && blk == C.splice(data1[off'..off' + 4096], sz % 4096, bs)
+      && data2 == C.splice(data1, off' as nat, blk)
+      && data3 == data2[..|data0| + |bs|]
+      )
+      ensures data3 == data0 + bs
+    {
+      assume false;
+    }
+
+    method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr()
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
+      ensures ok ==>
+        data() == old(
+        var d := data()[ino];
+        var d' := C.splice(d, off as nat, bs.data);
+        data()[ino := d'])
+    {
+      i' := i;
+      if off % 4096 == 0 && bs.Len() == 4096 {
+        ok, i' := this.alignedWrite(txn, ino, i', bs, off);
+        return;
+      }
+      ghost var data0 := data()[ino];
+
+      var off_u64 := off;
+      var aligned_off: uint64 := off_u64 / 4096 * 4096;
+      //Round.roundup_distance(off as nat, 4096);
+      var blk := this.alignedRead(txn, ino, i', aligned_off);
+      blk.CopyTo(off_u64 % 4096, bs);
+      ok, i' := this.alignedWrite(txn, ino, i', blk, aligned_off);
+      if !ok {
+        return;
+      }
+      ghost var data1 := data()[ino];
+      assert fs.ValidIno(ino, i');
+      assert |data1| == |data0|;
+
+      ghost var off: nat := off_u64 as nat;
+      ghost var off': nat := off / 4096 * 4096;
+      assert off' == aligned_off as nat;
+      assert off == off_u64 as nat;
+      assert off == off' + off % 4096;
+
+      assert data1 == C.splice(data0, off', blk.data);
+      forall i: nat | i < |data0|
+        ensures data1[i] == C.splice(data0, off, bs.data)[i]
+      {
+        C.splice_get_i(data0, off, bs.data, i);
+        C.splice_get_i(data0, off', blk.data, i);
+        if 0 <= i - off' < 4096 {
+          C.splice_get_i(blk.data, off % 4096, bs.data, i - off');
+        }
+      }
+      assert data1 == C.splice(data0, off, bs.data);
+    }
+
+    // private
+    method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
+      modifies Repr(), bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires bs.Valid()
+      requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
+      requires 0 < |bs.data| <= 4096
+      ensures written <= old(|bs.data|)
+      // we don't make this abstract because it's needed to guarantee progress
+      ensures written == old(min(4096 - |data()[ino]| % 4096, |bs.data|))
+      ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
+      ensures !ok ==> data == old(data)
+    {
+      i' := i;
+      fs.inode_metadata(ino, i');
+
+      var remaining_space := 4096 - i.sz % 4096;
+      ghost var data0 := data()[ino];
+      ghost var junk;
+      i', junk := this.growBy(ino, i', remaining_space);
+      ghost var data1 := data()[ino];
+      assert data1 == data0 + junk;
+
+      var to_write: uint64 := min_u64(remaining_space, bs.Len());
+      var desired_size: uint64 := i.sz + to_write;
+      assert desired_size as nat <= i.sz as nat + remaining_space as nat;
+      written := to_write as nat;
+
+      bs' := bs.Split(to_write);
+      assert bs.data == old(bs.data[..written]);
+      Round.roundup_distance(i.sz as nat, 4096);
+      ok, i' := this.updateInPlace(txn, ino, i', i.sz, bs);
+      if !ok {
+        return;
+      }
+      fs.inode_metadata(ino, i');
+      ghost var data2 := data()[ino];
+      assert desired_size as nat == i.sz as nat + to_write as nat;
+
+      i' := shrinkTo(ino, i', desired_size);
+      ghost var data3 := data()[ino];
+
+      assert |data3| == |data0| + written;
+      assert data3[..|data0|] == data0;
+      assert data3[|data0|..] == bs.data;
+      calc {
+        data3;
+        data3[..|data0|] + data3[|data0|..];
+        data0 + bs.data;
+      }
+      assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
+    }
+
+    // public
+    method {:timeLimitMultiplier 2} Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies Repr(), bs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
-      ensures ok ==> data == old(data[ino:=data[ino] + bs.data])
-      // FIXME: not true because we do some writes before aborting;
-      // we probably shouldn't do this in Dafny at all
-      // ensures !ok ==> data == old(data)
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
     {
-      var txn := fs.jrnl.Begin();
-
-      // check for available space
-      var i := fs.getInode(txn, ino);
-      fs.inode_sz_no_overflow(ino, i, bs.Len());
+      var txn := fs.fs.jrnl.Begin();
+      var i := fs.startInode(txn, ino);
       if i.sz + bs.Len() >= Inode.MAX_SZ_u64 {
         ok := false;
+        fs.finishInodeReadonly(ino, i);
         return;
       }
+
       if bs.Len() == 0 {
         ok := true;
         assert bs.data == [];
-        assert data[ino] == data[ino] + bs.data;
+        assert data()[ino] == data()[ino] + bs.data;
+        fs.finishInodeReadonly(ino, i);
+        var _ := txn.Commit();
         return;
       }
 
-      fs.startInode(ino, i);
-
       ghost var written;
       var bs';
-      ok, i, written, bs' := appendAtEnd(txn, ino, i, bs);
+      ok, i, written, bs' := this.appendAtEnd(txn, ino, i, bs);
       if !ok {
+        // TODO: we should really just abort here
         fs.finishInode(txn, ino, i);
         return;
       }
       if bs'.Len() == 0 {
-        ok := true;
+        assert old(bs.data[..written]) == old(bs.data);
         fs.finishInode(txn, ino, i);
         var _ := txn.Commit();
-        assert old(bs.data[..written]) == old(bs.data);
         return;
       }
-      assert i.sz % 4096 == 0;
-      assert fs.is_cur_inode(ino, i);
+      fs.inode_metadata(ino, i);
 
-      // we still need to write bs'
-      assert data[ino] + bs'.data == old(data[ino] + bs.data);
-
-      // TODO: this can abort after preparing the transaction; do we want to support that?
-      ok, i := appendAligned(txn, ino, i, bs');
+      // TODO: need to do some work in this case
+      assume false;
+      var bs'';
+      ok, i, written, bs'' := this.appendAtEnd(txn, ino, i, bs');
       if !ok {
+        // TODO: we should really just abort here
         fs.finishInode(txn, ino, i);
         return;
       }
+      // TODO: proving progress here isn't super simple; maybe appendAtEnd
+      // should make guarantees about alignment rather than leaving caller with
+      // complicated written expression?
+
       fs.finishInode(txn, ino, i);
       var _ := txn.Commit();
-    }
-
-    method inodeTruncate(ino: Ino, i: Inode.Inode, sz: uint64) returns (i': Inode.Inode)
-      modifies Repr()
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
-      requires sz as nat <= |data[ino]|
-      ensures data == old(data[ino:= data[ino][..sz as nat]])
-    {
-      i' := i.(sz:=sz);
-
-      ghost var d0 := fs.inode_blks[ino];
-      fs.writeInodeSz(ino, i, i');
-      ghost var d1 := fs.inode_blks[ino];
-
-      assert d1 == d0.(sz := sz as nat);
-      assert inode_data(d1) == inode_data(d0)[..sz as nat] by {
-        inode_data_all_blks(d1);
-        inode_data_all_blks(d0);
-      }
-
-      data := data[ino := data[ino][..sz as nat]];
-    }
-
-    method Shrink(ino: Ino, sz: uint64) returns (ok:bool)
-      modifies Repr()
-      requires Valid() ensures Valid()
-      requires ino_ok(ino)
-      ensures ok ==> sz as nat <= old(|data[ino]|)
-              && data == old(data[ino:=data[ino][..sz as nat]])
-    {
-      var txn := fs.jrnl.Begin();
-
-      // check for available space
-      var i := fs.getInode(txn, ino);
-      if sz > i.sz {
-        ok := false;
-        return;
-      }
-      ok := true;
-
-      fs.startInode(ino, i);
-
-      var i' := inodeTruncate(ino, i, sz);
-
-      ghost var d1 := fs.inode_blks[ino];
-      i' := fs.freeUnused(txn, ino, i');
-      ghost var d' := fs.inode_blks[ino];
-
-      assert inode_data(d') == inode_data(d1) by {
-        inode_data_free(d1, d');
-      }
-
-      assert ValidIno(ino, i');
-
-      fs.finishInode(txn, ino, i');
-
-      var _ := txn.Commit();
-      return;
     }
 
   }
