@@ -414,6 +414,13 @@ module ByteFs {
         return;
       }
 
+      // TODO: call appendAtEnd to align existing data
+      //
+      // TODO: if appendAtEnd leaves nothing to write, return and prove postcondition
+      //
+      // TODO: implement appendAligned to extend inode size, write new data
+      // extended to full block, and shrink back (overall effect is to append)
+
       assume false;
       fs.finishInode(txn, ino, i);
       var _ := txn.Commit();
