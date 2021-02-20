@@ -21,7 +21,7 @@ func TestFsSanity_Block(t *testing.T) {
 	copy(bs.Data, []byte{1, 2, 3, 4})
 	filesys.Append(ino, bs)
 	filesys.Append(ino, bs)
-	bs2, ok := filesys.Get(ino, 4096, 4096)
+	bs2, ok := filesys.Read(ino, 4096, 4096)
 	assert.True(ok)
 	assert.Equal(byte(1), bs2.Data[0])
 }
@@ -47,13 +47,13 @@ func TestFsSanity(t *testing.T) {
 	filesys.Append(ino, bs2)
 
 	{
-		bs, ok := filesys.Get(ino, 0, 4)
+		bs, ok := filesys.Read(ino, 0, 4)
 		assert.True(ok)
 		assert.Equal(byte(1), bs.Data[0])
 	}
 
 	{
-		bs, ok := filesys.Get(ino, 4096, 4)
+		bs, ok := filesys.Read(ino, 4096, 4)
 		assert.True(ok)
 		assert.Equal(byte(5), bs.Data[0])
 	}

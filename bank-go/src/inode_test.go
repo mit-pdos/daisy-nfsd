@@ -19,16 +19,16 @@ func u64_slice_to_seq(xs []uint64) _dafny.Seq {
 	return _dafny.SeqOf(xs_i...)
 }
 
-func MkInode(sz uint64, blks []uint64) inode.Inode {
+func MkInode(sz uint64, blks []uint64) inode.PreInode {
 	blk_seq := u64_slice_to_seq(blks)
-	return inode.Companion_Inode_.Create_Mk_(sz, blk_seq)
+	return inode.Companion_PreInode_.Create_Mk_(sz, blk_seq)
 }
 
-func EncodeIno(i inode.Inode) *bytes.Bytes {
+func EncodeIno(i inode.PreInode) *bytes.Bytes {
 	return inode.Companion_Default___.Encode__ino(i)
 }
 
-func DecodeIno(bs *bytes.Bytes) inode.Inode {
+func DecodeIno(bs *bytes.Bytes) inode.PreInode {
 	return inode.Companion_Default___.Decode__ino(bs)
 }
 
@@ -42,12 +42,12 @@ func decodeIno(bs []byte) (sz uint64, blks []uint64) {
 	return
 }
 
-func ManualDecodeIno(bs *bytes.Bytes) inode.Inode {
+func ManualDecodeIno(bs *bytes.Bytes) inode.PreInode {
 	sz, blks := decodeIno(bs.Data)
 	return MkInode(sz, blks)
 }
 
-var i inode.Inode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+var i inode.PreInode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
 
 func BenchmarkInodeDecode(b *testing.B) {
 	bs := EncodeIno(i)
