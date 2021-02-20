@@ -38,12 +38,14 @@ module BlockFs
     0 <= i < config.total
   }
 
-  function block_data(data: imap<Pos, Block>): map<Ino, InodeData>
+  function {:opaque} block_data(data: imap<Pos, Block>): (m:map<Ino, InodeData>)
     requires data_dom(data)
+    ensures Fs.ino_dom(m)
   {
     map ino:Ino | ino_ok(ino) :: inode_blocks(ino, data)
   }
 
+  // public
   method New(d: Disk) returns (fs: IndFilesys)
     ensures fs.ValidQ()
     ensures block_data(fs.data) == map ino: Ino | ino_ok(ino) :: InodeData.zero
@@ -51,6 +53,7 @@ module BlockFs
   {
     fs := new IndFilesys.Init(d);
     reveal inode_blocks();
+    reveal block_data();
     assert forall ino: Ino | ino_ok(ino) :: inode_blocks(ino, fs.data) == InodeData.zero;
   }
 
@@ -66,6 +69,7 @@ module BlockFs
   {
     bs := fs.read(txn, Pos.from_flat(ino, n), i);
     reveal inode_blocks();
+    reveal block_data();
   }
 
   lemma map_update_eq<K,V>(m1: map<K, V>, k0: K, v: V, m2: map<K, V>)
@@ -133,6 +137,7 @@ module BlockFs
     }
 
     assert blk.data == old(blk.data);
+    reveal block_data();
 
     ghost var d0 := old(block_data(fs.data)[ino]);
     ghost var d := block_data(fs.data)[ino];
