@@ -421,7 +421,7 @@ module ByteFs {
     }
 
     // private
-    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+    method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
       modifies Repr(), bs
       requires fs.has_jrnl(txn)
