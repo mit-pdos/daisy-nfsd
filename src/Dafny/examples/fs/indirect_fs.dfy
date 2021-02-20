@@ -110,7 +110,7 @@ module IndFs
       reveal ValidPos();
     }
 
-    predicate ValidMetadata()
+    predicate {:opaque} ValidMetadata()
       reads Repr()
       requires ValidBasics()
     {
@@ -207,6 +207,7 @@ module IndFs
       reveal ValidPos();
       reveal ValidInodes();
       reveal ValidIndirect();
+      reveal ValidMetadata();
       reveal ValidData();
     }
 
@@ -291,6 +292,7 @@ module IndFs
       reveal ValidInodes();
       reveal ValidData();
       reveal ValidIndirect();
+      reveal ValidMetadata();
     }
 
     // private
@@ -327,6 +329,7 @@ module IndFs
       assert ValidInodes() by {
         ValidInodes_change_one(pos, i', bn);
       }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidIndirect() && ValidData() by {
         reveal ValidPos();
         reveal ValidIndirect();
@@ -383,6 +386,8 @@ module IndFs
         reveal ValidPos();
         reveal ValidData();
       }
+
+      assert ValidMetadata() by { reveal ValidMetadata(); }
 
       assert ValidIndirect() by {
         reveal ValidIndirect();
@@ -472,7 +477,17 @@ module IndFs
     lemma inode_metadata(ino: Ino, i: Inode.Inode)
       requires ValidIno(ino, i)
       ensures i.sz as nat == metadata[ino]
-    {}
+    {
+      reveal ValidMetadata();
+    }
+
+    lemma metadata_bound(ino: Ino)
+      requires Valid()
+      requires ino_ok(ino)
+      ensures metadata[ino] <= Inode.MAX_SZ
+    {
+      reveal ValidMetadata();
+    }
 
     method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
       returns (ok: bool, i':Inode.Inode)
@@ -509,6 +524,7 @@ module IndFs
         reveal ValidPos();
         reveal ValidData();
       }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidIndirect() by {
         reveal ValidPos();
         reveal ValidIndirect();
@@ -546,7 +562,7 @@ module IndFs
       fs.writeInode(ino, i');
       metadata := metadata[ino := sz' as nat];
       assert ValidBasics();
-      assert ValidMetadata();
+      assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidInodes() by { reveal ValidInodes(); }
       assert ValidPos() by { reveal ValidPos(); }
       assert ValidIndirect() by { reveal ValidIndirect(); }

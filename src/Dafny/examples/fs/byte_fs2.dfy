@@ -29,7 +29,7 @@ module ByteFs {
 
   function inode_data(sz: nat, d: InodeData): (bs:seq<byte>)
     requires sz <= Inode.MAX_SZ
-    ensures |bs| == sz as nat
+    ensures sz <= Inode.MAX_SZ && |bs| == sz as nat
   {
     raw_inode_data(d)[..sz]
   }
@@ -53,7 +53,9 @@ module ByteFs {
       reads Repr()
       requires fs.Valid()
     {
-      map ino:Ino | ino_ok(ino) :: inode_data(fs.metadata[ino], block_data(fs.data)[ino])
+      map ino:Ino | ino_ok(ino) ::
+        (fs.metadata_bound(ino);
+        inode_data(fs.metadata[ino], block_data(fs.data)[ino]))
     }
 
     function raw_data(ino: Ino): seq<byte>
@@ -106,8 +108,9 @@ module ByteFs {
       requires 0 < len <= 4096
       requires off as nat + len as nat <= |data()[ino]|
       ensures fresh(bs)
-      ensures bs.data == this.data()[ino][off..off+len]
+      ensures bs.data == this.data()[ino][off..off as nat +len as nat]
     {
+      fs.inode_metadata(ino, i);
       var off' := off / 4096 * 4096;
       Arith.div_mod_split(off' as nat, 4096);
       assert off' + 4096 <= Inode.MAX_SZ_u64 by {
@@ -163,6 +166,8 @@ module ByteFs {
       }
       var txn := fs.fs.jrnl.Begin();
       var i := fs.startInode(txn, ino);
+
+      fs.inode_metadata(ino, i);
 
       if sum_overflows(off, len) || off+len > i.sz {
         ok := false;
@@ -295,9 +300,11 @@ module ByteFs {
       ensures |junk| == delta as nat
       ensures data() == old(data()[ino := data()[ino] + junk])
     {
+      fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
       var sz' := i.sz + delta;
       i' := fs.writeInodeSz(ino, i, sz');
+      fs.inode_metadata(ino, i');
       assert raw_data(ino) == old(raw_data(ino));
       junk := raw_data(ino)[sz..sz'];
       assert data()[ino] == old(data()[ino] + junk) by {
