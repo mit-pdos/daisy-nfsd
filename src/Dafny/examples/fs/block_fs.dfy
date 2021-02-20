@@ -24,7 +24,7 @@ module BlockFs
   }
   type InodeData = x:preInodeData | x.Valid() witness preInodeData.preZero
 
-  function inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
+  function {:opaque} inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
     requires ino_ok(ino)
     requires data_dom(data)
   {
@@ -50,6 +50,7 @@ module BlockFs
     ensures fs.metadata == map ino: Ino | ino_ok(ino) :: 0
   {
     fs := new IndFilesys.Init(d);
+    reveal inode_blocks();
     assert forall ino: Ino | ino_ok(ino) :: inode_blocks(ino, fs.data) == InodeData.zero;
   }
 
@@ -64,6 +65,7 @@ module BlockFs
     ensures bs.data == block_data(fs.data)[ino].blks[n]
   {
     bs := fs.read(txn, Pos.from_flat(ino, n), i);
+    reveal inode_blocks();
   }
 
   lemma map_update_eq<K,V>(m1: map<K, V>, k0: K, v: V, m2: map<K, V>)
@@ -80,6 +82,7 @@ module BlockFs
     ensures inode_blocks(ino, data[Pos.from_flat(ino, n) := blk]).blks ==
             inode_blocks(ino, data).blks[n := blk]
   {
+    reveal inode_blocks();
     ghost var data' := data[Pos.from_flat(ino, n) := blk];
     ghost var n0 := n;
     ghost var d0 := inode_blocks(ino, data);
@@ -104,7 +107,9 @@ module BlockFs
     requires data_dom(data)
     ensures inode_blocks(ino, data[Pos.from_flat(ino0, n) := blk]) ==
             inode_blocks(ino, data)
-  {}
+  {
+    reveal inode_blocks();
+  }
 
   // public
   method Write(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: nat, blk: Bytes)

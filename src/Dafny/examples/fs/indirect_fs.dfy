@@ -540,7 +540,6 @@ module IndFs
       requires ValidQ()
       ensures ValidIno(ino, i)
       ensures fs.cur_inode == Some((ino, i))
-      ensures state_unchanged()
     {
       i := fs.getInode(txn, ino);
       fs.startInode(ino, i);

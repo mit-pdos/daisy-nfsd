@@ -361,7 +361,7 @@ module ByteFs {
     }
 
     // public
-    method Append(ino: Ino, bs: Bytes, off: uint64) returns (ok:bool)
+    method {:timeLimitMultiplier 2} Append(ino: Ino, bs: Bytes, off: uint64) returns (ok:bool)
       modifies Repr(), bs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
