@@ -432,7 +432,7 @@ module ByteFs {
       ensures written <= old(|bs.data|)
       // we don't make this abstract because it's needed to guarantee progress
       ensures written == old(min(4096 - |data()[ino]| % 4096, |bs.data|))
-      ensures ok ==> bs'.Valid() && bs'.data == old(bs.data[written..])
+      ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
     {
@@ -502,14 +502,35 @@ module ByteFs {
         return;
       }
 
-      // TODO: call appendAtEnd to align existing data
-      //
-      // TODO: if appendAtEnd leaves nothing to write, return and prove postcondition
-      //
-      // TODO: implement appendAligned to extend inode size, write new data
-      // extended to full block, and shrink back (overall effect is to append)
+      ghost var written;
+      var bs';
+      ok, i, written, bs' := this.appendAtEnd(txn, ino, i, bs);
+      if !ok {
+        // TODO: we should really just abort here
+        fs.finishInode(txn, ino, i);
+        return;
+      }
+      if bs'.Len() == 0 {
+        assert old(bs.data[..written]) == old(bs.data);
+        fs.finishInode(txn, ino, i);
+        var _ := txn.Commit();
+        return;
+      }
+      fs.inode_metadata(ino, i);
 
+      // TODO: need to do some work in this case
       assume false;
+      var bs'';
+      ok, i, written, bs'' := this.appendAtEnd(txn, ino, i, bs');
+      if !ok {
+        // TODO: we should really just abort here
+        fs.finishInode(txn, ino, i);
+        return;
+      }
+      // TODO: proving progress here isn't super simple; maybe appendAtEnd
+      // should make guarantees about alignment rather than leaving caller with
+      // complicated written expression?
+
       fs.finishInode(txn, ino, i);
       var _ := txn.Commit();
     }
