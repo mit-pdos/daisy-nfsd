@@ -15,11 +15,6 @@ module ByteFs {
   import Round
   import Inode
 
-  function num_used(sz: nat): nat
-  {
-    sz / 4096
-  }
-
   function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
     ensures |bs| == Inode.MAX_SZ
   {
@@ -312,6 +307,23 @@ module ByteFs {
       }
     }
 
+    method shrinkTo(ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode)
+      modifies Repr()
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires sz' <= i.sz
+      ensures sz' as nat <= old(|data()[ino]|)
+      ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
+    {
+      fs.inode_metadata(ino, i);
+      i' := fs.writeInodeSz(ino, i, sz');
+      fs.inode_metadata(ino, i');
+      assert raw_data(ino) == old(raw_data(ino));
+      assert data()[ino] == old(data()[ino][..sz' as nat]) by {
+        reveal raw_inode_data();
+      }
+    }
+
     // private
     method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
@@ -341,8 +353,16 @@ module ByteFs {
 
       var remaining_space := 4096 - i.sz % 4096;
       var to_write: uint64 := min_u64(remaining_space, bs.Len());
+      var desired_size: uint64 := i.sz + to_write;
+      assert desired_size as nat <= i.sz as nat + remaining_space as nat;
+      ghost var data0 := data()[ino];
+      written := to_write as nat;
       ghost var junk;
+      fs.inode_metadata(ino, i');
       i', junk := this.growBy(ino, i', remaining_space);
+      fs.inode_metadata(ino, i');
+      ghost var data1 := data()[ino];
+      assert data1 == data0 + junk;
 
       bs' := bs.Split(to_write);
       Round.roundup_distance(i.sz as nat, 4096);
@@ -351,11 +371,19 @@ module ByteFs {
       Arith.mul_mod(blkoff as nat, 4096);
       assert off' as nat + 4096 <= Inode.MAX_SZ;
       var blk := this.alignedRead(txn, ino, i', off');
-      assume false;
       assert |bs.data| <= |old(bs.data)|;
       assert |bs.data| <= remaining_space as nat;
       blk.CopyTo(i.sz % 4096, bs);
-      ok, i' := this.alignedWrite(txn, ino, i', blk, blkoff * 4096);
+      ok, i' := this.alignedWrite(txn, ino, i', blk, off');
+      if !ok {
+        return;
+      }
+      fs.inode_metadata(ino, i');
+      ghost var data2 := data()[ino];
+      assert data2 == C.splice(data1, off' as nat, blk.data);
+      i' := shrinkTo(ino, i', desired_size);
+      ghost var data3 := data()[ino];
+      assert data3 == data2[..i.sz as nat + written];
 
       assume false;
     }
