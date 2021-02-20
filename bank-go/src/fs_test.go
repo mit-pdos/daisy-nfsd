@@ -7,6 +7,7 @@ import (
 	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -34,10 +35,17 @@ func TestFsSanity(t *testing.T) {
 	ino := uint64(3)
 
 	bs := bytes.Data([]byte{1, 2, 3, 4})
-	filesys.Append(ino, bs)
+	{
+		ok := filesys.Append(ino, bs)
+		require.True(t, ok, "aligned append should succeed")
+	}
 	assert.Equal(uint64(4), filesys.Size(ino))
 
-	filesys.Append(ino, bs)
+	bs = bytes.Data([]byte{1, 2, 3, 4})
+	{
+		ok := filesys.Append(ino, bs)
+		require.True(t, ok, "unaligned append should succeed")
+	}
 	assert.Equal(uint64(8), filesys.Size(ino))
 
 	bs2 := bytes.Data(make([]byte, 4096))
@@ -48,14 +56,16 @@ func TestFsSanity(t *testing.T) {
 
 	{
 		bs, ok := filesys.Read(ino, 0, 4)
-		assert.True(ok)
-		assert.Equal(byte(1), bs.Data[0])
+		if assert.True(ok) {
+			assert.Equal(byte(1), bs.Data[0])
+		}
 	}
 
 	{
 		bs, ok := filesys.Read(ino, 4096, 4)
-		assert.True(ok)
-		assert.Equal(byte(5), bs.Data[0])
+		if assert.True(ok) {
+			assert.Equal(byte(5), bs.Data[0])
+		}
 	}
 }
 
