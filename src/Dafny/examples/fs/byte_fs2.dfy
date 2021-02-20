@@ -324,6 +324,51 @@ module ByteFs {
       }
     }
 
+    /*
+    lemma data_append_at_end(data: seq<byte>, junk: seq<byte>, bs: seq<byte>)
+      requires (
+      var sz := |data|;
+      var remaining_space := 4096 - sz % 4096;
+      var written := |bs|;
+      var sz' := |data| + written;
+      && sz % 4096 != 0
+      && |junk| == remaining_space
+      && |bs| <= remaining_space
+      )
+      ensures (
+      var sz := |data|;
+      var data0 := data;
+      var data1 := data0 + junk;
+      var off' := sz / 4096 * 4096;
+      var blk := C.splice(data1[off'..off' + 4096], sz % 4096, bs);
+      var data2 := C.splice(data1, off' as nat, blk);
+      var data3 := data2[..|data0| + |bs|];
+      data3 == data0 + bs
+      )
+    {
+      assume false;
+    }
+    */
+
+    lemma data_append_at_end(data0: seq<byte>, junk: seq<byte>, bs: seq<byte>,
+      data1: seq<byte>, blk: seq<byte>, data2: seq<byte>, data3: seq<byte>)
+      requires (
+      var sz := |data0|;
+      var remaining_space := 4096 - sz % 4096;
+      var off' := sz / 4096 * 4096;
+      && sz % 4096 != 0
+      && |junk| == remaining_space
+      && |bs| <= remaining_space
+      && data1 == data0 + junk
+      && blk == C.splice(data1[off'..off' + 4096], sz % 4096, bs)
+      && data2 == C.splice(data1, off' as nat, blk)
+      && data3 == data2[..|data0| + |bs|]
+      )
+      ensures data3 == data0 + bs
+    {
+      assume false;
+    }
+
     // private
     method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
@@ -371,7 +416,7 @@ module ByteFs {
       Arith.mul_mod(blkoff as nat, 4096);
       assert off' as nat + 4096 <= Inode.MAX_SZ;
       var blk := this.alignedRead(txn, ino, i', off');
-      assert |bs.data| <= |old(bs.data)|;
+      assert blk.data == data1[off' as nat..off' as nat + 4096];
       assert |bs.data| <= remaining_space as nat;
       blk.CopyTo(i.sz % 4096, bs);
       ok, i' := this.alignedWrite(txn, ino, i', blk, off');
@@ -384,8 +429,15 @@ module ByteFs {
       i' := shrinkTo(ino, i', desired_size);
       ghost var data3 := data()[ino];
       assert data3 == data2[..i.sz as nat + written];
-
-      assume false;
+      assert data3 == data0 + bs.data by {
+        assert |data0| == i.sz as nat;
+        assert off' as nat == i.sz as nat / 4096 * 4096;
+        assert |data0| + |bs.data| == desired_size as nat;
+        assume false;
+        assert blk.data == C.splice(data1[off'..off' + 4096], i.sz as nat % 4096, bs.data);
+        data_append_at_end(data0, junk, bs.data,
+          data1, blk.data, data2, data3);
+      }
     }
 
     // public
