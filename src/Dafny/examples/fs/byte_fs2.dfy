@@ -421,7 +421,7 @@ module ByteFs {
     }
 
     // private
-    method {:verify false} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
       modifies Repr(), bs
       requires fs.has_jrnl(txn)
@@ -446,52 +446,30 @@ module ByteFs {
         assert data()[ino] + bs.data[..written] == data()[ino];
         return;
       }
+      fs.inode_metadata(ino, i');
 
       var remaining_space := 4096 - i.sz % 4096;
-      var to_write: uint64 := min_u64(remaining_space, bs.Len());
-      var desired_size: uint64 := i.sz + to_write;
-      assert desired_size as nat <= i.sz as nat + remaining_space as nat;
       ghost var data0 := data()[ino];
-      written := to_write as nat;
       ghost var junk;
-      fs.inode_metadata(ino, i');
       i', junk := this.growBy(ino, i', remaining_space);
-      fs.inode_metadata(ino, i');
       ghost var data1 := data()[ino];
       assert data1 == data0 + junk;
 
+      var to_write: uint64 := min_u64(remaining_space, bs.Len());
+      var desired_size: uint64 := i.sz + to_write;
+      assert desired_size as nat <= i.sz as nat + remaining_space as nat;
+      written := to_write as nat;
+
       bs' := bs.Split(to_write);
       Round.roundup_distance(i.sz as nat, 4096);
-      var blkoff: uint64 := i.sz / 4096;
-      var off': uint64 := blkoff * 4096;
-      Arith.mul_mod(blkoff as nat, 4096);
-      assert off' as nat + 4096 <= Inode.MAX_SZ;
-      var blk := this.alignedRead(txn, ino, i', off');
-      assert blk.data == data1[off' as nat..off' as nat + 4096];
-      assert |bs.data| <= remaining_space as nat;
-      blk.CopyTo(i.sz % 4096, bs);
-      ok, i' := this.alignedWrite(txn, ino, i', blk, off');
+      ok, i' := this.updateInPlace(txn, ino, i', i.sz, bs);
       if !ok {
         return;
       }
       fs.inode_metadata(ino, i');
-      ghost var data2 := data()[ino];
-      assert data2 == C.splice(data1, off' as nat, blk.data);
       i' := shrinkTo(ino, i', desired_size);
-      ghost var data3 := data()[ino];
-      assert data3 == data2[..i.sz as nat + written];
-      assert data3 == data0 + bs.data by {
-        assert |data0| == i.sz as nat;
-        assert off' as nat == i.sz as nat / 4096 * 4096;
-        assert |data0| + |bs.data| == desired_size as nat;
-        assert i.sz as nat % 4096 == (i.sz % 4096) as nat;
-        assume false;
-        // this is apparently hard to prove (though it should just be congruence
-        // with the spec of CopyTo)
-        assert blk.data == C.splice(data1[off'..off' + 4096], i.sz as nat % 4096, bs.data);
-        data_append_at_end(data0, junk, bs.data,
-          data1, blk.data, data2, data3);
-      }
+      ghost var data2 := data()[ino];
+      assert |data2| == |data0| + written;
       assume false;
     }
 
