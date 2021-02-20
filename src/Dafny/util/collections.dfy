@@ -358,6 +358,12 @@ function method splice<T>(xs: seq<T>, off: nat, ys: seq<T>): (xs':seq<T>)
     xs[..off] + ys + xs[off+|ys|..]
 }
 
+lemma splice_get_i<T>(xs: seq<T>, off: nat, ys: seq<T>, i: nat)
+    requires off + |ys| <= |xs|
+    requires i < |xs|
+    ensures splice(xs, off, ys)[i] == if (off <= i < off + |ys|) then ys[i-off] else xs[i]
+{}
+
 lemma splice_get_ys<T>(xs: seq<T>, off: nat, ys: seq<T>)
     requires off + |ys| <= |xs|
     ensures splice(xs, off, ys)[off..off+|ys|] == ys

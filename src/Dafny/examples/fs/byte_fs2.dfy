@@ -369,8 +369,59 @@ module ByteFs {
       assume false;
     }
 
+    method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr(), bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
+      ensures ok ==>
+        data() == old(
+        var d := data()[ino];
+        var d' := C.splice(d, off as nat, bs.data);
+        data()[ino := d'])
+    {
+      i' := i;
+      if off % 4096 == 0 && bs.Len() == 4096 {
+        ok, i' := this.alignedWrite(txn, ino, i', bs, off);
+        return;
+      }
+      ghost var data0 := data()[ino];
+
+      var off_u64 := off;
+      var aligned_off: uint64 := off_u64 / 4096 * 4096;
+      //Round.roundup_distance(off as nat, 4096);
+      var blk := this.alignedRead(txn, ino, i', aligned_off);
+      blk.CopyTo(off_u64 % 4096, bs);
+      ok, i' := this.alignedWrite(txn, ino, i', blk, aligned_off);
+      if !ok {
+        return;
+      }
+      ghost var data1 := data()[ino];
+      assert fs.ValidIno(ino, i');
+      assert |data1| == |data0|;
+
+      ghost var off: nat := off_u64 as nat;
+      ghost var off': nat := off / 4096 * 4096;
+      assert off' == aligned_off as nat;
+      assert off == off_u64 as nat;
+      assert off == off' + off % 4096;
+
+      assert data1 == C.splice(data0, off', blk.data);
+      forall i: nat | i < |data0|
+        ensures data1[i] == C.splice(data0, off, bs.data)[i]
+      {
+        C.splice_get_i(data0, off, bs.data, i);
+        C.splice_get_i(data0, off', blk.data, i);
+        if 0 <= i - off' < 4096 {
+          C.splice_get_i(blk.data, off % 4096, bs.data, i - off');
+        }
+      }
+      assert data1 == C.splice(data0, off, bs.data);
+    }
+
     // private
-    method appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+    method {:verify false} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
       modifies Repr(), bs
       requires fs.has_jrnl(txn)
