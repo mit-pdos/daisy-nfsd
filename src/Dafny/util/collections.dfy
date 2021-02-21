@@ -15,7 +15,6 @@ function to_seq<T>(s: seq<T>): seq<T> { s }
 
 // sequence indexing
 
-
 lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     requires a <= b <= |xs|
     requires c <= d <= (b-a)
@@ -25,6 +24,15 @@ lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     assert d + a <= b;
     assert xs[a..b] == xs[a..][..(b-a)];
 }
+
+lemma app_assoc<T>(xs: seq<T>, ys: seq<T>, zs: seq<T>)
+    ensures (xs + ys) + zs == xs + (ys + zs)
+{}
+
+lemma split_rejoin<T>(xs: seq<T>, n: int)
+    requires 0 <= n < |xs|
+    ensures xs == xs[..n] + xs[n..]
+{}
 
 // this is a useful way to use double_subslice automatically in a controlled way
 // that generally works, because it has such a specific trigger

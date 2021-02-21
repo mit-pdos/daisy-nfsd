@@ -489,6 +489,25 @@ module ByteFs {
 
     }
 
+    method alignedAppend(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr(), bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires bs.Valid()
+      requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
+      requires 0 < |bs.data| <= 4096
+      requires |data()[ino]| % 4096 == 0
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
+      ensures !ok ==> data == old(data)
+    {
+      ghost var written;
+      var bs';
+      ok, i', written, bs' := appendAtEnd(txn, ino, i, bs);
+      assert written == old(|bs.data|);
+      assert old(bs.data[..written]) == old(bs.data);
+    }
+
     // public
     //
     // this variant can be used in a larger transaction
@@ -540,18 +559,23 @@ module ByteFs {
       }
       assert |data()[ino]| % 4096 == 0;
 
-      ghost var written2;
-      var bs'';
-      ok, i, written2, bs'' := this.appendAtEnd(txn, ino, i, bs');
+      ok, i := this.alignedAppend(txn, ino, i, bs');
       if !ok {
         // TODO: we should really just abort here
         fs.finishInode(txn, ino, i);
         return;
       }
-      assume false;
-      // TODO: proving progress here isn't super simple; maybe appendAtEnd
-      // should make guarantees about alignment rather than leaving caller with
-      // complicated written expression?
+      ghost var first_write := old(bs.data[..written]);
+      ghost var leftovers := old(bs.data[written..]);
+      assert data()[ino] == old(data()[ino] + bs.data) by {
+        calc {
+          data()[ino];
+          { C.app_assoc(old(data()[ino]), first_write, leftovers); }
+          old(data()[ino]) + (first_write + leftovers);
+          { C.split_rejoin(old(bs.data), written); }
+          old(data()[ino]) + old(bs.data);
+        }
+      }
 
       fs.finishInode(txn, ino, i);
     }
