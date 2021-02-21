@@ -369,6 +369,29 @@ module ByteFs {
       assume false;
     }
 
+    lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
+      requires off as nat + |bs| <= off/4096*4096 + 4096 <= |data0|
+      requires
+      (var off' := off / 4096 * 4096;
+      && blk == C.splice(data0[off'..off'+4096], off % 4096, bs)
+      && data1 == C.splice(data0, off', blk)
+      )
+      ensures data1 == C.splice(data0, off, bs)
+    {
+      var off' := off / 4096 * 4096;
+      assert data1 == C.splice(data0, off', blk);
+      forall i: nat | i < |data0|
+        ensures data1[i] == C.splice(data0, off, bs)[i]
+      {
+        C.splice_get_i(data0, off, bs, i);
+        C.splice_get_i(data0, off', blk, i);
+        if 0 <= i - off' < 4096 {
+          C.splice_get_i(blk, off % 4096, bs, i - off');
+        }
+      }
+      assert data1 == C.splice(data0, off, bs);
+    }
+
     method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr()
@@ -390,8 +413,14 @@ module ByteFs {
 
       var off_u64 := off;
       var aligned_off: uint64 := off_u64 / 4096 * 4096;
+      ghost var off: nat := off_u64 as nat;
+      ghost var off': nat := off / 4096 * 4096;
+
       //Round.roundup_distance(off as nat, 4096);
       var blk := this.alignedRead(txn, ino, i', aligned_off);
+
+      assert blk.data == data0[off'..off'+4096];
+
       blk.CopyTo(off_u64 % 4096, bs);
       ok, i' := this.alignedWrite(txn, ino, i', blk, aligned_off);
       if !ok {
@@ -400,24 +429,14 @@ module ByteFs {
       ghost var data1 := data()[ino];
       assert fs.ValidIno(ino, i');
       assert |data1| == |data0|;
+      //assert off' == aligned_off as nat;
+      //assert off == off_u64 as nat;
+      //assert off == off' + off % 4096;
 
-      ghost var off: nat := off_u64 as nat;
-      ghost var off': nat := off / 4096 * 4096;
-      assert off' == aligned_off as nat;
-      assert off == off_u64 as nat;
-      assert off == off' + off % 4096;
-
-      assert data1 == C.splice(data0, off', blk.data);
-      forall i: nat | i < |data0|
-        ensures data1[i] == C.splice(data0, off, bs.data)[i]
-      {
-        C.splice_get_i(data0, off, bs.data, i);
-        C.splice_get_i(data0, off', blk.data, i);
-        if 0 <= i - off' < 4096 {
-          C.splice_get_i(blk.data, off % 4096, bs.data, i - off');
-        }
+      assert data1 == C.splice(data0, off, bs.data) by {
+        //assert (off_u64 % 4096) as nat == off % 4096;
+        data_update_in_place(data0, data1, off, bs.data, blk.data);
       }
-      assert data1 == C.splice(data0, off, bs.data);
     }
 
     // private
@@ -458,6 +477,10 @@ module ByteFs {
       if !ok {
         return;
       }
+      if bs'.Len() == 0 {
+        assert written == old(|bs.data|);
+        assert old(bs.data[..written]) == old(bs.data);
+      }
       fs.inode_metadata(ino, i');
       ghost var data2 := data()[ino];
       assert desired_size as nat == i.sz as nat + to_write as nat;
@@ -474,6 +497,7 @@ module ByteFs {
         data0 + bs.data;
       }
       assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
+
     }
 
     // public
@@ -487,7 +511,7 @@ module ByteFs {
     {
       var txn := fs.fs.jrnl.Begin();
       var i := fs.startInode(txn, ino);
-      if i.sz + bs.Len() >= Inode.MAX_SZ_u64 {
+      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
         ok := false;
         fs.finishInodeReadonly(ino, i);
         return;
@@ -501,6 +525,8 @@ module ByteFs {
         var _ := txn.Commit();
         return;
       }
+      fs.inode_metadata(ino, i);
+      ghost var sz0 := i.sz as nat;
 
       ghost var written;
       var bs';
@@ -517,16 +543,22 @@ module ByteFs {
         return;
       }
       fs.inode_metadata(ino, i);
+      assert i.sz as nat + |bs'.data| == sz0 + old(|bs.data|) by {
+        assert old(|bs.data[..written]|) == written;
+        assert |bs'.data| == old(|bs.data|) - written;
+        assert |data()[ino]| == old(|data()[ino]|) + written;
+      }
+      assert |data()[ino]| % 4096 == 0;
 
-      // TODO: need to do some work in this case
-      assume false;
+      ghost var written2;
       var bs'';
-      ok, i, written, bs'' := this.appendAtEnd(txn, ino, i, bs');
+      ok, i, written2, bs'' := this.appendAtEnd(txn, ino, i, bs');
       if !ok {
         // TODO: we should really just abort here
         fs.finishInode(txn, ino, i);
         return;
       }
+      assume false;
       // TODO: proving progress here isn't super simple; maybe appendAtEnd
       // should make guarantees about alignment rather than leaving caller with
       // complicated written expression?
