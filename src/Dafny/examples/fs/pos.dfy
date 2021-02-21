@@ -15,6 +15,7 @@ module IndirectPos
 {
   import opened FsKinds
   import opened Pow
+  import C = Collections
 
   datatype preIndOff = IndOff(ilevel: nat, j: nat)
   {
@@ -43,58 +44,78 @@ module IndirectPos
 
   datatype Config = Config(ilevels: seq<nat>)
   {
-    const totals := configSum(ilevels)
-    const total := configTotal(ilevels)
+    const totals := sums(ilevels)
+    const total := sum(ilevels)
 
-    static function method configTotal(ilevels: seq<nat>): nat
+    static function method sum(ilevels: seq<nat>): nat
     {
       if ilevels == [] then 0
-      else pow(512, ilevels[0]) + configTotal(ilevels[1..])
+      else pow(512, ilevels[0]) + sum(ilevels[1..])
     }
 
     static lemma test_configSum1()
-      ensures configSum([0]) == [0,1]
+      ensures sums([0]) == [0,1]
     {}
 
     static lemma test_configSum2()
-      ensures configSum([0,1]) == [0,1,1+512]
+      ensures sums([0,1]) == [0,1,1+512]
     {
       assert [0,1][..1] == [0];
     }
 
     static lemma test_configSum3()
-      ensures configSum([0,0,1,2]) == [0,1,2,2+512, 2+512+512*512]
+      ensures sums([0,0,1,2]) == [0,1,2,2+512, 2+512+512*512]
     {
-      assert configTotal([0,0,1,2]) == 2+512+512*512;
+      assert sum([0,0,1,2]) == 2+512+512*512;
       assert [0,0,1,2][..3] == [0,0,1];
       assert [0,0,1][..2] == [0,0];
       assert [0,0][..1] == [0];
     }
 
-    static function method configSum(ilevels: seq<nat>): (s:seq<nat>)
+    static lemma {:induction n} sum_repeat0(n: nat)
+      ensures sum(C.repeat(0 as nat, n)) == n
+    {
+      if n > 0 {
+        C.repeat_unfold(0 as nat, n);
+        sum_repeat0(n-1);
+      }
+    }
+
+    static lemma {:induction ilevels1} sum_app(ilevels1: seq<nat>, ilevels2: seq<nat>)
+      ensures sum(ilevels1 + ilevels2) == sum(ilevels1) + sum(ilevels2)
+    {
+      if |ilevels1| == 0 {
+        assert ilevels1 + ilevels2 == ilevels2;
+      } else {
+        assert (ilevels1 + ilevels2)[1..] == ilevels1[1..] + ilevels2;
+        sum_app(ilevels1[1..], ilevels2);
+      }
+    }
+
+    static function method sums(ilevels: seq<nat>): (s:seq<nat>)
       ensures |s| == 1+|ilevels|
-      ensures forall i | 0 <= i <= |ilevels| :: s[i] == configTotal(ilevels[..i])
+      ensures forall i | 0 <= i <= |ilevels| :: s[i] == sum(ilevels[..i])
     {
       if ilevels == [] then [0]
       else (
         assert ilevels[..|ilevels|] == ilevels;
-        var s := configSum(ilevels[..|ilevels|-1]) + [configTotal(ilevels)];
-        assert s[|ilevels|] == configTotal(ilevels);
+        var s := sums(ilevels[..|ilevels|-1]) + [sum(ilevels)];
+        assert s[|ilevels|] == sum(ilevels);
         // NOTE(tej): need to assert this to get into statement context; see
         // https://dafny-lang.github.io/dafny/DafnyRef/DafnyRef#2036-statements-in-an-expression
         // which does not include forall statements
-        assert forall i | 0 <= i <= |ilevels| :: s[i] == configTotal(ilevels[..i]) by
+        assert forall i | 0 <= i <= |ilevels| :: s[i] == sum(ilevels[..i]) by
         {
           forall i | 0 <= i <= |ilevels|
-            ensures s[i] == configTotal(ilevels[..i])
+            ensures s[i] == sum(ilevels[..i])
           {
             if i == |ilevels| {}
             else {
               calc {
                 s[i];
-                configSum(ilevels[..|ilevels|-1])[i];
+                sums(ilevels[..|ilevels|-1])[i];
                 { assert ilevels[..|ilevels|-1][..i] == ilevels[..i]; }
-                configTotal(ilevels[..i]);
+                sum(ilevels[..i]);
               }
             }
           }
@@ -115,26 +136,33 @@ module IndirectPos
   {}
 
   lemma config_totals()
-    ensures config.totals == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4+512 + 512*512*512]
+    ensures config.totals == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4*512 + 512*512*512]
   {
-    var totals := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4+512 + 512*512*512];
+    var totals := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4*512 + 512*512*512];
     forall i | 0 <= i <= 15
-      ensures config.totals[i] == Config.configTotal(config.ilevels[..i])
+      ensures config.totals[i] == Config.sum(config.ilevels[..i])
     {
     }
+    // TODO: this somehow helps? this proof is probably unstable
+    assert config.ilevels[10..12] == [1,1];
     forall i | 0 <= i <= 15
-      ensures Config.configTotal(config.ilevels[..i]) == totals[i]
+      ensures Config.sum(config.ilevels[..i]) == totals[i]
     {
-      assert config.ilevels[..2] == [0,0];
-      assert config.ilevels[..3] == [0,0,0];
-      assert Config.configTotal(config.ilevels[..3]) == Config.configTotal([0,0,0]) == 3;
-      assert config.ilevels[..4] == [0,0,0,0];
-      assert Config.configTotal(config.ilevels[..4]) == Config.configTotal([0,0,0,0]) == 4;
-      assert config.ilevels[..5] == [0,0,0,0,0];
-      assert Config.configTotal(config.ilevels[..5]) == Config.configTotal([0,0,0,0,0]) == 5;
-      if i <= 5 {
+      if i <= 10 {
+        assert config.ilevels[..i] == C.repeat(0 as nat, i);
+        Config.sum_repeat0(i);
       } else {
-        assume false;
+        assert config.ilevels[..i] == C.repeat(0 as nat, 10) + config.ilevels[10..i];
+        Config.sum_repeat0(10);
+        Config.sum_app(C.repeat(0 as nat, 10), config.ilevels[10..i]);
+        assert config.ilevels[10..12] == [1,1];
+        assert config.sum(config.ilevels[10..12]) == Config.sum([1,1]) == 2*512;
+        assert config.ilevels[10..13] == [1,1,1];
+        assert config.sum(config.ilevels[10..13]) == Config.sum([1,1,1]) == 3*512;
+        assert config.ilevels[10..14] == [1,1,1,1];
+        assert config.sum(config.ilevels[10..14]) == Config.sum([1,1,1,1]) == 4*512;
+        assert config.ilevels[10..15] == [1,1,1,1,3];
+        assert config.sum(config.ilevels[10..15]) == Config.sum([1,1,1,1,3]) == 4*512 + 512*512*512;
       }
     }
     assert config.totals[0] == totals[0];
