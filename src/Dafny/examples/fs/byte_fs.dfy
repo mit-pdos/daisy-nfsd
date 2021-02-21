@@ -191,6 +191,7 @@ module ByteFs {
       assert data() == old(data());
     }
 
+    // public
     method Read(ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
@@ -207,6 +208,9 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
+    // public
+    //
+    // this variant can be used in a larger transaction
     method size_txn(txn: Txn, ino: Ino) returns (sz: uint64)
       modifies fs.fs
       requires fs.has_jrnl(txn)
@@ -222,6 +226,7 @@ module ByteFs {
       var _ := txn.Commit();
     }
 
+    // public
     method Size(ino: Ino) returns (sz: uint64)
       modifies fs.fs
       requires Valid() ensures Valid()
@@ -352,51 +357,6 @@ module ByteFs {
       }
     }
 
-    /*
-    lemma data_append_at_end(data: seq<byte>, junk: seq<byte>, bs: seq<byte>)
-      requires (
-      var sz := |data|;
-      var remaining_space := 4096 - sz % 4096;
-      var written := |bs|;
-      var sz' := |data| + written;
-      && sz % 4096 != 0
-      && |junk| == remaining_space
-      && |bs| <= remaining_space
-      )
-      ensures (
-      var sz := |data|;
-      var data0 := data;
-      var data1 := data0 + junk;
-      var off' := sz / 4096 * 4096;
-      var blk := C.splice(data1[off'..off' + 4096], sz % 4096, bs);
-      var data2 := C.splice(data1, off' as nat, blk);
-      var data3 := data2[..|data0| + |bs|];
-      data3 == data0 + bs
-      )
-    {
-      assume false;
-    }
-    */
-
-    lemma data_append_at_end(data0: seq<byte>, junk: seq<byte>, bs: seq<byte>,
-      data1: seq<byte>, blk: seq<byte>, data2: seq<byte>, data3: seq<byte>)
-      requires (
-      var sz := |data0|;
-      var remaining_space := 4096 - sz % 4096;
-      var off' := sz / 4096 * 4096;
-      && sz % 4096 != 0
-      && |junk| == remaining_space
-      && |bs| <= remaining_space
-      && data1 == data0 + junk
-      && blk == C.splice(data1[off'..off' + 4096], sz % 4096, bs)
-      && data2 == C.splice(data1, off' as nat, blk)
-      && data3 == data2[..|data0| + |bs|]
-      )
-      ensures data3 == data0 + bs
-    {
-      assume false;
-    }
-
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
       requires off as nat + |bs| <= off/4096*4096 + 4096 <= |data0|
       requires
@@ -420,6 +380,7 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
+    // private
     method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr()
@@ -529,6 +490,8 @@ module ByteFs {
     }
 
     // public
+    //
+    // this variant can be used in a larger transaction
     method {:timeLimitMultiplier 2} append_txn(txn: Txn, ino: Ino, bs: Bytes)
       returns (ok:bool)
       modifies Repr(), bs
@@ -593,6 +556,7 @@ module ByteFs {
       fs.finishInode(txn, ino, i);
     }
 
+    // public
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies Repr(), bs
       requires Valid() ensures Valid()
