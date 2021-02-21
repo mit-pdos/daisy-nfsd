@@ -65,8 +65,14 @@ module IndBlocks
   lemma to_blknos_zero()
     ensures to_blknos(block0) == IndBlknos.zero
   {
-    // TODO: figure out the best way to prove this
-    assume false;
+    assert seq_encode(C.seq_fmap(encUInt64, C.repeat(0 as uint64, 512))) == block0 by {
+      assert C.seq_fmap(encUInt64, C.repeat(0 as uint64, 512)) == C.repeat(EncUInt64(0), 512);
+      // TODO: prove this
+      assume false;
+    }
+    assert decode_uint64_seq(block0) == C.repeat(0 as uint64, 512) by {
+      decode_encode_uint64_seq_id(C.repeat(0 as uint64, 512));
+    }
   }
 
   method decode_one(bs: Bytes, k: nat) returns (bn:Blkno)
