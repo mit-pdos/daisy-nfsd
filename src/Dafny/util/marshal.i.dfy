@@ -101,6 +101,44 @@ lemma zero_encode_seq_uint64(n: nat)
   }
 }
 
+function decode_uint64(bs: seq<byte>): (x:uint64)
+    requires |bs| == u64_bytes
+    ensures enc_encode(EncUInt64(x)) == bs
+{
+    lemma_le_dec_enc64(bs);
+    le_dec64(bs)
+}
+
+lemma decode_encode_uint64(x: uint64)
+    ensures decode_uint64(enc_encode(EncUInt64(x))) == x
+{
+    lemma_le_enc_dec64(x);
+}
+
+function decode_uint64_seq(bs: seq<byte>): (es: seq<uint64>)
+    requires |bs| % 8 == 0
+    ensures seq_encode(seq_fmap(encUInt64, es)) == bs
+    ensures |es| == |bs|/8
+{
+    if bs == [] then []
+    else (
+        var es := [decode_uint64(bs[..8])] + decode_uint64_seq(bs[8..]);
+        assert seq_fmap(encUInt64, es) == [EncUInt64(es[0])] + seq_fmap(encUInt64, es[1..]);
+        es
+    )
+}
+
+lemma decode_encode_uint64_seq_id(es: seq<uint64>)
+    ensures (enc_uint64_len(es);
+            decode_uint64_seq(seq_encode(seq_fmap(encUInt64, es))) == es)
+{
+    if es == [] { return; }
+    decode_encode_uint64(es[0]);
+    decode_encode_uint64_seq_id(es[1..]);
+    enc_uint64_len(es[1..]);
+    assert seq_fmap(encUInt64, es[1..]) == seq_fmap(encUInt64, es)[1..];
+    assert seq_encode(seq_fmap(encUInt64, es[1..])) == seq_encode(seq_fmap(encUInt64, es))[8..];
+}
 
 class Encoder
 {

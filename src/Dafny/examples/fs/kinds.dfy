@@ -166,8 +166,6 @@ module FsKinds {
   }
 
   const fs_kinds: map<Blkno, Kind> :=
-    // NOTE(tej): trigger annotation suppresses warning (there's nothing to
-    // trigger on here, but also nothing is necessary)
     map blkno: Blkno |
       513 <= blkno as nat < super.disk_size
       :: (if InodeBlk?(blkno)

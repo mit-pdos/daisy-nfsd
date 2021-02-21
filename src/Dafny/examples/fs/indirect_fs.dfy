@@ -1,5 +1,6 @@
 include "fs.dfy"
 include "ind_block.dfy"
+include "pos.dfy"
 
 module IndFs
 {
@@ -10,312 +11,586 @@ module IndFs
   import opened JrnlSpec
   import opened Fs
   import opened Marshal
-  import opened IndBlocks
+  import IndBlocks
+  import opened IndirectPos
   import C = Collections
 
-  datatype preIdx = direct(k: nat) | indirect(k: nat, m: nat)
+  predicate pos_dom<T>(m: imap<Pos, T>)
   {
-    predicate Valid()
-    {
-      match this {
-        case direct(k) => k < 10
-        case indirect(k, m) => k < 5 && m < 512
-      }
-    }
-
-    function flat(): nat
-      requires Valid()
-    {
-      match this {
-        case direct(k) => k
-        case indirect(k, m) => 10 + k * 512 + m
-      }
-    }
-
-    static function from_flat(n: nat): (i:Idx)
-      requires n < 10 + 5*512
-      ensures i.Valid()
-    {
-      if n < 10 then
-        direct(n)
-      else (
-        var x := n-10;
-        indirect(x/512, x % 512)
-      )
-    }
-
-    lemma to_from_flat()
-      requires Valid()
-      ensures from_flat(this.flat()) == this
-    {}
-
-    static lemma from_to_flat(n: nat)
-      requires n < 10 + 5*512
-      ensures from_flat(n).flat() == n
-    {}
+    forall p:Pos :: p in m
   }
 
-  type Idx = i:preIdx | i.Valid() witness direct(0)
-
-  datatype preMeta = Meta(s: seq<IndBlknos>)
+  predicate data_dom<T>(m: imap<Pos, T>)
   {
-    static const preZero := Meta(C.repeat(IndBlknos.zero, 5))
-    static const zero: Meta := preZero
-
-    predicate Valid()
-    {
-      |s| == 5
-    }
-
-    static function blknos_to_seq(s: IndBlknos): seq<Blkno> { s.s }
-
-    function blknos(): seq<Blkno>
-    {
-      C.concat(C.seq_fmap(blknos_to_seq, this.s))
-    }
-
-    predicate unique_at(i1: nat, j1: nat, i2: nat, j2: nat)
-      requires Valid()
-      requires i1 < 5 && i2 < 5 && j1 < 512 && j2 < 512
-    {
-      s[i1].s[j1] != 0 ==> i1 == i2 && j1 == j2
-    }
-
-    predicate unique()
-      requires Valid()
-    {
-      forall i1, j1, i2, j2 | 0 <= i1 < 5 && 0 <= i2 < 5 && 0 <= j1 < 512 && 0 <= j2 < 512 ::
-        s[i1].s[j1] == s[i2].s[j2] ==> unique_at(i1, j1, i2, j2)
-    }
-
-    lemma unique_intro(i1: nat, j1: nat, i2: nat, j2: nat)
-      requires Valid() && unique()
-      requires i1 < 5 && j1 < 512 && i2 < 5 && j2 < 512
-      ensures s[i1].s[j1] == s[i2].s[j2] ==> s[i1].s[j1] != 0 ==> i1 == i2 && j1 == j2
-    {
-    }
-
-    lemma unique_alt1()
-      requires Valid()
-      ensures unique() ==> Inode.blks_unique(blknos())
-    {
-      if !unique() { return; }
-      var s' := C.seq_fmap(blknos_to_seq, this.s);
-      C.concat_homogeneous_spec_alt(s', 512);
-      forall i1, i2 | 0 <= i1 < 5*512 && 0 <= i2 < 5*512
-        ensures C.concat(s')[i1] == C.concat(s')[i2] ==>
-        i1 == i2 || C.concat(s')[i1] == 0
-      {
-        unique_intro(i1/512, i1%512, i2/512, i2%512);
-      }
-      reveal Inode.blks_unique();
-      assert blknos() == C.concat(s');
-    }
-
-    lemma unique_alt2()
-      requires Valid()
-      ensures Inode.blks_unique(blknos()) ==> unique()
-    {
-      var s' := C.seq_fmap(blknos_to_seq, this.s);
-      C.concat_homogeneous_spec_alt(s', 512);
-      C.concat_homogeneous_spec(s', 512);
-      reveal Inode.blks_unique();
-      // TODO: finish this proof with a forall statement
-      assume false;
-    }
-
-    lemma unique_alt()
-      requires Valid()
-      ensures unique() <==> Inode.blks_unique(blknos())
-    {
-      unique_alt1();
-      unique_alt2();
-    }
-  }
-  type Meta = s:preMeta | s.Valid() witness preMeta.preZero
-
-  datatype IndInodeData = IndInodeData(sz: nat, blks: seq<Block>)
-  {
-    static const zero: IndInodeData := IndInodeData(0, C.repeat(block0, 10 + 5*512))
-
-    predicate Valid()
-    {
-      && sz <= Inode.MAX_SZ
-      && |blks| == 10 + 5 * 512
-    }
-
-    static lemma zero_valid()
-      ensures zero.Valid()
-    {}
+    forall pos: Pos | pos.data? :: pos in m
   }
 
-  predicate indblknos_ok(bns: IndBlknos)
-  {
-    forall k | 0 <= k < 512 :: blkno_ok(bns.s[k])
-  }
-
-  predicate meta_ok?(meta: Meta)
-  {
-    assert meta.Valid();
-    forall k: nat | k < 5 :: indblknos_ok(meta.s[k])
-  }
+  lemma inode_size_ok()
+    ensures 4096*config.total == Inode.MAX_SZ
+  {}
 
   class IndFilesys
   {
-    ghost var ino_meta: map<Ino, Meta>
-    ghost var ino_data: map<Ino, IndInodeData>
-    const fs: Filesys
+    // filesys contains a mapping from allocated Blkno's to poss
+    const fs: Filesys<Pos>
+    // this is a complete map; every position in every inode has a value, but
+    // it might be a zero block encoded efficiently via 0's.
+    ghost var to_blkno: imap<Pos, Blkno>
+
+    // public abstract state
+
+    // only maps pos where pos.data? (this hides when other blocks change but
+    // exposes newly-allocated data blocks)
+    ghost var data: imap<Pos, Block>
+    // bubbles up inode sizes
+    ghost var metadata: map<Ino, nat>
+
+    function blkno_pos(bn: Blkno): Option<Pos>
+      reads fs.Repr()
+      requires blkno_ok(bn)
+      requires fsValid()
+    {
+      reveal fsValid();
+      fs.block_used[bn]
+    }
+
+    predicate has_jrnl(txn: Txn)
+      reads fs
+    {
+      txn.jrnl == fs.jrnl
+    }
 
     function Repr(): set<object>
     {
       {this} + fs.Repr()
     }
 
-    predicate ValidMeta()
+    predicate ValidBlknos()
       reads this
     {
-      && ino_dom(ino_meta)
-      && (forall ino | ino_ok(ino) :: meta_ok?(ino_meta[ino]))
+      && pos_dom(to_blkno)
+      && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate ValidData()
-      reads this
+    predicate {:opaque} fsValid()
+      reads fs.Repr()
     {
-      && ino_dom(ino_data)
-      && (forall ino | ino_ok(ino) :: ino_data[ino].Valid())
+      fs.Valid()
     }
 
-    // this ensures inodes are separate from each other, but not that inode
-    // metadata is separate from inode data
-    predicate {:opaque} ValidOwnership()
+    predicate ValidBasics()
       reads Repr()
-      requires fs.Valid()
-      requires ino_dom(ino_meta)
+    {
+      reveal fsValid();
+      && fsValid()
+      && ino_dom(metadata)
+      && data_dom(data)
+      && ValidBlknos()
+      && fs.block_used[0].None?
+    }
+
+    predicate {:opaque} ValidPos()
+      reads Repr()
+      requires ValidBasics()
+    {
+      reveal fsValid();
+      && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
+          blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
+      && (forall pos:Pos ::
+          var bn := to_blkno[pos];
+          && blkno_ok(bn)
+          && (bn != 0 ==> blkno_pos(bn) == Some(pos)))
+    }
+
+    lemma blkno_unused(bn: Blkno)
+      requires ValidBasics() && ValidPos()
+      requires blkno_ok(bn) && bn != 0 && blkno_pos(bn).None?
+      ensures forall pos: Pos :: to_blkno[pos] != bn
+    {
+      reveal ValidPos();
+    }
+
+    predicate {:opaque} ValidMetadata()
+      reads Repr()
+      requires ValidBasics()
     {
       forall ino: Ino | ino_ok(ino) ::
-        (forall bn | bn in ino_meta[ino].blknos() ::
-        bn != 0 ==>
+        && fs.inodes[ino].sz as nat == metadata[ino]
+        && metadata[ino] <= Inode.MAX_SZ
+    }
+
+    static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
+      requires ino_ok(ino)
+      requires |blks| == 15
+      requires pos_dom(to_blkno)
+    {
+      forall k: nat | k < 15 ::
+        var bn := blks[k];
         && blkno_ok(bn)
-        && fs.block_used[bn] == Some(ino))
+        && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
+        // && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
     }
 
-    static predicate blks_disjoint(blks1: seq<uint64>, blks2: seq<uint64>)
-    {
-      forall bn1, bn2 | bn1 in blks1 && bn2 in blks2 :: bn1 == bn2 ==> bn1 == 0
-    }
-
-    // TODO: also need uniqueness of metadata (maybe would be better to assign
-    // every block a more precise role in fs.dfy itself, like Free | Data(ino) |
-    // Metadata(ino, level); then this part would be unnecessary)
-    predicate {:opaque} meta_disjoint_from_data()
+    predicate {:opaque} ValidInodes()
       reads Repr()
-      requires fs.Valid()
-      requires ino_dom(ino_meta)
+      requires ValidBasics()
     {
-      forall ino: Ino | ino_ok(ino) ::
-        blks_disjoint(ino_meta[ino].blknos(), fs.inodes[ino].blks)
+      forall ino:Ino | ino_ok(ino) ::
+        inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
-    predicate {:opaque} meta_unique()
-      reads this
-      requires ino_dom(ino_meta)
-    {
-      forall ino: Ino | ino_ok(ino) :: ino_meta[ino].unique()
-    }
-
-    predicate Valid_meta_separation()
+    predicate valid_parent(pos: Pos)
       reads Repr()
-      requires fs.Valid()
-      requires ino_dom(ino_meta)
+      requires pos.ilevel > 0
+      requires ValidBasics()
     {
-      && meta_disjoint_from_data()
-      && meta_unique()
+      var parent := to_blkno[pos.parent()];
+      var blknos := IndBlocks.to_blknos(zero_lookup(fs.data_block, parent));
+      var j := pos.child().j;
+      var bn := to_blkno[pos];
+      blknos.s[j] == bn
     }
 
-    // this is a strange definition for doubly-indirect blocks: we can't exactly
-    // reach the metadata for the inode, only the first layer of metadata (after
-    // that we have to resolve through the data_blocks, just like we currently
-    // do to get from Meta to IndInodeData)
-    static predicate meta_in_inode(d: InodeData, meta: Meta)
-      requires d.Valid()
+    predicate {:opaque} ValidIndirect()
+      reads Repr()
+      requires ValidBasics()
     {
-      assert meta.Valid();
-      forall k | 0 <= k < 5 :: block_has_blknos(d.blks[10+k], meta.s[k])
+      forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
     }
 
-    static predicate ino_ind_match?(
-      d: InodeData, meta: Meta, id: IndInodeData,
-      // all data blocks for looking up data from meta block numbers
-      data_block: map<Blkno, Block>)
-      requires blkno_dom(data_block)
-      requires meta_ok?(meta)
-      requires id.Valid()
+    predicate {:opaque} ValidData()
+      reads Repr()
+      requires ValidBasics()
     {
-      && d.Valid()
-      && id.sz == d.sz
-      && meta_in_inode(d, meta)
-      && forall n | 0 <= n < 10 + 5*512 ::
-      (match Idx.from_flat(n) {
-        case direct(k) => d.blks[k] == id.blks[n]
-        case indirect(k, m) =>
-          zero_lookup(data_block, meta.s[k].s[m]) == id.blks[n]
-      })
-    }
-
-    predicate {:opaque} Valid_ino_data()
-      reads this.Repr()
-      requires fs.Valid()
-      requires ino_dom(ino_meta)
-      requires ino_dom(ino_data)
-      requires ValidMeta()
-      requires ValidData()
-    {
-      forall ino | ino_ok(ino) ::
-        ino_ind_match?(fs.inode_blks[ino], ino_meta[ino], ino_data[ino], fs.data_block)
+      forall pos:Pos | pos.data? ::
+        data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
 
     predicate Valid()
       reads this.Repr()
     {
-      && fs.Valid()
-      && ValidMeta()
+      && ValidBasics()
+      && ValidBlknos()
+      && ValidPos()
+      && ValidInodes()
+      && ValidMetadata()
+      && ValidIndirect()
       && ValidData()
-      && Valid_ino_data()
-      && ValidOwnership()
-      && Valid_meta_separation()
     }
 
-    constructor(d: Disk)
+    predicate ValidIno(ino: Ino, i: Inode.Inode)
+      reads this.Repr()
+    {
+      && Valid()
+      && fs.is_cur_inode(ino, i)
+    }
+
+    predicate ValidQ()
+      reads Repr()
+    {
+      && Valid()
+      && fs.quiescent()
+    }
+
+    constructor Init(d: Disk)
       ensures Valid()
+      ensures fs.quiescent()
+      ensures data == imap pos: Pos | pos.idx.data? :: block0
+      ensures metadata == map ino: Ino | ino_ok(ino) :: 0 as nat
     {
       this.fs := new Filesys.Init(d);
-      this.ino_meta := map ino: Ino | ino_ok(ino) :: Meta.zero;
-      this.ino_data := map ino: Ino | ino_ok(ino) :: IndInodeData.zero;
+      this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
+      this.data := imap pos: Pos | pos.idx.data? :: block0;
+      this.metadata := map ino: Ino | ino_ok(ino) :: 0 as nat;
       new;
-      IndInodeData.zero_valid();
-      assert Valid_ino_data() by {
-        assert meta_in_inode(InodeData.zero, Meta.zero) by {
-          zero_block_blknos();
+      IndBlocks.to_blknos_zero();
+      reveal ValidPos();
+      reveal ValidInodes();
+      reveal ValidIndirect();
+      reveal ValidMetadata();
+      reveal ValidData();
+    }
+
+    // private read
+    method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+      decreases pos.ilevel
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i)
+      ensures is_block(b.data)
+      ensures b.data == zero_lookup(fs.data_block, to_blkno[pos])
+      ensures fresh(b)
+    {
+      reveal ValidInodes();
+      var idx := pos.idx;
+      if pos.ilevel == 0 {
+        reveal ValidPos();
+        assert idx.off == IndOff.direct;
+        var bn := i.blks[idx.k];
+        if bn == 0 {
+          b := NewBytes(4096);
+          return;
         }
-        assert ino_ind_match?(InodeData.zero, Meta.zero, IndInodeData.zero,
-          fs.data_block);
-        reveal Valid_ino_data();
+        b := fs.getDataBlock(txn, bn);
+        return;
       }
-      forall ino: Ino | ino_ok(ino)
-        ensures ino_meta[ino].blknos() == C.repeat(0 as Blkno, 5*512)
-      {
-        C.concat_repeat(0 as Blkno, 512, 5);
-        C.repeat_seq_fmap_auto<IndBlknos, seq<Blkno>>();
-        assert Meta.zero.blknos() == C.repeat(0 as Blkno, 5*512);
+      // recurse
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var ib: Bytes := this.read_(txn, parent, i);
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      reveal ValidIndirect();
+      b := fs.getDataBlock(txn, child_bn);
+      // NOTE(tej): I can't believe this worked the first time
+      reveal ValidData();
+    }
+
+    twostate lemma ValidPos_alloc_one(bn: Blkno, pos: Pos)
+      requires old(ValidBasics()) && ValidBasics()
+      requires blkno_ok(bn)
+      requires old(blkno_pos(bn).None?) && old(to_blkno[pos] == 0)
+      requires fs.block_used == old(fs.block_used[bn:=Some(pos)])
+      requires to_blkno == old(to_blkno[pos:=bn])
+      requires old(ValidPos())
+      ensures ValidPos()
+    {
+      reveal ValidPos();
+    }
+
+    twostate lemma ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
+      requires old(ValidBasics()) && ValidBasics()
+      requires pos.ilevel == 0
+      requires to_blkno == old(to_blkno[pos:=bn])
+      requires fs.inodes == old(fs.inodes[pos.ino:=i'])
+      requires blkno_ok(bn)
+      requires i' == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
+      requires old(ValidInodes())
+      ensures ValidInodes()
+    {
+      reveal ValidInodes();
+      assert inode_pos_match(pos.ino, i'.blks, to_blkno);
+    }
+
+    twostate predicate state_unchanged()
+      reads this, fs
+    {
+      && data == old(data)
+      && metadata == old(metadata)
+    }
+
+    twostate lemma Valid_unchanged()
+      requires old(Valid())
+      requires
+          && fs.Valid()
+          && fs.data_block == old(fs.data_block)
+          && fs.inodes == old(fs.inodes)
+          && fs.block_used == old(fs.block_used)
+          && state_unchanged()
+          && to_blkno == old(to_blkno)
+      ensures Valid()
+    {
+      reveal ValidPos();
+      reveal ValidInodes();
+      reveal ValidData();
+      reveal ValidIndirect();
+      reveal ValidMetadata();
+    }
+
+    // private
+    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
+      returns (ok: bool, i': Inode.Inode, bn: Blkno)
+      modifies Repr()
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
+      ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
+      ensures state_unchanged()
+    {
+      var idx := pos.idx;
+      assert to_blkno[pos] == 0 by {
+        reveal ValidInodes();
       }
-      assert ValidOwnership() by {
-        reveal ValidOwnership();
+      ok, bn := fs.allocateTo(txn, pos);
+      if !ok {
+        i' := i;
+        Valid_unchanged();
+        return;
       }
-      assert Valid_meta_separation() by {
-        reveal meta_disjoint_from_data();
-        reveal meta_unique();
+
+      i' := i.(blks := i.blks[idx.k := bn]);
+      fs.writeInode(pos.ino, i');
+
+      to_blkno := to_blkno[pos:=bn];
+      var zeroblk := NewBytes(4096);
+      fs.writeDataBlock(txn, bn, zeroblk);
+
+      assert ValidPos() by {
+        ValidPos_alloc_one(bn, pos);
+      }
+      assert ValidInodes() by {
+        ValidInodes_change_one(pos, i', bn);
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidIndirect() && ValidData() by {
+        reveal ValidPos();
+        reveal ValidIndirect();
+        reveal ValidData();
       }
     }
+
+    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
+      returns (ok: bool, bn: Blkno)
+      modifies Repr(), pblock
+      requires has_jrnl(txn)
+      requires Valid() ensures Valid()
+      requires pos.ilevel > 0 &&  to_blkno[pos] == 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ibn != 0
+      requires pblock.data == zero_lookup(fs.data_block, ibn)
+      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures fs.cur_inode == old(fs.cur_inode)
+      ensures fs.inodes == old(fs.inodes)
+      ensures state_unchanged()
+    {
+      assert IndBlocks.to_blknos(block0) == IndBlocks.IndBlknos.zero by {
+        IndBlocks.to_blknos_zero();
+      }
+      ok, bn := fs.allocateTo(txn, pos);
+      if !ok {
+        Valid_unchanged();
+        return;
+      }
+      to_blkno := to_blkno[pos := bn];
+      // NOTE(tej): I was formerly only doing this for data blocks, but I think
+      // it might be necessary for metadata blocks to preserve that children are
+      // still zeros (I was unable to prove ValidIndirect() without this for the
+      // special case of pos where pos.parent() == pos0). In that case
+      // verification caught a bug! (Albeit one only with holes but still.)
+      var zeroblock := NewBytes(4096);
+      fs.writeDataBlock(txn, bn, zeroblock);
+
+      var child := pos.child();
+      var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
+      fs.writeDataBlock(txn, ibn, pblock');
+      assert valid_parent(pos);
+
+      assert ValidPos() by {
+        ValidPos_alloc_one(bn, pos);
+      }
+
+      assert ValidInodes() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        // reveal ValidPos();
+        var pos0 := pos;
+        forall pos: Pos | pos.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            if pos.parent() == pos0 {
+              IndBlocks.to_blknos_zero();
+              reveal ValidPos();
+            } else {
+              reveal ValidPos();
+            }
+          }
+        }
+      }
+    }
+
+    // private
+    method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
+      decreases pos.ilevel
+      modifies Repr()
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures state_unchanged()
+    {
+      reveal ValidInodes();
+      i' := i;
+      var idx := pos.idx;
+      if pos.ilevel == 0 {
+        assert idx.off == IndOff.direct;
+        bn := i.blks[idx.k];
+        if bn != 0 {
+          // we haven't actually written anything, just resolved existing metadata
+          ok := true;
+          return;
+        }
+        assert bn == 0;
+        // need to allocate a top-level indirect block
+        ok, i', bn := allocateRootMetadata(txn, pos, i');
+        return;
+      }
+      // recurse
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var ibn;
+      ok, i', ibn := this.resolveMetadata(txn, parent, i');
+      if !ok { return; }
+      // now we have somewhere to store the reference to this block, but might
+      // need to allocate into the parent
+      var pblock := fs.getDataBlock(txn, ibn);
+      bn := IndBlocks.decode_one(pblock, child.j);
+      assert bn == to_blkno[pos] by {
+        reveal ValidIndirect();
+      }
+      assert ValidIno(pos.ino, i');
+      assert state_unchanged();
+      if bn != 0 {
+        return;
+      }
+
+      ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
+      assert ValidIno(pos.ino, i');
+      if !ok {
+        return;
+      }
+    }
+
+    // public
+    //
+    // data version of more general read_ spec
+    method read(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i)
+      requires pos.data?
+      ensures pos in data && b.data == data[pos]
+      ensures fresh(b)
+    {
+      b := this.read_(txn, pos, i);
+      reveal ValidData();
+    }
+
+    // caller can extract size themselves
+    lemma inode_metadata(ino: Ino, i: Inode.Inode)
+      requires ValidIno(ino, i)
+      ensures i.sz as nat == metadata[ino]
+    {
+      reveal ValidMetadata();
+    }
+
+    lemma metadata_bound(ino: Ino)
+      requires Valid()
+      requires ino_ok(ino)
+      ensures metadata[ino] <= Inode.MAX_SZ
+    {
+      reveal ValidMetadata();
+    }
+
+    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
+      returns (ok: bool, i':Inode.Inode)
+      modifies Repr()
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i)
+      requires pos.data?
+      requires is_block(blk.data)
+      ensures ValidIno(pos.ino, i')
+      ensures ok ==> data == old(data[pos := blk.data])
+      ensures !ok ==> data == old(data)
+      ensures metadata == old(metadata)
+    {
+      i' := i;
+      var idx := pos.idx;
+      var bn;
+      ok, i', bn := this.resolveMetadata(txn, pos, i');
+      if !ok {
+         return;
+      }
+      assert ValidIno(pos.ino, i');
+
+      fs.writeDataBlock(txn, bn, blk);
+      data := data[pos := blk.data];
+
+      assert ValidPos() by {
+        reveal ValidPos();
+      }
+      assert ValidInodes() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidIndirect() by {
+        reveal ValidPos();
+        reveal ValidIndirect();
+      }
+    }
+
+    // public
+    method startInode(txn: Txn, ino: Ino)
+      returns (i: Inode.Inode)
+      modifies fs
+      requires ino_ok(ino)
+      requires has_jrnl(txn)
+      requires ValidQ()
+      ensures ValidIno(ino, i)
+      ensures fs.cur_inode == Some((ino, i))
+    {
+      i := fs.getInode(txn, ino);
+      fs.startInode(ino, i);
+      Valid_unchanged();
+    }
+
+    // public
+    method writeInodeSz(ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode)
+      modifies Repr()
+      requires ValidIno(ino, i)
+      requires sz' <= Inode.MAX_SZ_u64
+      ensures ValidIno(ino, i')
+      ensures data == old(data)
+      ensures metadata == old(metadata[ino := sz' as nat])
+    {
+      reveal fsValid();
+      i' := i.(sz := sz');
+      fs.writeInode(ino, i');
+      metadata := metadata[ino := sz' as nat];
+      assert ValidBasics();
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidInodes() by { reveal ValidInodes(); }
+      assert ValidPos() by { reveal ValidPos(); }
+      assert ValidIndirect() by { reveal ValidIndirect(); }
+      assert ValidData() by { reveal ValidData(); }
+    }
+
+    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies Repr()
+      requires ValidIno(ino, i)
+      requires has_jrnl(txn)
+      ensures ValidQ()
+      ensures state_unchanged()
+    {
+      fs.finishInode(txn, ino, i);
+      Valid_unchanged();
+    }
+
+    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+      modifies fs
+      requires ValidIno(ino, i)
+      requires fs.cur_inode == Some((ino, i))
+      ensures ValidQ()
+      ensures state_unchanged()
+    {
+      fs.finishInodeReadonly(ino, i);
+      Valid_unchanged();
+    }
+
   }
 
 }

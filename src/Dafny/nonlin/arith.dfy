@@ -78,10 +78,48 @@ module Arith {
     ensures x / k < y
   {}
 
+  lemma div_incr_auto()
+    ensures forall x:nat, y:nat, k:nat | 0 < k && x < k * y :: x / k < y
+  {}
+
   lemma div_positive(x: nat, y: int)
     requires 0 < y
     ensures 0 <= x / y
   {}
+
+  lemma div_positive_auto()
+    ensures forall x: nat, y: int | 0 < y :: 0 <= x / y
+  {}
+
+  // prove r is x/k by placing x in the right range
+  lemma div_range(x: nat, r: nat, k: nat)
+    requires 0 < k
+    requires r*k <= x < (r+1)*k
+    ensures x/k == r
+  {
+    mul_div_id(r, k);
+    mul_div_id(r+1, k);
+    div_increasing(r*k, x, k);
+    div_incr(x, r+1, k);
+  }
+
+  lemma mod_spec(x: nat, r: nat, k: nat)
+    requires 0 < k
+    requires r*k <= x < (r+1)*k
+    ensures x%k == x - (r*k)
+  {
+    div_range(x, r, k);
+  }
+
+  lemma div_mod_spec(x: nat, r: nat, k: nat)
+    requires 0 < k
+    requires r*k <= x < (r+1) * k
+    ensures x/k == r
+    ensures x%k == x - (r*k)
+  {
+    div_range(x, r, k);
+    mod_spec(x, r, k);
+  }
 
   // TODO: prove these basic properties of mul, mod, div
 
@@ -92,6 +130,21 @@ module Arith {
   lemma {:axiom} mul_div_id(a: nat, k: nat)
     requires 0 < k
     ensures (a*k) / k == a
+
+  lemma div_increasing(x: nat, y: nat, k: nat)
+    requires 0 < k
+    requires x <= y
+    ensures x / k <= y / k
+  {
+    div_mod_split(x, k);
+    div_mod_split(y, k);
+    assert (x/k - y/k) * k <= y%k - x%k;
+    if x/k <= y/k { return; }
+    // if x/k > y/k we'll derive a contradiction
+    assert x/k - y/k >= 1;
+    assert (x/k - y/k) * k >= k;
+    assert false;
+  }
 
   lemma mul_mod(a: nat, k: nat)
     requires 0 < k
