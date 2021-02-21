@@ -426,6 +426,7 @@ module IndFs
         bn := i.blks[idx.k];
         if bn != 0 {
           // we haven't actually written anything, just resolved existing metadata
+          ok := true;
           return;
         }
         assert bn == 0;
