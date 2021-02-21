@@ -145,9 +145,10 @@ module ByteFs {
     }
 
     // TODO: why is this so slow?
-    method {:timeLimitMultiplier 2} Read(ino: Ino, off: uint64, len: uint64)
+    method {:timeLimitMultiplier 2} read_txn(txn: Txn, ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
+      requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       ensures ok ==>
@@ -159,7 +160,6 @@ module ByteFs {
         bs := NewBytes(0);
         return;
       }
-      var txn := fs.fs.jrnl.Begin();
       var i := fs.startInode(txn, ino);
 
       fs.inode_metadata(ino, i);
@@ -189,6 +189,36 @@ module ByteFs {
       bs := readInternal(txn, ino, i, off, len);
       fs.finishInodeReadonly(ino, i);
       assert data() == old(data());
+    }
+
+    method Read(ino: Ino, off: uint64, len: uint64)
+      returns (bs: Bytes, ok: bool)
+      modifies fs.fs
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures ok ==>
+          && off as nat + len as nat <= |data()[ino]|
+          && bs.data == this.data()[ino][off..off+len]
+      ensures data() == old(data())
+    {
+      var txn := fs.fs.jrnl.Begin();
+      bs, ok := read_txn(txn, ino, off, len);
+      // TODO: this is read-only, no need to commit the transaction
+      var _ := txn.Commit();
+    }
+
+    method size_txn(txn: Txn, ino: Ino) returns (sz: uint64)
+      modifies fs.fs
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      ensures data() == old(data())
+      ensures sz as nat == |data()[ino]|
+    {
+      var i := fs.startInode(txn, ino);
+      sz := i.sz;
+      fs.inode_metadata(ino, i);
+      fs.finishInodeReadonly(ino, i);
       var _ := txn.Commit();
     }
 
@@ -200,12 +230,10 @@ module ByteFs {
       ensures sz as nat == |data()[ino]|
     {
       var txn := fs.fs.jrnl.Begin();
-      var i := fs.startInode(txn, ino);
-      sz := i.sz;
-      fs.inode_metadata(ino, i);
-      fs.finishInodeReadonly(ino, i);
+      sz := size_txn(txn, ino);
+      // TODO: this is read-only, no need to commit the transaction
       var _ := txn.Commit();
-    }
+  }
 
     // private
     method alignedRawWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
@@ -501,15 +529,16 @@ module ByteFs {
     }
 
     // public
-    method {:timeLimitMultiplier 2} Append(ino: Ino, bs: Bytes) returns (ok:bool)
+    method {:timeLimitMultiplier 2} append_txn(txn: Txn, ino: Ino, bs: Bytes)
+      returns (ok:bool)
       modifies Repr(), bs
+      requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
     {
-      var txn := fs.fs.jrnl.Begin();
       var i := fs.startInode(txn, ino);
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
         ok := false;
@@ -522,7 +551,6 @@ module ByteFs {
         assert bs.data == [];
         assert data()[ino] == data()[ino] + bs.data;
         fs.finishInodeReadonly(ino, i);
-        var _ := txn.Commit();
         return;
       }
       fs.inode_metadata(ino, i);
@@ -539,7 +567,6 @@ module ByteFs {
       if bs'.Len() == 0 {
         assert old(bs.data[..written]) == old(bs.data);
         fs.finishInode(txn, ino, i);
-        var _ := txn.Commit();
         return;
       }
       fs.inode_metadata(ino, i);
@@ -564,7 +591,23 @@ module ByteFs {
       // complicated written expression?
 
       fs.finishInode(txn, ino, i);
-      var _ := txn.Commit();
+    }
+
+    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
+      modifies Repr(), bs
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      requires bs.Valid()
+      requires bs.Len() <= 4096
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
+    {
+      var txn := fs.fs.jrnl.Begin();
+      ok := append_txn(txn, ino, bs);
+      if !ok {
+        // abort
+        return;
+      }
+      ok := txn.Commit();
     }
 
   }
