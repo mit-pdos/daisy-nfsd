@@ -125,23 +125,17 @@ module IndirectPos
     forall i | 0 <= i <= 15
       ensures Config.configTotal(config.ilevels[..i]) == totals[i]
     {
-      if i == 0 {}
-      else if i == 1 {}
-      else if i == 2 {
-        // this first assertion is needed for the second to work (but
-        // Config.configTotal([0,0]) == 2 is easy on its own)
-        assert config.ilevels[..2] == [0,0];
-        assert Config.configTotal(config.ilevels[..2]) == 2;
-        //calc {
-        //  Config.configTotal(config.ilevels[..2]);
-        //  // these constant subslices aren't automatically triggered
-        //  { assert config.ilevels[..2] == [0,0]; }
-        //  Config.configTotal([0,0]);
-        //  2;
-        //}
+      assert config.ilevels[..2] == [0,0];
+      assert config.ilevels[..3] == [0,0,0];
+      assert Config.configTotal(config.ilevels[..3]) == Config.configTotal([0,0,0]) == 3;
+      assert config.ilevels[..4] == [0,0,0,0];
+      assert Config.configTotal(config.ilevels[..4]) == Config.configTotal([0,0,0,0]) == 4;
+      assert config.ilevels[..5] == [0,0,0,0,0];
+      assert Config.configTotal(config.ilevels[..5]) == Config.configTotal([0,0,0,0,0]) == 5;
+      if i <= 5 {
+      } else {
+        assume false;
       }
-      // TODO: how to brute force this? it's just calculation...
-      else { assume false; }
     }
     assert config.totals[0] == totals[0];
     assert config.ilevels[..1] == config.ilevels[..1];
