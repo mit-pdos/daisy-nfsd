@@ -31,11 +31,17 @@ module FsKinds {
     //
     // these are followed by num_data_blocks data blocks
     const data_start: nat := 513 + inode_blocks + data_bitmaps
-    const disk_size: nat := data_start + num_data_blocks
+
+    // NOTE(tej): hack because otherwise non-linear arithmetic in num_data_blocks confuses Dafny and it doesn't know the sum is still a nat
+    static function method add_nats(n1: nat, n2: nat): nat
+    {
+      n1 + n2
+    }
+    const disk_size: nat := add_nats(data_start, num_data_blocks)
   }
 
   // we initialize the superblock this way to get named arguments
-  const super := Super.zero.(inode_blocks:=10, data_bitmaps:=3)
+  const super := Super.zero.(inode_blocks:=10, data_bitmaps:=6)
   lemma super_valid()
     ensures super.Valid()
   {}
@@ -45,7 +51,7 @@ module FsKinds {
 
   // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
-    ensures super.disk_size < 100_000
+    ensures super.disk_size < 200_000
   {}
 
   function method InodeBlk(ino: Ino): (bn':Blkno)
