@@ -66,9 +66,16 @@ module IndBlocks
     ensures to_blknos(block0) == IndBlknos.zero
   {
     assert seq_encode(C.seq_fmap(encUInt64, C.repeat(0 as uint64, 512))) == block0 by {
-      assert C.seq_fmap(encUInt64, C.repeat(0 as uint64, 512)) == C.repeat(EncUInt64(0), 512);
-      // TODO: prove this
-      assume false;
+      var es := C.repeat(EncUInt64(0), 512);
+      assert C.seq_fmap(encUInt64, C.repeat(0 as uint64, 512)) == es;
+      assert seq_encode(es) == C.concat(C.repeat(enc_encode(EncUInt64(0)), 512)) by {
+        seq_encode_concat(es);
+        assert C.seq_fmap(enc_encode, es) == C.repeat(enc_encode(EncUInt64(0)), 512);
+      }
+      assert enc_encode(EncUInt64(0)) == C.repeat(0 as byte, 8) by {
+        IntEncoding.lemma_enc_0();
+      }
+      C.concat_repeat(0 as byte, 8, 512);
     }
     assert decode_uint64_seq(block0) == C.repeat(0 as uint64, 512) by {
       decode_encode_uint64_seq_id(C.repeat(0 as uint64, 512));
