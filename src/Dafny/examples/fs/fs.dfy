@@ -39,7 +39,7 @@ module Fs {
     forall ino: Ino :: ino_ok(ino) <==> ino in m
   }
 
-  class Filesys<AllocState>
+  class Filesys<AllocState(!new), InodeAllocState(!new)>
   {
 
     // inodes, block_used, and data_block are basically just the data in the
@@ -52,9 +52,12 @@ module Fs {
     ghost var block_used: map<Blkno, Option<AllocState>>;
     // on-disk value for all the data blocks
     ghost var data_block: map<Blkno, Block>;
+    // inode allocator state
+    ghost var inode_owner: map<Ino, Option<InodeAllocState>>;
 
     const jrnl: Jrnl;
     const balloc: MaxAllocator;
+    const ialloc: MaxAllocator;
 
     static predicate Valid_basics(jrnl: Jrnl)
       reads jrnl
@@ -69,6 +72,7 @@ module Fs {
       && blkno_dom(block_used)
       && blkno_dom(data_block)
       && ino_dom(inodes)
+      && ino_dom(inode_owner)
     }
 
     predicate {:opaque} Valid_jrnl_to_block_used(block_used: map<Blkno, Option<AllocState>>)
@@ -79,6 +83,16 @@ module Fs {
       blkno_bit_inbounds(jrnl);
       && (forall bn | blkno_ok(bn) ::
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
+    }
+
+    predicate {:opaque} Valid_jrnl_to_inode_owner(inode_owner: map<Ino, Option<InodeAllocState>>)
+      reads jrnl
+      requires ino_dom(inode_owner)
+      requires Valid_basics(jrnl)
+    {
+      inode_bit_inbounds(jrnl);
+      && (forall ino:Ino | ino_ok(ino) ::
+        && jrnl.data[InodeBitAddr(ino)] == ObjBit(inode_owner[ino].Some?))
     }
 
     predicate {:opaque} Valid_jrnl_to_data_block(data_block: map<Blkno, Block>)
@@ -117,13 +131,16 @@ module Fs {
       && cur_inode.x.0 == ino
     }
 
-    static const ballocMax: uint64 := super.data_bitmaps as uint64 * 4096*8 - 8
+    static const ballocMax: uint64 := super.data_bitmaps as uint64 * (4096*8) - 8
+    static const iallocMax: uint64 := super.num_inodes as uint64 - 8
 
     predicate Valid_balloc()
       reads this
     {
       && this.balloc.max == ballocMax
       && this.balloc.Valid()
+      && this.ialloc.max == iallocMax
+      && this.ialloc.Valid()
     }
 
     predicate Valid_jrnl_to_all()
@@ -132,14 +149,12 @@ module Fs {
       && Valid_basics(jrnl)
       && Valid_domains()
       && Valid_jrnl_to_block_used(block_used)
+      && Valid_jrnl_to_inode_owner(inode_owner)
       && Valid_jrnl_to_data_block(data_block)
       && Valid_jrnl_to_inodes(inodes)
     }
 
-    function Repr(): set<object>
-    {
-      {this, jrnl} + balloc.Repr()
-    }
+    const Repr: set<object> := {this, jrnl} + balloc.Repr + ialloc.Repr
 
     static predicate Valid_data_block(data_block: map<Blkno, Block>)
     {
@@ -147,7 +162,7 @@ module Fs {
     }
 
     predicate Valid()
-      reads Repr()
+      reads Repr
     {
       && Valid_data_block(data_block)
       && Valid_jrnl_to_all()
@@ -156,7 +171,7 @@ module Fs {
     }
 
     predicate ValidQ()
-      reads Repr()
+      reads Repr
     {
       && Valid()
       && quiescent()
@@ -165,6 +180,7 @@ module Fs {
     constructor Init(d: Disk)
       ensures ValidQ()
       ensures block_used == map bn: Blkno | blkno_ok(bn) :: None
+      ensures inode_owner == map ino: Ino | ino_ok(ino) :: None
       ensures cur_inode == None
       ensures inodes == map ino: Ino | ino_ok(ino) :: Inode.zero
       ensures data_block == map bn: Blkno | blkno_ok(bn) :: block0
@@ -173,11 +189,14 @@ module Fs {
       this.jrnl := jrnl;
       var balloc := new MaxAllocator(ballocMax);
       this.balloc := balloc;
+      var ialloc := new MaxAllocator(iallocMax);
+      this.ialloc := ialloc;
 
       this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
       this.cur_inode := None;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
+      this.inode_owner := map ino: Ino | ino_ok(ino) :: None;
       this.data_block := map bn: uint64 | blkno_ok(bn) :: block0;
       new;
       reveal jrnl.Valid();
@@ -185,6 +204,7 @@ module Fs {
 
       reveal Valid_jrnl_to_block_used();
       reveal Valid_jrnl_to_data_block();
+      reveal Valid_jrnl_to_inode_owner();
       reveal Valid_jrnl_to_inodes();
       reveal DataBlk();
       reveal InodeAddr();
@@ -202,15 +222,17 @@ module Fs {
       ensures this.jrnl == jrnl_
     {
       var balloc := new MaxAllocator(ballocMax);
+      var ialloc := new MaxAllocator(iallocMax);
 
       var txn := jrnl_.Begin();
       blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
       while bn < ballocMax
-        modifies balloc.Repr()
+        modifies balloc.Repr
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
+        invariant ialloc.Valid()
         invariant 1 <= bn as nat <= ballocMax as nat
       {
         var used := txn.ReadBit(DataBitAddr(bn));
@@ -220,8 +242,26 @@ module Fs {
         bn := bn + 1;
       }
 
+      var ino: Ino := 1;
+      while ino < iallocMax
+        modifies ialloc.Repr
+        invariant txn.jrnl == jrnl_
+        invariant Valid_basics(jrnl_)
+        invariant balloc.Valid()
+        invariant ialloc.Valid()
+        invariant 1 <= ino as nat <= iallocMax as nat
+      {
+        inode_bit_inbounds(jrnl_);
+        var used := txn.ReadBit(InodeBitAddr(ino));
+        if used {
+          ialloc.MarkUsed(ino);
+        }
+        ino := ino + 1;
+      }
+
       this.jrnl := jrnl_;
       this.balloc := balloc;
+      this.ialloc := ialloc;
     }
 
     static predicate is_alloc_bn(bn: Blkno)
@@ -232,7 +272,7 @@ module Fs {
 
     // private
     method allocBlkno(txn: Txn) returns (ok:bool, bn:Blkno)
-      modifies balloc.Repr()
+      modifies balloc.Repr
       requires txn.jrnl == this.jrnl
       requires Valid() ensures Valid()
       ensures ok ==>
@@ -249,7 +289,35 @@ module Fs {
         return;
       }
       ok := true;
-      reveal_Valid_jrnl_to_block_used();
+      reveal Valid_jrnl_to_block_used();
+    }
+
+    static predicate is_alloc_ino(ino: Ino)
+    {
+      && 0 < ino < iallocMax
+      && ino_ok(ino)
+    }
+
+    // private
+    method allocInode(txn: Txn) returns (ok:bool, ino:Ino)
+      modifies ialloc.Repr
+      requires txn.jrnl == this.jrnl
+      requires Valid() ensures Valid()
+      ensures ok ==>
+        (&& is_alloc_ino(ino)
+         && inode_owner[ino].None?
+        )
+    {
+      ino := ialloc.Alloc();
+      inode_bit_inbounds(jrnl);
+      var used := txn.ReadBit(InodeBitAddr(ino));
+      if used {
+        ok := false;
+        ialloc.Free(ino);
+        return;
+      }
+      ok := true;
+      reveal Valid_jrnl_to_inode_owner();
     }
 
     // public
@@ -268,7 +336,7 @@ module Fs {
       }
       datablk_inbounds(jrnl, bn);
       bs := txn.Read(DataBlk(bn), 4096*8);
-      reveal_Valid_jrnl_to_data_block();
+      reveal Valid_jrnl_to_data_block();
     }
 
     // public
@@ -283,15 +351,17 @@ module Fs {
       && cur_inode == old(cur_inode)
       && block_used == old(block_used)
       && data_block == old(data_block)[bn := blk.data]
+      ensures inode_owner == old(inode_owner)
     {
       datablk_inbounds(jrnl, bn);
       txn.Write(DataBlk(bn), blk);
       data_block := data_block[bn := blk.data];
 
       assert Valid_jrnl_to_all() by {
-        reveal_Valid_jrnl_to_block_used();
-        reveal_Valid_jrnl_to_data_block();
-        reveal_Valid_jrnl_to_inodes();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inode_owner();
+        reveal Valid_jrnl_to_inodes();
         FsKinds.DataBlk_disjoint(bn);
         reveal_DataBlk();
       }
@@ -326,6 +396,7 @@ module Fs {
       ensures inodes == old(inodes)
       ensures block_used == old(block_used)
       ensures data_block == old(data_block)
+      ensures inode_owner == old(inode_owner)
     {
       cur_inode := Some( (ino, i) );
       reveal_Valid_jrnl_to_inodes();
@@ -342,6 +413,7 @@ module Fs {
       ensures inodes == old(inodes)
       ensures data_block == old(data_block)
       ensures block_used == old(block_used)
+      ensures inode_owner == old(inode_owner)
     {
       cur_inode := None;
       inode_inbounds(jrnl, ino);
@@ -363,8 +435,9 @@ module Fs {
         // }
       }
       assert Valid() by {
-        reveal_Valid_jrnl_to_data_block();
-        reveal_Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_inode_owner();
       }
     }
 
@@ -381,6 +454,7 @@ module Fs {
       ensures inodes == old(inodes)
       ensures data_block == old(data_block)
       ensures block_used == old(block_used)
+      ensures inode_owner == old(inode_owner)
     {
       cur_inode := None;
       assert Valid_jrnl_to_inodes(inodes) by {
@@ -389,6 +463,7 @@ module Fs {
       assert Valid() by {
         reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_inode_owner();
       }
     }
 
@@ -415,6 +490,7 @@ module Fs {
       ensures is_cur_inode(ino, i')
       ensures inodes == old(inodes)[ino:=i']
       ensures block_used == old(block_used)
+      ensures inode_owner == old(inode_owner)
       ensures data_block == old(data_block)
       ensures cur_inode == old(cur_inode)
     {
@@ -430,12 +506,13 @@ module Fs {
     // public
     method allocateTo(txn: Txn, ghost state: AllocState)
       returns (ok: bool, bn:Blkno)
-      modifies Repr()
+      modifies Repr
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       ensures inodes == old(inodes)
       ensures cur_inode == old(cur_inode)
       ensures data_block == old(data_block)
+      ensures inode_owner == old(inode_owner)
       ensures !ok ==> block_used == old(block_used)
       ensures ok ==> block_used == old(block_used[bn:=Some(state)])
       ensures ok ==> is_alloc_bn(bn)
@@ -451,23 +528,58 @@ module Fs {
       txn.WriteBit(DataBitAddr(bn), true);
 
       assert Valid_jrnl_to_all() by {
-        reveal_Valid_jrnl_to_block_used();
-        reveal_Valid_jrnl_to_data_block();
-        reveal_Valid_jrnl_to_inodes();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inode_owner();
+        reveal Valid_jrnl_to_inodes();
         DataBitAddr_disjoint(bn);
       }
 
       return;
     }
 
+    method allocateInode(txn: Txn, ghost state: InodeAllocState)
+      returns (ok: bool, ino:Ino)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      ensures inodes == old(inodes)
+      ensures cur_inode == old(cur_inode)
+      ensures data_block == old(data_block)
+      ensures block_used == old(block_used)
+      ensures !ok ==> inode_owner == old(inode_owner)
+      ensures ok ==> inode_owner == old(inode_owner[ino:=Some(state)])
+      ensures ok ==> is_alloc_ino(ino)
+      ensures ok ==> old(inode_owner[ino].None?)
+    {
+      ok, ino := allocInode(txn);
+      if !ok {
+        return;
+      }
+
+      inode_bit_inbounds(jrnl);
+      inode_owner := inode_owner[ino:=Some(state)];
+      txn.WriteBit(InodeBitAddr(ino), true);
+
+      assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inode_owner();
+        reveal Valid_jrnl_to_inodes();
+      }
+
+      return;
+    }
+
     method free(txn: Txn, bn: Blkno)
-      modifies Repr()
+      modifies Repr
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires blkno_ok(bn)
       requires block_used[bn].Some?
       ensures inodes == old(inodes)
       ensures block_used == old(block_used[bn:=None])
+      ensures inode_owner == old(inode_owner)
       ensures cur_inode == old(cur_inode)
       ensures data_block == old(data_block)
     {
@@ -476,10 +588,35 @@ module Fs {
       txn.WriteBit(DataBitAddr(bn), false);
 
       assert Valid_jrnl_to_all() by {
-        reveal_Valid_jrnl_to_block_used();
-        reveal_Valid_jrnl_to_data_block();
-        reveal_Valid_jrnl_to_inodes();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inode_owner();
+        reveal Valid_jrnl_to_inodes();
         DataBitAddr_disjoint(bn);
+      }
+    }
+
+    method freeInode(txn: Txn, ino: Ino)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires txn.jrnl == jrnl
+      requires ino_ok(ino)
+      requires inode_owner[ino].Some?
+      ensures inodes == old(inodes)
+      ensures block_used == old(block_used)
+      ensures inode_owner == old(inode_owner[ino:=None])
+      ensures cur_inode == old(cur_inode)
+      ensures data_block == old(data_block)
+    {
+      inode_bit_inbounds(jrnl);
+      inode_owner := inode_owner[ino:=None];
+      txn.WriteBit(InodeBitAddr(ino), false);
+
+      assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inode_owner();
+        reveal Valid_jrnl_to_inodes();
       }
     }
 

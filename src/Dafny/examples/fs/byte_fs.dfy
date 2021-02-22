@@ -29,23 +29,19 @@ module ByteFs {
     raw_inode_data(d)[..sz]
   }
 
-  class ByteFilesys
+  class ByteFilesys<InodeAllocState(!new)>
   {
-    const fs: IndFilesys;
-
-    function Repr(): set<object>
-    {
-      fs.Repr()
-    }
+    const fs: IndFilesys<InodeAllocState>;
+    const Repr: set<object> := fs.Repr
 
     predicate Valid()
-      reads this.Repr()
+      reads this.Repr
     {
       && fs.ValidQ()
     }
 
     function data(): map<Ino, seq<byte>>
-      reads Repr()
+      reads Repr
       requires fs.Valid()
     {
       map ino:Ino | ino_ok(ino) ::
@@ -54,7 +50,7 @@ module ByteFs {
     }
 
     function raw_data(ino: Ino): seq<byte>
-      reads Repr()
+      reads Repr
       requires ino_ok(ino)
       requires fs.Valid()
     {
@@ -238,12 +234,12 @@ module ByteFs {
       sz := size_txn(txn, ino);
       // TODO: this is read-only, no need to commit the transaction
       var _ := txn.Commit();
-  }
+    }
 
     // private
     method alignedRawWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
       returns (ok: bool, i': Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires is_block(bs.data)
@@ -260,7 +256,8 @@ module ByteFs {
     {
       i' := i;
       var blkoff: nat := off as nat / 4096;
-      ok, i' := BlockFs.Write(fs, txn, ino, i, blkoff as nat, bs);
+      var wh := new BlockFs.WriteHelper(fs);
+      ok, i' := wh.Do(txn, ino, i, blkoff as nat, bs);
       if !ok {
         return;
       }
@@ -283,7 +280,7 @@ module ByteFs {
     // private
     method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
       returns (ok: bool, i': Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires is_block(bs.data)
@@ -322,7 +319,7 @@ module ByteFs {
     // grow an inode with junk so that it can be filled with in-bounds writes
     method growBy(ghost ino: Ino, i: Inode.Inode, delta: uint64)
       returns (i': Inode.Inode, ghost junk: seq<byte>)
-      modifies Repr()
+      modifies Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires i.sz as nat + delta as nat <= Inode.MAX_SZ
       ensures |junk| == delta as nat
@@ -342,7 +339,7 @@ module ByteFs {
 
     method shrinkTo(ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires sz' <= i.sz
       ensures sz' as nat <= old(|data()[ino]|)
@@ -383,7 +380,7 @@ module ByteFs {
     // private
     method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
@@ -431,7 +428,7 @@ module ByteFs {
     // private
     method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
-      modifies Repr(), bs
+      modifies Repr, bs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires bs.Valid()
@@ -491,7 +488,7 @@ module ByteFs {
 
     method alignedAppend(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
-      modifies Repr(), bs
+      modifies Repr, bs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires bs.Valid()
@@ -513,7 +510,7 @@ module ByteFs {
     // this variant can be used in a larger transaction
     method {:timeLimitMultiplier 2} append_txn(txn: Txn, ino: Ino, bs: Bytes)
       returns (ok:bool)
-      modifies Repr(), bs
+      modifies Repr, bs
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
       requires ino_ok(ino)
@@ -582,7 +579,7 @@ module ByteFs {
 
     // public
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
-      modifies Repr(), bs
+      modifies Repr, bs
       requires Valid() ensures Valid()
       requires ino_ok(ino)
       requires bs.Valid()

@@ -46,7 +46,7 @@ module BlockFs
   }
 
   // public
-  method New(d: Disk) returns (fs: IndFilesys)
+  method New<InodeAllocState(!new)>(d: Disk) returns (fs: IndFilesys<InodeAllocState>)
     ensures fs.ValidQ()
     ensures block_data(fs.data) == map ino: Ino | ino_ok(ino) :: InodeData.zero
     ensures fs.metadata == map ino: Ino | ino_ok(ino) :: 0
@@ -58,7 +58,7 @@ module BlockFs
   }
 
   // public
-  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: nat)
+  method Read<InodeAllocState(!new)>(fs: IndFilesys<InodeAllocState>, txn: Txn, ino: Ino, i: Inode.Inode, n: nat)
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
@@ -115,15 +115,26 @@ module BlockFs
     reveal inode_blocks();
   }
 
+  // workaround for https://github.com/dafny-lang/dafny/issues/1130
+  class WriteHelper<T(!new)>
+  {
+  const fs: IndFilesys<T>
+  constructor(fs: IndFilesys<T>)
+    ensures this.fs == fs
+  {
+    this.fs := fs;
+  }
+
   // public
-  method Write(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: nat, blk: Bytes)
+  method Do(txn: Txn, ino: Ino, i: Inode.Inode, n: nat, blk: Bytes)
     returns (ok: bool, i': Inode.Inode)
-    modifies fs.Repr()
+    modifies fs.Repr
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
     requires fs.has_jrnl(txn)
     requires is_lba(n)
     requires is_block(blk.data)
     ensures fs.metadata == old(fs.metadata)
+    ensures fs.inode_owner() == old(fs.inode_owner())
     ensures ok ==> block_data(fs.data) == old(
         var data := block_data(fs.data);
         var d0 := data[ino];
@@ -151,5 +162,6 @@ module BlockFs
     {
       block_data_update_other(old(fs.data), ino0, ino, n, blk.data);
     }
+  }
   }
 }

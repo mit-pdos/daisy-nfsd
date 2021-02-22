@@ -29,10 +29,10 @@ module IndFs
     ensures 4096*config.total == Inode.MAX_SZ
   {}
 
-  class IndFilesys
+  class IndFilesys<InodeAllocState(!new)>
   {
     // filesys contains a mapping from allocated Blkno's to poss
-    const fs: Filesys<Pos>
+    const fs: Filesys<Pos, InodeAllocState>
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Pos, Blkno>
@@ -45,8 +45,17 @@ module IndFs
     // bubbles up inode sizes
     ghost var metadata: map<Ino, nat>
 
+    function inode_owner(): (m:map<Ino, Option<InodeAllocState>>)
+      requires fsValid()
+      reads fs.Repr
+      ensures ino_dom(m)
+    {
+      reveal fsValid();
+      fs.inode_owner
+    }
+
     function blkno_pos(bn: Blkno): Option<Pos>
-      reads fs.Repr()
+      reads fs.Repr
       requires blkno_ok(bn)
       requires fsValid()
     {
@@ -60,10 +69,7 @@ module IndFs
       txn.jrnl == fs.jrnl
     }
 
-    function Repr(): set<object>
-    {
-      {this} + fs.Repr()
-    }
+    const Repr: set<object> := {this} + fs.Repr
 
     predicate ValidBlknos()
       reads this
@@ -73,13 +79,13 @@ module IndFs
     }
 
     predicate {:opaque} fsValid()
-      reads fs.Repr()
+      reads fs.Repr
     {
       fs.Valid()
     }
 
     predicate ValidBasics()
-      reads Repr()
+      reads Repr
     {
       reveal fsValid();
       && fsValid()
@@ -90,7 +96,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidPos()
-      reads Repr()
+      reads Repr
       requires ValidBasics()
     {
       reveal fsValid();
@@ -111,7 +117,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidMetadata()
-      reads Repr()
+      reads Repr
       requires ValidBasics()
     {
       forall ino: Ino | ino_ok(ino) ::
@@ -132,7 +138,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidInodes()
-      reads Repr()
+      reads Repr
       requires ValidBasics()
     {
       forall ino:Ino | ino_ok(ino) ::
@@ -140,7 +146,7 @@ module IndFs
     }
 
     predicate valid_parent(pos: Pos)
-      reads Repr()
+      reads Repr
       requires pos.ilevel > 0
       requires ValidBasics()
     {
@@ -152,14 +158,14 @@ module IndFs
     }
 
     predicate {:opaque} ValidIndirect()
-      reads Repr()
+      reads Repr
       requires ValidBasics()
     {
       forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
     }
 
     predicate {:opaque} ValidData()
-      reads Repr()
+      reads Repr
       requires ValidBasics()
     {
       forall pos:Pos | pos.data? ::
@@ -167,7 +173,7 @@ module IndFs
     }
 
     predicate Valid()
-      reads this.Repr()
+      reads this.Repr
     {
       && ValidBasics()
       && ValidBlknos()
@@ -179,14 +185,14 @@ module IndFs
     }
 
     predicate ValidIno(ino: Ino, i: Inode.Inode)
-      reads this.Repr()
+      reads this.Repr
     {
       && Valid()
       && fs.is_cur_inode(ino, i)
     }
 
     predicate ValidQ()
-      reads Repr()
+      reads Repr
     {
       && Valid()
       && fs.quiescent()
@@ -256,11 +262,12 @@ module IndFs
       reveal ValidPos();
     }
 
-    twostate lemma ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
+    twostate lemma {:timeLimitMultiplier 2} ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
       requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
       requires fs.inodes == old(fs.inodes[pos.ino:=i'])
+      requires fs.inode_owner == old(fs.inode_owner)
       requires blkno_ok(bn)
       requires i' == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
       requires old(ValidInodes())
@@ -275,6 +282,7 @@ module IndFs
     {
       && data == old(data)
       && metadata == old(metadata)
+      && fs.inode_owner == old(fs.inode_owner)
     }
 
     twostate lemma Valid_unchanged()
@@ -284,7 +292,8 @@ module IndFs
           && fs.data_block == old(fs.data_block)
           && fs.inodes == old(fs.inodes)
           && fs.block_used == old(fs.block_used)
-          && state_unchanged()
+          && data == old(data)
+          && metadata == old(metadata)
           && to_blkno == old(to_blkno)
       ensures Valid()
     {
@@ -298,7 +307,7 @@ module IndFs
     // private
     method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
       returns (ok: bool, i': Inode.Inode, bn: Blkno)
-      modifies Repr()
+      modifies Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
@@ -339,7 +348,7 @@ module IndFs
 
     method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
-      modifies Repr(), pblock
+      modifies Repr, pblock
       requires has_jrnl(txn)
       requires Valid() ensures Valid()
       requires pos.ilevel > 0 &&  to_blkno[pos] == 0
@@ -412,7 +421,7 @@ module IndFs
     // private
     method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
       decreases pos.ilevel
-      modifies Repr()
+      modifies Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
       ensures ok ==> bn != 0 && bn == to_blkno[pos]
@@ -492,7 +501,7 @@ module IndFs
 
     method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
       returns (ok: bool, i':Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
       requires pos.data?
@@ -501,6 +510,7 @@ module IndFs
       ensures ok ==> data == old(data[pos := blk.data])
       ensures !ok ==> data == old(data)
       ensures metadata == old(metadata)
+      ensures fs.inode_owner == old(fs.inode_owner)
     {
       i' := i;
       var idx := pos.idx;
@@ -541,6 +551,7 @@ module IndFs
       requires ValidQ()
       ensures ValidIno(ino, i)
       ensures fs.cur_inode == Some((ino, i))
+      ensures state_unchanged()
     {
       i := fs.getInode(txn, ino);
       fs.startInode(ino, i);
@@ -550,12 +561,13 @@ module IndFs
     // public
     method writeInodeSz(ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires ValidIno(ino, i)
       requires sz' <= Inode.MAX_SZ_u64
       ensures ValidIno(ino, i')
       ensures data == old(data)
       ensures metadata == old(metadata[ino := sz' as nat])
+      ensures fs.inode_owner == old(fs.inode_owner)
     {
       reveal fsValid();
       i' := i.(sz := sz');
@@ -569,8 +581,9 @@ module IndFs
       assert ValidData() by { reveal ValidData(); }
     }
 
+    // public
     method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
-      modifies Repr()
+      modifies Repr
       requires ValidIno(ino, i)
       requires has_jrnl(txn)
       ensures ValidQ()
@@ -580,6 +593,7 @@ module IndFs
       Valid_unchanged();
     }
 
+    // public
     ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
       modifies fs
       requires ValidIno(ino, i)
@@ -588,6 +602,22 @@ module IndFs
       ensures state_unchanged()
     {
       fs.finishInodeReadonly(ino, i);
+      Valid_unchanged();
+    }
+
+    method allocInode(txn: Txn, ghost state: InodeAllocState) returns (ok: bool, ino: Ino)
+      modifies fs.Repr
+      requires Valid() ensures Valid()
+      requires has_jrnl(txn)
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+      ensures fs.cur_inode == old(fs.cur_inode)
+      ensures ok ==> ino_ok(ino)
+      ensures ok ==> inode_owner() == old(inode_owner()[ino:=Some(state)])
+      ensures ok ==> old(inode_owner()[ino].None?)
+      ensures !ok ==> inode_owner() == old(inode_owner())
+    {
+      ok, ino := fs.allocateInode(txn, state);
       Valid_unchanged();
     }
 

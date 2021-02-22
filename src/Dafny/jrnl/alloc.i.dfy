@@ -16,16 +16,14 @@ module Alloc
       && max%8 == 0
     }
 
-    function Repr(): set<object>
-    {
-      {alloc}
-    }
+    // this class has no state of its own so `this` isn't part of Repr
+    const Repr: set<object> := {alloc}
 
     constructor(max: uint64)
       requires 0 < max
       requires max % 8 == 0
       ensures Valid()
-      ensures fresh(Repr())
+      ensures fresh(Repr)
       ensures this.max == max
     {
       var alloc := J.NewAllocator(max);
@@ -37,7 +35,7 @@ module Alloc
     }
 
     method Alloc() returns (x:uint64)
-      modifies Repr()
+      modifies Repr
       requires Valid() ensures Valid()
       ensures 0 < x < max
     {
@@ -49,14 +47,14 @@ module Alloc
     }
 
     method MarkUsed(x: uint64)
-      modifies Repr()
+      modifies Repr
       requires Valid() ensures Valid()
     {
       this.alloc.MarkUsed(x);
     }
 
     method Free(x: uint64)
-      modifies Repr()
+      modifies Repr
       requires Valid() ensures Valid()
     {
       if 0 < x < max {

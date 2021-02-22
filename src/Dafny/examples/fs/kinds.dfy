@@ -143,9 +143,10 @@ module FsKinds {
   {
     Addr(DataAllocBlk(bn), bn % (4096*8))
   }
-  function method InodeBitAddr(ino: Ino): Addr
+  function method InodeBitAddr(ino: Ino): (a:Addr)
     requires ino_ok(ino)
   {
+    reveal addrsForKinds();
     Addr(InodeAllocBlk(ino), ino % (4096*8))
   }
   function method {:opaque} DataBlk(bn: Blkno): (a:Addr)
@@ -231,6 +232,21 @@ module FsKinds {
       ensures DataBitAddr(bn) in jrnl.data
     {
       ghost var addr := DataBitAddr(bn);
+      jrnl.in_domain(addr);
+      jrnl.has_size(addr);
+    }
+  }
+
+  lemma inode_bit_inbounds(jrnl: Jrnl)
+    requires jrnl.Valid()
+    requires jrnl.kinds == fs_kinds
+    ensures forall ino :: ino_ok(ino) ==> InodeBitAddr(ino) in jrnl.data && jrnl.size(InodeBitAddr(ino)) == 1
+  {
+    reveal addrsForKinds();
+    forall ino | ino_ok(ino)
+      ensures InodeBitAddr(ino) in jrnl.data
+    {
+      ghost var addr := InodeBitAddr(ino);
       jrnl.in_domain(addr);
       jrnl.has_size(addr);
     }
