@@ -21,7 +21,9 @@ func u64_slice_to_seq(xs []uint64) _dafny.Seq {
 
 func MkInode(sz uint64, blks []uint64) inode.PreInode {
 	blk_seq := u64_slice_to_seq(blks)
-	return inode.Companion_PreInode_.Create_Mk_(sz, blk_seq)
+	ty := inode.Companion_InodeType_.Create_FileType_()
+	meta := inode.Companion_Meta_.Create_Meta_(sz, ty)
+	return inode.Companion_PreInode_.Create_Mk_(meta, blk_seq)
 }
 
 func EncodeIno(i inode.PreInode) *bytes.Bytes {
@@ -35,8 +37,10 @@ func DecodeIno(bs *bytes.Bytes) inode.PreInode {
 func decodeIno(bs []byte) (sz uint64, blks []uint64) {
 	dec := marshal.NewDec(bs)
 	sz = dec.GetInt()
-	blks = make([]uint64, 15)
-	for i := 0; i < 15; i++ {
+	// type
+	_ = dec.GetInt()
+	blks = make([]uint64, 14)
+	for i := 0; i < 14; i++ {
 		blks[i] = dec.GetInt()
 	}
 	return
@@ -47,7 +51,7 @@ func ManualDecodeIno(bs *bytes.Bytes) inode.PreInode {
 	return MkInode(sz, blks)
 }
 
-var i inode.PreInode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+var i inode.PreInode = MkInode(5000, []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14})
 
 func BenchmarkInodeDecode(b *testing.B) {
 	bs := EncodeIno(i)
@@ -69,7 +73,7 @@ func TestDecodeIno(t *testing.T) {
 	bs := EncodeIno(i).Data
 	sz, blks := decodeIno(bs)
 	assert.Equal(t, uint64(5000), sz, "size incorrect")
-	assert.Equal(t, 15, len(blks), "len(blks) incorrect")
+	assert.Equal(t, 14, len(blks), "len(blks) incorrect")
 	assert.Equal(t, uint64(3), blks[2], "blks values incorrect")
 }
 
@@ -78,7 +82,7 @@ func Benchmark_DecodeIno(b *testing.B) {
 	b.ResetTimer()
 	for k := 0; k < b.N; k++ {
 		sz, blks := decodeIno(bs)
-		if sz != 5000 || len(blks) != 15 {
+		if sz != 5000 || len(blks) != 14 {
 			b.FailNow()
 		}
 	}
