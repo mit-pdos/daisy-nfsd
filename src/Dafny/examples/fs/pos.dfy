@@ -8,7 +8,7 @@ include "kinds.dfy"
 // Every type defined here is a subset type that builds-in some Validity
 // predicate which restricts all the indices to be in-bounds. To make this work
 // we have to declare the structure of an inode as a global constant config:
-// Config, which specifies the indirection level for the 15 blocks that are
+// Config, which specifies the indirection level for the 14 blocks that are
 // stored directly in an inode.
 
 module IndirectPos
@@ -126,26 +126,26 @@ module IndirectPos
 
   }
 
-  const config: Config := Config([0,0,0,0,0,0,0,0,0,0,1,1,1,1,3])
+  const config: Config := Config([0,0,0,0,0,0,0,0,0,0,1,1,1,3])
 
   lemma config_properties()
-    ensures |config.ilevels| == 15
-    ensures config.total == 10 + 4*512 + 512*512*512
+    ensures |config.ilevels| == 14
+    ensures config.total == 10 + 3*512 + 512*512*512
     // these inodes can hold at least 10GB
-    ensures config.total * 4 / 1024 /* MB */ > 10_000
+    ensures config.total * 3 / 1024 /* MB */ > 10_000
   {}
 
   lemma config_totals()
-    ensures config.totals == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4*512 + 512*512*512]
+    ensures config.totals == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512, 10+3*512 + 512*512*512]
   {
-    var totals := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512,10+4*512, 10+4*512 + 512*512*512];
-    forall i | 0 <= i <= 15
+    var totals := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512, 10+3*512 + 512*512*512];
+    forall i | 0 <= i <= 14
       ensures config.totals[i] == Config.sum(config.ilevels[..i])
     {
     }
     // TODO: this somehow helps? this proof is probably unstable
     assert config.ilevels[10..12] == [1,1];
-    forall i | 0 <= i <= 15
+    forall i | 0 <= i <= 14
       ensures Config.sum(config.ilevels[..i]) == totals[i]
     {
       if i <= 10 {
@@ -159,10 +159,8 @@ module IndirectPos
         assert config.sum(config.ilevels[10..12]) == Config.sum([1,1]) == 2*512;
         assert config.ilevels[10..13] == [1,1,1];
         assert config.sum(config.ilevels[10..13]) == Config.sum([1,1,1]) == 3*512;
-        assert config.ilevels[10..14] == [1,1,1,1];
-        assert config.sum(config.ilevels[10..14]) == Config.sum([1,1,1,1]) == 4*512;
-        assert config.ilevels[10..15] == [1,1,1,1,3];
-        assert config.sum(config.ilevels[10..15]) == Config.sum([1,1,1,1,3]) == 4*512 + 512*512*512;
+        assert config.ilevels[10..14] == [1,1,1,3];
+        assert config.sum(config.ilevels[10..14]) == Config.sum([1,1,1,3]) == 3*512 + 512*512*512;
       }
     }
     assert config.totals[0] == totals[0];
@@ -206,13 +204,13 @@ module IndirectPos
         Idx(n, IndOff.direct)
       else (
         var n: nat := n-10;
-        if n < 4*512 then
+        if n < 3*512 then
           Idx(10+n/512, IndOff(1, n%512))
         else (
-          var n: nat := n-4*512;
+          var n: nat := n-3*512;
           // there's only one triply-indirect block so no complicated
           // calculations are needed here
-          Idx(14, IndOff(3, n))
+          Idx(13, IndOff(3, n))
         )
       )
     }
@@ -226,20 +224,17 @@ module IndirectPos
       assert n >= 10;
       var n0 := n;
       var n := n-10;
-      if n < 4*512 {
-        assert 10 <= from_flat(n0).k < 14;
+      if n < 3*512 {
+        assert 10 <= from_flat(n0).k < 13;
         if n < 512 {
           return;
         }
         if n < 2*512 {
           return;
         }
-        if n < 3*512 {
-          return;
-        }
         return;
       }
-      assert from_flat(n0).flat() == 10+4*512 + (n-4*512);
+      assert from_flat(n0).flat() == 10+3*512 + (n-3*512);
     }
 
     static lemma from_flat_inj(n1: nat, n2: nat)

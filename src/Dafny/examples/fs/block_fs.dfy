@@ -49,7 +49,7 @@ module BlockFs
   method New<InodeAllocState(!new)>(d: Disk) returns (fs: IndFilesys<InodeAllocState>)
     ensures fs.ValidQ()
     ensures block_data(fs.data) == map ino: Ino | ino_ok(ino) :: InodeData.zero
-    ensures fs.metadata == map ino: Ino | ino_ok(ino) :: 0
+    ensures fs.metadata == map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType)
   {
     fs := new IndFilesys.Init(d);
     reveal inode_blocks();

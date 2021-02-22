@@ -12,18 +12,44 @@ module Inode {
   import opened ByteSlice
   import opened Marshal
 
-  const MAX_SZ: nat := 4096 * (10 + 4*512 + 512*512*512);
+  const MAX_SZ: nat := 4096 * (10 + 3*512 + 512*512*512);
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
-  datatype preInode = Mk(sz: uint64, blks: seq<uint64>)
+  datatype InodeType = FileType | DirType
   {
+    function method to_u64(): uint64
+    {
+      match this {
+        case FileType => 0
+        case DirType => 1
+      }
+    }
+
+    static function method from_u64(x: uint64): InodeType
+    {
+      if x == 0 then FileType else DirType
+    }
+
+    lemma from_to_u64()
+      ensures from_u64(to_u64()) == this
+    {}
+  }
+
+  datatype Meta = Meta(sz: uint64, ty: InodeType)
+
+  datatype preInode = Mk(meta: Meta, blks: seq<uint64>)
+  {
+    const sz: uint64 := meta.sz
+    const ty: InodeType := meta.ty
 
     // how many blocks is the inode actually referencing with its size?
     const used_blocks: nat := div_roundup_alt(sz as nat, 4096)
 
+    static const preZero: preInode := Mk(Meta(0, FileType), C.repeat(0 as uint64, 14))
+
     predicate Valid()
     {
-      && ValidBlks(blks)
+      && |blks| == 14
       && sz as nat <= MAX_SZ
     }
 
@@ -34,16 +60,22 @@ module Inode {
       div_roundup64(sz, 4096)
     }
   }
-  type Inode = x:preInode | x.Valid() witness Mk(0, C.repeat(0 as uint64, 15))
+  type Inode = x:preInode | x.Valid() witness preInode.preZero
 
-  predicate ValidBlks(blks: seq<uint64>)
+  const zero: Inode := preInode.preZero
+
+  lemma zero_encoding()
+    ensures repeat(0 as byte, 128) == enc(zero)
   {
-    && |blks| == 15
+    assert inode_enc(zero) == [EncUInt64(0), EncUInt64(0)] + repeat(EncUInt64(0), 14);
+    IntEncoding.lemma_enc_0();
+    zero_encode_seq_uint64(15);
+    reveal_enc();
   }
 
   function inode_enc(i: Inode): seq<Encodable>
   {
-    [EncUInt64(i.sz)] + seq_fmap(encUInt64, i.blks)
+    [EncUInt64(i.sz), EncUInt64(i.meta.ty.to_u64())] + seq_fmap(encUInt64, i.blks)
   }
 
   lemma encode_len(i: Inode)
@@ -60,17 +92,6 @@ module Inode {
     seq_encode(inode_enc(i))
   }
 
-  const zero: Inode := Mk(0, repeat(0 as uint64, 15));
-
-  lemma zero_encoding()
-    ensures repeat(0 as byte, 128) == enc(zero)
-  {
-    assert inode_enc(zero) == [EncUInt64(0)] + repeat(EncUInt64(0), 15);
-    IntEncoding.lemma_enc_0();
-    zero_encode_seq_uint64(15);
-    reveal_enc();
-  }
-
   method encode_ino(i: Inode) returns (bs:Bytes)
     modifies {}
     ensures fresh(bs)
@@ -78,6 +99,7 @@ module Inode {
   {
     var e := new Encoder(128);
     e.PutInt(i.sz);
+    e.PutInt(i.meta.ty.to_u64());
     e.PutInts(i.blks);
     assert e.enc == inode_enc(i);
     reveal_enc();
@@ -93,7 +115,10 @@ module Inode {
     reveal_enc();
     var dec := new Decoder.Init(bs, inode_enc(i));
     var sz := dec.GetInt(i.sz);
-    var blks := dec.GetInts(15, i.blks);
-    return Mk(sz as uint64, blks);
+    var ty_u64 := dec.GetInt(i.meta.ty.to_u64());
+    i.meta.ty.from_to_u64();
+    var ty := InodeType.from_u64(ty_u64);
+    var blks := dec.GetInts(14, i.blks);
+    return Mk(Meta(sz as uint64, ty), blks);
   }
 }

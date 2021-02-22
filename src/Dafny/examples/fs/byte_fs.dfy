@@ -46,7 +46,30 @@ module ByteFs {
     {
       map ino:Ino | ino_ok(ino) ::
         (fs.metadata_bound(ino);
-        inode_data(fs.metadata[ino], block_data(fs.data)[ino]))
+        inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
+    }
+
+    function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
+      reads fs.Repr
+      requires fs.Valid()
+      ensures Fs.ino_dom(m)
+    {
+      map ino: Ino | ino_ok(ino) :: fs.metadata[ino].ty
+    }
+
+    twostate predicate types_unchanged()
+      reads fs.Repr
+      requires old(fs.Valid()) && fs.Valid()
+    {
+      inode_types() == old(inode_types())
+    }
+
+    twostate lemma inode_types_metadata_unchanged()
+      requires old(fs.Valid()) && fs.Valid()
+      requires fs.metadata == old(fs.metadata)
+      ensures types_unchanged()
+    {
+      reveal inode_types();
     }
 
     function raw_data(ino: Ino): seq<byte>
@@ -60,10 +83,12 @@ module ByteFs {
     constructor Init(d: Disk)
       ensures Valid()
       ensures data() == map ino: Ino | ino_ok(ino) :: []
+      ensures inode_types() == map ino: Ino | ino_ok(ino) :: Inode.FileType
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
       new;
+      reveal inode_types();
     }
 
     lemma raw_inode_index_one(d: InodeData, off: uint64)
@@ -253,6 +278,7 @@ module ByteFs {
       ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
       ensures fs.metadata == old(fs.metadata)
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
       ensures !ok ==> raw_data(ino) == old(raw_data(ino))
       ensures !ok ==> data() == old(data())
     {
@@ -260,6 +286,9 @@ module ByteFs {
       var blkoff: nat := off as nat / 4096;
       var wh := new BlockFs.WriteHelper(fs);
       ok, i' := wh.Do(txn, ino, i, blkoff as nat, bs);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
       if !ok {
         return;
       }
@@ -277,6 +306,7 @@ module ByteFs {
         assert C.concat(d.blks) == raw_data(ino);
         assert C.concat(d0.blks) == old(raw_data(ino));
       }
+      inode_types_metadata_unchanged();
     }
 
     // private
@@ -289,6 +319,7 @@ module ByteFs {
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data()[ino]|
       ensures bs.data == old(bs.data)
+      ensures fs.metadata == old(fs.metadata);
       ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==> data() == old(
       var d0 := data()[ino];
@@ -305,7 +336,7 @@ module ByteFs {
       ghost var d := block_data(fs.data)[ino];
       C.concat_homogeneous_len(d0.blks, 4096);
       ghost var blk: Block := bs.data;
-      ghost var sz := fs.metadata[ino];
+      ghost var sz := fs.metadata[ino].sz as nat;
       calc {
         inode_data(sz, d);
         raw_data(ino)[..sz];
@@ -328,16 +359,20 @@ module ByteFs {
       ensures |junk| == delta as nat
       ensures data() == old(data()[ino := data()[ino] + junk])
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
       var sz' := i.sz + delta;
-      i' := fs.writeInodeSz(ino, i, sz');
+      i' := fs.writeInodeMeta(ino, i, i.meta.(sz := sz'));
       fs.inode_metadata(ino, i');
       assert raw_data(ino) == old(raw_data(ino));
       junk := raw_data(ino)[sz..sz'];
       assert data()[ino] == old(data()[ino] + junk) by {
         reveal raw_inode_data();
+      }
+      assert types_unchanged() by {
+        reveal inode_types();
       }
     }
 
@@ -349,13 +384,17 @@ module ByteFs {
       ensures sz' as nat <= old(|data()[ino]|)
       ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
-      i' := fs.writeInodeSz(ino, i, sz');
+      i' := fs.writeInodeMeta(ino, i, i.meta.(sz:=sz'));
       fs.inode_metadata(ino, i');
       assert raw_data(ino) == old(raw_data(ino));
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
         reveal raw_inode_data();
+      }
+      assert types_unchanged() by {
+        reveal inode_types();
       }
     }
 
@@ -371,7 +410,7 @@ module ByteFs {
       var off' := off / 4096 * 4096;
       assert data1 == C.splice(data0, off', blk);
       forall i: nat | i < |data0|
-        ensures data1[i] == C.splice(data0, off, bs)[i]
+        ensures C.splice(data0, off', blk)[i] == C.splice(data0, off, bs)[i]
       {
         C.splice_get_i(data0, off, bs, i);
         C.splice_get_i(data0, off', blk, i);
@@ -390,6 +429,7 @@ module ByteFs {
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
       ensures ok ==>
         data() == old(
         var d := data()[ino];
@@ -399,6 +439,7 @@ module ByteFs {
       i' := i;
       if off % 4096 == 0 && bs.Len() == 4096 {
         ok, i' := this.alignedWrite(txn, ino, i', bs, off);
+        inode_types_metadata_unchanged();
         return;
       }
       ghost var data0 := data()[ino];
@@ -416,6 +457,7 @@ module ByteFs {
       blk.CopyTo(off_u64 % 4096, bs);
       ok, i' := this.alignedWrite(txn, ino, i', blk, aligned_off);
       if !ok {
+        inode_types_metadata_unchanged();
         return;
       }
       ghost var data1 := data()[ino];
@@ -429,6 +471,7 @@ module ByteFs {
         //assert (off_u64 % 4096) as nat == off % 4096;
         data_update_in_place(data0, data1, off, bs.data, blk.data);
       }
+      inode_types_metadata_unchanged();
     }
 
     // private
@@ -447,6 +490,7 @@ module ByteFs {
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
     {
       i' := i;
       fs.inode_metadata(ino, i');
@@ -490,7 +534,6 @@ module ByteFs {
         data0 + bs.data;
       }
       assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
-
     }
 
     method alignedAppend(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
@@ -505,6 +548,7 @@ module ByteFs {
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures !ok ==> data == old(data)
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
     {
       ghost var written;
       var bs';
@@ -513,62 +557,45 @@ module ByteFs {
       assert old(bs.data[..written]) == old(bs.data);
     }
 
-    // public
-    //
-    // this variant can be used in a larger transaction
-    method {:timeLimitMultiplier 2} append_txn(txn: Txn, ino: Ino, bs: Bytes)
-      returns (ok:bool)
+    method {:timeLimitMultiplier 2} appendIno(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (ok:bool, i': Inode.Inode)
       modifies Repr, bs
       requires fs.has_jrnl(txn)
-      requires Valid() ensures Valid()
-      requires ino_ok(ino)
-      requires bs.Valid()
-      requires bs.Len() <= 4096
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires bs.Valid() && 0 < bs.Len() <= 4096
+      requires |data()[ino]| + |bs.data| <= Inode.MAX_SZ
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
     {
-      var i := fs.startInode(txn, ino);
-      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        ok := false;
-        fs.finishInodeReadonly(ino, i);
-        return;
-      }
-
-      if bs.Len() == 0 {
-        ok := true;
-        assert bs.data == [];
-        assert data()[ino] == data()[ino] + bs.data;
-        fs.finishInodeReadonly(ino, i);
-        return;
-      }
-      fs.inode_metadata(ino, i);
+      i' := i;
+      fs.inode_metadata(ino, i');
       ghost var sz0 := i.sz as nat;
 
       ghost var written;
       var bs';
-      ok, i, written, bs' := this.appendAtEnd(txn, ino, i, bs);
+      ok, i', written, bs' := this.appendAtEnd(txn, ino, i', bs);
+      assert types_unchanged();
       if !ok {
         // TODO: we should really just abort here
-        fs.finishInode(txn, ino, i);
         return;
       }
       if bs'.Len() == 0 {
         assert old(bs.data[..written]) == old(bs.data);
-        fs.finishInode(txn, ino, i);
         return;
       }
-      fs.inode_metadata(ino, i);
-      assert i.sz as nat + |bs'.data| == sz0 + old(|bs.data|) by {
+      fs.inode_metadata(ino, i');
+      assert i'.sz as nat + |bs'.data| == sz0 + old(|bs.data|) by {
         assert old(|bs.data[..written]|) == written;
         assert |bs'.data| == old(|bs.data|) - written;
         assert |data()[ino]| == old(|data()[ino]|) + written;
       }
       assert |data()[ino]| % 4096 == 0;
 
-      ok, i := this.alignedAppend(txn, ino, i, bs');
+      ok, i' := this.alignedAppend(txn, ino, i', bs');
+      assert types_unchanged();
       if !ok {
         // TODO: we should really just abort here
-        fs.finishInode(txn, ino, i);
         return;
       }
       ghost var first_write := old(bs.data[..written]);
@@ -582,8 +609,46 @@ module ByteFs {
           old(data()[ino]) + old(bs.data);
         }
       }
+    }
 
+    // public
+    //
+    // this variant can be used in a larger transaction
+    method append_txn(txn: Txn, ino: Ino, bs: Bytes)
+      returns (ok:bool)
+      modifies Repr, bs
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures Valid()
+      requires ino_ok(ino)
+      requires bs.Valid()
+      requires bs.Len() <= 4096
+      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
+      ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
+    {
+      var i := fs.startInode(txn, ino);
+      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
+        ok := false;
+        fs.finishInodeReadonly(ino, i);
+        inode_types_metadata_unchanged();
+        return;
+      }
+
+      if bs.Len() == 0 {
+        ok := true;
+        assert bs.data == [];
+        assert data()[ino] == data()[ino] + bs.data;
+        fs.finishInodeReadonly(ino, i);
+        inode_types_metadata_unchanged();
+        return;
+      }
+      fs.inode_metadata(ino, i);
+      ok, i := this.appendIno(txn, ino, i, bs);
       fs.finishInode(txn, ino, i);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
+      return;
     }
 
     // public

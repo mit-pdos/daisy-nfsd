@@ -27,7 +27,9 @@ module IndFs
 
   lemma inode_size_ok()
     ensures 4096*config.total == Inode.MAX_SZ
-  {}
+  {
+    config_properties();
+  }
 
   class IndFilesys<InodeAllocState(!new)>
   {
@@ -43,7 +45,7 @@ module IndFs
     // exposes newly-allocated data blocks)
     ghost var data: imap<Pos, Block>
     // bubbles up inode sizes
-    ghost var metadata: map<Ino, nat>
+    ghost var metadata: map<Ino, Inode.Meta>
 
     function inode_owner(): (m:map<Ino, Option<InodeAllocState>>)
       requires fsValid()
@@ -121,16 +123,16 @@ module IndFs
       requires ValidBasics()
     {
       forall ino: Ino | ino_ok(ino) ::
-        && fs.inodes[ino].sz as nat == metadata[ino]
-        && metadata[ino] <= Inode.MAX_SZ
+        && fs.inodes[ino].meta == metadata[ino]
+        && metadata[ino].sz as nat <= Inode.MAX_SZ
     }
 
     static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
       requires ino_ok(ino)
-      requires |blks| == 15
+      requires |blks| == 14
       requires pos_dom(to_blkno)
     {
-      forall k: nat | k < 15 ::
+      forall k: nat | k < 14 ::
         var bn := blks[k];
         && blkno_ok(bn)
         && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
@@ -202,12 +204,12 @@ module IndFs
       ensures Valid()
       ensures fs.quiescent()
       ensures data == imap pos: Pos | pos.idx.data? :: block0
-      ensures metadata == map ino: Ino | ino_ok(ino) :: 0 as nat
+      ensures metadata == map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType)
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data? :: block0;
-      this.metadata := map ino: Ino | ino_ok(ino) :: 0 as nat;
+      this.metadata := map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType);
       new;
       IndBlocks.to_blknos_zero();
       reveal ValidPos();
@@ -486,7 +488,7 @@ module IndFs
     // caller can extract size themselves
     lemma inode_metadata(ino: Ino, i: Inode.Inode)
       requires ValidIno(ino, i)
-      ensures i.sz as nat == metadata[ino]
+      ensures i.meta == metadata[ino]
     {
       reveal ValidMetadata();
     }
@@ -494,7 +496,7 @@ module IndFs
     lemma metadata_bound(ino: Ino)
       requires Valid()
       requires ino_ok(ino)
-      ensures metadata[ino] <= Inode.MAX_SZ
+      ensures metadata[ino].sz as nat <= Inode.MAX_SZ
     {
       reveal ValidMetadata();
     }
@@ -559,20 +561,20 @@ module IndFs
     }
 
     // public
-    method writeInodeSz(ghost ino: Ino, i: Inode.Inode, sz': uint64)
+    method writeInodeMeta(ghost ino: Ino, i: Inode.Inode, meta: Inode.Meta)
       returns (i': Inode.Inode)
       modifies Repr
       requires ValidIno(ino, i)
-      requires sz' <= Inode.MAX_SZ_u64
+      requires meta.sz <= Inode.MAX_SZ_u64
       ensures ValidIno(ino, i')
       ensures data == old(data)
-      ensures metadata == old(metadata[ino := sz' as nat])
+      ensures metadata == old(metadata[ino := meta])
       ensures fs.inode_owner == old(fs.inode_owner)
     {
       reveal fsValid();
-      i' := i.(sz := sz');
+      i' := i.(meta := meta);
       fs.writeInode(ino, i');
-      metadata := metadata[ino := sz' as nat];
+      metadata := metadata[ino := meta];
       assert ValidBasics();
       assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidInodes() by { reveal ValidInodes(); }
