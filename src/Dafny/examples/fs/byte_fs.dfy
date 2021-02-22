@@ -147,6 +147,7 @@ module ByteFs {
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
       requires ino_ok(ino)
+      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
@@ -251,6 +252,7 @@ module ByteFs {
           data()[ino] == old(data()[ino]))
       ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
       ensures fs.metadata == old(fs.metadata)
+      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures !ok ==> raw_data(ino) == old(raw_data(ino))
       ensures !ok ==> data() == old(data())
     {
@@ -287,6 +289,7 @@ module ByteFs {
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data()[ino]|
       ensures bs.data == old(bs.data)
+      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==> data() == old(
       var d0 := data()[ino];
       var d := C.splice(d0, off as nat, bs.data);
@@ -324,6 +327,7 @@ module ByteFs {
       requires i.sz as nat + delta as nat <= Inode.MAX_SZ
       ensures |junk| == delta as nat
       ensures data() == old(data()[ino := data()[ino] + junk])
+      ensures fs.inode_owner() == old(fs.inode_owner())
     {
       fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
@@ -344,6 +348,7 @@ module ByteFs {
       requires sz' <= i.sz
       ensures sz' as nat <= old(|data()[ino]|)
       ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
+      ensures fs.inode_owner() == old(fs.inode_owner())
     {
       fs.inode_metadata(ino, i);
       i' := fs.writeInodeSz(ino, i, sz');
@@ -384,6 +389,7 @@ module ByteFs {
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
+      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==>
         data() == old(
         var d := data()[ino];
@@ -440,6 +446,7 @@ module ByteFs {
       ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
+      ensures fs.inode_owner() == old(fs.inode_owner())
     {
       i' := i;
       fs.inode_metadata(ino, i');
@@ -497,6 +504,7 @@ module ByteFs {
       requires |data()[ino]| % 4096 == 0
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures !ok ==> data == old(data)
+      ensures fs.inode_owner() == old(fs.inode_owner())
     {
       ghost var written;
       var bs';
@@ -517,6 +525,7 @@ module ByteFs {
       requires bs.Valid()
       requires bs.Len() <= 4096
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
+      ensures fs.inode_owner() == old(fs.inode_owner())
     {
       var i := fs.startInode(txn, ino);
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
