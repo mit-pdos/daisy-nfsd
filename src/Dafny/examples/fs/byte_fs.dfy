@@ -669,5 +669,23 @@ module ByteFs {
       ok := txn.Commit();
     }
 
+    method setType(ghost ino: Ino, i: Inode.Inode, ty': Inode.InodeType)
+      returns (i': Inode.Inode)
+      modifies Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      ensures data() == old(data())
+      ensures inode_types() == old(inode_types()[ino := ty'])
+    {
+      fs.inode_metadata(ino, i);
+      i' := fs.writeInodeMeta(ino, i, i.meta.(ty := ty'));
+      assert block_data(fs.data) == old(block_data(fs.data));
+      assert data() == old(data()) by {
+        reveal raw_inode_data();
+        assert raw_data(ino) == old(raw_data(ino));
+        assert fs.metadata[ino].sz == old(fs.metadata[ino].sz);
+      }
+      reveal inode_types();
+    }
+
   }
 }
