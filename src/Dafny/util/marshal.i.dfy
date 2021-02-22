@@ -9,13 +9,14 @@ import opened IntEncoding
 import opened ByteSlice
 import opened Collections
 
-datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32)
+datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncByte(b: byte)
 
 function enc_encode(e: Encodable): seq<byte>
 {
     match e
     case EncUInt64(x) => le_enc64(x)
     case EncUInt32(x) => le_enc32(x)
+    case EncByte(x) => [x]
 }
 
 function seq_encode(es: seq<Encodable>): seq<byte>
@@ -212,6 +213,19 @@ class Encoder
         seq_encode_app(old(enc), [EncUInt32(x)]);
     }
 
+    method PutByte(b: byte)
+    modifies Repr
+    requires Valid() ensures Valid()
+    requires bytes_left() >= 1
+    ensures bytes_left() == old(bytes_left()) - 1
+    ensures enc == old(enc) + [EncByte(b)]
+    {
+        data.Set(off, b);
+        off := off + 1;
+        enc := enc + [EncByte(b)];
+        seq_encode_app(old(enc), [EncByte(b)]);
+    }
+
     method PutInts(xs: seq<uint64>)
         modifies Repr
         requires Valid() ensures Valid()
@@ -323,6 +337,19 @@ class Decoder
             lemma_le_enc_dec32(x);
         }
         off := off + 4;
+        enc := enc[1..];
+    }
+
+    method GetByte(ghost b: byte) returns (b': byte)
+        modifies this
+        requires Valid() ensures Valid()
+        requires |enc| > 0 && enc[0] == EncByte(b)
+        ensures b' == b
+        ensures enc == old(enc[1..])
+    {
+        decode_peel1(EncByte(b));
+        b' := data.Get(off);
+        off := off + 1;
         enc := enc[1..];
     }
 
