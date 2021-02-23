@@ -28,7 +28,7 @@ module DirEntries
   function method encode_pathc(pc: PathComp): (s:seq<byte>)
     ensures |s| == 24
   {
-    pc + (if |pc| == 24 then [] else [0 as byte] + C.repeat(0 as byte, 23 - |pc|))
+    pc + C.repeat(0 as byte, 24 - |pc|)
   }
 
   function method decode_null_terminated(s: seq<byte>): String
@@ -52,12 +52,26 @@ module DirEntries
     decode_null_terminated(s)
   }
 
+  lemma {:induction s1} decode_nullterm_prefix(s1: seq<byte>, s2: seq<byte>)
+    requires forall i | 0 <= i < |s1| :: s1[i] != 0
+    ensures decode_null_terminated(s1 + s2) == s1 + decode_null_terminated(s2)
+  {
+    if s1 == [] {
+      assert s1 + s2 == s2;
+    } else {
+      assert (s1 + s2)[1..] == s1[1..] + s2;
+    }
+  }
+
+  lemma decode_all_null(count: nat)
+    ensures decode_null_terminated(C.repeat(0 as byte, count)) == []
+  {}
+
   lemma decode_encode(pc: PathComp)
     ensures decode_pathc(encode_pathc(pc)) == pc
   {
-    // TODO: maybe prove by charactering decode_null_terminated fully in terms
-    // of finding the first null?
-    assume false;
+    decode_nullterm_prefix(pc, C.repeat(0 as byte, 24 - |pc|));
+    decode_all_null(24 - |pc|);
   }
 
   datatype DirEnt = DirEnt(name: PathComp, ino: Ino)
