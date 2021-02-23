@@ -179,6 +179,7 @@ module Fs {
 
     constructor Init(d: Disk)
       ensures ValidQ()
+      ensures fresh(Repr)
       ensures block_used == map bn: Blkno | blkno_ok(bn) :: None
       ensures inode_owner == map ino: Ino {:trigger} :: None
       ensures cur_inode == None

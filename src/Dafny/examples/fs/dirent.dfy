@@ -165,9 +165,25 @@ module DirEntries
     assert seq_to_dir([e1, e2, e3]) == seq_to_dir([e1, e2]);
   }
 
+  lemma {:induction count} seq_to_dir_zeros(count: nat)
+    ensures seq_to_dir(C.repeat(DirEnt.zero, count)) == map[]
+  {
+    if count > 0 {
+      C.repeat_unfold(DirEnt.zero, count);
+    }
+  }
+
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
+    static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, 128))
+
     ghost const dir: Directory := seq_to_dir(s)
+
+    static lemma zero_dir()
+      ensures zero.dir == map[]
+    {
+      seq_to_dir_zeros(128);
+    }
 
     predicate Valid()
     {

@@ -199,8 +199,8 @@ module IndFs
     }
 
     constructor Init(d: Disk)
-      ensures Valid()
-      ensures fs.quiescent()
+      ensures ValidQ()
+      ensures fresh(Repr)
       ensures data == imap pos: Pos | pos.idx.data? :: block0
       ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType)
       ensures inode_owner() == map ino: Ino {:trigger} :: None

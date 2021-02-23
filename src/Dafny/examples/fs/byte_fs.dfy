@@ -31,7 +31,8 @@ module ByteFs {
 
   class ByteFilesys<InodeAllocState(!new)>
   {
-    const fs: IndFilesys<InodeAllocState>;
+    const fs: IndFilesys<InodeAllocState>
+    const jrnl: Jrnl := fs.fs.jrnl
     const Repr: set<object> := fs.Repr
 
     predicate Valid()
@@ -81,9 +82,10 @@ module ByteFs {
 
     constructor Init(d: Disk)
       ensures Valid()
+      ensures fresh(Repr)
       ensures data() == map ino: Ino {:trigger} :: []
       ensures inode_types() == map ino: Ino {:trigger} :: Inode.FileType
-      ensures fs.inode_owner() == map ino: Ino :: Fs.None
+      ensures fs.inode_owner() == map ino: Ino {:trigger} :: Fs.None
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
@@ -668,6 +670,7 @@ module ByteFs {
       modifies Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       ensures data() == old(data())
+      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures inode_types() == old(inode_types()[ino := ty'])
     {
       fs.inode_metadata(ino, i);
@@ -679,6 +682,57 @@ module ByteFs {
         assert fs.metadata[ino].sz == old(fs.metadata[ino].sz);
       }
       reveal inode_types();
+    }
+
+    method allocInode(txn: Txn, ghost state: InodeAllocState) returns (ok: bool, ino: Ino)
+      modifies fs.Repr
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures Valid()
+      ensures data() == old(data())
+      ensures ok ==> fs.inode_owner() == old(fs.inode_owner()[ino := Fs.Some(state)])
+      ensures ok ==> old(fs.inode_owner()[ino].None?)
+      ensures !ok ==> fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
+    {
+      ok, ino := fs.allocInode(txn, state);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
+    }
+
+    twostate predicate low_state_unchanged()
+      reads fs.Repr
+      requires old(fs.Valid()) && fs.Valid()
+    {
+      && fs.inode_owner() == old(fs.inode_owner())
+      && types_unchanged()
+    }
+
+    method startInode(txn: Txn, ino: Ino) returns (i': Inode.Inode)
+      modifies fs.fs
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures fs.ValidIno(ino, i')
+      ensures data() == old(data())
+      ensures low_state_unchanged()
+    {
+      i' := fs.startInode(txn, ino);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
+    }
+
+    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies fs.Repr
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i)
+      ensures Valid()
+      ensures data() == old(data())
+      ensures low_state_unchanged()
+    {
+      fs.finishInode(txn, ino, i);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
     }
 
   }
