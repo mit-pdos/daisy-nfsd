@@ -144,6 +144,17 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} By
             data := C.splice(data, off as nat, bs.data);
         }
 
+        method {:extern} CopyFrom(bs: Bytes, off: uint64, len: uint64)
+            modifies this
+            ensures old(Valid()) ==> Valid()
+            requires bs != this
+            requires off as nat + len as nat <= |bs.data|
+            requires len as nat <= |data|
+            ensures data == bs.data[off as nat..off as nat + len as nat] + old(data[len as nat..])
+        {
+            data := C.splice(data, 0, bs.data[off as nat..off as nat + len as nat]);
+        }
+
         method {:extern} Split(off: uint64) returns (bs: Bytes)
             modifies this
             ensures fresh(bs)

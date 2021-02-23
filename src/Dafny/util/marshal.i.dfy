@@ -9,14 +9,16 @@ import opened IntEncoding
 import opened ByteSlice
 import opened Collections
 
-datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncByte(b: byte)
+datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncBytes(bs: seq<byte>)
+
+function EncByte(b: byte): Encodable { EncBytes([b]) }
 
 function enc_encode(e: Encodable): seq<byte>
 {
     match e
     case EncUInt64(x) => le_enc64(x)
     case EncUInt32(x) => le_enc32(x)
-    case EncByte(x) => [x]
+    case EncBytes(bs) => bs
 }
 
 function seq_encode(es: seq<Encodable>): seq<byte>
@@ -226,6 +228,47 @@ class Encoder
         seq_encode_app(old(enc), [EncByte(b)]);
     }
 
+    method PutBytes(bs: Bytes)
+        modifies Repr
+        requires bs !in Repr
+        requires Valid() ensures Valid()
+        requires bs.Valid()
+        requires bytes_left() >= |bs.data|
+        ensures bytes_left() == old(bytes_left()) - |bs.data|
+        ensures enc == old(enc) + [EncBytes(bs.data)]
+    {
+        data.CopyTo(off, bs);
+        off := off + bs.Len();
+        enc := enc + [EncBytes(bs.data)];
+        seq_encode_app(old(enc), [EncBytes(bs.data)]);
+    }
+
+    method PutByteSeq(bs: seq<byte>)
+        modifies Repr
+        requires Valid() ensures Valid()
+        requires bytes_left() >= |bs|
+        ensures bytes_left() == old(bytes_left()) - |bs|
+        ensures enc == old(enc) + [EncBytes(bs)]
+    {
+        var i := 0;
+        while i < |bs|
+            modifies data
+            invariant 0 <= i <= |bs|
+            invariant enc == old(enc)
+            invariant off == old(off)
+            invariant data.data == C.splice(old(data.data), off as nat, bs[..i])
+        {
+            ghost var data0 := data.data;
+            data.Set(off, bs[i]);
+            i := i + 1;
+            // TODO: do some slice reasoning
+            assume false;
+        }
+        off := off + |bs| as uint64;
+        enc := enc + [EncBytes(bs)];
+        seq_encode_app(old(enc), [EncBytes(bs)]);
+    }
+
     method PutInts(xs: seq<uint64>)
         modifies Repr
         requires Valid() ensures Valid()
@@ -350,6 +393,46 @@ class Decoder
         decode_peel1(EncByte(b));
         b' := data.Get(off);
         off := off + 1;
+        enc := enc[1..];
+    }
+
+    method GetBytes(len: uint64, ghost bs: seq<byte>) returns (bs': Bytes)
+        modifies this
+        requires Valid() ensures Valid()
+        requires |enc| > 0 && enc[0] == EncBytes(bs)
+        requires |bs| == len as nat
+        ensures fresh(bs') && bs'.Valid() && bs'.data == bs
+        ensures enc == old(enc[1..])
+    {
+        decode_peel1(EncBytes(bs));
+        bs' := NewBytes(len);
+        bs'.CopyFrom(this.data, off, len);
+        off := off + len;
+        enc := enc[1..];
+    }
+
+    method GetByteSeq(len: uint64, ghost bs: seq<byte>) returns (bs':seq<byte>)
+        modifies this
+        requires Valid() ensures Valid()
+        requires |enc| > 0 && enc[0] == EncBytes(bs)
+        requires |bs| == len as nat
+        ensures bs' == bs
+        ensures enc == old(enc[1..])
+    {
+        decode_peel1(EncBytes(bs));
+        bs' := [];
+        var i: uint64 := 0;
+        while i < len
+            modifies {}
+            invariant 0 <= i as nat <= len as nat
+            invariant bs' == bs[..i]
+        {
+            var b := data.Get(off + i);
+            bs' := bs' + [b];
+            i := i + 1;
+        }
+        assert bs[..len as nat] == bs;
+        off := off + len;
         enc := enc[1..];
     }
 

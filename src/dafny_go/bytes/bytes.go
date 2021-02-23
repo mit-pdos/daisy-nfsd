@@ -42,9 +42,16 @@ func (bs *Bytes) Subslice(start uint64, end uint64) {
 
 func (bs *Bytes) CopyTo(start uint64, other *Bytes) {
 	if other == bs {
-		panic("attempt to copy from self")
+		panic("attempt to CopyTo self")
 	}
 	copy(bs.Data[start:], other.Data)
+}
+
+func (bs *Bytes) CopyFrom(other *Bytes, off uint64, count uint64) {
+	if other == bs {
+		panic("attempt to CopyFrom self")
+	}
+	copy(bs.Data, other.Data[off:count])
 }
 
 func (bs *Bytes) Split(off uint64) *Bytes {
