@@ -36,7 +36,7 @@ module Fs {
 
   predicate ino_dom<T>(m: map<Ino, T>)
   {
-    forall ino: Ino :: ino_ok(ino) <==> ino in m
+    forall ino: Ino :: ino in m
   }
 
   class Filesys<AllocState(!new), InodeAllocState(!new)>
@@ -91,7 +91,7 @@ module Fs {
       requires Valid_basics(jrnl)
     {
       inode_bit_inbounds(jrnl);
-      && (forall ino:Ino | ino_ok(ino) ::
+      && (forall ino:Ino ::
         && jrnl.data[InodeBitAddr(ino)] == ObjBit(inode_owner[ino].Some?))
     }
 
@@ -110,7 +110,7 @@ module Fs {
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
     {
-      forall ino: Ino | ino_ok(ino) ::
+      forall ino: Ino ::
         inode_inbounds(jrnl, ino);
         if on_inode(ino)
           then jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(cur_inode.x.1))
@@ -126,7 +126,6 @@ module Fs {
     predicate on_inode(ino: Ino)
       reads this
     {
-      && ino_ok(ino)
       && cur_inode.Some?
       && cur_inode.x.0 == ino
     }
@@ -180,9 +179,9 @@ module Fs {
     constructor Init(d: Disk)
       ensures ValidQ()
       ensures block_used == map bn: Blkno | blkno_ok(bn) :: None
-      ensures inode_owner == map ino: Ino | ino_ok(ino) :: None
+      ensures inode_owner == map ino: Ino {:trigger} :: None
       ensures cur_inode == None
-      ensures inodes == map ino: Ino | ino_ok(ino) :: Inode.zero
+      ensures inodes == map ino: Ino {:trigger} :: Inode.zero
       ensures data_block == map bn: Blkno | blkno_ok(bn) :: block0
     {
       var jrnl := NewJrnl(d, fs_kinds);
@@ -192,11 +191,11 @@ module Fs {
       var ialloc := new MaxAllocator(iallocMax);
       this.ialloc := ialloc;
 
-      this.inodes := map ino: Ino | ino_ok(ino) :: Inode.zero;
+      this.inodes := map ino: Ino {:trigger} :: Inode.zero;
       this.cur_inode := None;
       Inode.zero_encoding();
       this.block_used := map bn: uint64 | blkno_ok(bn) :: None;
-      this.inode_owner := map ino: Ino | ino_ok(ino) :: None;
+      this.inode_owner := map ino: Ino {:trigger} :: None;
       this.data_block := map bn: uint64 | blkno_ok(bn) :: block0;
       new;
       reveal jrnl.Valid();
@@ -242,7 +241,7 @@ module Fs {
         bn := bn + 1;
       }
 
-      var ino: Ino := 1;
+      var ino: Ino := 1 as Ino;
       while ino < iallocMax
         modifies ialloc.Repr
         invariant txn.jrnl == jrnl_
@@ -295,7 +294,6 @@ module Fs {
     static predicate is_alloc_ino(ino: Ino)
     {
       && 0 < ino < iallocMax
-      && ino_ok(ino)
     }
 
     // private
@@ -372,7 +370,6 @@ module Fs {
       requires Valid_basics(jrnl)
       requires Valid_domains()
     {
-      && ino_ok(ino)
       && inodes[ino] == i
     }
 
@@ -424,7 +421,7 @@ module Fs {
         reveal_Valid_jrnl_to_inodes();
         InodeAddr_inj();
         // NOTE: good example of debugging
-        // forall ino' | ino_ok(ino')
+        // forall ino':Ino
         //   ensures jrnl.data[InodeAddr(ino')] == ObjData(Inode.enc(inodes[ino']))
         // {
         //   if ino' == ino {} else {
@@ -471,7 +468,6 @@ module Fs {
     method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
       modifies {}
       requires ValidQ()
-      requires ino_ok(ino)
       requires txn.jrnl == jrnl
       ensures is_inode(ino, i)
     {
@@ -600,7 +596,6 @@ module Fs {
       modifies Repr
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
-      requires ino_ok(ino)
       requires inode_owner[ino].Some?
       ensures inodes == old(inodes)
       ensures block_used == old(block_used)
@@ -624,7 +619,6 @@ module Fs {
     method Size(ino: Ino) returns (sz: uint64)
       modifies {}
       requires ValidQ()
-      requires ino_ok(ino)
       ensures sz as nat == inodes[ino].sz as nat
     {
       var txn := jrnl.Begin();

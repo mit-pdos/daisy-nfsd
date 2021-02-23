@@ -44,7 +44,7 @@ module ByteFs {
       reads Repr
       requires fs.Valid()
     {
-      map ino:Ino | ino_ok(ino) ::
+      map ino:Ino ::
         (fs.metadata_bound(ino);
         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
@@ -54,7 +54,7 @@ module ByteFs {
       requires fs.Valid()
       ensures Fs.ino_dom(m)
     {
-      map ino: Ino | ino_ok(ino) :: fs.metadata[ino].ty
+      map ino: Ino :: fs.metadata[ino].ty
     }
 
     twostate predicate types_unchanged()
@@ -74,7 +74,6 @@ module ByteFs {
 
     function raw_data(ino: Ino): seq<byte>
       reads Repr
-      requires ino_ok(ino)
       requires fs.Valid()
     {
       raw_inode_data(block_data(fs.data)[ino])
@@ -82,8 +81,8 @@ module ByteFs {
 
     constructor Init(d: Disk)
       ensures Valid()
-      ensures data() == map ino: Ino | ino_ok(ino) :: []
-      ensures inode_types() == map ino: Ino | ino_ok(ino) :: Inode.FileType
+      ensures data() == map ino: Ino {:trigger} :: []
+      ensures inode_types() == map ino: Ino {:trigger} :: Inode.FileType
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
@@ -171,7 +170,6 @@ module ByteFs {
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
@@ -218,7 +216,6 @@ module ByteFs {
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
@@ -237,7 +234,6 @@ module ByteFs {
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       ensures data() == old(data())
       ensures sz as nat == |data()[ino]|
     {
@@ -252,7 +248,6 @@ module ByteFs {
     method Size(ino: Ino) returns (sz: uint64)
       modifies fs.fs
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       ensures data() == old(data())
       ensures sz as nat == |data()[ino]|
     {
@@ -273,7 +268,7 @@ module ByteFs {
       requires off as nat + 4096 <= Inode.MAX_SZ
       ensures bs.data == old(bs.data)
       ensures (var ino0 := ino;
-        forall ino:Ino | ino_ok(ino) && ino != ino0 ::
+        forall ino:Ino | ino != ino0 ::
           data()[ino] == old(data()[ino]))
       ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
       ensures fs.metadata == old(fs.metadata)
@@ -619,7 +614,6 @@ module ByteFs {
       modifies Repr, bs
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
@@ -655,7 +649,6 @@ module ByteFs {
     method Append(ino: Ino, bs: Bytes) returns (ok:bool)
       modifies Repr, bs
       requires Valid() ensures Valid()
-      requires ino_ok(ino)
       requires bs.Valid()
       requires bs.Len() <= 4096
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])

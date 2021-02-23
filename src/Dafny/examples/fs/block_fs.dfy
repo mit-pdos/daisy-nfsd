@@ -25,7 +25,6 @@ module BlockFs
   type InodeData = x:preInodeData | x.Valid() witness preInodeData.preZero
 
   function {:opaque} inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
-    requires ino_ok(ino)
     requires data_dom(data)
   {
     var blks := seq(config.total,
@@ -42,19 +41,19 @@ module BlockFs
     requires data_dom(data)
     ensures Fs.ino_dom(m)
   {
-    map ino:Ino | ino_ok(ino) :: inode_blocks(ino, data)
+    map ino:Ino :: inode_blocks(ino, data)
   }
 
   // public
   method New<InodeAllocState(!new)>(d: Disk) returns (fs: IndFilesys<InodeAllocState>)
     ensures fs.ValidQ()
-    ensures block_data(fs.data) == map ino: Ino | ino_ok(ino) :: InodeData.zero
-    ensures fs.metadata == map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType)
+    ensures block_data(fs.data) == map ino: Ino {:trigger} :: InodeData.zero
+    ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType)
   {
     fs := new IndFilesys.Init(d);
     reveal inode_blocks();
     reveal block_data();
-    assert forall ino: Ino | ino_ok(ino) :: inode_blocks(ino, fs.data) == InodeData.zero;
+    assert forall ino: Ino :: inode_blocks(ino, fs.data) == InodeData.zero;
   }
 
   // public
@@ -62,7 +61,6 @@ module BlockFs
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
-    requires ino_ok(ino)
     requires is_lba(n)
     ensures fresh(bs)
     ensures bs.data == block_data(fs.data)[ino].blks[n]
@@ -80,7 +78,6 @@ module BlockFs
   {}
 
   lemma block_data_update(data: imap<Pos, Block>, ino: Ino, n: nat, blk: Block)
-    requires ino_ok(ino)
     requires is_lba(n)
     requires data_dom(data)
     ensures inode_blocks(ino, data[Pos.from_flat(ino, n) := blk]).blks ==
@@ -106,8 +103,8 @@ module BlockFs
 
   // an update to an ino0 Pos doesn't affect ino
   lemma block_data_update_other(data: imap<Pos, Block>, ino0: Ino, ino: Ino, n: nat, blk: Block)
-    requires ino_ok(ino0) && ino_ok(ino) && ino0 != ino
     requires is_lba(n)
+    requires ino != ino0
     requires data_dom(data)
     ensures inode_blocks(ino, data[Pos.from_flat(ino0, n) := blk]) ==
             inode_blocks(ino, data)
@@ -156,8 +153,8 @@ module BlockFs
       block_data_update(old(fs.data), ino, n, blk.data);
     }
 
-    ghost var ino0 := ino;
-    forall ino:Ino | ino_ok(ino) && ino != ino0
+    ghost var ino0: Ino := ino;
+    forall ino:Ino | ino != ino0
       ensures block_data(fs.data)[ino] == old(block_data(fs.data)[ino])
     {
       block_data_update_other(old(fs.data), ino0, ino, n, blk.data);

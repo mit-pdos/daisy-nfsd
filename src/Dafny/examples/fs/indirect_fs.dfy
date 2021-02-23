@@ -122,13 +122,12 @@ module IndFs
       reads Repr
       requires ValidBasics()
     {
-      forall ino: Ino | ino_ok(ino) ::
+      forall ino: Ino ::
         && fs.inodes[ino].meta == metadata[ino]
         && metadata[ino].sz as nat <= Inode.MAX_SZ
     }
 
     static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
-      requires ino_ok(ino)
       requires |blks| == 14
       requires pos_dom(to_blkno)
     {
@@ -143,8 +142,7 @@ module IndFs
       reads Repr
       requires ValidBasics()
     {
-      forall ino:Ino | ino_ok(ino) ::
-        inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
+      forall ino:Ino :: inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
     predicate valid_parent(pos: Pos)
@@ -204,12 +202,12 @@ module IndFs
       ensures Valid()
       ensures fs.quiescent()
       ensures data == imap pos: Pos | pos.idx.data? :: block0
-      ensures metadata == map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType)
+      ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType)
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data? :: block0;
-      this.metadata := map ino: Ino | ino_ok(ino) :: Inode.Meta(0, Inode.FileType);
+      this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType);
       new;
       IndBlocks.to_blknos_zero();
       reveal ValidPos();
@@ -495,7 +493,6 @@ module IndFs
 
     lemma metadata_bound(ino: Ino)
       requires Valid()
-      requires ino_ok(ino)
       ensures metadata[ino].sz as nat <= Inode.MAX_SZ
     {
       reveal ValidMetadata();
@@ -548,7 +545,6 @@ module IndFs
     method startInode(txn: Txn, ino: Ino)
       returns (i: Inode.Inode)
       modifies fs
-      requires ino_ok(ino)
       requires has_jrnl(txn)
       requires ValidQ()
       ensures ValidIno(ino, i)
@@ -614,7 +610,6 @@ module IndFs
       ensures data == old(data)
       ensures metadata == old(metadata)
       ensures fs.cur_inode == old(fs.cur_inode)
-      ensures ok ==> ino_ok(ino)
       ensures ok ==> inode_owner() == old(inode_owner()[ino:=Some(state)])
       ensures ok ==> old(inode_owner()[ino].None?)
       ensures !ok ==> inode_owner() == old(inode_owner())

@@ -255,43 +255,29 @@ module IndirectPos
   // offset within that block. Indirect blocks have an inode and top-level block
   // as well as an indirection level which might be higher than the bottom where
   // the data lives.
-  datatype prePos = Pos(ino: Ino, idx: Idx)
+  datatype Pos = Pos(ino: Ino, idx: Idx)
   {
     const ilevel: nat := idx.off.ilevel;
     const data?: bool := idx.data?
 
-    predicate Valid()
-    {
-      ino_ok(ino)
-    }
-
     static function method from_flat(ino: Ino, n: nat): Pos
-      requires ino_ok(ino)
       requires n < config.total
     {
       Pos(ino, Idx.from_flat(n))
     }
 
     function method parent(): Pos
-      requires Valid()
       requires ilevel > 0
     {
       Pos(ino, Idx(idx.k, idx.off.parent()))
     }
 
     function method child(): IndOff
-      requires Valid()
       requires ilevel > 0
     {
       idx.off.child()
     }
 
-  }
-  type Pos = x:prePos | x.Valid() witness Pos(0, Idx(0, IndOff(0,0)))
-  function MkPos(ino: Ino, idx: Idx): Pos
-    requires Pos(ino, idx).Valid()
-  {
-    Pos(ino, idx)
   }
 
 }
