@@ -18,6 +18,7 @@ module Fs {
   import opened FsKinds
   import opened Marshal
 
+  // TODO: move to some helper lib?
   datatype Option<T> = Some(x:T) | None
 
   function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block

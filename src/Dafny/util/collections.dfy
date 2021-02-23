@@ -64,6 +64,14 @@ lemma seq_fmap_compose<T,U,V>(f: T -> U, g: U -> V, xs: seq<T>)
     ensures seq_fmap(g, seq_fmap(f, xs)) == seq_fmap(x => g(f(x)), xs)
 {}
 
+// filter
+function method seq_filter<T>(p: T -> bool, xs: seq<T>): (ys:seq<T>)
+    ensures |ys| <= |xs| && forall y :: y in ys ==> p(y) && y in xs
+{
+    if xs == [] then []
+    else (if p(xs[0]) then [xs[0]] else []) + seq_filter(p, xs[1..])
+}
+
 // repeat
 
 function method repeat<T>(x: T, count: nat): (xs:seq<T>)

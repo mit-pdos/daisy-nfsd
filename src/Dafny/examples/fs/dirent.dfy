@@ -76,6 +76,20 @@ module DirEntries
 
   datatype DirEnt = DirEnt(name: PathComp, ino: Ino)
   {
+    static const zero := DirEnt([], 0 as Ino)
+
+    // we don't call this valid because unused DirEnts do show up (eg, a Dirents
+    // will in general have unused DirEnts and this isn't a problem)
+    predicate method used()
+    {
+      ino != 0
+    }
+
+    predicate method unused()
+    {
+      ino == 0
+    }
+
     function {:opaque} encoding(): seq<Encodable>
     {
       [EncBytes(encode_pathc(name)), EncUInt64(ino)]
@@ -123,4 +137,81 @@ module DirEntries
       decode_encode(ent.name);
     }
   }
+
+  type Directory = map<PathComp, Ino>
+
+  function seq_to_dir(s: seq<DirEnt>): Directory
+  {
+    if s == [] then map[]
+    else (
+      var e := s[0];
+      var s' := s[1..];
+      if e.used() then
+        (var m2: Directory := map[e.name := e.ino];
+        seq_to_dir(s') + m2)
+      else seq_to_dir(s')
+      )
+  }
+
+  lemma test_seq_to_dir_overwrite()
+  {
+    var e1 := DirEnt([1], 1 as Ino);
+    var e2 := DirEnt([1], 2 as Ino);
+    var e3 := DirEnt([2], 0 as Ino);
+    // the first entry should take precedence
+    assert seq_to_dir([e1, e2, e3])[e1.name] == 1 as Ino;
+    assert seq_to_dir([e3]) == map[];
+    assert seq_to_dir([e2, e3]) == seq_to_dir([e2]);
+    assert seq_to_dir([e1, e2, e3]) == seq_to_dir([e1, e2]);
+  }
+
+  datatype preDirents = Dirents(s: seq<DirEnt>)
+  {
+    ghost const dir: Directory := seq_to_dir(s)
+
+    predicate Valid()
+    {
+      // 128*32 == 4096 so these will fit in a block
+      |s| == 128
+    }
+
+    static function encOne(e: DirEnt): seq<byte>
+    {
+      e.enc()
+    }
+
+    function enc(): seq<byte>
+    {
+      C.concat(C.seq_fmap(encOne, this.s))
+    }
+
+    lemma enc_len()
+      requires Valid()
+      ensures |enc()| == 4096
+    {
+      forall e: DirEnt
+        ensures |encOne(e)| == 32
+      {
+        e.enc_len();
+      }
+      C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), 32);
+    }
+
+    method encode() returns (bs:Bytes)
+      requires Valid()
+      ensures fresh(bs) && bs.Valid() && bs.data == enc()
+    {
+      // TODO: implement
+      assume false;
+    }
+
+    static method decode(b: Bytes, ghost ents: Dirents) returns (ents': Dirents)
+      requires b.data == ents.enc()
+      ensures ents' == ents
+    {
+      // TODO: implement
+      assume false;
+    }
+  }
+  type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
 }
