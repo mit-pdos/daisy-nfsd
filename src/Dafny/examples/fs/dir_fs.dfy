@@ -321,7 +321,10 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocFile(txn: Txn) returns (ok: bool, ino: Ino)
+    //
+    // TODO: this is extremely slow to verify despite doing very little,
+    // something might be wrong
+    method {:timeLimitMultiplier 2} allocFile(txn: Txn) returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
