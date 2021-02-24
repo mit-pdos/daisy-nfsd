@@ -281,7 +281,7 @@ module DirFs
       returns (ok:bool)
       modifies Repr
       requires fs.fs.has_jrnl(txn)
-      requires Valid() ensures ok ==> Valid()
+      requires Valid() ensures Valid()
       requires IsDir: d_ino in dirents
       ensures ok ==>
            && dirents == old(dirents[d_ino := dents])
@@ -293,6 +293,10 @@ module DirFs
       }
       ok := writeDirentsToFs(fs, txn, d_ino, dents);
       if !ok {
+        assert ValidData() by {
+          reveal ValidFiles();
+          reveal ValidDirs();
+        }
         return;
       }
 
@@ -309,6 +313,36 @@ module DirFs
       }
     }
 
+    // private
+    //
+    // creates a file disconnected from the file system (which is perfectly
+    // legal but useless for most clients)
+    method allocFile(txn: Txn) returns (ok: bool, ino: Ino)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures ok ==>
+      && ino !in old(data)
+      && data == old(data[ino := File.empty])
+      ensures !ok ==> data == old(data)
+    {
+      ok, ino := fs.allocInode(txn, ());
+      if !ok {
+        assert ValidData() by {
+          reveal ValidFiles();
+          reveal ValidDirs();
+        }
+        return;
+      }
+      data := data[ino := File.empty];
+      assert ValidDirs() by {
+        reveal ValidDirs();
+      }
+      assert ValidFiles() by {
+        reveal ValidFiles();
+      }
+    }
+
     method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
       returns (ok: bool, ino: Ino)
       modifies fs.Repr
@@ -320,18 +354,17 @@ module DirFs
       && data == old(
         var d := data[d_ino].dir;
         var d' := DirFile(d[name := ino]);
-        data[d_ino := d'][ino := File.empty])
+        data[ino := File.empty][d_ino := d'])
     {
       var err, dirents := readDirents(txn, d_ino);
       if err.IsError() {
         ok := false;
         return;
       }
-      ok, ino := fs.allocInode(txn, ());
+      ok, ino := allocFile(txn);
       if !ok {
         return;
       }
-      assume Valid();
       // TODO: support creating a file and overwriting existing
       if dirents.findName(name) < 128 {
         ok := false;
