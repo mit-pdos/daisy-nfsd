@@ -72,3 +72,7 @@ func (txn *Txn) Commit() bool {
 	ok := txn.btxn.Commit()
 	return ok
 }
+
+func (txn *Txn) Abort() {
+	txn.btxn.ReleaseAll()
+}

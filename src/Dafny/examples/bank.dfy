@@ -202,6 +202,8 @@ class Bank
         var txn := jrnl.Begin();
         var x := txn.Read(Acct(acct), 64);
         bal := decode_acct(x, accts[acct]);
+        // need to commit or abort (even of read-only)
+        var _ := txn.Commit();
     }
 
     // this is kind of silly but it gets the point across (without requiring the

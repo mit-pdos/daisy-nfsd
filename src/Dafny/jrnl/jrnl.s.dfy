@@ -255,6 +255,10 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} Jrnl
         {
             ok := true;
         }
+
+        method {:extern} Abort()
+            requires Valid()
+        {}
     }
 
     // NOTE: we can't provide a model for this because we need kinds to be ghost

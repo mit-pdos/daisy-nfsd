@@ -660,6 +660,7 @@ module ByteFs {
       ok := append_txn(txn, ino, bs);
       if !ok {
         // abort
+        txn.Abort();
         return;
       }
       ok := txn.Commit();
