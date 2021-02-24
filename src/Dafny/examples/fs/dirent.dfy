@@ -231,8 +231,22 @@ module DirEntries
       requires Valid()
       ensures fresh(bs) && bs.Valid() && bs.data == enc()
     {
-      // TODO: implement
-      assume false;
+      var i := 0;
+      bs := NewBytes(0);
+      while i < |s|
+        invariant 0 <= i <= |s|
+        invariant bs.data == C.concat(C.seq_fmap(encOne, this.s[..i]))
+        invariant |bs.data| == 32*i
+      {
+        assert C.seq_fmap(encOne, this.s[..i+1])
+          == C.seq_fmap(encOne, this.s[..i]) + [encOne(s[i])];
+        C.concat_app1(C.seq_fmap(encOne, this.s[..i]), encOne(s[i]));
+        s[i].enc_len();
+        var bsOne := s[i].encode();
+        bs.AppendBytes(bsOne);
+        i := i + 1;
+      }
+      assert s[..|s|] == s;
     }
 
     static method decode(b: Bytes, ghost ents: Dirents) returns (ents': Dirents)
