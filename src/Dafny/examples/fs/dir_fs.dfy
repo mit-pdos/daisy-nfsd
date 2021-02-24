@@ -259,10 +259,10 @@ module DirFs
       requires fs.Valid() ensures fs.Valid()
       requires fs.fs.has_jrnl(txn)
       requires |fs.data()[d_ino]| == 4096
-      ensures ok ==>
-        && fs.data() == old(fs.data()[d_ino := dents.enc()])
-        && fs.fs.inode_owner() == old(fs.fs.inode_owner())
-        && fs.types_unchanged()
+      ensures fs.fs.inode_owner() == old(fs.fs.inode_owner())
+      ensures fs.types_unchanged()
+      ensures ok ==> fs.data() == old(fs.data()[d_ino := dents.enc()])
+      ensures !ok ==> fs.data() == old(fs.data())
     {
       var i := fs.startInode(txn, d_ino);
       var bs := dents.encode();
@@ -321,6 +321,7 @@ module DirFs
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
+      ensures dirents == old(dirents)
       ensures ok ==>
       && ino !in old(data)
       && data == old(data[ino := File.empty])
@@ -345,7 +346,7 @@ module DirFs
 
     method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
       returns (ok: bool, ino: Ino)
-      modifies fs.Repr
+      modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.fs.has_jrnl(txn)
       ensures ok ==>
@@ -356,7 +357,7 @@ module DirFs
         var d' := DirFile(d[name := ino]);
         data[ino := File.empty][d_ino := d'])
     {
-      var err, dirents := readDirents(txn, d_ino);
+      var err, dents := readDirents(txn, d_ino);
       if err.IsError() {
         ok := false;
         return;
@@ -365,19 +366,20 @@ module DirFs
       if !ok {
         return;
       }
-      // TODO: support creating a file and overwriting existing
-      if dirents.findName(name) < 128 {
+      if dents.findName(name) < 128 {
+        // TODO: support creating a file and overwriting existing (rather than
+        // failing here)
         ok := false;
         return;
       }
-      var i := dirents.findFree();
+      var i := dents.findFree();
       if !(i < 128) {
         // no space in directory
         ok := false;
         return;
       }
-      dirents := dirents.(s:=dirents.s[i := DirEnt(name, ino)]);
-      ok := writeDirents(txn, d_ino, dirents);
+      dents := dents.(s:=dents.s[i := DirEnt(name, ino)]);
+      ok := writeDirents(txn, d_ino, dents);
       assume false;
     }
   }
