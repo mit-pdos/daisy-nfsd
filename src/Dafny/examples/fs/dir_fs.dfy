@@ -281,7 +281,7 @@ module DirFs
       assert fs.data()[d_ino] == dents.enc();
     }
 
-    method writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
+    method {:timeLimitMultiplier 2} writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
       returns (ok:bool)
       modifies Repr
       requires fs.fs.has_jrnl(txn)
