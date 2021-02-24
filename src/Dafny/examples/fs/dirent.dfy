@@ -249,12 +249,54 @@ module DirEntries
       assert s[..|s|] == s;
     }
 
-    static method decode(b: Bytes, ghost ents: Dirents) returns (ents': Dirents)
-      requires b.data == ents.enc()
+    static method decode(bs: Bytes, ghost ents: Dirents) returns (ents': Dirents)
+      modifies bs
+      requires bs.data == ents.enc()
       ensures ents' == ents
     {
-      // TODO: implement
-      assume false;
+      var ent_s: seq<DirEnt> := [];
+      ghost var bs0 := bs;
+      // allSlices gather the slices created by repeated splitting, in order to
+      // track the dynamic frame of this method
+      ghost var allSlices: set<object> := {bs0};
+      var bs := bs;
+      ents.enc_len();
+
+      var i := 0;
+      while i < 128
+        modifies allSlices
+        invariant 0 <= i <= 128
+        invariant bs.data == C.concat(C.seq_fmap(encOne, ents.s[i..]))
+        invariant |bs.data| == 4096 - 32*i
+        invariant ent_s == ents.s[..i]
+        invariant fresh(allSlices - {bs0})
+        invariant bs in allSlices
+      {
+        assert C.seq_fmap(encOne, ents.s[i..])[0] == encOne(ents.s[i]);
+        assert C.seq_fmap(encOne, ents.s[i..])[1..] == C.seq_fmap(encOne, ents.s[i+1..]);
+        assert C.concat(C.seq_fmap(encOne, ents.s[i..])) ==
+          encOne(ents.s[i]) + C.concat(C.seq_fmap(encOne, ents.s[i+1..]));
+
+        ents.s[i].enc_len();
+        var bs' := bs.Split(32);
+        // bs has ents.s[i], bs' is the next value for bs at the end of the loop
+        var bs_i := bs;
+        bs := bs';
+        allSlices := allSlices + {bs};
+        calc {
+          bs.data;
+          C.concat(C.seq_fmap(encOne, ents.s[i..]))[32..];
+          C.concat(C.seq_fmap(encOne, ents.s[i+1..]));
+        }
+
+        // assert bs_i.data == C.concat(C.seq_fmap(encOne, ents.s[i..]))[..32];
+        var ent := DirEnt.decode(bs_i, ents.s[i]);
+        ent_s := ent_s + [ent];
+
+        i := i + 1;
+        //assert |bs.data| == 4096 - 32*i;
+      }
+      return Dirents(ent_s);
     }
 
     function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
