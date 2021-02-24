@@ -56,6 +56,7 @@ module DirFs
       // the root inode is allocated and is actually a directory
       && fs.fs.inode_owner()[rootIno].Some?
       && fs.inode_types()[rootIno].DirType?
+      && rootIno != 0
     }
 
     predicate ValidDirents()
@@ -115,6 +116,7 @@ module DirFs
       requires fs.data() == map ino: Ino {:trigger} :: if ino == rootIno then Dirents.zero.enc() else []
       requires fs.inode_types() == map ino: Ino {:trigger} :: if ino == rootIno then Inode.DirType else Inode.FileType
       requires fs.fs.inode_owner() == map ino: Ino {:trigger} :: if ino == rootIno then Fs.Some(()) else Fs.None
+      requires rootIno != 0
       ensures Valid()
       ensures data == map[rootIno := DirFile(map[])]
     {
@@ -137,6 +139,7 @@ module DirFs
       requires fs.fs.has_jrnl(txn)
       requires forall ino:Ino :: fs.data()[ino] == []
       ensures ok ==>
+      && ino != 0
       && fs.data() == old(fs.data()[ino := Dirents.zero.enc()])
       && old(fs.fs.inode_owner()[ino].None?)
       && fs.fs.inode_owner() == old(fs.fs.inode_owner()[ino := Some(())])

@@ -614,6 +614,7 @@ module IndFs
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures ok ==> inode_owner() == old(inode_owner()[ino:=Some(state)])
       ensures ok ==> old(inode_owner()[ino].None?)
+      ensures ok ==> ino != 0
       ensures !ok ==> inode_owner() == old(inode_owner())
     {
       ok, ino := fs.allocateInode(txn, state);

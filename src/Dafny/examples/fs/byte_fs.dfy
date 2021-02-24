@@ -691,6 +691,7 @@ module ByteFs {
       ensures data() == old(data())
       ensures ok ==> fs.inode_owner() == old(fs.inode_owner()[ino := Fs.Some(state)])
       ensures ok ==> old(fs.inode_owner()[ino].None?)
+      ensures ok ==> ino != 0
       ensures !ok ==> fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
