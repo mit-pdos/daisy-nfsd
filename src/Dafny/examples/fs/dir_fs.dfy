@@ -235,11 +235,11 @@ module DirFs
         err := DoesNotExist;
         return;
       }
-      assume false;
       if i.meta.ty == Inode.FileType {
         fs.finishInodeReadonly(d_ino, i);
         err := NotADir;
         reveal ValidFiles();
+        reveal ValidDirs();
         return;
       }
       err := NoError;
@@ -251,6 +251,10 @@ module DirFs
       var bs := fs.readInternal(txn, d_ino, i, 0, 4096);
       fs.finishInodeReadonly(d_ino, i);
       dents := Dirents.decode(bs, dirents[d_ino]);
+      assert ValidData() by {
+        reveal ValidFiles();
+        reveal ValidDirs();
+      }
     }
 
     static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: Dirents)
@@ -324,6 +328,7 @@ module DirFs
       ensures dirents == old(dirents)
       ensures ok ==>
       && ino !in old(data)
+      && ino != 0
       && data == old(data[ino := File.empty])
       ensures !ok ==> data == old(data)
     {
@@ -362,10 +367,14 @@ module DirFs
         ok := false;
         return;
       }
+      assert d_ino_ok: d_ino in old(data) && old(data[d_ino].DirFile?) by {
+        reveal ValidDirs();
+      }
       ok, ino := allocFile(txn);
       if !ok {
         return;
       }
+      assert ino_ok: ino !in old(data);
       if dents.findName(name) < 128 {
         // TODO: support creating a file and overwriting existing (rather than
         // failing here)
@@ -378,9 +387,19 @@ module DirFs
         ok := false;
         return;
       }
-      dents := dents.(s:=dents.s[i := DirEnt(name, ino)]);
+      var e' := DirEnt(name, ino);
+      dents.insert_ent_dir(e');
+      ghost var d := dents.dir;
+      dents := dents.insert_ent(i, e');
+      ghost var d' := dents.dir;
+      assert d' == d[name := ino];
       ok := writeDirents(txn, d_ino, dents);
-      assume false;
+      if !ok {
+        return;
+      }
+      // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
+      reveal d_ino_ok;
+      reveal ino_ok;
     }
   }
 }

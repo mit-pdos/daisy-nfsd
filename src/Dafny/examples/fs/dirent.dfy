@@ -147,8 +147,7 @@ module DirEntries
       var e := s[0];
       var s' := s[1..];
       if e.used() then
-        (var m2: Directory := map[e.name := e.ino];
-        seq_to_dir(s') + m2)
+        seq_to_dir(s')[e.name := e.ino]
       else seq_to_dir(s')
       )
   }
@@ -171,6 +170,21 @@ module DirEntries
     if count > 0 {
       C.repeat_unfold(DirEnt.zero, count);
     }
+  }
+
+  lemma {:induction s, i} seq_to_dir_insert(s: seq<DirEnt>, i: nat, e: DirEnt)
+    requires i < |s|
+    requires forall k: nat | k < i :: s[k].name != e.name || !s[k].used()
+    requires e.used()
+    requires !s[i].used()
+    ensures seq_to_dir(s[i := e]) == seq_to_dir(s)[e.name := e.ino]
+  {
+    // if s == [] { assert false; }
+    // if i == 0 {
+    //   assert seq_to_dir(s[i := e]) == seq_to_dir(s[1..])[e.name := e.ino];
+    // } else {
+    //   seq_to_dir_insert(s[1..], i-1, e);
+    // }
   }
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
@@ -229,18 +243,59 @@ module DirEntries
       assume false;
     }
 
+    function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
+      requires Valid()
+      requires i < 128
+      ensures ents'.Valid()
+    {
+      var s' := this.s[i := e];
+      var ents': preDirents := Dirents(s');
+      assert ents'.Valid();
+      ents'
+    }
+
+    lemma insert_ent_dir(e: DirEnt)
+      requires Valid()
+      requires this.findName(e.name) >= 128
+      requires this.findFree() < 128 && e.used()
+      ensures this.insert_ent(this.findFree(), e).dir == this.dir[e.name := e.ino]
+    {
+      reveal find_name_spec();
+      seq_to_dir_insert(s, this.findFree(), e);
+    }
+
+    predicate {:opaque} find_name_spec(p: PathComp, i: nat)
+    {
+      && i <= |s|
+      && forall k:nat | k < i :: !(s[k].used() && s[k].name == p)
+    }
+
     function method findName(p: PathComp): (i:nat)
       requires Valid()
       ensures i < 128 ==> s[i].used() && s[i].name == p
+      ensures find_name_spec(p, i)
     {
-      C.find_first( (e:DirEnt) => e.used() && e.name == p, s)
+      var f := (e:DirEnt) => e.used() && e.name == p;
+      C.find_first_complete(f, s);
+      reveal find_name_spec();
+      C.find_first(f, s)
+    }
+
+    predicate {:opaque} find_free_spec(i: nat)
+    {
+      && i <= |s|
+      && forall k:nat | k < i :: s[k].used()
     }
 
     function method findFree(): (i:nat)
       requires Valid()
       ensures i < 128 ==> !s[i].used()
+      ensures find_free_spec(i)
     {
-      C.find_first((e:DirEnt) => !e.used(), s)
+      var f := (e:DirEnt) => !e.used();
+      C.find_first_complete(f, s);
+      reveal find_free_spec();
+      C.find_first(f, s)
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
