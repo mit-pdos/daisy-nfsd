@@ -213,7 +213,7 @@ module DirFs
       ensures ino !in m
     {}
 
-    method readDirents(txn: Txn, d_ino: Ino)
+    method {:timeLimitMultiplier 2} readDirents(txn: Txn, d_ino: Ino)
       returns (err: Error, dents: Dirents)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
