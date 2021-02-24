@@ -29,7 +29,7 @@ jobs:
       - name: Test support library
         run: |
           cd src/dafny_go
-          go test -v ./...
+          go test -v -timeout=1m ./...
       - name: Install goimports
         run: |
           go get golang.org/x/tools/cmd/goimports
@@ -42,5 +42,5 @@ jobs:
           cd bank-go
           export GOPATH="$PWD"
           go get -t ./src
-          go test -bench=. -v ./src
+          go test -bench=. -timeout=1m -v ./src
           echo "::endgroup::"
