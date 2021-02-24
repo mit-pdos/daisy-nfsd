@@ -3,7 +3,8 @@ package jrnl
 import (
 	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
 	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/buftxn"
+	"github.com/mit-pdos/goose-nfsd/lockmap"
+	"github.com/mit-pdos/goose-nfsd/twophase"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/tchajed/goose/machine/disk"
 )
@@ -11,7 +12,7 @@ import (
 type Disk = disk.Disk
 type Blkno = uint64
 type Txn struct {
-	btxn *buftxn.BufTxn
+	btxn *twophase.TwoPhase
 }
 
 func dafnyAddrToAddr(a Addr) addr.Addr {
@@ -19,24 +20,25 @@ func dafnyAddrToAddr(a Addr) addr.Addr {
 }
 
 type Jrnl struct {
-	txn *txn.Txn
+	txn   *txn.Txn
+	locks *lockmap.LockMap
 }
 
 func NewJrnl(d *Disk) *Jrnl {
-	return &Jrnl{txn: txn.MkTxn(*d)}
+	return &Jrnl{
+		txn:   txn.MkTxn(*d),
+		locks: lockmap.MkLockMap(),
+	}
 }
 
 func (jrnl *Jrnl) Begin() *Txn {
-	return &Txn{btxn: buftxn.Begin(jrnl.txn)}
+	return &Txn{btxn: twophase.Begin(jrnl.txn, jrnl.locks)}
 }
 
 func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
 	a_ := dafnyAddrToAddr(a)
 	buf := txn.btxn.ReadBuf(a_, sz)
-	// make independent clone for safety
-	buf2 := make([]byte, len(buf.Data))
-	copy(buf2, buf.Data)
-	return &bytes.Bytes{Data: buf2}
+	return &bytes.Bytes{Data: buf}
 }
 
 func is_bit_set(b byte, off uint64) bool {
@@ -46,7 +48,7 @@ func is_bit_set(b byte, off uint64) bool {
 func (txn *Txn) ReadBit(a Addr) bool {
 	a_ := dafnyAddrToAddr(a)
 	buf := txn.btxn.ReadBuf(a_, 1)
-	data := buf.Data[0]
+	data := buf[0]
 	return is_bit_set(data, a.Off%8)
 }
 
@@ -67,6 +69,6 @@ func (txn *Txn) WriteBit(a Addr, b bool) {
 }
 
 func (txn *Txn) Commit() bool {
-	ok := txn.btxn.CommitWait(true)
+	ok := txn.btxn.Commit()
 	return ok
 }
