@@ -119,3 +119,25 @@ func TestReadModify(t *testing.T) {
 		assert.Equal(byte(0), buf.Data[0])
 	}
 }
+
+func TestAbortTxn(t *testing.T) {
+	var d disk.Disk = disk.NewMemDisk(1000)
+	jrnl := NewJrnl(&d)
+	data := []byte{1, 2, 3, 4}
+	a0 := mkAddr(513, 0)
+
+	{
+		txn := jrnl.Begin()
+		bs := &bytes.Bytes{Data: data}
+		txn.Write(a0, bs)
+		txn.Abort()
+	}
+
+	{
+		txn := jrnl.Begin()
+		// after abort this shouldn't deadlock
+		_ = txn.Read(a0, 4096*8)
+		ok := txn.Commit()
+		assert.True(t, ok, "read-only transaction should succeed")
+	}
+}
