@@ -72,6 +72,19 @@ function method seq_filter<T>(p: T -> bool, xs: seq<T>): (ys:seq<T>)
     else (if p(xs[0]) then [xs[0]] else []) + seq_filter(p, xs[1..])
 }
 
+// find_first
+function method find_first<T>(p: T -> bool, xs: seq<T>): (i:nat)
+    ensures i < |xs| ==> p(xs[i])
+{
+    if xs == [] then 0
+    else if p(xs[0]) then 0 as nat else 1 + find_first(p, xs[1..])
+}
+
+lemma {:induction xs} find_first_complete<T>(p: T -> bool, xs: seq<T>)
+    ensures find_first(p, xs) <= |xs|
+    ensures forall k:nat | k < find_first(p, xs) :: !p(xs[k])
+{}
+
 // repeat
 
 function method repeat<T>(x: T, count: nat): (xs:seq<T>)

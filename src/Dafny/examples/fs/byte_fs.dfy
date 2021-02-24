@@ -319,6 +319,7 @@ module ByteFs {
       ensures bs.data == old(bs.data)
       ensures fs.metadata == old(fs.metadata);
       ensures fs.inode_owner() == old(fs.inode_owner())
+      ensures types_unchanged()
       ensures ok ==> data() == old(
       var d0 := data()[ino];
       var d := C.splice(d0, off as nat, bs.data);
@@ -327,6 +328,7 @@ module ByteFs {
     {
       i' := i;
       ok, i' := alignedRawWrite(txn, ino, i, bs, off);
+      inode_types_metadata_unchanged();
       if !ok {
         return;
       }
@@ -714,6 +716,7 @@ module ByteFs {
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures fs.ValidIno(ino, i')
+      ensures fs.fs.cur_inode == Fs.Some( (ino, i') )
       ensures data() == old(data())
       ensures low_state_unchanged()
     {
@@ -721,6 +724,15 @@ module ByteFs {
       assert types_unchanged() by {
         reveal inode_types();
       }
+    }
+
+    lemma inode_metadata(ino: Ino, i: Inode.Inode)
+      requires fs.ValidIno(ino, i)
+      ensures i.meta.ty == inode_types()[ino]
+      ensures i.meta.sz as nat == |data()[ino]|
+    {
+      fs.inode_metadata(ino, i);
+      reveal inode_types();
     }
 
     method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
@@ -732,6 +744,20 @@ module ByteFs {
       ensures low_state_unchanged()
     {
       fs.finishInode(txn, ino, i);
+      assert types_unchanged() by {
+        reveal inode_types();
+      }
+    }
+
+    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+      modifies fs.fs
+      requires fs.ValidIno(ino, i)
+      requires fs.fs.cur_inode == Fs.Some((ino, i))
+      ensures Valid()
+      ensures data() == old(data())
+      ensures low_state_unchanged()
+    {
+      fs.finishInodeReadonly(ino, i);
       assert types_unchanged() by {
         reveal inode_types();
       }

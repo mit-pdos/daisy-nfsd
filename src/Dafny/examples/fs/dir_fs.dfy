@@ -18,6 +18,22 @@ module DirFs
   datatype File =
     | ByteFile(data: seq<byte>)
     | DirFile(dir: Directory)
+  {
+    static const empty := ByteFile([])
+    static const emptyDir := DirFile(map[])
+  }
+
+  datatype Error =
+    | NoError
+    | DoesNotExist
+    | NotADir
+    | IsADir
+  {
+    predicate method IsError()
+    {
+      !this.NoError?
+    }
+  }
 
   class DirFilesys
   {
@@ -46,7 +62,7 @@ module DirFs
     {
       && alloc_ino_dom(fs.fs.inode_owner(), data)
       && (forall ino:Ino :: ino in dirents <==>
-        (fs.fs.inode_owner()[ino].Some? && fs.inode_types()[ino].DirType?))
+        fs.inode_types()[ino].DirType?)
     }
 
     predicate ValidRoot()
@@ -80,7 +96,10 @@ module DirFs
       reads Repr
     {
 
-      forall ino:Ino | ino in dirents :: ino in data && data[ino] == DirFile(dirents[ino].dir)
+      && (forall ino:Ino | ino in dirents :: ino in data &&
+        data[ino] == DirFile(dirents[ino].dir))
+      && (forall ino:Ino :: fs.inode_types()[ino].DirType? ==>
+        fs.fs.inode_owner()[ino].Some?)
     }
 
     predicate ValidData()
@@ -98,7 +117,6 @@ module DirFs
       forall ino:Ino | fs.fs.inode_owner()[ino].None? ::
         fs.inode_types()[ino].FileType? && fs.data()[ino] == []
     }
-
 
     predicate Valid()
       reads Repr
@@ -118,13 +136,13 @@ module DirFs
       requires fs.fs.inode_owner() == map ino: Ino {:trigger} :: if ino == rootIno then Fs.Some(()) else Fs.None
       requires rootIno != 0
       ensures Valid()
-      ensures data == map[rootIno := DirFile(map[])]
+      ensures data == map[rootIno := File.emptyDir]
     {
       this.fs := fs;
       this.rootIno := rootIno;
       var dirents0 : map<Ino, Dirents> := map[rootIno := Dirents.zero];
       this.dirents := dirents0;
-      this.data := map[rootIno := DirFile(map[])];
+      this.data := map[rootIno := File.emptyDir];
       new;
       Dirents.zero_dir();
       assert ValidData() by {
@@ -186,6 +204,148 @@ module DirFs
 
       var dir_fs := new DirFilesys.Init(fs_, rootIno_);
       return Some(dir_fs);
+    }
+
+    lemma alloc_ino_dom_not<T>(inode_owner: map<Ino, Option<()>>, m: map<Ino, T>, ino: Ino)
+      requires ino_dom(inode_owner)
+      requires alloc_ino_dom(inode_owner, m)
+      requires !inode_owner[ino].Some?
+      ensures ino !in m
+    {}
+
+    method readDirents(txn: Txn, d_ino: Ino)
+      returns (err: Error, dents: Dirents)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.NoError? ==> d_ino in dirents && dents == dirents[d_ino]
+      ensures err.DoesNotExist? ==> d_ino !in data
+      ensures err.NotADir? ==> d_ino in data && data[d_ino].ByteFile?
+      ensures !err.IsADir?
+    {
+      var i := fs.startInode(txn, d_ino);
+      fs.inode_metadata(d_ino, i);
+      var dir_exists? := fs.fs.fs.isInodeAllocated(txn, d_ino);
+      if !dir_exists? {
+        fs.finishInodeReadonly(d_ino, i);
+        assert ValidData() by {
+          reveal ValidFiles();
+          reveal ValidDirs();
+        }
+        err := DoesNotExist;
+        return;
+      }
+      assume false;
+      if i.meta.ty == Inode.FileType {
+        fs.finishInodeReadonly(d_ino, i);
+        err := NotADir;
+        reveal ValidFiles();
+        return;
+      }
+      err := NoError;
+      assert d_ino in dirents;
+
+      assert |fs.data()[d_ino]| == 4096 by {
+        dirents[d_ino].enc_len();
+      }
+      var bs := fs.readInternal(txn, d_ino, i, 0, 4096);
+      fs.finishInodeReadonly(d_ino, i);
+      dents := Dirents.decode(bs, dirents[d_ino]);
+    }
+
+    static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: Dirents)
+      returns (ok:bool)
+      modifies fs.Repr
+      requires fs.Valid() ensures fs.Valid()
+      requires fs.fs.has_jrnl(txn)
+      requires |fs.data()[d_ino]| == 4096
+      ensures ok ==>
+        && fs.data() == old(fs.data()[d_ino := dents.enc()])
+        && fs.fs.inode_owner() == old(fs.fs.inode_owner())
+        && fs.types_unchanged()
+    {
+      var i := fs.startInode(txn, d_ino);
+      var bs := dents.encode();
+      assert |bs.data| == 4096 by {
+        dents.enc_len();
+      }
+      ok, i := fs.alignedWrite(txn, d_ino, i, bs, 0);
+      fs.finishInode(txn, d_ino, i);
+      if !ok {
+        return;
+      }
+      assert fs.data()[d_ino] == dents.enc();
+    }
+
+    method writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
+      returns (ok:bool)
+      modifies Repr
+      requires fs.fs.has_jrnl(txn)
+      requires Valid() ensures ok ==> Valid()
+      requires IsDir: d_ino in dirents
+      ensures ok ==>
+           && dirents == old(dirents[d_ino := dents])
+           && data == old(data[d_ino := DirFile(dents.dir)])
+    {
+      assert |fs.data()[d_ino]| == 4096 by {
+        reveal IsDir;
+        dirents[d_ino].enc_len();
+      }
+      ok := writeDirentsToFs(fs, txn, d_ino, dents);
+      if !ok {
+        return;
+      }
+
+      dirents := dirents[d_ino := dents];
+      data := data[d_ino := DirFile(dents.dir)];
+
+      reveal IsDir;
+      assert fs.inode_types()[d_ino].DirType?;
+      assert ValidFiles() by {
+        reveal ValidFiles();
+      }
+      assert ValidDirs() by {
+        reveal ValidDirs();
+      }
+    }
+
+    method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
+      returns (ok: bool, ino: Ino)
+      modifies fs.Repr
+      requires Valid() ensures ok ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures ok ==>
+      && d_ino in old(data) && old(data[d_ino].DirFile?)
+      && ino !in old(data)
+      && data == old(
+        var d := data[d_ino].dir;
+        var d' := DirFile(d[name := ino]);
+        data[d_ino := d'][ino := File.empty])
+    {
+      var err, dirents := readDirents(txn, d_ino);
+      if err.IsError() {
+        ok := false;
+        return;
+      }
+      ok, ino := fs.allocInode(txn, ());
+      if !ok {
+        return;
+      }
+      assume Valid();
+      // TODO: support creating a file and overwriting existing
+      if dirents.findName(name) < 128 {
+        ok := false;
+        return;
+      }
+      var i := dirents.findFree();
+      if !(i < 128) {
+        // no space in directory
+        ok := false;
+        return;
+      }
+      dirents := dirents.(s:=dirents.s[i := DirEnt(name, ino)]);
+      ok := writeDirents(txn, d_ino, dirents);
+      assume false;
     }
   }
 }

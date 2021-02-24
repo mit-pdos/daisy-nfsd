@@ -228,6 +228,20 @@ module DirEntries
       // TODO: implement
       assume false;
     }
+
+    function method findName(p: PathComp): (i:nat)
+      requires Valid()
+      ensures i < 128 ==> s[i].used() && s[i].name == p
+    {
+      C.find_first( (e:DirEnt) => e.used() && e.name == p, s)
+    }
+
+    function method findFree(): (i:nat)
+      requires Valid()
+      ensures i < 128 ==> !s[i].used()
+    {
+      C.find_first((e:DirEnt) => !e.used(), s)
+    }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
 }

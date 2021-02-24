@@ -320,6 +320,16 @@ module Fs {
       reveal Valid_jrnl_to_inode_owner();
     }
 
+    method isInodeAllocated(txn: Txn, ino: Ino) returns (alloc?: bool)
+      requires txn.jrnl == this.jrnl
+      requires Valid()
+      ensures alloc? <==> inode_owner[ino].Some?
+    {
+      inode_bit_inbounds(jrnl);
+      alloc? := txn.ReadBit(InodeBitAddr(ino));
+      reveal Valid_jrnl_to_inode_owner();
+    }
+
     // public
     method getDataBlock(txn: Txn, bn: Blkno) returns (bs: Bytes)
       modifies {}
