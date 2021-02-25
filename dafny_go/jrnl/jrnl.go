@@ -1,7 +1,7 @@
 package jrnl
 
 import (
-	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
+	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/twophase"

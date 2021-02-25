@@ -53,7 +53,7 @@ module Machine {
     }
 }
 
-module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"} ByteSlice {
+module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"} ByteSlice {
     import opened Machine
     import C = Collections
 
@@ -230,7 +230,7 @@ module bytes_test {
     }
 }
 
-module {:extern "debug", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/debug"} DebugPrint {
+module {:extern "debug", "github.com/mit-pdos/dafny-jrnl/dafny_go/debug"} DebugPrint {
     method {:extern} Print(s: string)
 }
 

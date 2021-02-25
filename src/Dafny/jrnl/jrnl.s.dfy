@@ -18,7 +18,7 @@ module JrnlTypes
 Spec for sequential journal API, assuming we're using 2PL.
 */
 
-module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/jrnl"} JrnlSpec
+module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
 {
 
     import opened JrnlTypes

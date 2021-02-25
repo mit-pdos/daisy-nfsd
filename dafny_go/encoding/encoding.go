@@ -3,7 +3,7 @@ package encoding
 import (
 	"encoding/binary"
 
-	"github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
+	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
 )
 
 func UInt64Put(x uint64, off uint64, bs *bytes.Bytes) {

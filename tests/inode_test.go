@@ -3,10 +3,10 @@ package compile_test
 import (
 	"testing"
 
-	inode "Inode_Compile"
-	_dafny "dafny"
+	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
+	_dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
-	bytes "github.com/mit-pdos/dafny-jrnl/src/dafny_go/bytes"
+	bytes "github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
 	"github.com/stretchr/testify/assert"
 	"github.com/tchajed/marshal"
 )

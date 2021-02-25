@@ -1,7 +1,7 @@
 package compile_test
 
 import (
-	bank "Bank_Compile"
+	bank "github.com/mit-pdos/dafny-jrnl/dafnygen/Bank_Compile"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

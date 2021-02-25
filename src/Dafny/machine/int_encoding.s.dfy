@@ -6,7 +6,7 @@ https://github.com/GLaDOS-Michigan/IronFleet/blob/master/ironfleet/src/Dafny/Dis
 */
 include "machine.s.dfy"
 
-module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/src/dafny_go/encoding"} IntEncoding
+module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/dafny_go/encoding"} IntEncoding
 {
     import opened Machine
     import opened ByteSlice

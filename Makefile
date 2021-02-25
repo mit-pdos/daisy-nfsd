@@ -8,9 +8,9 @@ DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
 Q:=@
 
-default: $(OK_FILES)
+default: all
 
-compile: bank-go/src/bank.go
+compile: dafnygen/dafnygen.go
 
 all: $(OK_FILES) compile
 
@@ -33,20 +33,17 @@ src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 
 # compilation runs goimports to clean up unused imports emitted by Dafny
 # the call to gofmt simplifies the code to make it more readable
-bank-go/src/bank.go: src/Dafny/compile.dfy $(DFY_FILES)
+dafnygen/dafnygen.go: src/Dafny/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out bank $<
-	$(Q)cd bank-go; \
-	env GOPATH="$$PWD" goimports -w ./src/*.go ./src/*Compile/; \
-	env GOPATH="$$PWD" gofmt -r '(a) -> a' -w ./src/*.go ./src/*Compile;
-	$(Q)cd bank-go; \
-	if [ ! -d src/github.com/mit-pdos/dafny-jrnl ]; then \
-		mkdir -p src/github.com/mit-pdos; \
-		ln -s ../../../.. src/github.com/mit-pdos/dafny-jrnl; \
-	fi
+	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out dafnygen $<
+	$(Q)rm -rf dafnygen
+	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
+	$(Q)rm -r dafnygen-go
+	$(Q)go fmt ./dafnygen/... >/dev/null
+	$(Q)goimports -w ./dafnygen
 
 clean:
 	@echo "CLEAN"
 	$(Q)find . -name "*.dfy.ok" -delete
 	$(Q)rm -f .dafnydeps.d
-	$(Q)rm -rf bank-go/src/bank.go bank-go/src/*/ bank-go/pkg
+	$(Q)rm -rf dafnygen
