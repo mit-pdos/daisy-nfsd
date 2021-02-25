@@ -11,9 +11,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go: ["1.16.0"]
     env:
       DAFNY_VERSION: "3.0.0"
-      GO_VERSION: "1.16.0"
     steps:
       - name: Install Dafny
         run: |
@@ -23,7 +25,7 @@ jobs:
           echo "/tmp/dafny" >> $GITHUB_PATH
       - uses: actions/setup-go@v2
         with:
-          go-version: "$GO_VERSION"
+          go-version: { { matrix.go } }
       - uses: actions/checkout@v2
       - name: Verify
         run: make -j2
