@@ -66,7 +66,7 @@ module ByteFs {
     }
 
     twostate lemma inode_types_metadata_unchanged()
-      requires old(fs.Valid()) && fs.Valid()
+      requires old(Fs.ino_dom(fs.metadata)) && Fs.ino_dom(fs.metadata)
       requires fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
@@ -427,7 +427,7 @@ module ByteFs {
       modifies Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
-      requires off as nat + |bs.data| <= off as nat/4096*4096 + 4096 <= |data()[ino]|
+      requires off as nat + |bs.data| <= off as nat + (4096 - off as nat % 4096) <= |data()[ino]|
       ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
       ensures ok ==>
