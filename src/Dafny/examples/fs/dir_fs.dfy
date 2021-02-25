@@ -35,6 +35,8 @@ module DirFs
     }
   }
 
+  datatype StatRes = StatRes(is_dir: bool, size: uint64)
+
   class DirFilesys
   {
     // external abstract state
@@ -404,5 +406,73 @@ module DirFs
       reveal d_ino_ok;
       reveal ino_ok;
     }
+
+    method {:timeLimitMultiplier 2} Stat(txn: Txn, ino: Ino)
+      returns (ok: bool, r: StatRes)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures !ok ==> ino !in data
+      ensures ok ==>
+          && ino in data
+          && r.is_dir == data[ino].DirFile?
+          && data[ino].ByteFile? ==> r.size as nat == |data[ino].data|
+          && data[ino].DirFile? ==> r.size as nat == |data[ino].dir|
+    {
+      var i := fs.startInode(txn, ino);
+      fs.inode_metadata(ino, i);
+      var file_exists? := fs.fs.fs.isInodeAllocated(txn, ino);
+      if !file_exists? {
+        fs.finishInodeReadonly(ino, i);
+        assert ValidData() by {
+          reveal ValidFiles();
+          reveal ValidDirs();
+        }
+        ok := false;
+        return;
+      }
+      ok := true;
+      assert ino in data;
+      var is_dir := i.meta.ty == Inode.DirType;
+      assert is_dir == data[ino].DirFile? by {
+        reveal ValidDirs();
+        reveal ValidFiles();
+      }
+      if is_dir {
+        assert |fs.data()[ino]| == 4096 by {
+          dirents[ino].enc_len();
+        }
+        var bs := fs.readInternal(txn, ino, i, 0, 4096);
+        fs.finishInodeReadonly(ino, i);
+        var dents := Dirents.decode(bs, dirents[ino]);
+        assert Valid() by {
+          assert ValidData() by {
+            reveal ValidFiles();
+            reveal ValidDirs();
+          }
+        }
+        var num_entries := dents.numValid();
+        r := StatRes(true, num_entries);
+        return;
+      }
+      // is a file
+      fs.finishInodeReadonly(ino, i);
+      r := StatRes(false, i.sz);
+      assert ValidData() by {
+        reveal ValidFiles();
+        reveal ValidDirs();
+      }
+      return;
+    }
+
+    // TODO:
+    //
+    // 1. Append
+    // 2. Read
+    // 3. CreateDir
+    // 4. Write
+    // 5. Rename (maybe?)
+    // 6. Unlink
+
   }
 }

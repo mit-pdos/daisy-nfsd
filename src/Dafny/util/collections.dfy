@@ -85,6 +85,24 @@ lemma {:induction xs} find_first_complete<T>(p: T -> bool, xs: seq<T>)
     ensures forall k:nat | k < find_first(p, xs) :: !p(xs[k])
 {}
 
+// count matching a predicate
+function method count_matching<T>(p: T -> bool, xs: seq<T>): (i:nat)
+    ensures i <= |xs|
+{
+    if xs == [] then 0
+    else (if p(xs[0]) then 1 else 0) + count_matching(p, xs[1..])
+}
+
+lemma {:induction xs1} count_matching_app<T>(p: T -> bool, xs1: seq<T>, xs2: seq<T>)
+    ensures count_matching(p, xs1 + xs2) == count_matching(p, xs1) + count_matching(p, xs2)
+{
+    if xs1 == [] {
+        assert xs1 + xs2 == xs2;
+    } else {
+        assert (xs1 + xs2)[1..] == xs1[1..] + xs2;
+    }
+}
+
 // repeat
 
 function method repeat<T>(x: T, count: nat): (xs:seq<T>)

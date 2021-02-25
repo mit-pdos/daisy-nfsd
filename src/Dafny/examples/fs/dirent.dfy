@@ -85,6 +85,8 @@ module DirEntries
       ino != 0
     }
 
+    static predicate is_used(e: DirEnt) { e.used() }
+
     predicate method unused()
     {
       ino == 0
@@ -187,6 +189,45 @@ module DirEntries
     // }
   }
 
+  predicate dirents_unique(s: seq<DirEnt>)
+  {
+    forall i, j | 0 <= i < |s| && 0 <= j < |s| ::
+      s[i].name == s[j].name && s[i].used() && s[j].used() ==> i == j
+  }
+
+  lemma seq_to_dir_in_dir(s: seq<DirEnt>, n: PathComp)
+    returns (i: nat)
+    requires n in seq_to_dir(s)
+    ensures i < |s| && s[i].name == n && s[i].used()
+  {
+    if s == [] { assert false; }
+    else {
+      if s[0].used() && s[0].name == n {
+        i := 0;
+      } else {
+        var i' := seq_to_dir_in_dir(s[1..], n);
+        i := 1 + i';
+      }
+    }
+  }
+
+  lemma {:induction s} seq_to_dir_size(s: seq<DirEnt>)
+    requires dirents_unique(s)
+    ensures |seq_to_dir(s)| == C.count_matching(DirEnt.is_used, s)
+  {
+    if s == [] {}
+    else {
+      seq_to_dir_size(s[1..]);
+      var e := s[0];
+      if e.used() {
+        if e.name in seq_to_dir(s[1..]) {
+          var i := seq_to_dir_in_dir(s[1..], e.name);
+        }
+        assert |seq_to_dir(s)| == 1 + |seq_to_dir(s[1..])|;
+      }
+    }
+  }
+
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
     static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, 128))
@@ -202,7 +243,8 @@ module DirEntries
     predicate Valid()
     {
       // 128*32 == 4096 so these will fit in a block
-      |s| == 128
+      && |s| == 128
+      && dirents_unique(s)
     }
 
     static function encOne(e: DirEnt): seq<byte>
@@ -302,10 +344,12 @@ module DirEntries
     function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
       requires i < 128
+      requires this.findName(e.name) >= 128
       ensures ents'.Valid()
     {
       var s' := this.s[i := e];
       var ents': preDirents := Dirents(s');
+      reveal find_name_spec();
       assert ents'.Valid();
       ents'
     }
@@ -352,6 +396,28 @@ module DirEntries
       C.find_first_complete(f, s);
       reveal find_free_spec();
       C.find_first(f, s)
+    }
+
+    method numValid() returns (n:uint64)
+      requires Valid()
+      ensures n as nat == |this.dir|
+    {
+      n := 0;
+      var i: uint64 := 0;
+      var p := DirEnt.is_used;
+      while i < 128
+        invariant 0 <= i as nat <= 128
+        invariant n as nat == C.count_matching(p, s[..i])
+      {
+        assert s[..i+1] == s[..i] + [s[i]];
+        C.count_matching_app(p, s[..i], [s[i]]);
+        if s[i].used() {
+          n := n + 1;
+        }
+        i := i + 1;
+      }
+      assert s[..128] == s;
+      seq_to_dir_size(s);
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
