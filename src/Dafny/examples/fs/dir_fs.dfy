@@ -59,7 +59,7 @@ module DirFs
     }
 
     predicate ValidDomains()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
       && alloc_ino_dom(fs.fs.inode_owner(), data)
@@ -67,9 +67,10 @@ module DirFs
         fs.inode_types()[ino].DirType?)
     }
 
+    // TODO: make opaque
     predicate ValidRoot()
       reads Repr
-      requires fs.Valid()
+      requires fs.fs.Valid()
     {
       // the root inode is allocated and is actually a directory
       && fs.fs.inode_owner()[rootIno].Some?
@@ -78,7 +79,7 @@ module DirFs
     }
 
     predicate ValidDirents()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
       forall ino:Ino | ino in dirents ::
@@ -86,7 +87,7 @@ module DirFs
     }
 
     predicate {:opaque} ValidFiles()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
       forall ino:Ino | fs.fs.inode_owner()[ino].Some? && fs.inode_types()[ino].FileType? ::
@@ -94,7 +95,7 @@ module DirFs
     }
 
     predicate {:opaque} ValidDirs()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
 
@@ -105,7 +106,7 @@ module DirFs
     }
 
     predicate ValidData()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
       && ValidFiles()
@@ -113,22 +114,36 @@ module DirFs
     }
 
     predicate ValidUnusedInodes()
-      requires fs.Valid()
+      requires fs.fs.Valid()
       reads Repr
     {
       forall ino:Ino | fs.fs.inode_owner()[ino].None? ::
         fs.inode_types()[ino].FileType? && fs.data()[ino] == []
     }
 
-    predicate Valid()
+    predicate ValidDirFs()
+      requires fs.fs.Valid()
       reads Repr
     {
-      && fs.Valid()
       && ValidDomains()
       && ValidRoot()
       && ValidDirents()
       && ValidData()
       && ValidUnusedInodes()
+    }
+
+    predicate Valid()
+      reads Repr
+    {
+      && fs.Valid()
+      && ValidDirFs()
+    }
+
+    predicate ValidIno(ino: Ino, i: Inode.Inode)
+      reads Repr
+    {
+      && fs.fs.ValidIno(ino, i)
+      && ValidDirFs()
     }
 
     constructor Init(fs: ByteFilesys<()>, rootIno: Ino)
