@@ -3,6 +3,7 @@ include "dirent.dfy"
 
 module DirFs
 {
+  import opened Std
   import opened Machine
   import opened ByteSlice
   import opened Fs
@@ -261,7 +262,7 @@ module DirFs
       requires fs.fs.has_jrnl(txn)
       requires Valid()
       ensures ValidIno(ino, i) && i.meta.ty == fs.inode_types()[ino]
-      ensures fs.fs.fs.cur_inode == Fs.Some( (ino, i) )
+      ensures fs.fs.fs.cur_inode == Some( (ino, i) )
       ensures data == old(data)
       ensures dirents == old(dirents)
       ensures fs.types_unchanged()

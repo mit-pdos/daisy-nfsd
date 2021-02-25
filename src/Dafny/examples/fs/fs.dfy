@@ -1,3 +1,4 @@
+include "../../util/std.dfy"
 include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
 include "../../jrnl/alloc.i.dfy"
@@ -5,9 +6,11 @@ include "kinds.dfy"
 include "inode.dfy"
 
 module Fs {
-  import Inode
-  import C = Collections
   import Arith
+  import opened Std
+  import C = Collections
+
+  import Inode
   import Round
   import opened Machine
   import opened ByteSlice
@@ -17,9 +20,6 @@ module Fs {
   import opened Kinds
   import opened FsKinds
   import opened Marshal
-
-  // TODO: move to some helper lib?
-  datatype Option<T> = Some(x:T) | None
 
   function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
     requires blkno_dom(m)

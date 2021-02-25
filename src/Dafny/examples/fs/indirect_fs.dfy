@@ -4,6 +4,7 @@ include "pos.dfy"
 
 module IndFs
 {
+  import opened Std
   import opened Machine
   import opened ByteSlice
   import opened FsKinds

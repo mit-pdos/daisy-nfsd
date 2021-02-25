@@ -2,6 +2,7 @@ include "block_fs.dfy"
 include "../../util/min_max.dfy"
 
 module ByteFs {
+  import opened Std
   import Fs
   import opened BlockFs
   import IndirectPos
@@ -679,7 +680,7 @@ module ByteFs {
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures fs.ValidIno(ino, i')
-      ensures fs.fs.cur_inode == Fs.Some( (ino, i') )
+      ensures fs.fs.cur_inode == Some( (ino, i') )
       ensures data() == old(data())
       ensures types_unchanged()
     {
@@ -715,7 +716,7 @@ module ByteFs {
     ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
       modifies fs.fs
       requires fs.ValidIno(ino, i)
-      requires fs.fs.cur_inode == Fs.Some((ino, i))
+      requires fs.fs.cur_inode == Some((ino, i))
       ensures Valid()
       ensures data() == old(data())
       ensures types_unchanged()
