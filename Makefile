@@ -12,7 +12,9 @@ default: all
 
 compile: dafnygen/dafnygen.go
 
-all: $(OK_FILES) compile
+verify: $(OK_FILES)
+
+all: verify compile
 
 .dafnydeps.d: $(DFY_FILES) etc/dafnydep
 	@echo "DAFNYDEP"

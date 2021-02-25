@@ -27,7 +27,7 @@ jobs:
           go-version: ${{ matrix.go }}
       - uses: actions/checkout@v2
       - name: Verify
-        run: make -j2
+        run: make -j2 verify
       - name: Test support library
         run: |
           go test -v -timeout=1m ./dafny_go/...
