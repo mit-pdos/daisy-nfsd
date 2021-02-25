@@ -167,23 +167,17 @@ module ByteFs {
       }
     }
 
-    // TODO: why is this so slow?
-    method {:timeLimitMultiplier 2} read_txn(txn: Txn, ino: Ino, off: uint64, len: uint64)
+    method read_txn_with_inode(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
-      requires Valid() ensures Valid()
+      requires fs.ValidIno(ino, i) && fs.fs.cur_inode == Some( (ino, i) )
+      ensures Valid()
+      requires len <= 4096
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
     {
-      if len > 4096 {
-        ok := false;
-        bs := NewBytes(0);
-        return;
-      }
-      var i := fs.startInode(txn, ino);
-
       fs.inode_metadata(ino, i);
 
       if sum_overflows(off, len) || off+len > i.sz {
@@ -211,6 +205,24 @@ module ByteFs {
       bs := readInternal(txn, ino, i, off, len);
       fs.finishInodeReadonly(ino, i);
       assert data() == old(data());
+    }
+
+    method read_txn(txn: Txn, ino: Ino, off: uint64, len: uint64)
+      returns (bs: Bytes, ok: bool)
+      modifies fs.fs
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures Valid()
+      ensures ok ==>
+          && off as nat + len as nat <= |data()[ino]|
+          && bs.data == this.data()[ino][off..off+len]
+    {
+      if len > 4096 {
+        ok := false;
+        bs := NewBytes(0);
+        return;
+      }
+      var i := fs.startInode(txn, ino);
+      bs, ok := read_txn_with_inode(txn, ino, i, off, len);
     }
 
     // public

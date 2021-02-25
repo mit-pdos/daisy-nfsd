@@ -30,7 +30,7 @@ module DirFs
     | DoesNotExist
     | NotADir
     | IsADir
-    | OutOfSpace
+    | OtherError
   {
     predicate method IsError()
     {
@@ -560,7 +560,7 @@ module DirFs
       ensures !err.NoError? ==> Valid()
       ensures err.DoesNotExist? ==> is_invalid(ino)
       ensures err.IsADir? ==> is_dir(ino)
-      ensures !err.OutOfSpace?
+      ensures !err.OtherError?
       ensures !err.NotADir?
     {
       i := startInode(txn, ino);
@@ -586,8 +586,8 @@ module DirFs
       returns (err:Error)
       modifies Repr, bs
       requires Valid()
-      // nothing to say in OutOfSpace case (need to abort transaction)
-      ensures !err.OutOfSpace? ==> Valid()
+      // nothing to say in OtherError case (need to abort transaction)
+      ensures !err.OtherError? ==> Valid()
       requires fs.fs.has_jrnl(txn)
       requires bs.Valid() && 0 < bs.Len() <= 4096
       ensures err.DoesNotExist? ==> data == old(data) && ino !in data
@@ -607,7 +607,7 @@ module DirFs
       }
       ghost var d0: seq<byte> := old(data[ino].data);
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        err := OutOfSpace;
+        err := OtherError;
         fs.finishInodeReadonly(ino, i);
         return;
       }
@@ -615,7 +615,7 @@ module DirFs
       var ok;
       ok, i := fs.appendIno(txn, ino, i, bs);
       if !ok {
-        err := OutOfSpace;
+        err := OtherError;
         fs.finishInode(txn, ino, i);
         return;
       }
@@ -635,10 +635,48 @@ module DirFs
       assert Valid();
     }
 
+    method Read(txn: Txn, ino: Ino, off: uint64, len: uint64)
+      returns (err:Error, bs: Bytes)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.DoesNotExist? ==> ino !in data
+      ensures err.IsADir? ==> ino in data && data[ino].DirFile?
+      ensures !err.NotADir?
+      ensures err.NoError? ==>
+      && ino in data && data[ino].ByteFile?
+      && off as nat + len as nat <= |data[ino].data|
+      && bs.data == data[ino].data[off as nat..off as nat + len as nat]
+    {
+      if len > 4096 {
+        bs := NewBytes(0);
+        err := OtherError;
+        return;
+      }
+      var i;
+      err, i := openFile(txn, ino);
+      if err.IsError() {
+        bs := NewBytes(0);
+        return;
+      }
+      var ok;
+      bs, ok := fs.read_txn_with_inode(txn, ino, i, off, len);
+      if !ok {
+        err := OtherError;
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      err := NoError;
+      assert Valid() by {
+        assert ValidFiles() by { reveal ValidFiles(); }
+      }
+      reveal ValidFiles();
+    }
+
     // TODO:
     //
     // 1. Append (done)
-    // 2. Read
+    // 2. Read (done)
     // 3. CreateDir
     // 4. Write
     // 5. Rename (maybe?)
