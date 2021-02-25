@@ -30,8 +30,7 @@ jobs:
         run: make -j2
       - name: Test support library
         run: |
-          cd src/dafny_go
-          go test -v -timeout=1m ./...
+          go test -v -timeout=1m ./dafny_go/...
       - name: Install goimports
         run: |
           go get golang.org/x/tools/cmd/goimports
@@ -41,9 +40,5 @@ jobs:
           make compile
           echo "::endgroup::"
           echo "::group::Test compiled code"
-          cd bank-go
-          export GOPATH="$PWD"
-          export GO111MODULE="auto"
-          go get -t ./src
-          go test -bench=. -timeout=1m -v ./src
+          go test -bench=. -timeout=1m -v ./tests
           echo "::endgroup::"
