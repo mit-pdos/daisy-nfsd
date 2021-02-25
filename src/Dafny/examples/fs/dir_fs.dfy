@@ -264,9 +264,6 @@ module DirFs
       requires Valid()
       ensures ValidIno(ino, i) && i.meta.ty == fs.inode_types()[ino]
       ensures fs.fs.fs.cur_inode == Some( (ino, i) )
-      ensures data == old(data)
-      ensures dirents == old(dirents)
-      ensures fs.types_unchanged()
     {
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
@@ -551,6 +548,40 @@ module DirFs
       return;
     }
 
+    method openFile(txn: Txn, ino: Ino)
+      returns (err:Error, i: Inode.Inode)
+      modifies fs.fs.fs
+      requires Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.NoError? ==>
+      && ValidIno(ino, i)
+      && fs.fs.fs.cur_inode == Some ( (ino, i) )
+      && is_file(ino)
+      ensures !err.NoError? ==> Valid()
+      ensures err.DoesNotExist? ==> is_invalid(ino)
+      ensures err.IsADir? ==> is_dir(ino)
+      ensures !err.OutOfSpace?
+      ensures !err.NotADir?
+    {
+      i := startInode(txn, ino);
+      if i.meta.ty.InvalidType? {
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        err := DoesNotExist;
+        fs.finishInodeReadonly(ino, i);
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      if i.meta.ty.DirType? {
+        assert is_dir(ino) by { reveal is_of_type(); }
+        err := IsADir;
+        fs.finishInodeReadonly(ino, i);
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      assert is_file(ino) by { reveal is_of_type(); }
+      err := NoError;
+    }
+
     method {:timeLimitMultiplier 2} Append(txn: Txn, ino: Ino, bs: Bytes)
       returns (err:Error)
       modifies Repr, bs
@@ -569,22 +600,11 @@ module DirFs
       var d' := d + bs.data;
       data[ino := ByteFile(d')])
     {
-      var i := startInode(txn, ino);
-      if i.meta.ty.InvalidType? {
-        assert is_invalid(ino) by { reveal is_of_type(); }
-        err := DoesNotExist;
-        fs.finishInodeReadonly(ino, i);
-        assert ValidFiles() by { reveal ValidFiles(); }
+      var i;
+      err, i := openFile(txn, ino);
+      if err.IsError() {
         return;
       }
-      if i.meta.ty.DirType? {
-        assert is_dir(ino) by { reveal is_of_type(); }
-        err := IsADir;
-        fs.finishInodeReadonly(ino, i);
-        assert ValidFiles() by { reveal ValidFiles(); }
-        return;
-      }
-      assert is_file(ino) by { reveal is_of_type(); }
       ghost var d0: seq<byte> := old(data[ino].data);
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
         err := OutOfSpace;
