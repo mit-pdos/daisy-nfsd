@@ -40,10 +40,12 @@ run:
 ```sh
 cd bank-go
 export GOPATH="$PWD"
+export GO111MODULE="auto"
 go get -t ./src
 go test ./src
 ```
 
+The `GO111MODULE` variable is required on Go 1.16 and later.
 Dafny emits code in a structure that uses `$GOPATH` rather than the modern Go
 module infrastructure.
 

@@ -41,6 +41,7 @@ jobs:
           echo "::group::Test compiled code"
           cd bank-go
           export GOPATH="$PWD"
+          export GO111MODULE="auto"
           go get -t ./src
           go test -bench=. -timeout=1m -v ./src
           echo "::endgroup::"
