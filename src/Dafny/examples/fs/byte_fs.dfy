@@ -51,16 +51,16 @@ module ByteFs {
     }
 
     function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
-      reads fs.Repr
-      requires fs.Valid()
+      reads fs
+      requires Fs.ino_dom(fs.metadata)
       ensures Fs.ino_dom(m)
     {
       map ino: Ino :: fs.metadata[ino].ty
     }
 
     twostate predicate types_unchanged()
-      reads fs.Repr
-      requires old(fs.Valid()) && fs.Valid()
+      reads fs
+      requires old(Fs.ino_dom(fs.metadata)) && Fs.ino_dom(fs.metadata)
     {
       inode_types() == old(inode_types())
     }
