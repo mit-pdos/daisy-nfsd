@@ -21,8 +21,9 @@ crash-safety reasoning in Perennial.
 
 ## Compiling
 
-Run `make` to verify everything and `make compile` to compile the file-system
-and bank examples to Go.
+Run `make verify` to verify everything and `make compile` to compile
+the file-system and bank examples to Go (the generated code goes into
+`dafnygen/`).
 
 You'll need Dafny 3 on your $PATH. Compilation additionally depends on
 goimports to remove unused imports:
@@ -31,27 +32,19 @@ goimports to remove unused imports:
 go get golang.org/x/tools/cmd/goimports
 ```
 
-Then you can run some sanity tests over the bank example. These are ordinary Go
-tests that import the code generated from Dafny and run it, linking with
-[goose-nfsd](https://github.com/mit-pdos/goose-nfsd), specifically with its txn
-and buftxn packages. To run these tests, after compiling with `make compile`,
-run:
+Then you can run some sanity tests over the bank and file-system examples.
+These are ordinary Go tests that import the code generated from Dafny and
+run it, linking with [goose-nfsd](https://github.com/mit-pdos/goose-nfsd),
+specifically with its txn and buftxn packages. To run these tests,
+after compiling with `make compile`, run:
 
 ```sh
-cd bank-go
-export GOPATH="$PWD"
-export GO111MODULE="auto"
-go get -t ./src
-go test ./src
+go test -v ./tests
 ```
-
-The `GO111MODULE` variable is required on Go 1.16 and later.
-Dafny emits code in a structure that uses `$GOPATH` rather than the modern Go
-module infrastructure.
 
 ## Developing
 
-We provide a library at `src/dafny_go` that exports some external APIs that are
+We provide a library at `dafny_go` that exports some external APIs that are
 axiomatized using `{:extern}` modules, classes, and methods in Dafny. Some of
 these are core primitives, like `[]byte` and little-endian encoding, while the
 big one is the `jrnl` package which interfaces between Dafny and
@@ -63,14 +56,5 @@ important.
 You can run tests for this support library with `go test`:
 
 ```sh
-cd src/dafny_go
-go test ./...
+go test ./dafny_go/...
 ```
-
-Note that this library uses modern Go modules. It is slightly unusual in that
-the root is not the root of the repo, but Go supports this.
-
-The support library the generated code uses is within this repo; to make this
-work nicely, we implement a hack to link the repo itself into
-`src/github.com/mit-pdos/dafny-jrnl` so that modifications to the support
-library are immediately reflected.
