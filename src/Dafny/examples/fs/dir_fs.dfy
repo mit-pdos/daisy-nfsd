@@ -67,8 +67,7 @@ module DirFs
         fs.inode_types()[ino].DirType?)
     }
 
-    // TODO: make opaque
-    predicate ValidRoot()
+    predicate {:opaque} ValidRoot()
       reads Repr
       requires fs.fs.Valid()
     {
@@ -153,6 +152,7 @@ module DirFs
       requires fs.fs.inode_owner() == map ino: Ino {:trigger} :: if ino == rootIno then Fs.Some(()) else Fs.None
       requires rootIno != 0
       ensures Valid()
+      ensures this.rootIno == rootIno
       ensures data == map[rootIno := File.emptyDir]
     {
       this.fs := fs;
@@ -166,6 +166,7 @@ module DirFs
         reveal ValidFiles();
         reveal ValidDirs();
       }
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     static method allocEmptyDir(fs: ByteFilesys<()>, txn: Txn) returns (ok: bool, ino: Ino)
@@ -249,6 +250,7 @@ module DirFs
           reveal ValidFiles();
           reveal ValidDirs();
         }
+        assert ValidRoot() by { reveal ValidRoot(); }
         err := DoesNotExist;
         return;
       }
@@ -257,6 +259,7 @@ module DirFs
         err := NotADir;
         reveal ValidFiles();
         reveal ValidDirs();
+        assert ValidRoot() by { reveal ValidRoot(); }
         return;
       }
       err := NoError;
@@ -272,6 +275,7 @@ module DirFs
         reveal ValidFiles();
         reveal ValidDirs();
       }
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: Dirents)
@@ -318,6 +322,7 @@ module DirFs
           reveal ValidFiles();
           reveal ValidDirs();
         }
+        assert ValidRoot() by { reveal ValidRoot(); }
         return;
       }
 
@@ -332,6 +337,7 @@ module DirFs
       assert ValidDirs() by {
         reveal ValidDirs();
       }
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     // private
@@ -358,6 +364,7 @@ module DirFs
           reveal ValidFiles();
           reveal ValidDirs();
         }
+        assert ValidRoot() by { reveal ValidRoot(); }
         return;
       }
       data := data[ino := File.empty];
@@ -367,6 +374,7 @@ module DirFs
       assert ValidFiles() by {
         reveal ValidFiles();
       }
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
@@ -443,6 +451,7 @@ module DirFs
           reveal ValidFiles();
           reveal ValidDirs();
         }
+        assert ValidRoot() by { reveal ValidRoot(); }
         ok := false;
         return;
       }
@@ -465,6 +474,7 @@ module DirFs
             reveal ValidFiles();
             reveal ValidDirs();
           }
+          assert ValidRoot() by { reveal ValidRoot(); }
         }
         var num_entries := dents.numValid();
         r := StatRes(true, num_entries);
@@ -477,6 +487,7 @@ module DirFs
         reveal ValidFiles();
         reveal ValidDirs();
       }
+      assert ValidRoot() by { reveal ValidRoot(); }
       return;
     }
 
