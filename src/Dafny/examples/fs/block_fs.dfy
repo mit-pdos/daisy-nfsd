@@ -50,7 +50,6 @@ module BlockFs
     ensures fresh(fs.Repr)
     ensures block_data(fs.data) == map ino: Ino {:trigger} :: InodeData.zero
     ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
-    ensures fs.inode_owner() == map ino: Ino {:trigger} :: Fs.None
   {
     fs := new IndFilesys.Init(d);
     reveal inode_blocks();
@@ -133,7 +132,6 @@ module BlockFs
     requires is_lba(n)
     requires is_block(blk.data)
     ensures fs.metadata == old(fs.metadata)
-    ensures fs.inode_owner() == old(fs.inode_owner())
     ensures ok ==> block_data(fs.data) == old(
         var data := block_data(fs.data);
         var d0 := data[ino];

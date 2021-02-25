@@ -12,7 +12,6 @@ module FsKinds {
   datatype Super = Super(inode_blocks: nat, data_bitmaps: nat)
   {
     const num_inodes: nat := 32 * inode_blocks
-    const inode_bitmaps: nat := Round.div_roundup_alt(num_inodes, 4096*8)
     const num_data_blocks: nat := data_bitmaps * (4096*8)
 
     static const zero := Super(0, 0)
@@ -39,8 +38,7 @@ module FsKinds {
     //
     // these are followed by num_data_blocks data blocks
     const data_bitmap_start: nat := 513 + inode_blocks
-    const inode_bitmap_start: nat := data_bitmap_start + data_bitmaps
-    const data_start: nat := add_nats(inode_bitmap_start, inode_bitmaps)
+    const data_start: nat := data_bitmap_start + data_bitmaps
 
     const disk_size: nat := add_nats(data_start, num_data_blocks)
   }
@@ -107,22 +105,6 @@ module FsKinds {
     }
   }
 
-  function method InodeAllocBlk(ino: Ino): (bn: Blkno)
-    ensures InodeAllocBlk?(bn)
-  {
-    var bn := super.inode_bitmap_start as uint64 + ino / (4096*8);
-    if ino < super.num_inodes as uint64 then (
-      Arith.div_incr(ino as nat, super.inode_bitmaps, 4096*8);
-      bn
-    ) else bn
-  }
-
-  predicate InodeAllocBlk?(bn: Blkno)
-  {
-    var start := super.inode_bitmap_start;
-    start <= bn as nat < start + super.inode_bitmaps
-  }
-
   function method {:opaque} InodeAddr(ino: Ino): (a:Addr)
     ensures a in addrsForKinds(fs_kinds)
   {
@@ -142,11 +124,6 @@ module FsKinds {
     requires blkno_ok(bn)
   {
     Addr(DataAllocBlk(bn), bn % (4096*8))
-  }
-  function method InodeBitAddr(ino: Ino): (a:Addr)
-  {
-    reveal addrsForKinds();
-    Addr(InodeAllocBlk(ino), ino % (4096*8))
   }
   function method {:opaque} DataBlk(bn: Blkno): (a:Addr)
     requires blkno_ok(bn)
@@ -172,7 +149,6 @@ module FsKinds {
 
   lemma InodeAddr_disjoint(ino: Ino)
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBitAddr(bn')
-    ensures forall ino' : Ino :: InodeAddr(ino) != InodeBitAddr(ino')
     ensures forall bn': Blkno | blkno_ok(bn') :: InodeAddr(ino) != DataBlk(bn')
   {
     reveal_DataBlk();
@@ -188,7 +164,6 @@ module FsKinds {
   lemma DataBitAddr_disjoint(bn: Blkno)
     requires blkno_ok(bn)
     ensures forall ino': Ino :: DataBitAddr(bn) != InodeAddr(ino')
-    ensures forall ino': Ino :: DataBitAddr(bn) != InodeBitAddr(ino')
     ensures forall bn': Blkno | blkno_ok(bn') :: DataBitAddr(bn) != DataBlk(bn')
   {
     reveal_DataBlk();
@@ -198,7 +173,6 @@ module FsKinds {
   lemma DataBlk_disjoint(bn: Blkno)
     requires blkno_ok(bn)
     ensures forall ino': Ino :: DataBlk(bn) != InodeAddr(ino')
-    ensures forall ino': Ino :: DataBlk(bn) != InodeBitAddr(ino')
     ensures forall bn': Blkno | blkno_ok(bn') :: DataBlk(bn) != DataBitAddr(bn')
   {
     reveal_DataBlk();
@@ -211,8 +185,6 @@ module FsKinds {
       :: (if InodeBlk?(blkno)
           then KindInode
         else if DataAllocBlk?(blkno)
-          then KindBit
-        else if InodeAllocBlk?(blkno)
           then KindBit
         else (assert DataBlk?(blkno); KindBlock)
       ) as Kind
@@ -230,21 +202,6 @@ module FsKinds {
       ensures DataBitAddr(bn) in jrnl.data
     {
       ghost var addr := DataBitAddr(bn);
-      jrnl.in_domain(addr);
-      jrnl.has_size(addr);
-    }
-  }
-
-  lemma inode_bit_inbounds(jrnl: Jrnl)
-    requires jrnl.Valid()
-    requires jrnl.kinds == fs_kinds
-    ensures forall ino:Ino :: InodeBitAddr(ino) in jrnl.data && jrnl.size(InodeBitAddr(ino)) == 1
-  {
-    reveal addrsForKinds();
-    forall ino:Ino
-      ensures InodeBitAddr(ino) in jrnl.data
-    {
-      ghost var addr := InodeBitAddr(ino);
       jrnl.in_domain(addr);
       jrnl.has_size(addr);
     }

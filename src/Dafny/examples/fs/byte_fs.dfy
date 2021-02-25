@@ -85,7 +85,6 @@ module ByteFs {
       ensures fresh(Repr)
       ensures data() == map ino: Ino {:trigger} :: []
       ensures inode_types() == map ino: Ino {:trigger} :: Inode.InvalidType
-      ensures fs.inode_owner() == map ino: Ino {:trigger} :: Fs.None
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
@@ -173,7 +172,6 @@ module ByteFs {
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
@@ -275,7 +273,6 @@ module ByteFs {
           data()[ino] == old(data()[ino]))
       ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
       ensures fs.metadata == old(fs.metadata)
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
       ensures !ok ==> raw_data(ino) == old(raw_data(ino))
       ensures !ok ==> data() == old(data())
@@ -318,7 +315,6 @@ module ByteFs {
       requires off as nat + 4096 <= |data()[ino]|
       ensures bs.data == old(bs.data)
       ensures fs.metadata == old(fs.metadata);
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
       ensures ok ==> data() == old(
       var d0 := data()[ino];
@@ -358,7 +354,6 @@ module ByteFs {
       requires i.sz as nat + delta as nat <= Inode.MAX_SZ
       ensures |junk| == delta as nat
       ensures data() == old(data()[ino := data()[ino] + junk])
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
@@ -383,7 +378,6 @@ module ByteFs {
       requires sz' <= i.sz
       ensures sz' as nat <= old(|data()[ino]|)
       ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
@@ -428,7 +422,6 @@ module ByteFs {
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires off as nat + |bs.data| <= off as nat + (4096 - off as nat % 4096) <= |data()[ino]|
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
       ensures ok ==>
         data() == old(
@@ -489,7 +482,6 @@ module ByteFs {
       ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data[..written]])
       ensures !ok ==> data == old(data)
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       i' := i;
@@ -547,7 +539,6 @@ module ByteFs {
       requires |data()[ino]| % 4096 == 0
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures !ok ==> data == old(data)
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       ghost var written;
@@ -565,7 +556,6 @@ module ByteFs {
       requires bs.Valid() && 0 < bs.Len() <= 4096
       requires |data()[ino]| + |bs.data| <= Inode.MAX_SZ
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       i' := i;
@@ -622,7 +612,6 @@ module ByteFs {
       requires bs.Valid()
       requires bs.Len() <= 4096
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures types_unchanged()
     {
       var i := fs.startInode(txn, ino);
@@ -673,7 +662,6 @@ module ByteFs {
       modifies Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       ensures data() == old(data())
-      ensures fs.inode_owner() == old(fs.inode_owner())
       ensures inode_types() == old(inode_types()[ino := ty'])
     {
       fs.inode_metadata(ino, i);
@@ -687,38 +675,13 @@ module ByteFs {
       reveal inode_types();
     }
 
-    method allocInode(txn: Txn, ghost state: InodeAllocState) returns (ok: bool, ino: Ino)
-      modifies fs.Repr
-      requires fs.has_jrnl(txn)
-      requires Valid() ensures Valid()
-      ensures data() == old(data())
-      ensures ok ==> fs.inode_owner() == old(fs.inode_owner()[ino := Fs.Some(state)])
-      ensures ok ==> old(fs.inode_owner()[ino].None?)
-      ensures ok ==> ino != 0
-      ensures !ok ==> fs.inode_owner() == old(fs.inode_owner())
-      ensures types_unchanged()
-    {
-      ok, ino := fs.allocInode(txn, state);
-      assert types_unchanged() by {
-        reveal inode_types();
-      }
-    }
-
-    twostate predicate low_state_unchanged()
-      reads fs.Repr
-      requires old(fs.Valid()) && fs.Valid()
-    {
-      && fs.inode_owner() == old(fs.inode_owner())
-      && types_unchanged()
-    }
-
     method startInode(txn: Txn, ino: Ino) returns (i': Inode.Inode)
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires Valid() ensures fs.ValidIno(ino, i')
       ensures fs.fs.cur_inode == Fs.Some( (ino, i') )
       ensures data() == old(data())
-      ensures low_state_unchanged()
+      ensures types_unchanged()
     {
       i' := fs.startInode(txn, ino);
       assert types_unchanged() by {
@@ -741,7 +704,7 @@ module ByteFs {
       requires fs.ValidIno(ino, i)
       ensures Valid()
       ensures data() == old(data())
-      ensures low_state_unchanged()
+      ensures types_unchanged()
     {
       fs.finishInode(txn, ino, i);
       assert types_unchanged() by {
@@ -755,7 +718,7 @@ module ByteFs {
       requires fs.fs.cur_inode == Fs.Some((ino, i))
       ensures Valid()
       ensures data() == old(data())
-      ensures low_state_unchanged()
+      ensures types_unchanged()
     {
       fs.finishInodeReadonly(ino, i);
       assert types_unchanged() by {

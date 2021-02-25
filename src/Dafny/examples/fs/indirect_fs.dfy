@@ -47,15 +47,6 @@ module IndFs
     // bubbles up inode sizes
     ghost var metadata: map<Ino, Inode.Meta>
 
-    function inode_owner(): (m:map<Ino, Option<InodeAllocState>>)
-      requires fsValid()
-      reads fs.Repr
-      ensures ino_dom(m)
-    {
-      reveal fsValid();
-      fs.inode_owner
-    }
-
     function blkno_pos(bn: Blkno): Option<Pos>
       reads fs.Repr
       requires blkno_ok(bn)
@@ -203,7 +194,6 @@ module IndFs
       ensures fresh(Repr)
       ensures data == imap pos: Pos | pos.idx.data? :: block0
       ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
-      ensures inode_owner() == map ino: Ino {:trigger} :: None
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
@@ -269,7 +259,6 @@ module IndFs
       requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
       requires fs.inodes == old(fs.inodes[pos.ino:=i'])
-      requires fs.inode_owner == old(fs.inode_owner)
       requires blkno_ok(bn)
       requires i' == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
       requires old(ValidInodes())
@@ -284,7 +273,6 @@ module IndFs
     {
       && data == old(data)
       && metadata == old(metadata)
-      && fs.inode_owner == old(fs.inode_owner)
     }
 
     twostate lemma Valid_unchanged()
@@ -511,7 +499,6 @@ module IndFs
       ensures ok ==> data == old(data[pos := blk.data])
       ensures !ok ==> data == old(data)
       ensures metadata == old(metadata)
-      ensures fs.inode_owner == old(fs.inode_owner)
     {
       i' := i;
       var idx := pos.idx;
@@ -567,7 +554,6 @@ module IndFs
       ensures ValidIno(ino, i')
       ensures data == old(data)
       ensures metadata == old(metadata[ino := meta])
-      ensures fs.inode_owner == old(fs.inode_owner)
     {
       reveal fsValid();
       i' := i.(meta := meta);
@@ -602,22 +588,6 @@ module IndFs
       ensures state_unchanged()
     {
       fs.finishInodeReadonly(ino, i);
-      Valid_unchanged();
-    }
-
-    method allocInode(txn: Txn, ghost state: InodeAllocState) returns (ok: bool, ino: Ino)
-      modifies fs.Repr
-      requires Valid() ensures Valid()
-      requires has_jrnl(txn)
-      ensures data == old(data)
-      ensures metadata == old(metadata)
-      ensures fs.cur_inode == old(fs.cur_inode)
-      ensures ok ==> inode_owner() == old(inode_owner()[ino:=Some(state)])
-      ensures ok ==> old(inode_owner()[ino].None?)
-      ensures ok ==> ino != 0
-      ensures !ok ==> inode_owner() == old(inode_owner())
-    {
-      ok, ino := fs.allocateInode(txn, state);
       Valid_unchanged();
     }
 
