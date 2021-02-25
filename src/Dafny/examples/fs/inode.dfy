@@ -15,19 +15,20 @@ module Inode {
   const MAX_SZ: nat := 4096 * (10 + 3*512 + 512*512*512);
   const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
 
-  datatype InodeType = FileType | DirType
+  datatype InodeType = InvalidType | FileType | DirType
   {
     function method to_u64(): uint64
     {
       match this {
-        case FileType => 0
-        case DirType => 1
+        case InvalidType => 0
+        case FileType => 1
+        case DirType => 2
       }
     }
 
     static function method from_u64(x: uint64): InodeType
     {
-      if x == 0 then FileType else DirType
+      if x == 0 then InvalidType else if x == 1 then FileType else DirType
     }
 
     lemma from_to_u64()
@@ -45,7 +46,7 @@ module Inode {
     // how many blocks is the inode actually referencing with its size?
     const used_blocks: nat := div_roundup_alt(sz as nat, 4096)
 
-    static const preZero: preInode := Mk(Meta(0, FileType), C.repeat(0 as uint64, 14))
+    static const preZero: preInode := Mk(Meta(0, InvalidType), C.repeat(0 as uint64, 14))
 
     predicate Valid()
     {

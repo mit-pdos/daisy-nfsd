@@ -202,13 +202,13 @@ module IndFs
       ensures ValidQ()
       ensures fresh(Repr)
       ensures data == imap pos: Pos | pos.idx.data? :: block0
-      ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType)
+      ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
       ensures inode_owner() == map ino: Ino {:trigger} :: None
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data? :: block0;
-      this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType);
+      this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType);
       new;
       assert ValidBasics() by { reveal fsValid(); }
       IndBlocks.to_blknos_zero();

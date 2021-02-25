@@ -84,7 +84,7 @@ module ByteFs {
       ensures Valid()
       ensures fresh(Repr)
       ensures data() == map ino: Ino {:trigger} :: []
-      ensures inode_types() == map ino: Ino {:trigger} :: Inode.FileType
+      ensures inode_types() == map ino: Ino {:trigger} :: Inode.InvalidType
       ensures fs.inode_owner() == map ino: Ino {:trigger} :: Fs.None
     {
       var the_fs := BlockFs.New(d);

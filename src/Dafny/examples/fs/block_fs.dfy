@@ -49,7 +49,7 @@ module BlockFs
     ensures fs.ValidQ()
     ensures fresh(fs.Repr)
     ensures block_data(fs.data) == map ino: Ino {:trigger} :: InodeData.zero
-    ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.FileType)
+    ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
     ensures fs.inode_owner() == map ino: Ino {:trigger} :: Fs.None
   {
     fs := new IndFilesys.Init(d);
