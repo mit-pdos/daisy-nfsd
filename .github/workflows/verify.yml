@@ -13,19 +13,18 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
+        dafny: ["3.0.0"]
         go: ["1.16.0"]
-    env:
-      DAFNY_VERSION: "3.0.0"
     steps:
       - name: Install Dafny
         run: |
           cd /tmp
-          wget -O dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v${DAFNY_VERSION}/dafny-${DAFNY_VERSION}-x64-ubuntu-16.04.zip"
+          wget -O dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v${{ matrix.dafny }}/dafny-${{ matrix.dafny }}-x64-ubuntu-16.04.zip"
           unzip dafny.zip
           echo "/tmp/dafny" >> $GITHUB_PATH
       - uses: actions/setup-go@v2
         with:
-          go-version: { { matrix.go } }
+          go-version: ${{ matrix.go }}
       - uses: actions/checkout@v2
       - name: Verify
         run: make -j2
