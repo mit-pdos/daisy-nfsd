@@ -30,6 +30,7 @@ module DirFs
     | DoesNotExist
     | NotADir
     | IsADir
+    | OutOfSpace
   {
     predicate method IsError()
     {
@@ -550,9 +551,73 @@ module DirFs
       return;
     }
 
+    method {:timeLimitMultiplier 2} Append(txn: Txn, ino: Ino, bs: Bytes)
+      returns (err:Error)
+      modifies Repr, bs
+      requires Valid()
+      // nothing to say in OutOfSpace case (need to abort transaction)
+      ensures !err.OutOfSpace? ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      requires bs.Valid() && 0 < bs.Len() <= 4096
+      ensures err.DoesNotExist? ==> data == old(data) && ino !in data
+      ensures err.IsADir? ==> data == old(data) && ino in data && data[ino].DirFile?
+      ensures !err.NotADir?
+      ensures err.NoError? ==>
+      && ino in old(data) && old(data[ino].ByteFile?)
+      && data == old(
+      var d := data[ino].data;
+      var d' := d + bs.data;
+      data[ino := ByteFile(d')])
+    {
+      var i := startInode(txn, ino);
+      if i.meta.ty.InvalidType? {
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        err := DoesNotExist;
+        fs.finishInodeReadonly(ino, i);
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      if i.meta.ty.DirType? {
+        assert is_dir(ino) by { reveal is_of_type(); }
+        err := IsADir;
+        fs.finishInodeReadonly(ino, i);
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      assert is_file(ino) by { reveal is_of_type(); }
+      ghost var d0: seq<byte> := old(data[ino].data);
+      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
+        err := OutOfSpace;
+        fs.finishInodeReadonly(ino, i);
+        return;
+      }
+      fs.inode_metadata(ino, i);
+      var ok;
+      ok, i := fs.appendIno(txn, ino, i, bs);
+      if !ok {
+        err := OutOfSpace;
+        fs.finishInode(txn, ino, i);
+        return;
+      }
+      err := NoError;
+
+      fs.finishInode(txn, ino, i);
+
+      assert is_file(ino) by { reveal is_of_type(); }
+      data := data[ino := ByteFile(d0 + old(bs.data))];
+      assert ValidData() by {
+        reveal ValidFiles();
+        reveal ValidDirs();
+      }
+      assert ValidRoot() by { reveal ValidRoot(); }
+      assert ValidTypes() by { reveal is_of_type(); }
+      ValidAlloc_monotonic();
+      assert Valid();
+    }
+
     // TODO:
     //
-    // 1. Append
+    // 1. Append (done)
     // 2. Read
     // 3. CreateDir
     // 4. Write
