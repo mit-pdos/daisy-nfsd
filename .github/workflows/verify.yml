@@ -23,7 +23,7 @@ jobs:
           echo "/tmp/dafny" >> $GITHUB_PATH
       - uses: actions/setup-go@v2
         with:
-          go-version: "${GO_VERSION}"
+          go-version: "$GO_VERSION"
       - uses: actions/checkout@v2
       - name: Verify
         run: make -j2
