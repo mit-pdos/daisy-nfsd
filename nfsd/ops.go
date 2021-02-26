@@ -185,7 +185,22 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	util.DPrintf(1, "NFS Mkdir %v\n", args)
 	var reply nfstypes.MKDIR3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.Where.Dir)
+
+	nameseq := seqOfString(string(args.Where.Name))
+	ok, finum := nfs.filesys.CreateDir(txn, inum, nameseq)
+	if !ok {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		txn.Abort()
+		return reply
+	}
+
+	txn.Commit()
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Obj.Handle_follows = true
+	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	return reply
 }
 
