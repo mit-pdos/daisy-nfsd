@@ -211,17 +211,15 @@ module DirFs
       assert ValidTypes() by { reveal is_of_type(); }
     }
 
-    static method createRootDir(fs: ByteFilesys<()>, txn: Txn) returns (ok: bool)
+    static method createRootDir(fs: ByteFilesys<()>, txn: Txn, ino: Ino) returns (ok: bool)
       modifies fs.Repr
       requires fs.Valid() ensures ok ==> fs.Valid()
       requires fs.fs.has_jrnl(txn)
-      requires forall ino:Ino :: fs.data()[ino] == []
+      requires fs.data()[ino] == []
       ensures ok ==>
-      && fs.data() == old(fs.data()[rootIno := Dirents.zero.enc()])
-      && fs.inode_types() == old(fs.inode_types()[rootIno := Inode.DirType])
+      && fs.data() == old(fs.data()[ino := Dirents.zero.enc()])
+      && fs.inode_types() == old(fs.inode_types()[ino := Inode.DirType])
     {
-      var ino := rootIno;
-
       var i := fs.startInode(txn, ino);
       i := fs.setType(ino, i, Inode.DirType);
 
@@ -243,7 +241,7 @@ module DirFs
       var fs_ := new ByteFilesys.Init(d);
 
       var txn := fs_.jrnl.Begin();
-      var ok := createRootDir(fs_, txn);
+      var ok := createRootDir(fs_, txn, rootIno);
       if !ok {
         return None;
       }
@@ -444,6 +442,73 @@ module DirFs
       assert is_of_type(ino, Inode.FileType) by {
         reveal is_of_type();
       }
+      assert ValidDirs() by {
+        reveal ValidDirs();
+      }
+      assert ValidFiles() by {
+        reveal ValidFiles();
+      }
+      assert ValidTypes() by { reveal is_of_type(); }
+      assert ValidRoot() by { reveal ValidRoot(); }
+    }
+
+    method writeEmptyDir(txn: Txn, ino: Ino, i: Inode.Inode)
+      returns (ok: bool)
+      modifies fs.Repr
+      requires ValidIno(ino, i) ensures ok ==> fs.Valid()
+      requires fs.fs.has_jrnl(txn)
+      requires fs.data()[ino] == []
+      ensures ok ==> fs.data() == old(fs.data()[ino := Dirents.zero.enc()])
+      ensures ok ==> fs.inode_types() == old(fs.inode_types()[ino := Inode.DirType])
+    {
+      var i := i;
+      i := fs.setType(ino, i, Inode.DirType);
+      var emptyDir := Dirents.zero.encode();
+      Dirents.zero.enc_len();
+      ok, i := fs.appendIno(txn, ino, i, emptyDir);
+      if !ok {
+        return;
+      }
+      assert fs.data()[ino] == Dirents.zero.enc();
+      fs.finishInode(txn, ino, i);
+    }
+
+    // private
+    //
+    // creates a directory disconnected from the file system (which is perfectly
+    // legal but useless for most clients)
+    //
+    // TODO: this is extremely slow to verify
+    method {:timeLimitMultiplier 2} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+      modifies Repr
+      requires Valid() ensures ok ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures ok ==>
+      && old(is_invalid(ino))
+      && ino != 0
+      && data == old(data[ino := File.emptyDir])
+      && dirents == old(dirents[ino := Dirents.zero])
+      && is_dir(ino)
+    {
+      var i;
+      ok, ino, i := this.allocInode(txn);
+      if !ok {
+        return;
+      }
+
+      ok := writeEmptyDir(txn, ino, i);
+      if !ok {
+        return;
+      }
+
+      dirents := dirents[ino := Dirents.zero];
+      data := data[ino := File.emptyDir];
+      assert File.emptyDir.DirFile?;
+      assert is_dir(ino);
+
+      Dirents.zero_dir();
+      //assert fs.data()[ino] == dirents[ino].enc();
+      assert ValidDirents();
       assert ValidDirs() by {
         reveal ValidDirs();
       }
@@ -673,11 +738,62 @@ module DirFs
       reveal ValidFiles();
     }
 
+    method CreateDir(txn: Txn, d_ino: Ino, name: PathComp)
+      returns (ok: bool, ino: Ino)
+      modifies Repr
+      requires Valid() ensures ok ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures ok ==>
+      && old(is_dir(d_ino))
+      && old(is_invalid(ino))
+      && data == old(
+        var d := data[d_ino].dir;
+        var d' := DirFile(d[name := ino]);
+        data[ino := File.emptyDir][d_ino := d'])
+    {
+      var err, dents := readDirents(txn, d_ino);
+      if err.IsError() {
+        ok := false;
+        return;
+      }
+      assert is_dir(d_ino);
+      ok, ino := allocDir(txn);
+      if !ok {
+        return;
+      }
+      assert ino != d_ino;
+      assert ino_ok: ino !in old(data);
+      // TODO: factor out this common part between CreateDir and CreateFile
+      // (inserts a dangling inode into a directory)
+      if dents.findName(name) < 128 {
+        ok := false;
+        return;
+      }
+      var i := dents.findFree();
+      if !(i < 128) {
+        // no space in directory
+        ok := false;
+        return;
+      }
+      var e' := DirEnt(name, ino);
+      dents.insert_ent_dir(e');
+      ghost var d := dents.dir;
+      dents := dents.insert_ent(i, e');
+      ghost var d' := dents.dir;
+      assert d' == d[name := ino];
+      ok := writeDirents(txn, d_ino, dents);
+      if !ok {
+        return;
+      }
+      // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
+      reveal ino_ok;
+    }
+
     // TODO:
     //
     // 1. Append (done)
     // 2. Read (done)
-    // 3. CreateDir
+    // 3. CreateDir (done)
     // 4. Write
     // 5. Rename (maybe?)
     // 6. Unlink
