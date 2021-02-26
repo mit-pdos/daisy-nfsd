@@ -3,6 +3,7 @@ package nfsd
 import (
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
+	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -63,7 +64,40 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.What.Dir)
+
+	err, preents := nfs.filesys.ReadDirents(txn, inum)
+	if !err.Is_NoError() {
+		txn.Abort()
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		return reply
+	}
+
+	seq := preents.Get().(direntries.PreDirents_Dirents).S
+	seqlen := seq.LenInt()
+	for i := 0; i < seqlen; i++ {
+		dirent := seq.IndexInt(i).(direntries.DirEnt)
+		dirent2 := dirent.Get().(direntries.DirEnt_DirEnt)
+
+		de_ino := dirent2.Ino
+		de_name := dirent2.Name.String()
+
+		if de_ino == 0 || len(de_name) == 0 {
+			continue
+		}
+
+		if de_name == string(args.What.Name) {
+			fh := Fh{Ino: de_ino}
+			reply.Resok.Object = fh.MakeFh3()
+			reply.Status = nfstypes.NFS3_OK
+			txn.Commit()
+			return reply
+		}
+	}
+
+	txn.Commit()
+	reply.Status = nfstypes.NFS3ERR_NOENT
 	return reply
 }
 
@@ -95,7 +129,29 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.Where.Dir)
+
+	var namebytes []interface{}
+	for _, ch := range args.Where.Name {
+		namebytes = append(namebytes, uint8(ch))
+	}
+
+	nameseq := dafny.SeqOf(namebytes...)
+	ok, finum := nfs.filesys.CreateFile(txn, inum, nameseq)
+	if !ok {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		txn.Abort()
+		return reply
+	}
+
+	// XXX set size based on args.How.Obj_attributes.Size
+
+	txn.Commit()
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Obj.Handle_follows = true
+	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	return reply
 }
 
