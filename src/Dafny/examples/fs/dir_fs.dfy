@@ -892,6 +892,105 @@ module DirFs
       dents.findName_found(name);
     }
 
+    method zeroInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies fs.Repr
+      requires fs.fs.ValidIno(ino, i) ensures fs.Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures fs.data() == old(fs.data()[ino := []])
+      ensures fs.inode_types() == old(fs.inode_types()[ino := Inode.InvalidType])
+    {
+      var i := i;
+      i := fs.setType(ino, i, Inode.InvalidType);
+      i := fs.shrinkToEmpty(ino, i);
+      fs.finishInode(txn, ino, i);
+    }
+
+    // this is a low-level function that deletes an inode (currently restricted
+    // to files) from the tree; Unlink currently doesn't call this so we leave a
+    // dangling inode
+    method {:timeLimitMultiplier 2} removeInode(txn: Txn, ino: Ino)
+      returns (err: Error)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.DoesNotExist? ==> ino !in data && data == old(data)
+      ensures err.NoError? ==>
+      && old(ino in data)
+      && data == map_delete(data, ino)
+    {
+      var i := startInode(txn, ino);
+      if i.meta.ty == Inode.InvalidType {
+        err := DoesNotExist;
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        fs.finishInodeReadonly(ino, i);
+        assert ValidFiles() by { reveal ValidFiles(); }
+        return;
+      }
+      if i.meta.ty == Inode.DirType {
+        // removeInode doesn't yet support directories
+        err := OtherError;
+        fs.finishInodeReadonly(ino, i);
+        assert Valid() by {
+          assert ValidFiles() by { reveal ValidFiles(); }
+        }
+        return;
+      }
+      err := NoError;
+      assert is_file(ino) by { reveal is_of_type(); }
+      zeroInode(txn, ino, i);
+      map_delete_not_in(data, ino);
+      data := map_delete(data, ino);
+
+      assert fs.inode_types()[ino] == Inode.InvalidType;
+      assert fs.inode_types()[ino].InvalidType?;
+      assert is_invalid(ino);
+      assert ValidTypes() by { reveal is_of_type(); }
+      assert ValidDirs() by { reveal ValidDirs(); }
+      assert ValidFiles() by { reveal ValidFiles(); }
+      assert ValidRoot() by { reveal ValidRoot(); }
+    }
+
+    method Unlink(txn: Txn, d_ino: Ino, name: PathComp)
+      returns (err: Error)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.DoesNotExist? ==> d_ino !in data && data == old(data)
+      ensures err.NoError? ==>
+      && old(is_dir(d_ino))
+      && name in old(data[d_ino].dir)
+      && data == old(
+        var d0 := data[d_ino].dir;
+        var d' := map_delete(d0, name);
+        data[d_ino := DirFile(d')]
+      )
+    {
+      var dents;
+      err, dents := readDirents(txn, d_ino);
+      if err.IsError? {
+        return;
+      }
+      assert DirFile(dents.dir) == data[d_ino] by {
+        reveal ValidDirs();
+      }
+      var i := dents.findName(name);
+      if !(i < 128) {
+        // TODO: we can say precisely what happened in this case
+        err := OtherError;
+        dents.findName_not_found(name);
+        assert name !in data[d_ino].dir;
+        return;
+      }
+      dents.findName_found(name);
+      dents := dents.deleteAt(i);
+      var ok := writeDirents(txn, d_ino, dents);
+      if !ok {
+        err := OtherError;
+        return;
+      }
+      err := NoError;
+    }
+
     // TODO:
     //
     // 1. Append (done)
@@ -899,7 +998,7 @@ module DirFs
     // 3. CreateDir (done)
     // 4. Write
     // 5. Rename (maybe?)
-    // 6. Unlink
+    // 6. Unlink (done)
 
   }
 }

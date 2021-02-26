@@ -405,6 +405,16 @@ module ByteFs {
       }
     }
 
+    method shrinkToEmpty(ghost ino: Ino, i: Inode.Inode)
+      returns (i': Inode.Inode)
+      modifies Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      ensures data() == old(data()[ino := []])
+      ensures types_unchanged()
+    {
+      i' := this.shrinkTo(ino, i, 0);
+    }
+
     method freeRangeRaw(txn: Txn, ghost ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr

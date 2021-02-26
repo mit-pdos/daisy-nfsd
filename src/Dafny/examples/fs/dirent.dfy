@@ -1,9 +1,11 @@
 include "../../machine/machine.s.dfy"
+include "../../util/std.dfy"
 include "../../util/marshal.i.dfy"
 include "kinds.dfy"
 
 module DirEntries
 {
+  import opened Std
   import opened Machine
   import opened ByteSlice
   import opened FsKinds
@@ -227,6 +229,26 @@ module DirEntries
     }
   }
 
+  lemma seq_to_dir_unique_here(s: seq<DirEnt>)
+    requires dirents_unique(s)
+    requires 0 < |s| && s[0].used()
+    ensures s[0].name !in seq_to_dir(s[1..])
+  {
+    if s[0].name in seq_to_dir(s[1..]) {
+      var i := seq_to_dir_in_dir(s[1..], s[0].name);
+    }
+  }
+
+  lemma {:induction s, i} seq_to_dir_delete(s: seq<DirEnt>, i: nat)
+    requires dirents_unique(s)
+    requires i < |s| && s[i].used()
+    ensures seq_to_dir(s[i := DirEnt([], 0 as Ino)]) == map_delete(seq_to_dir(s), s[i].name)
+  {
+    if 0 < |s| && i == 0 {
+      seq_to_dir_unique_here(s);
+    }
+  }
+
   lemma {:induction s} seq_to_dir_size(s: seq<DirEnt>)
     requires dirents_unique(s)
     ensures |seq_to_dir(s)| == C.count_matching(DirEnt.is_used, s)
@@ -236,9 +258,7 @@ module DirEntries
       seq_to_dir_size(s[1..]);
       var e := s[0];
       if e.used() {
-        if e.name in seq_to_dir(s[1..]) {
-          var i := seq_to_dir_in_dir(s[1..], e.name);
-        }
+        seq_to_dir_unique_here(s);
         assert |seq_to_dir(s)| == 1 + |seq_to_dir(s[1..])|;
       }
     }
@@ -453,6 +473,16 @@ module DirEntries
       }
       assert s[..128] == s;
       seq_to_dir_size(s);
+    }
+
+    method deleteAt(i: nat) returns (dents: Dirents)
+      requires Valid()
+      requires i < 128 && s[i].used()
+      ensures dents.dir == map_delete(this.dir, s[i].name)
+    {
+      seq_to_dir_delete(s, i);
+      var s' := s[i := DirEnt([], 0 as Ino)];
+      dents := Dirents(s');
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
