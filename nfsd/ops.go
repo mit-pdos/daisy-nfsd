@@ -72,38 +72,23 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.What.Dir)
+	name := seqOfString(string(args.What.Name))
 
-	err, preents := nfs.filesys.ReadDirents(txn, inum)
+	err, found, f_ino := nfs.filesys.Lookup(txn, inum, name)
 	if !err.Is_NoError() {
 		txn.Abort()
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return reply
 	}
-
-	seq := preents.Get().(direntries.PreDirents_Dirents).S
-	seqlen := seq.LenInt()
-	for i := 0; i < seqlen; i++ {
-		dirent := seq.IndexInt(i).(direntries.DirEnt)
-		dirent2 := dirent.Get().(direntries.DirEnt_DirEnt)
-
-		de_ino := dirent2.Ino
-		de_name := dirent2.Name.String()
-
-		if de_ino == 0 || len(de_name) == 0 {
-			continue
-		}
-
-		if de_name == string(args.What.Name) {
-			fh := Fh{Ino: de_ino}
-			reply.Resok.Object = fh.MakeFh3()
-			reply.Status = nfstypes.NFS3_OK
-			txn.Commit()
-			return reply
-		}
+	if !found {
+		txn.Commit()
+		reply.Status = nfstypes.NFS3ERR_NOENT
+		return reply
 	}
-
+	fh := Fh{Ino: f_ino}
+	reply.Resok.Object = fh.MakeFh3()
+	reply.Status = nfstypes.NFS3_OK
 	txn.Commit()
-	reply.Status = nfstypes.NFS3ERR_NOENT
 	return reply
 }
 
@@ -164,6 +149,15 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
+func seqOfString(name string) dafny.Seq {
+	var namebytes []interface{}
+	for _, ch := range []byte(name) {
+		namebytes = append(namebytes, ch)
+	}
+	// TODO: SeqOf makes a defensive copy, we should use a lower-level constructor
+	return dafny.SeqOf(namebytes...)
+}
+
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
@@ -171,12 +165,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.Where.Dir)
 
-	var namebytes []interface{}
-	for _, ch := range args.Where.Name {
-		namebytes = append(namebytes, uint8(ch))
-	}
-
-	nameseq := dafny.SeqOf(namebytes...)
+	nameseq := seqOfString(string(args.Where.Name))
 	ok, finum := nfs.filesys.CreateFile(txn, inum, nameseq)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
