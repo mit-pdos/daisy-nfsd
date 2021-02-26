@@ -531,6 +531,56 @@ module IndFs
       }
     }
 
+    method zeroOut(txn: Txn, off: nat, ino: Ino, i: Inode.Inode)
+      returns (i': Inode.Inode)
+      modifies Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
+      // serious limitation for now to only zero the direct blocks (indirect
+      // blocks are also not too bad, but eventually we'll run the risk of
+      // overflowing a transaction and it'll be necessary to split, which is
+      // complicated)
+      requires off < 10
+      ensures data == old(data[Pos.from_flat(ino, off) := block0])
+      ensures metadata == old(metadata)
+    {
+      i' := i;
+      var pos := Pos.from_flat(ino, off);
+      assert pos.idx.off == IndOff.direct;
+      assert pos.data?;
+      var bn: Blkno := i'.blks[off];
+      if bn == 0 {
+        // already done, need to reveal some stuff to prove that
+        reveal ValidInodes();
+        reveal ValidData();
+        return;
+      }
+      assert blkno_ok(bn) && blkno_pos(bn).Some? by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      fs.free(txn, bn);
+      i' := i'.(blks := i'.blks[off := 0 as Blkno]);
+      fs.writeInode(ino, i');
+      data := old(data[pos := block0]);
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidIndirect() by { reveal ValidIndirect(); }
+
+      assert ValidPos() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      assert ValidInodes() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+    }
+
     // public
     method startInode(txn: Txn, ino: Ino)
       returns (i: Inode.Inode)
