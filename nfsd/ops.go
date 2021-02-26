@@ -261,14 +261,13 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.Dir)
 
-	err, preents := nfs.filesys.ReadDirents(txn, inum)
+	err, seq := nfs.filesys.Readdir(txn, inum)
 	if !err.Is_NoError() {
 		txn.Abort()
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return reply
 	}
 
-	seq := preents.Get().(direntries.PreDirents_Dirents).S
 	seqlen := seq.LenInt()
 	var ents *nfstypes.Entry3
 	for i := 0; i < seqlen; i++ {
@@ -277,10 +276,6 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 
 		de_ino := dirent2.Ino
 		de_name := dirent2.Name.String()
-
-		if de_ino == 0 || len(de_name) == 0 {
-			continue
-		}
 
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),

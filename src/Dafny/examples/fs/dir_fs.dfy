@@ -991,6 +991,30 @@ module DirFs
       err := NoError;
     }
 
+    method Readdir(txn: Txn, d_ino: Ino)
+      returns (err: Error, dents_seq: seq<DirEnt>)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.DoesNotExist? ==> d_ino !in data
+      ensures err.NoError? ==>
+      && d_ino in data
+      && data[d_ino].DirFile?
+      && seq_to_dir(dents_seq) == data[d_ino].dir
+      && |dents_seq| == |data[d_ino].dir|
+    {
+      var dents;
+      err, dents := readDirents(txn, d_ino);
+      if err.IsError? {
+        return;
+      }
+      assert DirFile(dents.dir) == data[d_ino] by {
+        reveal ValidDirs();
+      }
+      dents_seq := dents.usedDents();
+      err := NoError;
+    }
+
     // TODO:
     //
     // 1. Append (done)

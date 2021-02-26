@@ -72,6 +72,10 @@ function method seq_filter<T>(p: T -> bool, xs: seq<T>): (ys:seq<T>)
     else (if p(xs[0]) then [xs[0]] else []) + seq_filter(p, xs[1..])
 }
 
+lemma seq_filter_size<T>(p: T -> bool, xs: seq<T>)
+    ensures |seq_filter(p, xs)| == count_matching(p, xs)
+{}
+
 // find_first
 function method find_first<T>(p: T -> bool, xs: seq<T>): (i:nat)
     ensures i < |xs| ==> p(xs[i])

@@ -89,7 +89,7 @@ module DirEntries
       ino != 0
     }
 
-    static predicate is_used(e: DirEnt) { e.used() }
+    static predicate method is_used(e: DirEnt) { e.used() }
 
     predicate method unused()
     {
@@ -156,6 +156,39 @@ module DirEntries
         seq_to_dir(s')[e.name := e.ino]
       else seq_to_dir(s')
       )
+  }
+
+  function method used_dirents(s: seq<DirEnt>): seq<DirEnt>
+  {
+    C.seq_filter(DirEnt.is_used, s)
+  }
+
+  /*
+  lemma {:induction s} used_dirents_unique(s: seq<DirEnt>)
+    requires dirents_unique(s)
+    ensures dirents_unique(used_dirents(s))
+  {
+    if s == [] { return; }
+    if s[0].used() {
+      assert dirents_unique(used_dirents(s[1..]));
+      // TODO: need to do this with a forall and line up indices
+      assume false;
+      return;
+    }
+    assert used_dirents(s) == used_dirents(s[1..]);
+  }
+  */
+
+  lemma {:induction s} used_dirents_dir(s: seq<DirEnt>)
+    ensures seq_to_dir(s) == seq_to_dir(used_dirents(s))
+  {
+    if s == [] { return; }
+    used_dirents_dir(s[1..]);
+    if s[0].used() {
+      return;
+    }
+    assert seq_to_dir(s) == seq_to_dir(s[1..]);
+    assert used_dirents(s) == used_dirents(s[1..]);
   }
 
   lemma test_seq_to_dir_overwrite()
@@ -262,6 +295,14 @@ module DirEntries
         assert |seq_to_dir(s)| == 1 + |seq_to_dir(s[1..])|;
       }
     }
+  }
+
+  lemma used_dirents_size(s: seq<DirEnt>)
+    requires dirents_unique(s)
+    ensures |used_dirents(s)| == |seq_to_dir(s)|
+  {
+    seq_to_dir_size(s);
+    C.seq_filter_size(DirEnt.is_used, s);
   }
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
@@ -483,6 +524,16 @@ module DirEntries
       seq_to_dir_delete(s, i);
       var s' := s[i := DirEnt([], 0 as Ino)];
       dents := Dirents(s');
+    }
+
+    method usedDents() returns (dents: seq<DirEnt>)
+      requires Valid()
+      ensures seq_to_dir(dents) == this.dir
+      ensures |dents| == |this.dir|
+    {
+      used_dirents_dir(s);
+      used_dirents_size(s);
+      dents := used_dirents(this.s);
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
