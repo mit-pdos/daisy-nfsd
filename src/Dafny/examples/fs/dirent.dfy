@@ -39,7 +39,7 @@ module DirEntries
   {
     if s == [] then []
     else
-      if s[0] == 0 then []
+      if s[0] == 0 as byte then []
       else [s[0]] + decode_null_terminated(s[1..])
   }
 
@@ -76,6 +76,13 @@ module DirEntries
   {
     decode_nullterm_prefix(pc, C.repeat(0 as byte, 24 - |pc|));
     decode_all_null(24 - |pc|);
+  }
+
+  method DecodeEncodeTest(s: PathComp) returns (s':seq<byte>)
+    ensures s' == s
+  {
+    decode_encode(s);
+    s' := decode_pathc(encode_pathc(s));
   }
 
   datatype DirEnt = DirEnt(name: PathComp, ino: Ino)
