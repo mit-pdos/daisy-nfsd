@@ -35,7 +35,7 @@ go get golang.org/x/tools/cmd/goimports
 Then you can run some sanity tests over the bank and file-system examples.
 These are ordinary Go tests that import the code generated from Dafny and
 run it, linking with [goose-nfsd](https://github.com/mit-pdos/goose-nfsd),
-specifically with its txn and buftxn packages. To run these tests,
+specifically with its `twophase` package. To run these tests,
 after compiling with `make compile`, run:
 
 ```sh
