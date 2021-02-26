@@ -41,7 +41,7 @@ dafnygen/dafnygen.go: src/Dafny/compile.dfy $(DFY_FILES)
 	$(Q)rm -rf dafnygen
 	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
 	$(Q)rm -r dafnygen-go
-	$(Q)go fmt ./dafnygen/... >/dev/null
+	$(Q)gofmt -w -r '(a) -> a' ./dafnygen
 	$(Q)goimports -w ./dafnygen
 
 clean:
