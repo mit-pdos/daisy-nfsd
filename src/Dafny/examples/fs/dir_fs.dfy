@@ -183,6 +183,69 @@ module DirFs
       && ValidDirFs()
     }
 
+    twostate lemma valid_change_file(ino: Ino, f: File)
+      requires old(fs.fs.Valid()) && old(ValidDirFs())
+      requires fs.fs.Valid()
+      requires f.ByteFile?
+      requires fs.inode_types() == old(fs.inode_types())
+      //requires fs.data() == old(fs.data()[ino := f.data])
+      requires dirents == old(dirents)
+      requires others_unchanged: (
+      var ino0 := ino;
+      forall ino:Ino | ino != ino0 :: fs.data()[ino] == old(fs.data()[ino])
+      )
+      requires fs.data()[ino] == f.data
+      requires data == old(data[ino := f])
+      requires old(is_file(ino))
+      ensures ValidTypes() && ValidAlloc() && ValidRoot() && ValidDirents() && ValidDirs()
+    {
+      assert fs.data() == old(fs.data()[ino := f.data]) by {
+        reveal others_unchanged;
+      }
+      ghost var t0 := old(fs.inode_types()[ino]);
+      assert t0 == Inode.FileType by {
+        reveal is_of_type();
+        if t0 == Inode.InvalidType {
+          assert t0.InvalidType?;
+        } else if t0 == Inode.FileType {
+          assert t0.FileType?;
+        } else {}
+      }
+      assert old(is_file(ino)) && is_file(ino) by {
+        assert old(fs.inode_types()[ino]) == Inode.FileType;
+        reveal is_of_type();
+      }
+      assert fs.inode_types()[ino] == Inode.FileType;
+      assert is_of_type(ino, fs.inode_types()[ino]) by { reveal is_of_type(); }
+      ghost var ino0 := ino;
+
+      forall ino: Ino
+        ensures is_of_type(ino, fs.inode_types()[ino])
+      {
+        if ino == ino0 {  }
+        else {
+          assert (ino in data) == old(ino in data);
+          assert (ino in dirents) == old(ino in dirents);
+          reveal is_of_type();
+          match fs.inode_types()[ino] {
+            case InvalidType => {
+              assert old(fs.inode_types()[ino]).InvalidType?;
+            }
+            case FileType => {
+              assert old(fs.inode_types()[ino]).FileType?;
+            }
+            case DirType => {
+              assert old(fs.inode_types()[ino]).DirType?;
+            }
+          }
+        }
+      }
+      assert ValidTypes();
+      assert ValidRoot() by { reveal ValidRoot(); }
+      assert ValidDirs() by { reveal ValidDirs(); }
+      assert ValidDirents();
+    }
+
     constructor Init(fs: ByteFilesys<()>)
       requires fs.Valid()
       requires fs.data() == map ino: Ino {:trigger} :: if ino == rootIno then Dirents.zero.enc() else []
@@ -646,7 +709,9 @@ module DirFs
       && ValidIno(ino, i)
       && fs.fs.fs.cur_inode == Some ( (ino, i) )
       && is_file(ino)
+      && old(is_file(ino))
       ensures !err.NoError? ==> Valid()
+      ensures fs.data() == old(fs.data())
       ensures err.DoesNotExist? ==> is_invalid(ino)
       ensures err.IsADir? ==> is_dir(ino)
       ensures !err.OtherError?
@@ -667,7 +732,7 @@ module DirFs
         assert ValidFiles() by { reveal ValidFiles(); }
         return;
       }
-      assert is_file(ino) by { reveal is_of_type(); }
+      assert old(is_file(ino)) && is_file(ino) by { reveal is_of_type(); }
       err := NoError;
     }
 
@@ -694,7 +759,10 @@ module DirFs
       if err.IsError? {
         return;
       }
-      ghost var d0: seq<byte> := old(data[ino].data);
+      ghost var d0: seq<byte> := old(fs.data()[ino]);
+      assert d0 == old(data[ino].data) by {
+        reveal ValidFiles();
+      }
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
         err := OtherError;
         fs.finishInodeReadonly(ino, i);
@@ -713,15 +781,10 @@ module DirFs
       fs.finishInode(txn, ino, i);
 
       assert is_file(ino) by { reveal is_of_type(); }
-      data := data[ino := ByteFile(d0 + old(bs.data))];
-      assert ValidData() by {
-        reveal ValidFiles();
-        reveal ValidDirs();
-      }
-      assert ValidRoot() by { reveal ValidRoot(); }
-      assert ValidTypes() by { reveal is_of_type(); }
-      ValidAlloc_monotonic();
-      assert Valid();
+      ghost var f' := ByteFile(d0 + old(bs.data));
+      data := data[ino := f'];
+      valid_change_file(ino, f');
+      assert ValidFiles() by { reveal ValidFiles(); }
     }
 
     method Read(txn: Txn, ino: Ino, off: uint64, len: uint64)
