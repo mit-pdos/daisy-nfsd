@@ -33,8 +33,12 @@ src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 	$(Q)$(DAFNY) "$<"
 	$(Q)touch "$@"
 
-# compilation runs goimports to clean up unused imports emitted by Dafny
-# the call to gofmt simplifies the code to make it more readable
+# Compilation produces output in dafnygen-go, which we preprocess with
+# dafnygen-imports.py to change import paths (for go module compatibility) and
+# to place the output under dafnygen without a src directory.
+#
+# We then run gofmt to simplify the code for readability and goimports to clean
+# up unused imports emitted by Dafny.
 dafnygen/dafnygen.go: src/Dafny/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out dafnygen $<
