@@ -938,6 +938,7 @@ module DirFs
       err := NoError;
       assert is_file(ino) by { reveal is_of_type(); }
       zeroInode(txn, ino, i);
+      ialloc.Free(ino);
       map_delete_not_in(data, ino);
       data := map_delete(data, ino);
 
