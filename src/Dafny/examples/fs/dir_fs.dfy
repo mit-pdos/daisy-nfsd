@@ -32,10 +32,7 @@ module DirFs
     | IsADir
     | OtherError
   {
-    predicate method IsError()
-    {
-      !this.NoError?
-    }
+    const IsError?: bool := !this.NoError?
   }
 
   datatype StatRes = StatRes(is_dir: bool, size: uint64)
@@ -519,6 +516,45 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
+    // linkInode inserts a new entry e' into d_ino
+    //
+    // requires that e'.name is not already in the directory (in that case we
+    // need to insert in a slightly different way that isn't implemented)
+    method linkInode(txn: Txn, d_ino: Ino, dents: Dirents, e': DirEnt)
+      returns (ok: bool)
+      modifies Repr
+      requires Valid()
+      ensures ok ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      requires is_dir(d_ino) && dirents[d_ino] == dents
+      requires e'.used() && dents.findName(e'.name) >= 128
+      ensures ok ==>
+      && data == old(
+      var d0 := data[d_ino].dir;
+      var d' := DirFile(d0[e'.name := e'.ino]);
+      data[d_ino := d'])
+    {
+      assert data[d_ino] == DirFile(dents.dir) by {
+        reveal ValidDirs();
+      }
+      var i := dents.findFree();
+      if !(i < 128) {
+        // no space in directory
+        ok := false;
+        return;
+      }
+      dents.insert_ent_dir(e');
+      ghost var d := dents.dir;
+      var dents := dents.insert_ent(i, e');
+      ghost var d' := dents.dir;
+      assert d' == d[e'.name := e'.ino];
+      ok := writeDirents(txn, d_ino, dents);
+      if !ok {
+        return;
+      }
+      assert data[d_ino] == DirFile(d');
+    }
+
     method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
       returns (ok: bool, ino: Ino)
       modifies Repr
@@ -533,7 +569,7 @@ module DirFs
         data[ino := File.empty][d_ino := d'])
     {
       var err, dents := readDirents(txn, d_ino);
-      if err.IsError() {
+      if err.IsError? {
         ok := false;
         return;
       }
@@ -548,19 +584,7 @@ module DirFs
         ok := false;
         return;
       }
-      var i := dents.findFree();
-      if !(i < 128) {
-        // no space in directory
-        ok := false;
-        return;
-      }
-      var e' := DirEnt(name, ino);
-      dents.insert_ent_dir(e');
-      ghost var d := dents.dir;
-      dents := dents.insert_ent(i, e');
-      ghost var d' := dents.dir;
-      assert d' == d[name := ino];
-      ok := writeDirents(txn, d_ino, dents);
+      ok := linkInode(txn, d_ino, dents, DirEnt(name, ino));
       if !ok {
         return;
       }
@@ -667,7 +691,7 @@ module DirFs
     {
       var i;
       err, i := openFile(txn, ino);
-      if err.IsError() {
+      if err.IsError? {
         return;
       }
       ghost var d0: seq<byte> := old(data[ino].data);
@@ -720,7 +744,7 @@ module DirFs
       }
       var i;
       err, i := openFile(txn, ino);
-      if err.IsError() {
+      if err.IsError? {
         bs := NewBytes(0);
         return;
       }
@@ -752,7 +776,7 @@ module DirFs
         data[ino := File.emptyDir][d_ino := d'])
     {
       var err, dents := readDirents(txn, d_ino);
-      if err.IsError() {
+      if err.IsError? {
         ok := false;
         return;
       }
@@ -763,29 +787,14 @@ module DirFs
       }
       assert ino != d_ino;
       assert ino_ok: ino !in old(data);
-      // TODO: factor out this common part between CreateDir and CreateFile
-      // (inserts a dangling inode into a directory)
       if dents.findName(name) < 128 {
         ok := false;
         return;
       }
-      var i := dents.findFree();
-      if !(i < 128) {
-        // no space in directory
-        ok := false;
-        return;
-      }
-      var e' := DirEnt(name, ino);
-      dents.insert_ent_dir(e');
-      ghost var d := dents.dir;
-      dents := dents.insert_ent(i, e');
-      ghost var d' := dents.dir;
-      assert d' == d[name := ino];
-      ok := writeDirents(txn, d_ino, dents);
+      ok := linkInode(txn, d_ino, dents, DirEnt(name, ino));
       if !ok {
         return;
       }
-      // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
       reveal ino_ok;
     }
 
