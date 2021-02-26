@@ -159,6 +159,15 @@ func seqOfString(name nfstypes.Filename3) dafny.Seq {
 	return dafny.SeqOf(namebytes...)
 }
 
+func stringOfSeq(s dafny.Seq) string {
+	numbytes := s.LenInt()
+	bs := make([]byte, numbytes)
+	for i := 0; i < numbytes; i++ {
+		bs[i] = s.IndexInt(i).(uint8)
+	}
+	return string(bs)
+}
+
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
@@ -275,7 +284,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		dirent2 := dirent.Get().(direntries.DirEnt_DirEnt)
 
 		de_ino := dirent2.Ino
-		de_name := dirent2.Name.String()
+		de_name := stringOfSeq(dirent2.Name)
 
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
