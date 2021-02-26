@@ -1,7 +1,7 @@
 package nfsd
 
 import (
-        dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
+	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	std "github.com/mit-pdos/dafny-jrnl/dafnygen/Std_Compile"
 
 	"github.com/tchajed/goose/machine/disk"

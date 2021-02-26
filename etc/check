@@ -24,9 +24,7 @@ shellcheck "etc/dafnyq"
 shellcheck "etc/check"
 
 # Go
-cd "dafny_go"
 echo "gofmt"
-gofmt -d .
+gofmt -d nfsd dafny_go
 echo "go vet"
-go vet ./...
-cd "$DIR"
+go vet ./nfsd/... ./dafny_go/...

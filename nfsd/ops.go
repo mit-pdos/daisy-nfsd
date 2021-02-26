@@ -1,7 +1,7 @@
 package nfsd
 
 import (
-        dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
+	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -159,23 +159,23 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 
-/*
-	e2 := &nfstypes.Entry3{
-		Fileid:    nfstypes.Fileid3(3),
-		Name:      nfstypes.Filename3("b"),
-		Cookie:    nfstypes.Cookie3(1),
-		Nextentry: nil,
-	}
-	e1 := &nfstypes.Entry3{
-		Fileid:    nfstypes.Fileid3(2),
-		Name:      nfstypes.Filename3("a"),
-		Cookie:    nfstypes.Cookie3(0),
-		Nextentry: e2,
-	}
-	reply.Status = nfstypes.NFS3_OK
-	reply.Resok.Reply = nfstypes.Dirlist3{Entries: e1, Eof: true}
-	return reply
-*/
+	/*
+		e2 := &nfstypes.Entry3{
+			Fileid:    nfstypes.Fileid3(3),
+			Name:      nfstypes.Filename3("b"),
+			Cookie:    nfstypes.Cookie3(1),
+			Nextentry: nil,
+		}
+		e1 := &nfstypes.Entry3{
+			Fileid:    nfstypes.Fileid3(2),
+			Name:      nfstypes.Filename3("a"),
+			Cookie:    nfstypes.Cookie3(0),
+			Nextentry: e2,
+		}
+		reply.Status = nfstypes.NFS3_OK
+		reply.Resok.Reply = nfstypes.Dirlist3{Entries: e1, Eof: true}
+		return reply
+	*/
 }
 
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
