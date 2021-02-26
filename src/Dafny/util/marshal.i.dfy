@@ -259,10 +259,8 @@ class Encoder
             invariant data.data == C.splice(old(data.data), off as nat, bs[..i])
         {
             ghost var data0 := data.data;
-            data.Set(off, bs[i]);
+            data.Set(off + i as uint64, bs[i]);
             i := i + 1;
-            // TODO: do some slice reasoning
-            assume false;
         }
         off := off + |bs| as uint64;
         enc := enc + [EncBytes(bs)];
