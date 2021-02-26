@@ -1,6 +1,7 @@
 package nfsd
 
 import (
+	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 
 	"log"
@@ -13,7 +14,7 @@ func (nfs *Nfs) MOUNTPROC3_MNT(args nfstypes.Dirpath3) nfstypes.Mountres3 {
 	reply := new(nfstypes.Mountres3)
 	log.Printf("Mount %v\n", args)
 	reply.Fhs_status = nfstypes.MNT3_OK
-	rootfh := Fh{Ino: 1}
+	rootfh := Fh{Ino: dirfs.Companion_DirFilesys_.RootIno()}
 	reply.Mountinfo.Fhandle = rootfh.MakeFh3().Data
 	return *reply
 }
