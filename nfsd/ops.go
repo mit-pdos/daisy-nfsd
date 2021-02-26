@@ -289,7 +289,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
 			Name:      nfstypes.Filename3(de_name),
-			Cookie:    nfstypes.Cookie3(1),
+			Cookie:    nfstypes.Cookie3(i+1),
 			Nextentry: ents,
 		}
 	}
