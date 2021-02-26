@@ -7,6 +7,8 @@ import (
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
+	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
+
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -126,7 +128,23 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.File)
+
+	// XXX write at offset args.Offset
+
+	bs := bytes.Data(args.Data)
+	err := nfs.filesys.Append(txn, inum, bs)
+	if !err.Is_NoError() {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		txn.Abort()
+		return reply
+	}
+
+	reply.Resok.Count = args.Count
+	reply.Resok.Committed = nfstypes.FILE_SYNC
+	reply.Status = nfstypes.NFS3_OK
+	txn.Commit()
 	return reply
 }
 
