@@ -119,7 +119,23 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.File)
+
+	// args.Offset
+	// args.Count
+	err, bs := nfs.filesys.Read(txn, inum, uint64(args.Offset), uint64(args.Count))
+	if !err.Is_NoError() {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		txn.Abort()
+		return reply
+	}
+
+	reply.Resok.Count = nfstypes.Count3(bs.Len())
+	reply.Resok.Data = bs.Data
+	reply.Resok.Eof = false
+	reply.Status = nfstypes.NFS3_OK
+	txn.Commit()
 	return reply
 }
 
