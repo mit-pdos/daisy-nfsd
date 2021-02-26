@@ -17,9 +17,11 @@ module DirEntries
 
   type String = seq<byte>
 
+  const MAX_FILENAME_SZ: uint64 := 24
+
   predicate is_pathc(s: String)
   {
-    && |s| <= 24
+    && |s| <= MAX_FILENAME_SZ as nat
     && forall i | 0 <= i < |s| :: s[i] != 0
   }
 

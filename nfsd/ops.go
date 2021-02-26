@@ -5,6 +5,7 @@ import (
 
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
+	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
@@ -313,14 +314,21 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	util.DPrintf(1, "NFS Fsinfo %v\n", args)
 	var reply nfstypes.FSINFO3res
 	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Rtmax = nfstypes.Uint32(4096)
+	reply.Resok.Rtpref = reply.Resok.Rtmax
 	reply.Resok.Wtmax = nfstypes.Uint32(4096)
-	reply.Resok.Maxfilesize = nfstypes.Size3(4096)
+	reply.Resok.Wtpref = reply.Resok.Wtmax
+	reply.Resok.Maxfilesize = nfstypes.Size3(inode.Companion_Default___.MAX__SZ__u64())
+	reply.Resok.Dtpref = 128
+	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF3res {
 	util.DPrintf(1, "NFS Pathconf %v\n", args)
 	var reply nfstypes.PATHCONF3res
+	// TODO: should return name_max here (to 24, which is
+	// DirEntries.MAX_FILENAME_SZ)
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
