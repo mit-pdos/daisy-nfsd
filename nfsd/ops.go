@@ -1,6 +1,8 @@
 package nfsd
 
 import (
+	"fmt"
+
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
@@ -8,6 +10,8 @@ import (
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
+
+var _ = fmt.Printf
 
 func fh2ino(fh3 nfstypes.Nfs_fh3) uint64 {
 	fh := MakeFh(fh3)
@@ -242,7 +246,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
 			Name:      nfstypes.Filename3(de_name),
-			Cookie:    nfstypes.Cookie3(0),
+			Cookie:    nfstypes.Cookie3(1),
 			Nextentry: ents,
 		}
 	}
