@@ -1,7 +1,6 @@
 package compile_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"
