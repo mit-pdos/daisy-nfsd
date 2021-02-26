@@ -17,7 +17,7 @@ module Alloc
     }
 
     // this class has no state of its own so `this` isn't part of Repr
-    const Repr: set<object> := {alloc}
+    ghost const Repr: set<object> := {alloc}
 
     constructor(max: uint64)
       requires 0 < max

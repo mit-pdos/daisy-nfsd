@@ -52,7 +52,7 @@ module DirFs
 
     static const rootIno: Ino := 1 as Ino;
 
-    const Repr: set<object> := {this} + fs.Repr + ialloc.Repr
+    ghost const Repr: set<object> := {this} + fs.Repr + ialloc.Repr
 
     static const iallocMax: uint64 := super.num_inodes as uint64 - 8
 

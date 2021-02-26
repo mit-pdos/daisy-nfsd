@@ -63,7 +63,7 @@ module IndFs
       txn.jrnl == fs.jrnl
     }
 
-    const Repr: set<object> := {this} + fs.Repr
+    ghost const Repr: set<object> := {this} + fs.Repr
 
     predicate ValidBlknos()
       reads this

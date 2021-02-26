@@ -34,7 +34,7 @@ module ByteFs {
   {
     const fs: IndFilesys<InodeAllocState>
     const jrnl: Jrnl := fs.fs.jrnl
-    const Repr: set<object> := fs.Repr
+    ghost const Repr: set<object> := fs.Repr
 
     predicate Valid()
       reads this.Repr

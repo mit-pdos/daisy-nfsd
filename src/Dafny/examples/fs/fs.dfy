@@ -140,7 +140,7 @@ module Fs {
       && Valid_jrnl_to_inodes(inodes)
     }
 
-    const Repr: set<object> := {this, jrnl} + balloc.Repr + ialloc.Repr
+    ghost const Repr: set<object> := {this, jrnl} + balloc.Repr + ialloc.Repr
 
     static predicate Valid_data_block(data_block: map<Blkno, Block>)
     {

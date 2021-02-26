@@ -149,7 +149,7 @@ class Encoder
     ghost const size: nat;
     const data: Bytes;
     var off: uint64;
-    const Repr: set<object>;
+    ghost const Repr: set<object>;
 
     predicate {:opaque} Valid()
         reads Repr
