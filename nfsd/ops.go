@@ -73,7 +73,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.What.Dir)
-	name := seqOfString(string(args.What.Name))
+	name := seqOfString(args.What.Name)
 
 	err, found, f_ino := nfs.filesys.Lookup(txn, inum, name)
 	if !err.Is_NoError() {
@@ -150,10 +150,10 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func seqOfString(name string) dafny.Seq {
+func seqOfString(name nfstypes.Filename3) dafny.Seq {
 	var namebytes []interface{}
-	for _, ch := range []byte(name) {
-		namebytes = append(namebytes, ch)
+	for _, ch := range name {
+		namebytes = append(namebytes, uint8(ch))
 	}
 	// TODO: SeqOf makes a defensive copy, we should use a lower-level constructor
 	return dafny.SeqOf(namebytes...)
@@ -166,7 +166,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.Where.Dir)
 
-	nameseq := seqOfString(string(args.Where.Name))
+	nameseq := seqOfString(args.Where.Name)
 	ok, finum := nfs.filesys.CreateFile(txn, inum, nameseq)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
@@ -190,7 +190,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.Where.Dir)
 
-	nameseq := seqOfString(string(args.Where.Name))
+	nameseq := seqOfString(args.Where.Name)
 	ok, finum := nfs.filesys.CreateDir(txn, inum, nameseq)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
