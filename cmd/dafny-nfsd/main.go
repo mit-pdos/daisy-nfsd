@@ -10,6 +10,7 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/util"
 
 	"github.com/mit-pdos/dafny-jrnl/nfsd"
 
@@ -87,6 +88,8 @@ func main() {
 		<-sigs
 		listener.Close()
 	}()
+
+	util.Debug = 100
 
 	for {
 		conn, err := listener.Accept()
