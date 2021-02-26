@@ -405,6 +405,22 @@ module ByteFs {
       }
     }
 
+    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires off % 4096 == 0 && len % 4096 == 0 && off as nat + len as nat <= Inode.MAX_SZ
+      ensures (var ino0 := ino;
+        forall ino:Ino | ino != ino0 ::
+          data()[ino] == old(data()[ino]))
+      ensures ok ==> raw_data(ino) == old(C.splice(raw_data(ino), off as nat, C.repeat(0 as byte, len as nat)))
+    {
+      i' := i;
+      ok := false;
+      // TODO: implement this (partially - can't free an arbitrary amount of
+      // data, but can at least deal with direct blocks)
+    }
+
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
       requires off as nat + |bs| <= off/4096*4096 + 4096 <= |data0|
       requires
