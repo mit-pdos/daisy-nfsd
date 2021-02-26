@@ -211,6 +211,20 @@ module DirEntries
     }
   }
 
+  lemma seq_to_dir_present(s: seq<DirEnt>, i: nat)
+    requires i < |s| && s[i].used()
+    requires dirents_unique(s)
+    ensures s[i].name in seq_to_dir(s) && seq_to_dir(s)[s[i].name] == s[i].ino
+  {
+    if s == [] { assert false; }
+    else {
+      if i == 0 {
+      } else {
+        seq_to_dir_present(s[1..], i-1);
+      }
+    }
+  }
+
   lemma {:induction s} seq_to_dir_size(s: seq<DirEnt>)
     requires dirents_unique(s)
     ensures |seq_to_dir(s)| == C.count_matching(DirEnt.is_used, s)
@@ -379,6 +393,25 @@ module DirEntries
       C.find_first_complete(f, s);
       reveal find_name_spec();
       C.find_first(f, s)
+    }
+
+    lemma findName_found(p: PathComp)
+      requires Valid()
+      requires findName(p) < 128
+      ensures p in this.dir && this.dir[p] == this.s[findName(p)].ino
+    {
+      seq_to_dir_present(this.s, findName(p));
+    }
+
+    lemma findName_not_found(p: PathComp)
+      requires Valid()
+      requires findName(p) >= 128
+      ensures p !in this.dir
+    {
+      if p in this.dir {
+       var i := seq_to_dir_in_dir(s, p);
+       reveal find_name_spec();
+      }
     }
 
     predicate {:opaque} find_free_spec(i: nat)

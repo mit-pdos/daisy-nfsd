@@ -861,6 +861,37 @@ module DirFs
       reveal ino_ok;
     }
 
+    method Lookup(txn: Txn, d_ino: Ino, name: PathComp)
+      returns (err: Error, found: bool, ino: Ino)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures err.DoesNotExist? ==> d_ino !in data
+      ensures err.NoError? ==>
+      && is_dir(d_ino)
+      && (found ==> name in data[d_ino].dir && data[d_ino].dir[name] == ino && ino != 0)
+      && (!found ==> name !in data[d_ino].dir)
+    {
+      var dents;
+      err, dents := readDirents(txn, d_ino);
+      if err.IsError? {
+        return;
+      }
+      assert DirFile(dents.dir) == data[d_ino] by {
+        reveal ValidDirs();
+      }
+      err := NoError;
+      var i := dents.findName(name);
+      if !(i < 128) {
+        found := false;
+        dents.findName_not_found(name);
+        return;
+      }
+      found := true;
+      ino := dents.s[i].ino;
+      dents.findName_found(name);
+    }
+
     // TODO:
     //
     // 1. Append (done)
