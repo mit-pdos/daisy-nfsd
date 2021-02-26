@@ -1,6 +1,7 @@
 package nfsd
 
 import (
+	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
@@ -26,6 +27,8 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	ok, stat := nfs.filesys.Stat(txn, inum)
 	if ok {
 		ok = txn.Commit()
+	} else {
+		txn.Abort()
 	}
 
 	if ok {
@@ -156,26 +159,42 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	util.DPrintf(1, "NFS Readdir %v\n", args)
 	var reply nfstypes.READDIR3res
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
-	return reply
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.Dir)
 
-	/*
-		e2 := &nfstypes.Entry3{
-			Fileid:    nfstypes.Fileid3(3),
-			Name:      nfstypes.Filename3("b"),
-			Cookie:    nfstypes.Cookie3(1),
-			Nextentry: nil,
-		}
-		e1 := &nfstypes.Entry3{
-			Fileid:    nfstypes.Fileid3(2),
-			Name:      nfstypes.Filename3("a"),
-			Cookie:    nfstypes.Cookie3(0),
-			Nextentry: e2,
-		}
-		reply.Status = nfstypes.NFS3_OK
-		reply.Resok.Reply = nfstypes.Dirlist3{Entries: e1, Eof: true}
+	err, preents := nfs.filesys.ReadDirents(txn, inum)
+	if !err.Is_NoError() {
+		txn.Abort()
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return reply
-	*/
+	}
+
+	seq := preents.Get().(direntries.PreDirents_Dirents).S
+	seqlen := seq.LenInt()
+	var ents *nfstypes.Entry3
+	for i := 0; i < seqlen; i++ {
+		dirent := seq.IndexInt(i).(direntries.DirEnt)
+		dirent2 := dirent.Get().(direntries.DirEnt_DirEnt)
+
+		de_ino := dirent2.Ino
+		de_name := dirent2.Name.String()
+
+		if de_ino == 0 || len(de_name) == 0 {
+			continue
+		}
+
+		ents = &nfstypes.Entry3{
+			Fileid:    nfstypes.Fileid3(de_ino),
+			Name:      nfstypes.Filename3(de_name),
+			Cookie:    nfstypes.Cookie3(0),
+			Nextentry: ents,
+		}
+	}
+
+	txn.Commit()
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Reply = nfstypes.Dirlist3{Entries: ents, Eof: true}
+	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
