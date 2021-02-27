@@ -241,25 +241,11 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 
 	txn := nfs.filesys.Fs().Jrnl().Begin()
 	inum := fh2ino(args.Object.Dir)
-
-	ok, stat := nfs.filesys.Stat(txn, inum)
-	if !ok {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-		txn.Abort()
-		return reply
-	}
-
-	statres := stat.Get().(dirfs.StatRes_StatRes)
-	if !statres.Is__dir {
-		reply.Status = nfstypes.NFS3ERR_INVAL
-		txn.Abort()
-		return reply
-	}
-
 	name := seqOfString(args.Object.Name)
 	err := nfs.filesys.Unlink(txn, inum, name)
 	if !err.Is_NoError() {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		// XXX do better job conveying errors, EINVAL for !dir
+		reply.Status = nfstypes.NFS3ERR_NOENT
 		txn.Abort()
 		return reply
 	}
