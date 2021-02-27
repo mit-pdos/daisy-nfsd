@@ -322,7 +322,8 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 func (nfs *Nfs) NFSPROC3_FSSTAT(args nfstypes.FSSTAT3args) nfstypes.FSSTAT3res {
 	util.DPrintf(1, "NFS Fsstat %v\n", args)
 	var reply nfstypes.FSSTAT3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Obj_attributes.Attributes_follow = false
 	return reply
 }
 
