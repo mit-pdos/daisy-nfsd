@@ -17,7 +17,7 @@ crash-safety reasoning in Perennial.
 
 [Bank example](./src/Dafny/examples/bank.dfy)
 
-[File-system example](./src/Dafny/examples/fs/byte_fs.dfy)
+[File-system example](./src/Dafny/examples/fs/dir_fs.dfy)
 
 ## Compiling
 
@@ -41,6 +41,21 @@ after compiling with `make compile`, run:
 ```sh
 go test -v ./tests
 ```
+
+## Running the NFS server
+
+Run `go run ./cmd/dafny-nfsd` to start the server and `sudo mount localhost:/ /mnt/x` to mount it using the Linux NFS client. These require an already-running
+portmapper.
+
+On macOS you can start the necessary services with:
+
+```
+sudo launchctl start com.apple.rpcbind
+sudo launchctl start com.apple.lockd
+```
+
+The `rpcinfo -p` command isuseful for verifying that an `rpcbind` service is
+running on port 111.
 
 ## Developing
 
