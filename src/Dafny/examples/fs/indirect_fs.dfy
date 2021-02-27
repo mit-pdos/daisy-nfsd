@@ -555,9 +555,11 @@ module IndFs
         reveal ValidData();
         return;
       }
-      assert blkno_ok(bn) && blkno_pos(bn).Some? by {
-        reveal ValidPos();
+      assert inode_pos_match(ino, i.blks, to_blkno) by {
         reveal ValidInodes();
+      }
+      assert blkno_pos(bn).Some? by {
+        reveal ValidPos();
       }
       fs.free(txn, bn);
       i' := i'.(blks := i'.blks[off := 0 as Blkno]);
@@ -571,12 +573,8 @@ module IndFs
         reveal ValidPos();
         reveal ValidInodes();
       }
-      assert ValidInodes() by {
-        reveal ValidPos();
-        reveal ValidInodes();
-      }
+      ValidInodes_change_one(pos, i', 0 as Blkno);
       assert ValidData() by {
-        reveal ValidPos();
         reveal ValidData();
       }
     }

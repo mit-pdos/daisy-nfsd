@@ -54,7 +54,7 @@ sudo launchctl start com.apple.rpcbind
 sudo launchctl start com.apple.lockd
 ```
 
-The `rpcinfo -p` command isuseful for verifying that an `rpcbind` service is
+The `rpcinfo -p` command is useful for verifying that an `rpcbind` service is
 running on port 111.
 
 ## Developing
