@@ -238,7 +238,33 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	util.DPrintf(1, "NFS Remove %v\n", args)
 	var reply nfstypes.REMOVE3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	txn := nfs.filesys.Fs().Jrnl().Begin()
+	inum := fh2ino(args.Object.Dir)
+
+	ok, stat := nfs.filesys.Stat(txn, inum)
+	if !ok {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		txn.Abort()
+		return reply
+	}
+
+	statres := stat.Get().(dirfs.StatRes_StatRes)
+	if !statres.Is__dir {
+		reply.Status = nfstypes.NFS3ERR_INVAL
+		txn.Abort()
+		return reply
+	}
+
+	name := seqOfString(args.Object.Name)
+	err := nfs.filesys.Unlink(txn, inum, name)
+	if !err.Is_NoError() {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		txn.Abort()
+		return reply
+	}
+	reply.Status = nfstypes.NFS3_OK
+	txn.Commit()
 	return reply
 }
 
@@ -289,7 +315,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
 			Name:      nfstypes.Filename3(de_name),
-			Cookie:    nfstypes.Cookie3(i+1),
+			Cookie:    nfstypes.Cookie3(i + 1),
 			Nextentry: ents,
 		}
 	}
