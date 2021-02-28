@@ -75,7 +75,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	inum := fh2ino(args.What.Dir)
 	name := seqOfString(args.What.Name)
 
-	err, found, f_ino := nfs.filesys.Lookup(txn, inum, name)
+	err, found, f_ino := nfs.filesys.LOOKUP(txn, inum, name)
 	if !err.Is_NoError() {
 		txn.Abort()
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
@@ -110,7 +110,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 
 	// args.Offset
 	// args.Count
-	err, bs := nfs.filesys.Read(txn, inum, uint64(args.Offset), uint64(args.Count))
+	err, bs := nfs.filesys.READ(txn, inum, uint64(args.Offset), uint64(args.Count))
 	if !err.Is_NoError() {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		txn.Abort()
