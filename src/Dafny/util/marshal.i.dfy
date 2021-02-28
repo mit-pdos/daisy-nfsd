@@ -274,14 +274,15 @@ class Encoder
         ensures bytes_left() == old(bytes_left()) - 8*|xs|
         ensures enc == old(enc) + seq_fmap(encUInt64, xs)
     {
-        var i: nat := 0;
-        while i < |xs|
-            invariant i <= |xs|
+        var len := |xs| as uint64;
+        var i: uint64 := 0;
+        while i < len
+            invariant i as nat <= |xs|
             invariant Valid()
-            invariant bytes_left() == old(bytes_left()) - 8*i
+            invariant bytes_left() == old(bytes_left()) - 8*(i as nat)
             invariant enc == old(enc + seq_fmap(encUInt64, xs[..i]))
         {
-            PutInt(xs[i]);
+            PutInt(xs[i as nat]);
             i := i + 1;
         }
         assert xs[..|xs|] == xs;
@@ -444,15 +445,15 @@ class Decoder
     {
         var num_ := num as nat;
         var xs_a := new uint64[num_];
-        var i: nat := 0;
-        while i < num_
+        var i: uint64 := 0;
+        while i < num
             invariant Valid()
-            invariant i <= num_
+            invariant i as nat <= num_
             invariant xs_a.Length == num_
             invariant xs_a[..i] == xs[..i]
             invariant enc == old(enc[i..])
         {
-            xs_a[i] := GetInt(xs[i]);
+            xs_a[i as nat] := GetInt(xs[i]);
             i := i + 1;
         }
         return xs_a[..];
