@@ -625,7 +625,7 @@ module DirFs
       assert data[d_ino] == DirFile(d');
     }
 
-    method CreateFile(txn: Txn, d_ino: Ino, name: PathComp)
+    method CREATE(txn: Txn, d_ino: Ino, name: PathComp)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
@@ -743,6 +743,7 @@ module DirFs
       err := NoError;
     }
 
+    // TODO: add support for writes to arbitrary offsets
     method {:timeLimitMultiplier 2} Append(txn: Txn, ino: Ino, bs: Bytes)
       returns (err:Error)
       modifies Repr, bs
@@ -832,7 +833,7 @@ module DirFs
       reveal ValidFiles();
     }
 
-    method CreateDir(txn: Txn, d_ino: Ino, name: PathComp)
+    method MKDIR(txn: Txn, d_ino: Ino, name: PathComp)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
@@ -958,7 +959,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method Unlink(txn: Txn, d_ino: Ino, name: PathComp)
+    method REMOVE(txn: Txn, d_ino: Ino, name: PathComp)
       returns (err: Error)
       modifies Repr
       requires Valid() ensures Valid()
@@ -999,7 +1000,10 @@ module DirFs
       err := NoError;
     }
 
-    method Readdir(txn: Txn, d_ino: Ino)
+    // TODO: implement RMDIR, a variation of REMOVE that needs to also check the
+    // inode being removed and confirm that it's empty
+
+    method READDIR(txn: Txn, d_ino: Ino)
       returns (err: Error, dents_seq: seq<DirEnt>)
       modifies fs.fs.fs
       requires Valid() ensures Valid()

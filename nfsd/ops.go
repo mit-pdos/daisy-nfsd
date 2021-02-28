@@ -176,7 +176,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
-	ok, finum := nfs.filesys.CreateFile(txn, inum, nameseq)
+	ok, finum := nfs.filesys.CREATE(txn, inum, nameseq)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		txn.Abort()
@@ -200,7 +200,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
-	ok, finum := nfs.filesys.CreateDir(txn, inum, nameseq)
+	ok, finum := nfs.filesys.MKDIR(txn, inum, nameseq)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		txn.Abort()
@@ -242,7 +242,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Object.Dir)
 	name := seqOfString(args.Object.Name)
-	err := nfs.filesys.Unlink(txn, inum, name)
+	err := nfs.filesys.REMOVE(txn, inum, name)
 	if !err.Is_NoError() {
 		// XXX do better job conveying errors, EINVAL for !dir
 		reply.Status = nfstypes.NFS3ERR_NOENT
@@ -282,7 +282,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Dir)
 
-	err, seq := nfs.filesys.Readdir(txn, inum)
+	err, seq := nfs.filesys.READDIR(txn, inum)
 	if !err.Is_NoError() {
 		txn.Abort()
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
