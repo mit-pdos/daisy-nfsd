@@ -61,7 +61,11 @@ module Inode {
       div_roundup64(sz, 4096)
     }
   }
-  type Inode = x:preInode | x.Valid() witness preInode.preZero
+  // NOTE(tej): we specifically don't provide a witness for performance reasons:
+  // if there is a witness, the generated code starts every function that
+  // returns an Inode by instantiating it with the witness, and this requires
+  // allocating and filling a seq.
+  type Inode = x:preInode | x.Valid() witness *
 
   const zero: Inode := preInode.preZero
 
