@@ -29,10 +29,10 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Object)
 
-	ok, stat := nfs.filesys.Stat(txn, inum)
+	ok, stat := nfs.filesys.GETATTR(txn, inum)
 	if ok {
 		ok = txn.Commit()
 	} else {
@@ -40,15 +40,15 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	}
 
 	if ok {
-		statres := stat.Get().(dirfs.StatRes_StatRes)
-		if statres.Is__dir {
+		attrs := stat.Get().(dirfs.Attributes_Attributes)
+		if attrs.Is__dir {
 			reply.Resok.Obj_attributes.Ftype = nfstypes.NF3DIR
 		} else {
 			reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
 		}
 		reply.Resok.Obj_attributes.Mode = 0777
 		reply.Resok.Obj_attributes.Nlink = 1
-		reply.Resok.Obj_attributes.Size = nfstypes.Size3(statres.Size)
+		reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
 		reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -71,7 +71,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.What.Dir)
 	name := seqOfString(args.What.Name)
 
@@ -105,7 +105,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.File)
 
 	// args.Offset
@@ -130,7 +130,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.File)
 
 	// XXX write at offset args.Offset
@@ -172,7 +172,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
@@ -196,7 +196,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	util.DPrintf(1, "NFS Mkdir %v\n", args)
 	var reply nfstypes.MKDIR3res
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
@@ -239,7 +239,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	util.DPrintf(1, "NFS Remove %v\n", args)
 	var reply nfstypes.REMOVE3res
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Object.Dir)
 	name := seqOfString(args.Object.Name)
 	err := nfs.filesys.Unlink(txn, inum, name)
@@ -279,7 +279,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	util.DPrintf(1, "NFS Readdir %v\n", args)
 	var reply nfstypes.READDIR3res
 
-	txn := nfs.filesys.Fs().Jrnl().Begin()
+	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Dir)
 
 	err, seq := nfs.filesys.Readdir(txn, inum)

@@ -35,7 +35,7 @@ module DirFs
     const IsError?: bool := !this.NoError?
   }
 
-  datatype StatRes = StatRes(is_dir: bool, size: uint64)
+  datatype Attributes = Attributes(is_dir: bool, size: uint64)
 
   class DirFilesys
   {
@@ -313,6 +313,13 @@ module DirFs
 
       var dir_fs := new DirFilesys.Init(fs_);
       return Some(dir_fs);
+    }
+
+    method Begin() returns (txn: Txn)
+      requires Valid()
+      ensures fs.fs.has_jrnl(txn)
+    {
+      txn := fs.fs.fs.jrnl.Begin();
     }
 
     method startInode(txn: Txn, ino: Ino)
@@ -655,8 +662,8 @@ module DirFs
       reveal ino_ok;
     }
 
-    method Stat(txn: Txn, ino: Ino)
-      returns (ok: bool, r: StatRes)
+    method GETATTR(txn: Txn, ino: Ino)
+      returns (ok: bool, r: Attributes)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
@@ -686,7 +693,7 @@ module DirFs
           assert ValidFiles() by { reveal ValidFiles(); }
         }
         var num_entries := dents.numValid();
-        r := StatRes(true, num_entries);
+        r := Attributes(true, num_entries);
         return;
       }
       // is a file
@@ -696,7 +703,7 @@ module DirFs
       assert Valid() by {
         assert ValidFiles() by { reveal ValidFiles(); }
       }
-      r := StatRes(false, i.sz);
+      r := Attributes(false, i.sz);
       return;
     }
 
