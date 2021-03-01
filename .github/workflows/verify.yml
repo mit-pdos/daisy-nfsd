@@ -9,7 +9,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  verify:
+    runs-on: ubuntu-20.04
+    env:
+      dafny: "3.0.0"
+    steps:
+      - name: Install Dafny
+        uses: tchajed/setup-dafny-action@v1
+        with:
+          dafny-version: ${{ env.dafny }}
+      - uses: actions/checkout@v2
+      - name: Verify
+        run: make -j2 verify
+  test-support:
+    runs-on: ubuntu-20.04
+    env:
+      go: "1.16.0"
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.go }}
+      - uses: actions/checkout@v2
+      - name: Test support library
+        run: |
+          go test -v -timeout=1m ./dafny_go/...
+  test-compiled:
     runs-on: ubuntu-20.04
     env:
       dafny: "3.0.0"
@@ -23,11 +47,6 @@ jobs:
         with:
           go-version: ${{ env.go }}
       - uses: actions/checkout@v2
-      - name: Verify
-        run: make -j2 verify
-      - name: Test support library
-        run: |
-          go test -v -timeout=1m ./dafny_go/...
       - name: Install goimports
         run: |
           go get golang.org/x/tools/cmd/goimports
