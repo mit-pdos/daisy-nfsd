@@ -25,8 +25,12 @@ module DirFs
     static const emptyDir := DirFile(map[])
   }
 
+  type FsData = map<Ino, seq<byte>>
+  type Data = map<Ino, File>
+
   datatype Error =
     | Noent
+    | Exist
     | NotDir
     | IsDir
     | Inval
@@ -41,6 +45,7 @@ module DirFs
     {
       match this {
         case Noent => 2
+        case Exist => 17
         case NotDir => 20
         case IsDir => 21
         case Inval => 22
@@ -87,6 +92,22 @@ module DirFs
     }
   }
 
+  method HandleResult<T>(r: Result<T>, txn: Txn) returns (v: T, status: uint32)
+    requires txn.Valid()
+  {
+    status := r.err_code();
+    if r.IsError? {
+      txn.Abort();
+      return;
+    }
+    v := r.Val();
+    var ok := txn.Commit();
+    if !ok {
+      status := ServerFault.nfs3_code();
+    }
+    return;
+  }
+
   datatype Attributes = Attributes(is_dir: bool, size: uint64)
 
   class DirFilesys
@@ -125,6 +146,33 @@ module DirFs
       && (t.DirType? ==> is_dir(ino))
     }
 
+    lemma mk_dir_type(ino: Ino)
+      requires fs.fs.Valid()
+      requires is_dir(ino)
+      requires fs.inode_types()[ino] == Inode.DirType
+      ensures is_of_type(ino, fs.inode_types()[ino])
+    {
+      reveal is_of_type();
+    }
+
+    lemma mk_file_type(ino: Ino)
+      requires fs.fs.Valid()
+      requires is_file(ino)
+      requires fs.inode_types()[ino] == Inode.FileType
+      ensures is_of_type(ino, fs.inode_types()[ino])
+    {
+      reveal is_of_type();
+    }
+
+    lemma mk_invalid_type(ino: Ino)
+      requires fs.fs.Valid()
+      requires is_invalid(ino)
+      requires fs.inode_types()[ino] == Inode.InvalidType
+      ensures is_of_type(ino, fs.inode_types()[ino])
+    {
+      reveal is_of_type();
+    }
+
     predicate ValidTypes()
       reads this, fs.fs
       requires Fs.ino_dom(fs.fs.metadata)
@@ -132,6 +180,7 @@ module DirFs
       forall ino: Ino :: is_of_type(ino, fs.inode_types()[ino])
     }
 
+    /*
     lemma type_invert(ino: Ino)
       requires fs.fs.Valid()
       requires ValidTypes()
@@ -147,6 +196,7 @@ module DirFs
       if t.DirType? { return; }
       assert false;
     }
+    */
 
     predicate ValidAlloc()
       reads ialloc.Repr, fs.Repr
@@ -170,43 +220,101 @@ module DirFs
       && rootIno != 0
     }
 
-    predicate ValidDirents()
-      requires fs.fs.Valid()
-      reads this, fs.Repr
+    predicate Valid_dirent_at(ino: Ino, fsdata: FsData)
+      reads this
+      requires ino_dom(fsdata)
     {
-      forall ino:Ino | ino in dirents ::
-        fs.data()[ino] == dirents[ino].enc()
+      ino in dirents ==> fsdata[ino] == dirents[ino].enc()
     }
 
-    predicate {:opaque} ValidFiles()
-      requires fs.fs.Valid()
-      reads this, fs.Repr
+    predicate Valid_file_at(ino: Ino, fsdata: FsData)
+      reads this
+      requires ino_dom(fsdata)
     {
-      forall ino:Ino | is_file(ino) ::
-        data[ino] == ByteFile(fs.data()[ino])
+      is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino])
     }
 
-    predicate {:opaque} ValidDirs()
+    predicate Valid_dir_at(ino: Ino)
       reads this
     {
+      is_dir(ino) ==> this.data[ino] == DirFile(dirents[ino].dir)
+    }
 
-      forall ino:Ino | is_dir(ino) ::
-        data[ino] == DirFile(dirents[ino].dir)
+    predicate Valid_invalid_at(ino: Ino, fsdata: FsData)
+      requires ino_dom(fsdata)
+      reads this
+    {
+      is_invalid(ino) ==> fsdata[ino] == []
+    }
+
+    predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData)
+      requires ino_dom(fsdata)
+      reads this
+    {
+        && Valid_dirent_at(ino, fsdata)
+        && Valid_file_at(ino, fsdata)
+        && Valid_dir_at(ino)
+        && Valid_invalid_at(ino, fsdata)
     }
 
     predicate ValidData()
       requires fs.fs.Valid()
       reads this, fs.Repr
     {
-      && ValidFiles()
-      && ValidDirs()
+      forall ino: Ino :: Valid_data_at(ino, fs.data())
     }
 
-    predicate ValidUnusedInodes()
-      requires fs.fs.Valid()
-      reads this, fs.Repr
+    lemma get_data_at(ino: Ino)
+      requires fs.fs.Valid() && ValidData()
+      ensures Valid_dirent_at(ino, fs.data())
+      ensures Valid_file_at(ino, fs.data())
+      ensures Valid_dir_at(ino)
+      ensures Valid_invalid_at(ino, fs.data())
     {
-      forall ino:Ino | is_invalid(ino) :: fs.data()[ino] == []
+      reveal Valid_data_at();
+      assert Valid_data_at(ino, fs.data());
+    }
+
+    lemma mk_data_at(ino: Ino)
+      requires fs.fs.Valid()
+      requires Valid_dirent_at(ino, fs.data())
+      requires Valid_file_at(ino, fs.data())
+      requires Valid_dir_at(ino)
+      requires Valid_invalid_at(ino, fs.data())
+      ensures Valid_data_at(ino, fs.data())
+    {
+      reveal Valid_data_at();
+    }
+
+    twostate lemma ValidData_change_one(ino: Ino)
+      requires old(fs.fs.Valid()) && old(ValidData()) && old(ValidTypes())
+      requires fs.fs.Valid()
+      requires Valid_data_at(ino, fs.data())
+      requires is_of_type(ino, fs.inode_types()[ino])
+      requires (forall ino': Ino | ino' != ino ::
+      && fs.data()[ino'] == old(fs.data()[ino'])
+      && (ino' in dirents ==> ino' in old(dirents) && dirents[ino'] == old(dirents[ino']))
+      && (ino' in data ==> ino' in old(data) && data[ino'] == old(data[ino']))
+      && (ino' !in data ==> ino' !in old(data))
+      && (ino' !in dirents ==> ino' !in old(dirents))
+      && fs.inode_types()[ino'] == old(fs.inode_types()[ino']))
+      ensures ValidData()
+      ensures ValidTypes()
+    {
+      var ino0 := ino;
+      assert ValidTypes() by {
+        reveal is_of_type();
+      }
+      var fsdata0 := old(fs.data());
+      var fsdata := fs.data();
+      forall ino: Ino | ino != ino0
+        ensures Valid_data_at(ino, fsdata)
+      {
+        reveal Valid_data_at();
+        assert old(Valid_data_at(ino, fsdata0));
+        assert ino in dirents ==> ino in old(dirents);
+        assert is_file(ino) ==> old(is_file(ino));
+      }
     }
 
     predicate ValidDirFs()
@@ -216,9 +324,7 @@ module DirFs
       && ValidTypes()
       && ValidAlloc()
       && ValidRoot()
-      && ValidDirents()
       && ValidData()
-      && ValidUnusedInodes()
     }
 
     predicate Valid()
@@ -233,69 +339,6 @@ module DirFs
     {
       && fs.fs.ValidIno(ino, i)
       && ValidDirFs()
-    }
-
-    twostate lemma valid_change_file(ino: Ino, f: File)
-      requires old(fs.fs.Valid()) && old(ValidDirFs())
-      requires fs.fs.Valid()
-      requires f.ByteFile?
-      requires fs.inode_types() == old(fs.inode_types())
-      //requires fs.data() == old(fs.data()[ino := f.data])
-      requires dirents == old(dirents)
-      requires others_unchanged: (
-      var ino0 := ino;
-      forall ino:Ino | ino != ino0 :: fs.data()[ino] == old(fs.data()[ino])
-      )
-      requires fs.data()[ino] == f.data
-      requires data == old(data[ino := f])
-      requires old(is_file(ino))
-      ensures ValidTypes() && ValidAlloc() && ValidRoot() && ValidDirents() && ValidDirs()
-    {
-      assert fs.data() == old(fs.data()[ino := f.data]) by {
-        reveal others_unchanged;
-      }
-      ghost var t0 := old(fs.inode_types()[ino]);
-      assert t0 == Inode.FileType by {
-        reveal is_of_type();
-        if t0 == Inode.InvalidType {
-          assert t0.InvalidType?;
-        } else if t0 == Inode.FileType {
-          assert t0.FileType?;
-        } else {}
-      }
-      assert old(is_file(ino)) && is_file(ino) by {
-        assert old(fs.inode_types()[ino]) == Inode.FileType;
-        reveal is_of_type();
-      }
-      assert fs.inode_types()[ino] == Inode.FileType;
-      assert is_of_type(ino, fs.inode_types()[ino]) by { reveal is_of_type(); }
-      ghost var ino0 := ino;
-
-      forall ino: Ino
-        ensures is_of_type(ino, fs.inode_types()[ino])
-      {
-        if ino == ino0 {  }
-        else {
-          assert (ino in data) == old(ino in data);
-          assert (ino in dirents) == old(ino in dirents);
-          reveal is_of_type();
-          match fs.inode_types()[ino] {
-            case InvalidType => {
-              assert old(fs.inode_types()[ino]).InvalidType?;
-            }
-            case FileType => {
-              assert old(fs.inode_types()[ino]).FileType?;
-            }
-            case DirType => {
-              assert old(fs.inode_types()[ino]).DirType?;
-            }
-          }
-        }
-      }
-      assert ValidTypes();
-      assert ValidRoot() by { reveal ValidRoot(); }
-      assert ValidDirs() by { reveal ValidDirs(); }
-      assert ValidDirents();
     }
 
     constructor Init(fs: ByteFilesys<()>)
@@ -316,8 +359,7 @@ module DirFs
       new;
       Dirents.zero_dir();
       assert ValidData() by {
-        reveal ValidFiles();
-        reveal ValidDirs();
+        reveal Valid_data_at();
       }
       assert ValidRoot() by { reveal ValidRoot(); }
       assert ValidTypes() by { reveal is_of_type(); }
@@ -386,9 +428,7 @@ module DirFs
     {
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
-      assert ValidData() by {
-        reveal ValidFiles();
-      }
+      assert ValidData();
     }
 
     method readDirentsInode(txn: Txn, d_ino: Ino, i: Inode.Inode)
@@ -398,6 +438,9 @@ module DirFs
       requires is_dir(d_ino)
       ensures dents == dirents[d_ino]
     {
+      assert Valid_dirent_at(d_ino, fs.data()) by {
+        get_data_at(d_ino);
+      }
       assert |fs.data()[d_ino]| == 4096 by {
         dirents[d_ino].enc_len();
       }
@@ -419,9 +462,7 @@ module DirFs
       var i := startInode(txn, d_ino);
       if !i.meta.ty.DirType? {
         fs.finishInodeReadonly(d_ino, i);
-        assert ValidData() by {
-          reveal ValidFiles();
-        }
+        assert ValidData();
         if i.meta.ty.InvalidType? {
           assert is_invalid(d_ino) by { reveal is_of_type(); }
           return Err(BadHandle);
@@ -433,9 +474,7 @@ module DirFs
       assert is_dir(d_ino) by { reveal is_of_type(); }
       var dents := readDirentsInode(txn, d_ino, i);
       fs.finishInodeReadonly(d_ino, i);
-      assert ValidData() by {
-        reveal ValidFiles();
-      }
+      assert ValidData();
       return Ok(dents);
     }
 
@@ -462,7 +501,7 @@ module DirFs
       assert fs.data()[d_ino] == dents.enc();
     }
 
-    method {:verify false} writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
+    method writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
       returns (ok:bool)
       modifies Repr
       requires fs.fs.has_jrnl(txn)
@@ -473,6 +512,7 @@ module DirFs
            && data == old(data[d_ino := DirFile(dents.dir)])
     {
       assert |fs.data()[d_ino]| == 4096 by {
+        get_data_at(d_ino);
         dirents[d_ino].enc_len();
       }
       ok := writeDirentsToFs(fs, txn, d_ino, dents);
@@ -484,10 +524,10 @@ module DirFs
       data := data[d_ino := DirFile(dents.dir)];
 
       // assert is_dir(d_ino);
-      assert ValidFiles() by { reveal ValidFiles(); }
-      assert ValidDirs() by { reveal ValidDirs(); }
       assert ValidRoot() by { reveal ValidRoot(); }
-      assert ValidTypes() by { reveal is_of_type(); }
+      assert is_of_type(d_ino, fs.inode_types()[d_ino]) by { reveal is_of_type(); }
+      mk_data_at(d_ino);
+      ValidData_change_one(d_ino);
     }
 
     // allocInode finds an invalid inode and prepares it for writes
@@ -501,6 +541,7 @@ module DirFs
       ensures data == old(data)
       ensures fs.types_unchanged()
       ensures ok ==> old(is_invalid(ino)) && is_invalid(ino) && ino != rootIno
+      ensures ok ==> fs.data()[ino] == []
       ensures ok ==> ino != 0
     {
       ino := ialloc.Alloc();
@@ -508,18 +549,18 @@ module DirFs
       fs.inode_metadata(ino, i);
       assert is_of_type(ino, i.meta.ty);
       assert ValidIno(ino, i) by {
-        assert ValidFiles() by { reveal ValidFiles(); }
       }
       ok := i.meta.ty.InvalidType?;
       if !ok {
         fs.finishInodeReadonly(ino, i);
-        assert Valid() by {
-          assert ValidFiles() by { reveal ValidFiles(); }
-        }
+        return;
       }
-      assert ok ==> is_invalid(ino) && ino != rootIno by {
+      assert is_invalid(ino) && ino != rootIno by {
         reveal is_of_type();
         reveal ValidRoot();
+      }
+      assert fs.data()[ino] == [] by {
+        get_data_at(ino);
       }
     }
 
@@ -527,10 +568,7 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    //
-    // TODO: this is extremely slow to verify despite doing very little,
-    // something might be wrong
-    method {:timeLimitMultiplier 2} {:verify false} allocFile(txn: Txn)
+    method allocFile(txn: Txn)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
@@ -547,23 +585,22 @@ module DirFs
       if !ok {
         return;
       }
+
+      assert this !in fs.Repr;
       i := fs.setType(ino, i, Inode.FileType);
       fs.finishInode(txn, ino, i);
       data := data[ino := File.empty];
-      assert is_of_type(ino, Inode.FileType) by {
-        reveal is_of_type();
-      }
-      assert ValidDirs() by {
-        reveal ValidDirs();
-      }
-      assert ValidFiles() by {
-        reveal ValidFiles();
-      }
-      assert ValidTypes() by { reveal is_of_type(); }
+
+      // NOTE(tej): this assertion takes far longer than I expected
+      assert is_file(ino);
+      mk_file_type(ino);
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method {:verify false} writeEmptyDir(txn: Txn, ino: Ino, i: Inode.Inode)
+    method writeEmptyDir(txn: Txn, ino: Ino, i: Inode.Inode)
       returns (ok: bool)
       modifies fs.Repr
       requires ValidIno(ino, i) ensures ok ==> fs.Valid()
@@ -582,6 +619,7 @@ module DirFs
         return;
       }
       assert fs.data()[ino] == Dirents.zero.enc();
+
       fs.finishInode(txn, ino, i);
     }
 
@@ -589,9 +627,7 @@ module DirFs
     //
     // creates a directory disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    //
-    // TODO: this is extremely slow to verify
-    method {:timeLimitMultiplier 2} {:verify false} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+    method allocDir(txn: Txn) returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.fs.has_jrnl(txn)
@@ -608,6 +644,7 @@ module DirFs
         return;
       }
 
+      assert this !in fs.Repr;
       ok := writeEmptyDir(txn, ino, i);
       if !ok {
         return;
@@ -619,15 +656,11 @@ module DirFs
       assert is_dir(ino);
 
       Dirents.zero_dir();
-      //assert fs.data()[ino] == dirents[ino].enc();
-      assert ValidDirents();
-      assert ValidDirs() by {
-        reveal ValidDirs();
-      }
-      assert ValidFiles() by {
-        reveal ValidFiles();
-      }
-      assert ValidTypes() by { reveal is_of_type(); }
+      assert is_dir(ino);
+      mk_dir_type(ino);
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
@@ -650,7 +683,7 @@ module DirFs
       data[d_ino := d'])
     {
       assert data[d_ino] == DirFile(dents.dir) by {
-        reveal ValidDirs();
+        get_data_at(d_ino);
       }
       var i := dents.findFree();
       if !(i < 128) {
@@ -728,7 +761,7 @@ module DirFs
         assert is_invalid(ino) by { reveal is_of_type(); }
         fs.finishInodeReadonly(ino, i);
         assert ValidData() by {
-          reveal ValidFiles();
+          // reveal ValidFiles();
         }
         return Err(BadHandle);
       }
@@ -737,7 +770,7 @@ module DirFs
         var dents := readDirentsInode(txn, ino, i);
         fs.finishInodeReadonly(ino, i);
         assert Valid() by {
-          assert ValidFiles() by { reveal ValidFiles(); }
+          // assert ValidFiles() by { reveal ValidFiles(); }
         }
         var num_entries := dents.numValid();
         var attrs := Attributes(true, num_entries);
@@ -748,7 +781,7 @@ module DirFs
       assert is_file(ino) by { reveal is_of_type(); }
       fs.finishInodeReadonly(ino, i);
       assert Valid() by {
-        assert ValidFiles() by { reveal ValidFiles(); }
+        // assert ValidFiles() by { reveal ValidFiles(); }
       }
       var attrs := Attributes(false, i.sz);
       return Ok(attrs);
@@ -769,18 +802,19 @@ module DirFs
       ensures r.ErrBadHandle? ==> is_invalid(ino)
       ensures r.ErrIsDir? ==> is_dir(ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.IsDir?
+      ensures unchanged(this)
     {
       var i := startInode(txn, ino);
       if i.meta.ty.InvalidType? {
         assert is_invalid(ino) by { reveal is_of_type(); }
         fs.finishInodeReadonly(ino, i);
-        assert ValidFiles() by { reveal ValidFiles(); }
+        // assert ValidFiles() by { reveal ValidFiles(); }
         return Err(BadHandle);
       }
       if i.meta.ty.DirType? {
         assert is_dir(ino) by { reveal is_of_type(); }
         fs.finishInodeReadonly(ino, i);
-        assert ValidFiles() by { reveal ValidFiles(); }
+        // assert ValidFiles() by { reveal ValidFiles(); }
         return Err(IsDir);
       }
       assert old(is_file(ino)) && is_file(ino) by { reveal is_of_type(); }
@@ -788,7 +822,7 @@ module DirFs
     }
 
     // TODO: add support for writes to arbitrary offsets
-    method {:timeLimitMultiplier 2} {:verify false} Append(txn: Txn, ino: Ino, bs: Bytes)
+    method {:timeLimitMultiplier 2} Append(txn: Txn, ino: Ino, bs: Bytes)
       returns (r: Result<()>)
       modifies Repr, bs
       requires Valid()
@@ -807,24 +841,29 @@ module DirFs
     {
       var i_r := openFile(txn, ino);
       if i_r.IsError? {
+        // TODO: need to transform IsDir into Inval (like above for READ)
         return i_r.Coerce();
       }
-      assert old(is_file(ino));
+      assert dirents == old(dirents);
+      assert fs.inode_types()[ino] == Inode.FileType by {
+        reveal is_of_type();
+      }
       var i := i_r.v;
       assert ValidIno(ino, i);
       ghost var d0: seq<byte> := old(fs.data()[ino]);
       assert d0 == old(data[ino].data) by {
-        reveal ValidFiles();
+        get_data_at(ino);
       }
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        fs.finishInodeReadonly(ino, i);
+        // fs.finishInodeReadonly(ino, i);
         return Err(FBig);
       }
       fs.inode_metadata(ino, i);
+      assert this !in fs.Repr;
       var ok;
       ok, i := fs.appendIno(txn, ino, i, bs);
       if !ok {
-        fs.finishInode(txn, ino, i);
+        // fs.finishInode(txn, ino, i);
         return Err(NoSpc);
       }
 
@@ -832,18 +871,27 @@ module DirFs
 
       ghost var f' := ByteFile(d0 + old(bs.data));
       data := data[ino := f'];
-      valid_change_file(ino, f');
-      assert ValidFiles() by { reveal ValidFiles(); }
+      assert dirents == old(dirents);
+      assert is_of_type(ino, fs.inode_types()[ino]) by {
+        assert is_file(ino);
+        reveal is_of_type();
+      }
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+      // TODO: get past here
+      assume false;
+      get_data_at(ino);
       return Ok(());
     }
 
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
       returns (r: Result<Bytes>)
       modifies fs.fs.fs
-      requires Valid() ensures Valid()
+      requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> ino !in data
       ensures r.ErrInval? ==> ino in data && data[ino].DirFile?
+      ensures unchanged(this)
       ensures r.Ok? ==>
       (var bs := r.v;
       && ino in data && data[ino].ByteFile?
@@ -863,27 +911,28 @@ module DirFs
         }
         return i_r.Coerce();
       }
-      assume false;
       var i := i_r.v;
       var bs, ok := fs.read_txn_with_inode(txn, ino, i, off, len);
       if !ok {
-        assert ValidFiles() by { reveal ValidFiles(); }
         // TODO: I believe this should never happen, short reads are supposed to
         // return partial data and an EOF flag
         return Err(ServerFault);
       }
+      get_data_at(ino);
       assert Valid() by {
-        assert ValidFiles() by { reveal ValidFiles(); }
+        assert ValidData() by {
+          reveal Valid_data_at();
+        }
       }
-      reveal ValidFiles();
       return Ok(bs);
     }
 
-    method {:verify false} MKDIR(txn: Txn, d_ino: Ino, name: PathComp)
+    method MKDIR(txn: Txn, d_ino: Ino, name: PathComp)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
+      ensures (r.Err? && r.err.Exist?) ==> old(is_dir(d_ino)) && name in old(data[d_ino].dir)
       ensures r.Ok? ==>
       (var ino := r.v;
       && old(is_dir(d_ino))
@@ -904,11 +953,12 @@ module DirFs
       if !ok {
         return Err(NoSpc);
       }
+      get_data_at(d_ino);
       assert ino != d_ino;
       assert ino_ok: ino !in old(data);
       if dents.findName(name) < 128 {
-        ok := false;
-        return;
+        dents.findName_found(name);
+        return Err(Exist);
       }
       ok := linkInode(txn, d_ino, dents, DirEnt(name, ino));
       if !ok {
@@ -937,7 +987,7 @@ module DirFs
       }
       var dents := dents_r.v;
       assert DirFile(dents.dir) == data[d_ino] by {
-        reveal ValidDirs();
+        get_data_at(d_ino);
       }
       var i := dents.findName(name);
       if !(i < 128) {
@@ -966,7 +1016,7 @@ module DirFs
     // this is a low-level function that deletes an inode (currently restricted
     // to files) from the tree; Unlink currently doesn't call this so we leave a
     // dangling inode
-    method {:timeLimitMultiplier 2} {:verify false} removeInode(txn: Txn, ino: Ino)
+    method {:timeLimitMultiplier 2} removeInode(txn: Txn, ino: Ino)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -984,7 +1034,7 @@ module DirFs
         return Err(BadHandle);
       }
       if i.meta.ty == Inode.DirType {
-        // removeInode doesn't yet support directories
+        // TODO: removeInode doesn't yet support directories
         //fs.finishInodeReadonly(ino, i);
         //assert Valid() by {
         //  assert ValidFiles() by { reveal ValidFiles(); }
@@ -997,21 +1047,21 @@ module DirFs
       //map_delete_not_in(data, ino);
       data := map_delete(data, ino);
 
-      assert fs.inode_types()[ino].InvalidType?;
-      assert is_invalid(ino);
-      assert ValidTypes() by { reveal is_of_type(); }
-      assert ValidDirs() by { reveal ValidDirs(); }
-      assert ValidFiles() by { reveal ValidFiles(); }
+      assert dirents == old(dirents);
+      mk_invalid_type(ino);
+      mk_data_at(ino);
+      ValidData_change_one(ino);
       assert ValidRoot() by { reveal ValidRoot(); }
       return Ok(());
     }
 
-    method {:verify false} REMOVE(txn: Txn, d_ino: Ino, name: PathComp)
+    method REMOVE(txn: Txn, d_ino: Ino, name: PathComp)
       returns (r: Result<()>)
       modifies Repr
-      requires Valid() ensures Valid()
+      requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
-      ensures r.ErrBadHandle? ==> d_ino !in data && data == old(data)
+      ensures r.ErrBadHandle? ==> d_ino !in old(data)
+      ensures (r.Err? && r.err.Noent?) ==> old(is_dir(d_ino)) && name !in old(data[d_ino].dir)
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
       && name in old(data[d_ino].dir)
@@ -1027,7 +1077,7 @@ module DirFs
       }
       var dents := dents_r.v;
       assert DirFile(dents.dir) == data[d_ino] by {
-        reveal ValidDirs();
+        get_data_at(d_ino);
       }
       var i := dents.findName(name);
       if !(i < 128) {
@@ -1067,7 +1117,7 @@ module DirFs
       }
       var dents := dents_r.v;
       assert DirFile(dents.dir) == data[d_ino] by {
-        reveal ValidDirs();
+        get_data_at(d_ino);
       }
       var dents_seq := dents.usedDents();
       return Ok(dents_seq);

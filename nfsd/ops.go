@@ -6,9 +6,11 @@ import (
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
+	_dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
+	"github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -25,35 +27,39 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
 
+func (nfs *Nfs) runTxn(f func(txn *jrnl.Txn) dirfs.Result) (v interface{}, status nfstypes.Nfsstat3) {
+	txn := nfs.filesys.Begin()
+	r := f(txn)
+	var statusCode uint32
+	v, statusCode = dirfs.Companion_Default___.HandleResult(r, txn)
+	status = nfstypes.Nfsstat3(statusCode)
+	return
+}
+
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Object)
 
-	ok, stat := nfs.filesys.GETATTR(txn, inum)
-	if ok {
-		ok = txn.Commit()
-	} else {
-		txn.Abort()
+	stat, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.GETATTR(txn, inum)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
+		return reply
 	}
 
-	if ok {
-		attrs := stat.Get().(dirfs.Attributes_Attributes)
-		if attrs.Is__dir {
-			reply.Resok.Obj_attributes.Ftype = nfstypes.NF3DIR
-		} else {
-			reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
-		}
-		reply.Resok.Obj_attributes.Mode = 0777
-		reply.Resok.Obj_attributes.Nlink = 1
-		reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
-		reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
-		reply.Status = nfstypes.NFS3_OK
+	attrs := stat.(dirfs.Attributes).Get().(dirfs.Attributes_Attributes)
+	if attrs.Is__dir {
+		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3DIR
 	} else {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
 	}
+	reply.Resok.Obj_attributes.Mode = 0777
+	reply.Resok.Obj_attributes.Nlink = 1
+	reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
+	reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
 
 	return reply
 }
@@ -71,25 +77,18 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.What.Dir)
 	name := seqOfString(args.What.Name)
 
-	err, found, f_ino := nfs.filesys.LOOKUP(txn, inum, name)
-	if !err.Is_NoError() {
-		txn.Abort()
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+	f_ino, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.LOOKUP(txn, inum, name)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
-	if !found {
-		txn.Commit()
-		reply.Status = nfstypes.NFS3ERR_NOENT
-		return reply
-	}
-	fh := Fh{Ino: f_ino}
+	fh := Fh{Ino: f_ino.(uint64)}
 	reply.Resok.Object = fh.MakeFh3()
-	reply.Status = nfstypes.NFS3_OK
-	txn.Commit()
 	return reply
 }
 
@@ -105,23 +104,22 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.File)
+	off := uint64(args.Offset)
+	count := uint64(args.Count)
 
-	// args.Offset
-	// args.Count
-	err, bs := nfs.filesys.READ(txn, inum, uint64(args.Offset), uint64(args.Count))
-	if !err.Is_NoError() {
-		reply.Status = nfstypes.NFS3ERR_NOTSUPP
-		txn.Abort()
+	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.READ(txn, inum, off, count)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
+	bs := r.(*bytes.Bytes)
 
 	reply.Resok.Count = nfstypes.Count3(bs.Len())
 	reply.Resok.Data = bs.Data
 	reply.Resok.Eof = false
-	reply.Status = nfstypes.NFS3_OK
-	txn.Commit()
 	return reply
 }
 
@@ -130,23 +128,21 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.File)
 
 	// XXX write at offset args.Offset
 
 	bs := bytes.Data(args.Data)
-	err := nfs.filesys.Append(txn, inum, bs)
-	if !err.Is_NoError() {
-		reply.Status = nfstypes.NFS3ERR_NOTSUPP
-		txn.Abort()
+	_, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.Append(txn, inum, bs)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
 
 	reply.Resok.Count = args.Count
 	reply.Resok.Committed = nfstypes.FILE_SYNC
-	reply.Status = nfstypes.NFS3_OK
-	txn.Commit()
 	return reply
 }
 
@@ -172,21 +168,20 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
-	ok, finum := nfs.filesys.CREATE(txn, inum, nameseq)
-	if !ok {
-		reply.Status = nfstypes.NFS3ERR_NOTSUPP
-		txn.Abort()
+	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.CREATE(txn, inum, nameseq)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
+	finum := r.(uint64)
 
 	// XXX set size based on args.How.Obj_attributes.Size
 
-	txn.Commit()
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Obj.Handle_follows = true
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	return reply
@@ -196,19 +191,19 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	util.DPrintf(1, "NFS Mkdir %v\n", args)
 	var reply nfstypes.MKDIR3res
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := seqOfString(args.Where.Name)
-	ok, finum := nfs.filesys.MKDIR(txn, inum, nameseq)
-	if !ok {
-		reply.Status = nfstypes.NFS3ERR_NOTSUPP
-		txn.Abort()
+
+	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.MKDIR(txn, inum, nameseq)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
+	finum := r.(uint64)
 
-	txn.Commit()
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Obj.Handle_follows = true
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	return reply
@@ -239,18 +234,17 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	util.DPrintf(1, "NFS Remove %v\n", args)
 	var reply nfstypes.REMOVE3res
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Object.Dir)
 	name := seqOfString(args.Object.Name)
-	err := nfs.filesys.REMOVE(txn, inum, name)
-	if !err.Is_NoError() {
-		// XXX do better job conveying errors, EINVAL for !dir
-		reply.Status = nfstypes.NFS3ERR_NOENT
-		txn.Abort()
+
+	_, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.REMOVE(txn, inum, name)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
-	reply.Status = nfstypes.NFS3_OK
-	txn.Commit()
+
 	return reply
 }
 
@@ -279,15 +273,16 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	util.DPrintf(1, "NFS Readdir %v\n", args)
 	var reply nfstypes.READDIR3res
 
-	txn := nfs.filesys.Begin()
 	inum := fh2ino(args.Dir)
 
-	err, seq := nfs.filesys.READDIR(txn, inum)
-	if !err.Is_NoError() {
-		txn.Abort()
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+		return nfs.filesys.READDIR(txn, inum)
+	})
+	reply.Status = status
+	if status != nfstypes.NFS3_OK {
 		return reply
 	}
+	seq := r.(_dafny.Seq)
 
 	seqlen := seq.LenInt()
 	var ents *nfstypes.Entry3
@@ -306,8 +301,6 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		}
 	}
 
-	txn.Commit()
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Reply = nfstypes.Dirlist3{Entries: ents, Eof: true}
 	return reply
 }
