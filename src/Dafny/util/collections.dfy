@@ -441,6 +441,55 @@ lemma splice_prefix_comm_auto<T>(xs: seq<T>)
         splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
 {}
 
+lemma concat_homogeneous_subslice<T>(xs: seq<seq<T>>, start: nat, end: nat, len: nat)
+    requires start <= end <= |xs|
+    requires 0 < len
+    requires forall l | l in xs :: |l| == len
+    ensures 0 <= start*len <= end*len <= |concat(xs)| == len*|xs|
+    ensures concat(xs[start..end]) == concat(xs)[start*len..end*len]
+{
+    assert 0 <= start*len <= end*len <= |concat(xs)| == len*|xs| by {
+        concat_homogeneous_len(xs, len);
+        mul_positive(start, len);
+        mul_positive(end, len);
+        mul_r_incr(start, end, len);
+        mul_r_incr(end, |xs|, len);
+    }
+    assert xs == xs[..start] + xs[start..end] + xs[end..];
+    assert concat(xs) == concat(xs[..start]) + concat(xs[start..end]) + concat(xs[end..]) by {
+        concat_app(xs[..start] + xs[start..end], xs[end..]);
+        concat_app(xs[..start], xs[start..end]);
+    }
+    concat_homogeneous_len(xs[..start], len);
+    concat_homogeneous_len(xs[start..end], len);
+    concat_homogeneous_len(xs[end..], len);
+    assert |concat(xs[..start])| == start*len;
+    assert |concat(xs[start..end])| == end*len - start*len by {
+        assert |xs[start..end]| == end - start;
+        Arith.mul_distr_sub_r(end, start, len);
+    }
+}
+
+lemma concat_homogeneous_prefix<T>(xs: seq<seq<T>>, end: nat, len: nat)
+    requires end <= |xs|
+    requires 0 < len
+    requires forall l | l in xs :: |l| == len
+    ensures 0 <= end*len <= |concat(xs)| == len*|xs|
+    ensures concat(xs[..end]) == concat(xs)[..end*len]
+{
+    concat_homogeneous_subslice(xs, 0, end, len);
+}
+
+lemma concat_homogeneous_suffix<T>(xs: seq<seq<T>>, start: nat, len: nat)
+    requires start <= |xs|
+    requires 0 < len
+    requires forall l | l in xs :: |l| == len
+    ensures 0 <= start*len <= |concat(xs)| == len*|xs|
+    ensures concat(xs[start..]) == concat(xs)[start*len..]
+{
+    concat_homogeneous_subslice(xs, start, |xs|, len);
+}
+
 lemma concat_homogeneous_splice_one<T>(xs: seq<seq<T>>, off: nat, ys: seq<T>, len: nat)
     requires 0 < len
     requires forall l | l in xs :: |l| == len

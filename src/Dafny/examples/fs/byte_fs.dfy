@@ -23,6 +23,37 @@ module ByteFs {
     C.concat(d.blks)
   }
 
+  lemma splice_zero_raw_inode_data(blks: seq<Block>, off: nat, count: nat)
+    requires off + count <= |blks|
+    ensures |C.concat(blks)| == |blks|*4096
+    ensures C.concat(C.splice(blks, off, C.repeat(block0, count))) ==
+            C.splice(C.concat(blks), off*4096, C.repeat(0 as byte, count*4096))
+  {
+    C.concat_homogeneous_len(blks, 4096);
+    var zeroblks := C.repeat(block0, count);
+
+    calc {
+      C.concat(C.splice(blks, off, zeroblks));
+      C.concat(blks[..off] + zeroblks + blks[off + count..]);
+      { C.concat_app(blks[..off] + zeroblks, blks[off + count..]);
+        C.concat_app(blks[..off], zeroblks); }
+      C.concat(blks[..off]) + C.concat(zeroblks) + C.concat(blks[off + count..]);
+      { C.concat_homogeneous_prefix(blks, off, 4096); }
+      C.concat(blks)[..off*4096] + C.concat(zeroblks) + C.concat(blks[off + count..]);
+      { C.concat_homogeneous_suffix(blks, off+count, 4096); }
+      C.concat(blks)[..off*4096] + C.concat(zeroblks) + C.concat(blks)[(off + count)*4096..];
+    }
+
+    assert C.concat(zeroblks) == C.repeat(0 as byte, count*4096) by {
+      assert block0 == C.repeat(0 as byte, 4096);
+      assert zeroblks == C.repeat(C.repeat(0 as byte, 4096), count);
+      C.concat_repeat(0 as byte, 4096, count);
+    }
+
+    //C.concat_homogeneous_prefix(blks, off, 4096);
+    //C.concat_homogeneous_suffix(blks, off+count, 4096);
+  }
+
   function inode_data(sz: nat, d: InodeData): (bs:seq<byte>)
     requires sz <= Inode.MAX_SZ
     ensures sz <= Inode.MAX_SZ && |bs| == sz as nat
@@ -399,9 +430,25 @@ module ByteFs {
       ensures types_unchanged()
     {
       i' := i;
+      if off + len <= 10 * 4096 {
+        ok := true;
+        var startblk: nat := (off / 4096) as nat;
+        var count: nat := (len / 4096) as nat;
+        var h := new BlockFs.ZeroHelper(fs);
+        i' := h.Do(txn, ino, i, startblk, count);
+        inode_types_metadata_unchanged();
+        assert raw_data(ino) ==
+          old(C.splice(raw_data(ino), off as nat,
+              C.repeat(0 as byte, len as nat))) by {
+          reveal raw_inode_data();
+          splice_zero_raw_inode_data(old(block_data(fs.data)[ino].blks), startblk, count);
+          assert startblk*4096 == off as nat;
+          assert count*4096 == len as nat;
+        }
+        return;
+      }
       ok := false;
-      // TODO: implement this (partially - can't free an arbitrary amount of
-      // data, but can at least deal with direct blocks)
+      return;
     }
 
     method shrinkTo(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)

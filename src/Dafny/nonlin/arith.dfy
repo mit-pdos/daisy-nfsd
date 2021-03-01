@@ -33,6 +33,10 @@ module Arith {
     ensures x*k <= y*k
   {}
 
+  lemma mul_comm(x: int, y: int)
+    ensures x * y == y * x
+  {}
+
   lemma mul_assoc(x: int, y: int, z: int)
     ensures x*(y*z) == (x * y) * z
   {}

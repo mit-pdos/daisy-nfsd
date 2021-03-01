@@ -177,7 +177,7 @@ module BlockFs
               C.splice(s, start, C.repeat(x, count))[start + count := x]
     {}
 
-    method Do(txn: Txn, ino: Ino, i: Inode.Inode, start: nat, len: nat)
+    method Do(txn: Txn, ghost ino: Ino, i: Inode.Inode, start: nat, len: nat)
       returns (i': Inode.Inode)
       modifies fs.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
@@ -191,6 +191,7 @@ module BlockFs
       var blks' := C.splice(blks0, start, C.repeat(block0, len));
       data[ino := d0.(blks := blks')]
       )
+      ensures fs.metadata == old(fs.metadata)
     {
       i' := i;
       ghost var data0 := old(block_data(fs.data));

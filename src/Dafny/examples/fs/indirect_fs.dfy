@@ -531,7 +531,7 @@ module IndFs
       }
     }
 
-    method zeroOut(txn: Txn, off: nat, ino: Ino, i: Inode.Inode)
+    method zeroOut(txn: Txn, off: nat, ghost ino: Ino, i: Inode.Inode)
       returns (i': Inode.Inode)
       modifies Repr
       requires has_jrnl(txn)
@@ -545,7 +545,7 @@ module IndFs
       ensures metadata == old(metadata)
     {
       i' := i;
-      var pos := Pos.from_flat(ino, off);
+      ghost var pos := Pos.from_flat(ino, off);
       assert pos.idx.off == IndOff.direct;
       assert pos.data?;
       var bn: Blkno := i'.blks[off];
