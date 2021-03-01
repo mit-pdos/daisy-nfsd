@@ -41,4 +41,5 @@ jobs:
           echo "::endgroup::"
           echo "::group::Test compiled code"
           go test -bench=. -timeout=1m -v ./tests
+          go build ./cmd/dafny-nfsd
           echo "::endgroup::"
