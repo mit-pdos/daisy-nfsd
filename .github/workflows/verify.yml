@@ -10,6 +10,7 @@ on:
 
 jobs:
   verify:
+    name: Verify
     runs-on: ubuntu-20.04
     env:
       dafny: "3.0.0"
@@ -22,6 +23,7 @@ jobs:
       - name: Verify
         run: make -j2 verify
   test-support:
+    name: Test dafny_go
     runs-on: ubuntu-20.04
     env:
       go: "1.16.0"
@@ -34,6 +36,7 @@ jobs:
         run: |
           go test -v -timeout=1m ./dafny_go/...
   test-compiled:
+    name: Compile and test
     runs-on: ubuntu-20.04
     env:
       dafny: "3.0.0"
