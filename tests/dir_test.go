@@ -41,14 +41,14 @@ func TestDirFsLookup(t *testing.T) {
 	fs := NewFs()
 	txn := Begin(fs)
 	defer txn.Abort()
-	ok, ino := fs.CreateFile(txn, rootIno, seqOfString("foo"))
-	require.True(t, ok, "CreateFile should succeed")
+	r := fs.CREATE(txn, rootIno, seqOfString("foo"))
+	require.True(t, r.Is_Ok(), "CreateFile should succeed")
+	ino := r.Val().(uint64)
 
-	err, found, ino2 := fs.Lookup(txn, rootIno, seqOfString("foo"))
-	require.False(t, err.IsError_q(), "Lookup should succeed")
-	if assert.True(t, found, "foo should be present") {
-		assert.Equal(t, ino, ino2, "lookup should return correct result")
-	}
+	r2 := fs.LOOKUP(txn, rootIno, seqOfString("foo"))
+	require.True(t, r.Is_Ok(), "Lookup should succeed")
+	ino2 := r2.Val().(uint64)
+	assert.Equal(t, ino, ino2, "lookup should return correct result")
 }
 
 func TestPathEncode(t *testing.T) {
