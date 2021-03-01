@@ -6,7 +6,6 @@ import (
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
-	_dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
@@ -284,7 +283,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	if status != nfstypes.NFS3_OK {
 		return reply
 	}
-	seq := r.(_dafny.Seq)
+	seq := r.(dafny.Seq)
 
 	seqlen := seq.LenInt()
 	var ents *nfstypes.Entry3
