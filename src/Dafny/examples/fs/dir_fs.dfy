@@ -830,8 +830,8 @@ module DirFs
       ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
       requires bs.Valid() && 0 < bs.Len() <= 4096
-      ensures r.ErrBadHandle? ==> data == old(data) && ino !in data
-      ensures r.ErrIsDir? ==> data == old(data) && ino in data && data[ino].DirFile?
+      ensures r.ErrBadHandle? ==> ino !in old(data)
+      ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
       && ino in old(data) && old(data[ino].ByteFile?)
       && data == old(
@@ -841,7 +841,9 @@ module DirFs
     {
       var i_r := openFile(txn, ino);
       if i_r.IsError? {
-        // TODO: need to transform IsDir into Inval (like above for READ)
+        if i_r.err.IsDir? {
+          return Err(Inval);
+        }
         return i_r.Coerce();
       }
       assert dirents == old(dirents);
@@ -871,16 +873,17 @@ module DirFs
 
       ghost var f' := ByteFile(d0 + old(bs.data));
       data := data[ino := f'];
-      assert dirents == old(dirents);
-      assert is_of_type(ino, fs.inode_types()[ino]) by {
-        assert is_file(ino);
-        reveal is_of_type();
+
+      assert Valid() by {
+        assert dirents == old(dirents);
+        assert is_of_type(ino, fs.inode_types()[ino]) by {
+          assert is_file(ino);
+          reveal is_of_type();
+        }
+        mk_data_at(ino);
+        ValidData_change_one(ino);
+        assert ValidRoot() by { reveal ValidRoot(); }
       }
-      mk_data_at(ino);
-      ValidData_change_one(ino);
-      // TODO: get past here
-      assume false;
-      get_data_at(ino);
       return Ok(());
     }
 
