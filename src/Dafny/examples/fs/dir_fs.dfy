@@ -991,7 +991,7 @@ module DirFs
     {
       var i := i;
       i := fs.setType(ino, i, Inode.InvalidType);
-      i := fs.shrinkToEmpty(ino, i);
+      i := fs.shrinkToEmpty(txn, ino, i);
       fs.finishInode(txn, ino, i);
     }
 

@@ -146,6 +146,15 @@ module Arith {
     assert false;
   }
 
+  lemma round_incr(x1: nat, x2: nat, k: nat)
+    requires x1 <= x2
+    requires 1 <= k
+    ensures x1/k*k <= x2/k*k
+  {
+    div_increasing(x1, x2, k);
+  }
+
+
   lemma mul_mod(a: nat, k: nat)
     requires 0 < k
     ensures a * k % k == 0

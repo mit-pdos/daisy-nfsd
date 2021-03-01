@@ -384,9 +384,30 @@ module ByteFs {
       }
     }
 
-    method shrinkTo(ghost ino: Ino, i: Inode.Inode, sz': uint64)
+    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires off % 4096 == 0 && len % 4096 == 0 && off as nat + len as nat <= Inode.MAX_SZ
+      ensures (var ino0 := ino;
+        forall ino:Ino | ino != ino0 ::
+          data()[ino] == old(data()[ino]))
+      ensures ok ==> raw_data(ino) == old(C.splice(raw_data(ino), off as nat, C.repeat(0 as byte, len as nat)))
+      ensures !ok ==> data() == old(data()) && raw_data(ino) == old(raw_data(ino))
+      ensures fs.metadata == old(fs.metadata)
+      ensures types_unchanged()
+    {
+      i' := i;
+      ok := false;
+      // TODO: implement this (partially - can't free an arbitrary amount of
+      // data, but can at least deal with direct blocks)
+    }
+
+    method shrinkTo(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode)
       modifies Repr
+      requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires sz' <= i.sz
       ensures sz' as nat <= old(|data()[ino]|)
@@ -394,9 +415,15 @@ module ByteFs {
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
-      i' := fs.writeInodeMeta(ino, i, i.meta.(sz:=sz'));
+      var unusedStart := Round.roundup64(sz', 4096);
+      var unusedEnd := Round.roundup64(i.sz, 4096);
+      Round.roundup_incr(sz' as nat, i.sz as nat, 4096);
+      var ok;
+      ok, i' := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
+
       fs.inode_metadata(ino, i');
-      assert raw_data(ino) == old(raw_data(ino));
+      i' := fs.writeInodeMeta(ino, i', i'.meta.(sz:=sz'));
+      fs.inode_metadata(ino, i');
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
         reveal raw_inode_data();
       }
@@ -405,30 +432,15 @@ module ByteFs {
       }
     }
 
-    method shrinkToEmpty(ghost ino: Ino, i: Inode.Inode)
+    method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: Inode.Inode)
       returns (i': Inode.Inode)
       modifies Repr
+      requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       ensures data() == old(data()[ino := []])
       ensures types_unchanged()
     {
-      i' := this.shrinkTo(ino, i, 0);
-    }
-
-    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
-      requires off % 4096 == 0 && len % 4096 == 0 && off as nat + len as nat <= Inode.MAX_SZ
-      ensures (var ino0 := ino;
-        forall ino:Ino | ino != ino0 ::
-          data()[ino] == old(data()[ino]))
-      ensures ok ==> raw_data(ino) == old(C.splice(raw_data(ino), off as nat, C.repeat(0 as byte, len as nat)))
-    {
-      i' := i;
-      ok := false;
-      // TODO: implement this (partially - can't free an arbitrary amount of
-      // data, but can at least deal with direct blocks)
+      i' := this.shrinkTo(txn, ino, i, 0);
     }
 
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
@@ -553,7 +565,7 @@ module ByteFs {
       ghost var data2 := data()[ino];
       assert desired_size as nat == i.sz as nat + to_write as nat;
 
-      i' := shrinkTo(ino, i', desired_size);
+      i' := shrinkTo(txn, ino, i', desired_size);
       ghost var data3 := data()[ino];
 
       assert |data3| == |data0| + written;

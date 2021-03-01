@@ -108,6 +108,16 @@ module Round {
     div_roundup64(x, k) * k
   }
 
+  lemma roundup_incr(x1: nat, x2: nat, k: nat)
+    requires x1 <= x2
+    requires k >= 1
+    ensures roundup(x1, k) <= roundup(x2, k)
+  {
+    div_increasing(x1+(k-1), x2+(k-1), k);
+    div_roundup_spec(x1, k);
+    div_roundup_spec(x2, k);
+  }
+
   lemma div_roundup_bound(x: nat, k: nat)
     requires k >= 1
     ensures div_roundup(x, k) >= x/k
