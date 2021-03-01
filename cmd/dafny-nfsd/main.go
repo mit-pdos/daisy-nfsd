@@ -54,6 +54,8 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 	return bool(res)
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 
