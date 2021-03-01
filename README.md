@@ -44,18 +44,24 @@ go test -v ./tests
 
 ## Running the NFS server
 
-Run `go run ./cmd/dafny-nfsd` to start the server and `sudo mount localhost:/ /mnt/x` to mount it using the Linux NFS client. These require an already-running
-portmapper.
+You'll need some basic utilities: the rpcbind service to tell the server what
+port to run on, and the NFS client utilities to mount the file system. On Arch
+Linux these are available using `pacman -S rpcbind nfs-utils` and on Ubuntu you
+can use `apt-get install rpcbind nfs-common`.
 
-On macOS you can start the necessary services with:
+You might need to start the rpcbind service with `systemctl start rpcbind`. The
+`rpcinfo -p` command is useful for verifying that an `rpcbind` service is
+running on port 111.
+
+Now run `go run ./cmd/dafny-nfsd` to start the server and `sudo mount localhost:/ /mnt/x` to mount it using the Linux NFS client.
+
+On macOS you already have `rpcbind` and the NFS client utilities, but you'll
+need to start a couple services with:
 
 ```
 sudo launchctl start com.apple.rpcbind
 sudo launchctl start com.apple.lockd
 ```
-
-The `rpcinfo -p` command is useful for verifying that an `rpcbind` service is
-running on port 111.
 
 ## Developing
 
