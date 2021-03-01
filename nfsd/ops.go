@@ -30,9 +30,11 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 func (nfs *Nfs) runTxn(f func(txn *jrnl.Txn) dirfs.Result) (v interface{}, status nfstypes.Nfsstat3) {
 	txn := nfs.filesys.Begin()
 	r := f(txn)
-	var statusCode uint32
-	v, statusCode = dirfs.Companion_Default___.HandleResult(r, txn)
-	status = nfstypes.Nfsstat3(statusCode)
+	r = dirfs.Companion_Default___.HandleResult(r, txn)
+	if r.Is_Ok() {
+		v = r.Val()
+	}
+	status = nfstypes.Nfsstat3(r.Err__code())
 	return
 }
 

@@ -92,20 +92,19 @@ module DirFs
     }
   }
 
-  method HandleResult<T>(r: Result<T>, txn: Txn) returns (v: T, status: uint32)
+  method HandleResult<T>(r: Result<T>, txn: Txn) returns (r':Result<T>)
     requires txn.Valid()
+    ensures r.IsError? ==> r'.IsError?
   {
-    status := r.err_code();
     if r.IsError? {
       txn.Abort();
-      return;
+      return r;
     }
-    v := r.Val();
     var ok := txn.Commit();
     if !ok {
-      status := ServerFault.nfs3_code();
+      return Err(ServerFault);
     }
-    return;
+    return r;
   }
 
   datatype Attributes = Attributes(is_dir: bool, size: uint64)
