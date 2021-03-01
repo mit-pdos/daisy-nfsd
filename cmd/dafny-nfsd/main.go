@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
@@ -53,8 +55,19 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 }
 
 func main() {
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+
 	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
 	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
