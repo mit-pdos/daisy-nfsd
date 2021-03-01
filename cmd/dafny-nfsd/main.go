@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -52,6 +53,9 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 }
 
 func main() {
+	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
+	flag.Parse()
+
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		panic(err)
@@ -88,8 +92,6 @@ func main() {
 		<-sigs
 		listener.Close()
 	}()
-
-	util.Debug = 100
 
 	for {
 		conn, err := listener.Accept()
