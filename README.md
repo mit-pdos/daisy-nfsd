@@ -1,6 +1,6 @@
 # dafny-jrnl
 
-[[![CI](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml)](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml)
+[![CI](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml)
 
 Verifying crash-safe, concurrent code with sequential proofs. The goal is to
 connect goose-nfsd's verified journal with sequential verification in Dafny: the
