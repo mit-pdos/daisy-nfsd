@@ -484,6 +484,7 @@ module Fs {
       blkno_bit_inbounds(jrnl);
       block_used := block_used[bn:=None];
       txn.WriteBit(DataBitAddr(bn), false);
+      balloc.Free(bn);
 
       assert Valid_jrnl_to_all() by {
         reveal Valid_jrnl_to_block_used();

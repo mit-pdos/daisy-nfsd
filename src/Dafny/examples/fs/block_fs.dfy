@@ -207,6 +207,7 @@ module BlockFs
         invariant block_data(fs.data)[ino].blks == C.splice(blks0, start, C.repeat(block0, k))
         invariant forall ino': Ino | ino' != ino ::
           block_data(fs.data)[ino'] == old(block_data(fs.data)[ino'])
+        invariant fs.metadata == old(fs.metadata)
       {
         ghost var fsdata_prev := fs.data;
         ghost var d_prev := block_data(fsdata_prev)[ino];
