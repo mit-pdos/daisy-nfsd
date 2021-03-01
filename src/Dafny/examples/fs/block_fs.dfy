@@ -161,4 +161,73 @@ module BlockFs
     }
   }
   }
+
+  class ZeroHelper<T(!new)>
+  {
+    const fs: IndFilesys<T>
+    constructor(fs: IndFilesys<T>)
+      ensures this.fs == fs
+    {
+      this.fs := fs;
+    }
+
+    static lemma splice_repeat_one_more<T>(s: seq<T>, start: nat, count: nat, x: T)
+      requires start + count < |s|
+      ensures C.splice(s, start, C.repeat(x, count+1)) ==
+              C.splice(s, start, C.repeat(x, count))[start + count := x]
+    {}
+
+    method Do(txn: Txn, ino: Ino, i: Inode.Inode, start: nat, len: nat)
+      returns (i': Inode.Inode)
+      modifies fs.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.has_jrnl(txn)
+      //requires start + len <= config.total
+      requires start + len <= 10
+      ensures block_data(fs.data) ==
+      (var data := old(block_data(fs.data));
+      var d0 := data[ino];
+      var blks0 := d0.blks;
+      var blks' := C.splice(blks0, start, C.repeat(block0, len));
+      data[ino := d0.(blks := blks')]
+      )
+    {
+      i' := i;
+      ghost var data0 := old(block_data(fs.data));
+      ghost var d0 := data0[ino];
+      ghost var blks0 := d0.blks;
+      assert C.repeat(block0, 0) == [];
+      assert C.splice(blks0, start, []) == blks0;
+      var k := 0;
+      while k < len
+        modifies fs.Repr
+        invariant 0 <= k <= len
+        invariant fs.ValidIno(ino, i')
+        invariant block_data(fs.data)[ino].blks == C.splice(blks0, start, C.repeat(block0, k))
+        invariant forall ino': Ino | ino' != ino ::
+          block_data(fs.data)[ino'] == old(block_data(fs.data)[ino'])
+      {
+        ghost var fsdata_prev := fs.data;
+        ghost var d_prev := block_data(fsdata_prev)[ino];
+        var n := start + k;
+        i' := fs.zeroOut(txn, n, ino, i');
+
+        ghost var d := block_data(fs.data)[ino];
+        assert d.blks == d_prev.blks[n := block0] by {
+          reveal block_data();
+          block_data_update(fsdata_prev, ino, n, block0);
+        }
+        splice_repeat_one_more(blks0, start, k, block0);
+
+        forall ino':Ino | ino' != ino
+          ensures block_data(fs.data)[ino'] == old(block_data(fsdata_prev)[ino'])
+        {
+          reveal block_data();
+          block_data_update_other(fsdata_prev, ino, ino', n, block0);
+        }
+
+        k := k + 1;
+      }
+    }
+  }
 }
