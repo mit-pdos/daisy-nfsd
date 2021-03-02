@@ -141,6 +141,16 @@ module MemDirEntries
     return;
   }
 
+  method PadPathc(bs: Bytes)
+    modifies bs
+    requires bs.Valid()
+    requires is_pathc(bs.data)
+    ensures bs.data == encode_pathc(old(bs.data))
+  {
+    var zeros := NewBytes(24 - bs.Len());
+    bs.AppendBytes(zeros);
+  }
+
   class MemDirents
   {
     ghost var val: Dirents
@@ -286,7 +296,7 @@ module MemDirEntries
     method findName(name: Bytes) returns (r: Option<(uint64, Ino)>)
       requires Valid()
       requires name.Valid() && is_pathc(name.data)
-      ensures r.None? ==> name.data !in val.dir
+      ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == 128
       ensures r.Some? ==>
       && name.data in val.dir
       && r.x.0 < 128
@@ -354,6 +364,43 @@ module MemDirEntries
       assert val.s[..128] == val.s;
       used_dirents_dir(val.s);
       used_dirents_size(val.s);
+    }
+
+    static method write_ent(bs: Bytes, k: uint64, ghost v: DirEnt, name: Bytes, ino: Ino)
+      modifies bs
+      requires k < 128
+      requires |bs.data| == 4096
+      requires name.data == encode_pathc(v.name) && v.ino == ino
+      ensures |v.enc()| == 32
+      ensures bs.data == C.splice(old(bs.data), k as nat*32, v.enc())
+    {
+      v.enc_len();
+      v.enc_app();
+      bs.CopyTo(k*32, name);
+      IntEncoding.UInt64Put(ino, k*32+24, bs);
+    }
+
+    method insert_ent(k: uint64, e: MemDirEnt)
+      modifies Repr, e.name
+      requires Valid() ensures Valid()
+      requires e.Valid()
+      requires k < 128
+      requires val.findName(e.val().name) >= 128
+      ensures val == old(val.(s := val.s[k as nat := e.val()]))
+    {
+      ghost var v := e.val();
+      v.enc_len();
+      // modify in place to re-use space
+      PadPathc(e.name);
+      var padded_name := e.name;
+      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, val.s), k as nat, v.enc(), 32);
+      write_ent(this.bs, k, v, padded_name, e.ino);
+      // needed to ensure new Dirents is Valid
+      reveal val.find_name_spec();
+      val := val.(s := val.s[k as nat := v]);
+      assert C.seq_fmap(Dirents.encOne, val.s) == C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
+      // TODO: should be done, need to figure out what's missing
+      assume false;
     }
   }
 }
