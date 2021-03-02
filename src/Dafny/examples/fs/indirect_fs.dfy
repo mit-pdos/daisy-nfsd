@@ -123,7 +123,7 @@ module IndFs
       requires |blks| == 14
       requires pos_dom(to_blkno)
     {
-      forall k: nat | k < 14 ::
+      forall k: uint64 | k < 14 ::
         var bn := blks[k];
         && blkno_ok(bn)
         && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
@@ -531,7 +531,7 @@ module IndFs
       }
     }
 
-    method zeroOut(txn: Txn, off: nat, ghost ino: Ino, i: Inode.Inode)
+    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: Inode.Inode)
       returns (i': Inode.Inode)
       modifies Repr
       requires has_jrnl(txn)

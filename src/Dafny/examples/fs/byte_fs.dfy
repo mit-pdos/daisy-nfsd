@@ -143,7 +143,7 @@ module ByteFs {
       ensures bs.data == this.raw_data(ino)[off as nat..off as nat + 4096]
       ensures fresh(bs)
     {
-      var blkoff: nat := off as nat / 4096;
+      var blkoff: uint64 := off / 4096;
       bs := BlockFs.Read(this.fs, txn, ino, i, blkoff);
       ghost var d := block_data(fs.data)[ino];
       assert bs.data == d.blks[blkoff];
@@ -322,9 +322,9 @@ module ByteFs {
       ensures !ok ==> data() == old(data())
     {
       i' := i;
-      var blkoff: nat := off as nat / 4096;
+      var blkoff: uint64 := off / 4096;
       var wh := new BlockFs.WriteHelper(fs);
-      ok, i' := wh.Do(txn, ino, i, blkoff as nat, bs);
+      ok, i' := wh.Do(txn, ino, i, blkoff, bs);
       assert types_unchanged() by {
         reveal inode_types();
       }
@@ -333,12 +333,12 @@ module ByteFs {
       }
       ghost var d0 := old(block_data(fs.data)[ino]);
       ghost var d := block_data(fs.data)[ino];
-      assert off as nat == blkoff * 4096;
+      assert off as nat == blkoff as nat * 4096;
       C.concat_homogeneous_len(d0.blks, 4096);
       assert d.blks == d0.blks[blkoff:=bs.data];
       ghost var blk: Block := bs.data;
       assert C.concat(d.blks) == C.splice(C.concat(d0.blks), off as nat, blk) by {
-        C.concat_homogeneous_splice_one(d0.blks, blkoff, bs.data, 4096);
+        C.concat_homogeneous_splice_one(d0.blks, blkoff as nat, bs.data, 4096);
       }
       assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, blk) by {
         reveal raw_inode_data();
@@ -432,8 +432,8 @@ module ByteFs {
       i' := i;
       if off + len <= 10 * 4096 {
         ok := true;
-        var startblk: nat := (off / 4096) as nat;
-        var count: nat := (len / 4096) as nat;
+        var startblk: uint64 := off / 4096;
+        var count: uint64 := len / 4096;
         var h := new BlockFs.ZeroHelper(fs);
         i' := h.Do(txn, ino, i, startblk, count);
         inode_types_metadata_unchanged();
@@ -441,9 +441,9 @@ module ByteFs {
           old(C.splice(raw_data(ino), off as nat,
               C.repeat(0 as byte, len as nat))) by {
           reveal raw_inode_data();
-          splice_zero_raw_inode_data(old(block_data(fs.data)[ino].blks), startblk, count);
-          assert startblk*4096 == off as nat;
-          assert count*4096 == len as nat;
+          splice_zero_raw_inode_data(old(block_data(fs.data)[ino].blks), startblk as nat, count as nat);
+          assert startblk*4096 == off;
+          assert count*4096 == len;
         }
         return;
       }
@@ -491,7 +491,7 @@ module ByteFs {
     }
 
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
-      requires off as nat + |bs| <= off/4096*4096 + 4096 <= |data0|
+      requires off + |bs| <= off/4096*4096 + 4096 <= |data0|
       requires
       (var off' := off / 4096 * 4096;
       && blk == C.splice(data0[off'..off'+4096], off % 4096, bs)
@@ -501,13 +501,17 @@ module ByteFs {
     {
       var off' := off / 4096 * 4096;
       assert data1 == C.splice(data0, off', blk);
+      assert off == off' + off % 4096;
       forall i: nat | i < |data0|
         ensures C.splice(data0, off', blk)[i] == C.splice(data0, off, bs)[i]
       {
         C.splice_get_i(data0, off, bs, i);
         C.splice_get_i(data0, off', blk, i);
-        if 0 <= i - off' < 4096 {
-          C.splice_get_i(blk, off % 4096, bs, i - off');
+        if i < off' || i > off' + 4096 {}
+        else {
+          if 0 <= i - off' < 4096 {
+            C.splice_get_i(blk, off % 4096, bs, i - off');
+          }
         }
       }
       assert data1 == C.splice(data0, off, bs);

@@ -28,13 +28,13 @@ module BlockFs
     requires data_dom(data)
   {
     var blks := seq(config.total,
-      (n:nat) requires n < config.total => data[Pos.from_flat(ino, n)]);
+      (n:nat) requires n < config.total => data[Pos.from_flat(ino, n as uint64)]);
     InodeData(blks)
   }
 
-  predicate is_lba(i: int)
+  predicate is_lba(i: uint64)
   {
-    0 <= i < config.total
+    i as nat < config.total
   }
 
   function {:opaque} block_data(data: imap<Pos, Block>): (m:map<Ino, InodeData>)
@@ -58,7 +58,7 @@ module BlockFs
   }
 
   // public
-  method Read<InodeAllocState(!new)>(fs: IndFilesys<InodeAllocState>, txn: Txn, ino: Ino, i: Inode.Inode, n: nat)
+  method Read<InodeAllocState(!new)>(fs: IndFilesys<InodeAllocState>, txn: Txn, ino: Ino, i: Inode.Inode, n: uint64)
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
@@ -78,7 +78,7 @@ module BlockFs
     ensures m2 == m1[k0 := v]
   {}
 
-  lemma block_data_update(data: imap<Pos, Block>, ino: Ino, n: nat, blk: Block)
+  lemma block_data_update(data: imap<Pos, Block>, ino: Ino, n: uint64, blk: Block)
     requires is_lba(n)
     requires data_dom(data)
     ensures inode_blocks(ino, data[Pos.from_flat(ino, n) := blk]).blks ==
@@ -103,7 +103,7 @@ module BlockFs
   }
 
   // an update to an ino0 Pos doesn't affect ino
-  lemma block_data_update_other(data: imap<Pos, Block>, ino0: Ino, ino: Ino, n: nat, blk: Block)
+  lemma block_data_update_other(data: imap<Pos, Block>, ino0: Ino, ino: Ino, n: uint64, blk: Block)
     requires is_lba(n)
     requires ino != ino0
     requires data_dom(data)
@@ -124,7 +124,7 @@ module BlockFs
   }
 
   // public
-  method Do(txn: Txn, ino: Ino, i: Inode.Inode, n: nat, blk: Bytes)
+  method Do(txn: Txn, ino: Ino, i: Inode.Inode, n: uint64, blk: Bytes)
     returns (ok: bool, i': Inode.Inode)
     modifies fs.Repr
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
@@ -177,18 +177,18 @@ module BlockFs
               C.splice(s, start, C.repeat(x, count))[start + count := x]
     {}
 
-    method Do(txn: Txn, ghost ino: Ino, i: Inode.Inode, start: nat, len: nat)
+    method Do(txn: Txn, ghost ino: Ino, i: Inode.Inode, start: uint64, len: uint64)
       returns (i': Inode.Inode)
       modifies fs.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
       requires fs.has_jrnl(txn)
       //requires start + len <= config.total
-      requires start + len <= 10
+      requires start as nat + len as nat <= 10
       ensures block_data(fs.data) ==
       (var data := old(block_data(fs.data));
       var d0 := data[ino];
       var blks0 := d0.blks;
-      var blks' := C.splice(blks0, start, C.repeat(block0, len));
+      var blks' := C.splice(blks0, start as nat, C.repeat(block0, len as nat));
       data[ino := d0.(blks := blks')]
       )
       ensures fs.metadata == old(fs.metadata)
@@ -198,13 +198,14 @@ module BlockFs
       ghost var d0 := data0[ino];
       ghost var blks0 := d0.blks;
       assert C.repeat(block0, 0) == [];
-      assert C.splice(blks0, start, []) == blks0;
-      var k := 0;
+      assert C.splice(blks0, start as nat, []) == blks0;
+      var k: uint64 := 0;
       while k < len
         modifies fs.Repr
         invariant 0 <= k <= len
         invariant fs.ValidIno(ino, i')
-        invariant block_data(fs.data)[ino].blks == C.splice(blks0, start, C.repeat(block0, k))
+        invariant block_data(fs.data)[ino].blks ==
+                  C.splice(blks0, start as nat, C.repeat(block0, k as nat))
         invariant forall ino': Ino | ino' != ino ::
           block_data(fs.data)[ino'] == old(block_data(fs.data)[ino'])
         invariant fs.metadata == old(fs.metadata)
@@ -219,7 +220,7 @@ module BlockFs
           reveal block_data();
           block_data_update(fsdata_prev, ino, n, block0);
         }
-        splice_repeat_one_more(blks0, start, k, block0);
+        splice_repeat_one_more(blks0, start as nat, k as nat, block0);
 
         forall ino':Ino | ino' != ino
           ensures block_data(fs.data)[ino'] == old(block_data(fsdata_prev)[ino'])

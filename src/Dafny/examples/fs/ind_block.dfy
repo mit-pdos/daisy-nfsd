@@ -82,17 +82,17 @@ module IndBlocks
     }
   }
 
-  method decode_one(bs: Bytes, k: nat) returns (bn:Blkno)
+  method decode_one(bs: Bytes, k: uint64) returns (bn:Blkno)
     requires is_block(bs.data)
     requires k < 512
     ensures bn == to_blknos(bs.data).s[k]
   {
-    bn := IntEncoding.UInt64Get(bs, (k as uint64)*8);
-    assert bn == decode_uint64_seq_one(bs.data, k);
-    decode_uint64_seq_one_spec(bs.data, k);
+    bn := IntEncoding.UInt64Get(bs, k*8);
+    assert bn == decode_uint64_seq_one(bs.data, k as nat);
+    decode_uint64_seq_one_spec(bs.data, k as nat);
   }
 
-  method modify_one(bs: Bytes, k: nat, bn: Blkno) returns (bs': Bytes)
+  method modify_one(bs: Bytes, k: uint64, bn: Blkno) returns (bs': Bytes)
     modifies bs
     requires is_block(bs.data)
     requires k < 512
@@ -102,8 +102,8 @@ module IndBlocks
     var blknos := old(to_blknos(bs.data));
     blknos' == blknos.(s:=blknos.s[k := bn]))
   {
-    decode_uint64_seq_modify_one(bs.data, k, bn);
-    IntEncoding.UInt64Put(bn, (k as uint64)*8, bs);
+    decode_uint64_seq_modify_one(bs.data, k as nat, bn);
+    IntEncoding.UInt64Put(bn, k*8, bs);
     bs' := bs;
   }
 

@@ -61,4 +61,12 @@ module Pow {
         mul_r_increasing(pow(x, k1), pow(x, k2));
     }
 
+    lemma pow_incr(x: nat, k1: nat, k2: nat)
+        requires 0 < x
+        requires k1 <= k2
+        ensures pow(x, k1) <= pow(x, k2)
+    {
+        pow_increasing(x, k1, k2-k1);
+    }
+
 }
