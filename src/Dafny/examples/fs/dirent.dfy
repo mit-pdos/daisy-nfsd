@@ -67,6 +67,21 @@ module DirEntries
     }
   }
 
+  lemma decode_nullterm_null(s: seq<byte>, i: nat)
+    requires i < |s| && s[i] == 0
+    requires forall k | 0 <= k < i :: s[k] != 0
+    ensures decode_null_terminated(s) == s[..i]
+  {
+    decode_nullterm_prefix(s[..i], s[i..]);
+    assert decode_null_terminated(s[i..]) == [];
+    assert s == s[..i] + s[i..];
+  }
+
+  lemma decode_nullterm_no_null(s: seq<byte>)
+    requires forall k | 0 <= k < |s| :: s[k] != 0
+    ensures decode_null_terminated(s) == s
+  {}
+
   lemma decode_all_null(count: nat)
     ensures decode_null_terminated(C.repeat(0 as byte, count)) == []
   {}
@@ -331,8 +346,10 @@ module DirEntries
       && dirents_unique(s)
     }
 
-    static function encOne(e: DirEnt): seq<byte>
+    static function encOne(e: DirEnt): (s:seq<byte>)
+      ensures |s| == 32
     {
+      e.enc_len();
       e.enc()
     }
 
@@ -345,11 +362,6 @@ module DirEntries
       requires Valid()
       ensures |enc()| == 4096
     {
-      forall e: DirEnt
-        ensures |encOne(e)| == 32
-      {
-        e.enc_len();
-      }
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), 32);
     }
 
@@ -454,15 +466,19 @@ module DirEntries
       && forall k:nat | k < i :: !(s[k].used() && s[k].name == p)
     }
 
+    static function method findName_pred(p: PathComp): DirEnt -> bool
+    {
+      (e:DirEnt) => e.used() && e.name == p
+    }
+
     function method findName(p: PathComp): (i:nat)
       requires Valid()
       ensures i < 128 ==> s[i].used() && s[i].name == p
       ensures find_name_spec(p, i)
     {
-      var f := (e:DirEnt) => e.used() && e.name == p;
-      C.find_first_complete(f, s);
+      C.find_first_complete(findName_pred(p), s);
       reveal find_name_spec();
-      C.find_first(f, s)
+      C.find_first(findName_pred(p), s)
     }
 
     lemma findName_found(p: PathComp)
@@ -490,15 +506,19 @@ module DirEntries
       && forall k:nat | k < i :: s[k].used()
     }
 
+    static predicate method is_unused(e: DirEnt)
+    {
+      !e.used()
+    }
+
     function method findFree(): (i:nat)
       requires Valid()
       ensures i < 128 ==> !s[i].used()
       ensures find_free_spec(i)
     {
-      var f := (e:DirEnt) => !e.used();
-      C.find_first_complete(f, s);
+      C.find_first_complete(is_unused, s);
       reveal find_free_spec();
-      C.find_first(f, s)
+      C.find_first(is_unused, s)
     }
 
     method numValid() returns (n:uint64)

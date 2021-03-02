@@ -89,6 +89,20 @@ lemma {:induction xs} find_first_complete<T>(p: T -> bool, xs: seq<T>)
     ensures forall k:nat | k < find_first(p, xs) :: !p(xs[k])
 {}
 
+lemma find_first_characterization<T>(p: T -> bool, xs: seq<T>, i: nat)
+    requires i < |xs| ==> p(xs[i])
+    requires i <= |xs|
+    requires forall k:nat | k < i :: !p(xs[k])
+    ensures i == find_first(p, xs)
+{
+    if 0 < |xs| {
+        if p(xs[0]) {}
+        else {
+            find_first_characterization(p, xs[1..], i-1);
+        }
+    }
+}
+
 // count matching a predicate
 function method count_matching<T>(p: T -> bool, xs: seq<T>): (i:nat)
     ensures i <= |xs|
