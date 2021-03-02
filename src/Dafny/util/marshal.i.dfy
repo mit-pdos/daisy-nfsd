@@ -143,6 +143,30 @@ lemma decode_encode_uint64_seq_id(es: seq<uint64>)
     assert seq_encode(seq_fmap(encUInt64, es[1..])) == seq_encode(seq_fmap(encUInt64, es))[8..];
 }
 
+function decode_uint64_seq_one(bs: seq<byte>, k: nat): uint64
+    requires |bs| % 8 == 0
+    requires k*8 < |bs|
+{
+    decode_uint64(bs[k*8..(k+1)*8])
+}
+
+lemma decode_uint64_seq_one_spec(bs: seq<byte>, k: nat)
+    requires |bs| % 8 == 0
+    requires k*8 < |bs|
+    ensures decode_uint64_seq_one(bs, k) == decode_uint64_seq(bs)[k]
+{
+    if bs == [] { return; }
+    if k == 0 { return; }
+    decode_uint64_seq_one_spec(bs[8..], k-1);
+    calc {
+        decode_uint64_seq(bs)[k];
+        decode_uint64_seq(bs[8..])[k-1];
+        decode_uint64_seq_one(bs[8..], k-1);
+        { assert bs[8..][(k-1)*8 .. (k-1+1)*8] == bs[k*8..(k+1)*8]; }
+        decode_uint64_seq_one(bs, k);
+    }
+}
+
 class Encoder
 {
     ghost var enc: seq<Encodable>;

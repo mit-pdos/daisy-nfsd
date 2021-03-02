@@ -87,10 +87,9 @@ module IndBlocks
     requires k < 512
     ensures bn == to_blknos(bs.data).s[k]
   {
-    // TODO: this can be implemented directly more efficiently by skipping
-    // marshal entirely
-    var blknos := decode_blknos(bs, to_blknos(bs.data));
-    bn := blknos[k];
+    bn := IntEncoding.UInt64Get(bs, (k as uint64)*8);
+    assert bn == decode_uint64_seq_one(bs.data, k);
+    decode_uint64_seq_one_spec(bs.data, k);
   }
 
   // this could be done in-place on bs more efficiently (and the spec allows it
