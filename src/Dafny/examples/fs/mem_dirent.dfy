@@ -18,12 +18,57 @@ module MemDirEntries
       DirEnt(name.data, ino)
     }
 
+    predicate method used()
+    {
+      ino != 0
+    }
+
     predicate Valid()
       reads name
     {
       && is_pathc(name.data)
     }
   }
+
+  function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
+  {
+    set i:nat | i < |s| :: s[i].name
+  }
+
+  lemma mem_dirs_repr_app(s1: seq<MemDirEnt>, s2: seq<MemDirEnt>)
+    ensures mem_dirs_repr(s1 + s2) == mem_dirs_repr(s1) + mem_dirs_repr(s2)
+  {
+    forall o:object | o in mem_dirs_repr(s2)
+      ensures o in mem_dirs_repr(s1 + s2)
+    {
+      var i:nat :| i < |s2| && s2[i].name == o;
+      assert (s1 + s2)[|s1| + i].name == o;
+    }
+
+    forall o:object | o in mem_dirs_repr(s1)
+      ensures o in mem_dirs_repr(s1 + s2)
+    {
+      var i:nat :| i < |s1| && s1[i].name == o;
+      assert (s1 + s2)[i].name == o;
+    }
+  }
+
+  function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
+    reads mem_dirs_repr(s)
+    requires forall i:nat | i < |s| :: s[i].Valid()
+  {
+    seq(|s|, (i:nat)
+      reads mem_dirs_repr(s)
+      requires i < |s|
+      requires s[i].Valid() =>
+      s[i].val())
+  }
+
+  lemma mem_seq_val_app(s1: seq<MemDirEnt>, s2: seq<MemDirEnt>)
+    requires forall i:nat | i < |s1| :: s1[i].Valid()
+    requires forall i:nat | i < |s2| :: s2[i].Valid()
+    ensures mem_seq_val(s1 + s2) == mem_seq_val(s1) + mem_seq_val(s2)
+  {}
 
   method NullTerminatedEqualSmaller(bs1: Bytes, bs2: Bytes) returns (p:bool)
     requires bs1.Valid() && bs2.Valid()
@@ -69,6 +114,30 @@ module MemDirEntries
       return;
     }
     p := NullTerminatedEqualSmaller(bs2, bs1);
+    return;
+  }
+
+  method NullTerminatePrefix(bs: Bytes)
+    requires bs.Valid()
+    modifies bs
+    ensures bs.data == decode_null_terminated(old(bs.data))
+  {
+    var i: uint64 := 0;
+    var len: uint64 := bs.Len();
+    while i < len
+      modifies bs
+      invariant i as nat <= |bs.data|
+      invariant forall k: nat | k < i as nat :: bs.data[k] != 0
+      invariant decode_null_terminated(bs.data) == bs.data[..i] + decode_null_terminated(bs.data[i..])
+      invariant bs.data == old(bs.data)
+    {
+      var b := bs.Get(i);
+      if b == 0 {
+        bs.Subslice(0, i);
+        return;
+      }
+      i := i + 1;
+    }
     return;
   }
 
@@ -138,6 +207,26 @@ module MemDirEntries
       data_one(k as nat);
       val.s[k].enc_app();
       assert bs.data[k*32..(k+1)*32][..24] == bs.data[k*32..k*32 + 24];
+    }
+
+    method get_dirent(k: uint64) returns (r:Option<MemDirEnt>)
+      requires Valid()
+      requires k < 128
+      ensures r.None? ==> !val.s[k].used()
+      ensures r.Some? ==>
+      && val.s[k].used()
+      && fresh(r.x.name)
+      && r.x.Valid()
+      && r.x.val() == val.s[k]
+    {
+      var ino := get_ino(k);
+      if ino == 0 {
+        return None;
+      }
+      var name := get_name(k);
+      NullTerminatePrefix(name);
+      decode_encode(val.s[k].name);
+      return Some(MemDirEnt(name, ino));
     }
 
     method is_used(k: uint64) returns (p:bool)
@@ -222,6 +311,49 @@ module MemDirEntries
       C.find_first_characterization(preDirents.findName_pred(p), val.s, 128);
       val.findName_not_found(p);
       return None;
+    }
+
+    method usedDents() returns (dents: seq<MemDirEnt>)
+      requires Valid()
+      ensures forall i:nat | i < |dents| :: dents[i].Valid()
+      ensures fresh(mem_dirs_repr(dents))
+      ensures seq_to_dir(mem_seq_val(dents)) == val.dir
+      ensures |dents| == |val.dir|
+    {
+      dents := [];
+      var i: uint64 := 0;
+      while i < 128
+        invariant 0 <= i as nat <= 128
+        invariant |dents| <= i as nat
+        invariant forall k:nat | k < |dents| as nat :: dents[k].Valid()
+        invariant fresh(mem_dirs_repr(dents))
+        invariant mem_seq_val(dents) == used_dirents(val.s[..i])
+      {
+        assert val.s[..i+1] == val.s[..i] + [val.s[i]];
+        used_dirents_app(val.s[..i], [val.s[i]]);
+        var e := get_dirent(i);
+        if e.Some? {
+          assert val.s[i].used();
+          mem_dirs_repr_app(dents, [e.x]);
+          assert mem_seq_val(dents + [e.x]) == mem_seq_val(dents) + mem_seq_val([e.x]);
+          //assert mem_seq_val([e.x]) == [e.x.val()];
+          //assert used_dirents([val.s[i]]) == [val.s[i]];
+          //calc {
+          //  mem_seq_val(dents + [e.x]);
+          //  mem_seq_val(dents) + mem_seq_val([e.x]);
+          //  used_dirents(val.s[..i]) + [e.x.val()];
+          //}
+          dents := dents + [e.x];
+        } else {
+          assert !val.s[i].used();
+          assert used_dirents(val.s[..i+1]) == used_dirents(val.s[..i]);
+        }
+        i := i + 1;
+      }
+
+      assert val.s[..128] == val.s;
+      used_dirents_dir(val.s);
+      used_dirents_size(val.s);
     }
   }
 }

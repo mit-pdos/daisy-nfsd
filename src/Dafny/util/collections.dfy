@@ -76,6 +76,16 @@ lemma seq_filter_size<T>(p: T -> bool, xs: seq<T>)
     ensures |seq_filter(p, xs)| == count_matching(p, xs)
 {}
 
+lemma seq_filter_app<T>(p: T -> bool, xs1: seq<T>, xs2: seq<T>)
+    ensures seq_filter(p, xs1 + xs2) == seq_filter(p, xs1) + seq_filter(p, xs2)
+{
+    if xs1 == [] { assert xs1 + xs2 == xs2; }
+    if xs1 != [] {
+        assert (xs1 + xs2)[1..] == xs1[1..] + xs2;
+        seq_filter_app(p, xs1[1..], xs2);
+    }
+}
+
 // find_first
 function method find_first<T>(p: T -> bool, xs: seq<T>): (i:nat)
     ensures i < |xs| ==> p(xs[i])

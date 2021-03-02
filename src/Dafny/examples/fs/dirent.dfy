@@ -185,6 +185,12 @@ module DirEntries
     C.seq_filter(DirEnt.is_used, s)
   }
 
+  lemma used_dirents_app(s1: seq<DirEnt>, s2: seq<DirEnt>)
+    ensures used_dirents(s1 + s2) == used_dirents(s1) + used_dirents(s2)
+  {
+    C.seq_filter_app(DirEnt.is_used, s1, s2);
+  }
+
   /*
   lemma {:induction s} used_dirents_unique(s: seq<DirEnt>)
     requires dirents_unique(s)
