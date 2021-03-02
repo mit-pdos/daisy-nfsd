@@ -56,8 +56,10 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
-
+	var diskfile string
+	flag.StringVar(&diskfile, "disk", "", "file to store disk in (empty uses MemDisk)")
 	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
+
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -89,7 +91,16 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	d := disk.NewMemDisk(100_000)
+	var d disk.Disk
+	if diskfile == "" {
+		d = disk.NewMemDisk(100_000)
+	} else {
+		var err error
+		d, err = disk.NewFileDisk(diskfile, 100_000)
+		if err != nil {
+			panic("could not create disk file: " + err.Error())
+		}
+	}
 	nfs := nfsd.MakeNfs(d)
 	if nfs == nil {
 		panic("could not initialize nfs")
