@@ -1,4 +1,5 @@
 include "../machine/machine.s.dfy"
+include "../machine/bytes.s.dfy"
 include "../util/pow.dfy"
 include "../util/collections.dfy"
 include "kinds.s.dfy"

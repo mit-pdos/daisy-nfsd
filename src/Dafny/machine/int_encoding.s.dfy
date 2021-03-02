@@ -5,6 +5,7 @@ IronFleet has good code for this at
 https://github.com/GLaDOS-Michigan/IronFleet/blob/master/ironfleet/src/Dafny/Distributed/Impl/Common/Util.i.dfy
 */
 include "machine.s.dfy"
+include "bytes.s.dfy"
 
 module {:extern "encoding", "github.com/mit-pdos/dafny-jrnl/dafny_go/encoding"} IntEncoding
 {
