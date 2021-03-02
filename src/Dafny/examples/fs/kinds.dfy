@@ -49,6 +49,18 @@ module FsKinds {
     ensures super.Valid()
   {}
 
+  // we need these to be a real constants because accessing any const in super
+  // computes a big int every time it's referenced, which shows up in the CPU
+  // profile...
+  const super_num_data_blocks: uint64 := 6*(4096*8)
+  const super_data_bitmap_start: uint64 := 513 + 10;
+  const super_data_start: uint64 := 513 + 10 + 6;
+  lemma super_consts_ok()
+    ensures super_num_data_blocks as nat == super.num_data_blocks
+    ensures super_data_bitmap_start as nat == super.data_bitmap_start
+    ensures super_data_start as nat == super.data_start
+  {}
+
   type Ino = ino:uint64 | ino_ok(ino)
 
   predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
@@ -82,8 +94,8 @@ module FsKinds {
   function method DataAllocBlk(bn: Blkno): (bn':Blkno)
     ensures blkno_ok(bn) ==> DataAllocBlk?(bn')
   {
-    var bn' := super.data_bitmap_start as uint64 + bn / (4096*8);
-    if bn as nat < super.data_bitmaps*(4096*8) then (
+    var bn' := super_data_bitmap_start + bn / (4096*8);
+    if bn < super_num_data_blocks then (
       Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
       bn'
     ) else bn'
@@ -133,7 +145,7 @@ module FsKinds {
     assert kindSize(KindBlock) == 4096*8;
     Arith.zero_mod(4096*8);
     reveal_addrsForKinds();
-    Addr(super.data_start as uint64+bn, 0)
+    Addr(super_data_start+bn, 0)
   }
   predicate DataBlk?(bn: uint64)
   {
