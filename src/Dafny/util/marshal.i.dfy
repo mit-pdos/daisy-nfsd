@@ -167,6 +167,44 @@ lemma decode_uint64_seq_one_spec(bs: seq<byte>, k: nat)
     }
 }
 
+lemma decode_uint64_seq_pointwise(bs: seq<byte>)
+    requires |bs| % 8 == 0
+    ensures decode_uint64_seq(bs) ==
+            seq(|bs|/8, (k:nat) requires k < |bs|/8 => decode_uint64_seq_one(bs, k))
+{
+    forall k:nat | k < |bs|/8
+        ensures decode_uint64_seq(bs)[k] == decode_uint64_seq_one(bs, k)
+    {
+        decode_uint64_seq_one_spec(bs, k);
+    }
+}
+
+lemma decode_uint64_seq_modify_one(bs: seq<byte>, k: nat, x: uint64)
+    requires |bs| % 8 == 0
+    requires k*8 < |bs|
+    ensures decode_uint64_seq(C.splice(bs, k*8, le_enc64(x))) ==
+            decode_uint64_seq(bs)[k := x]
+{
+    var s1 := decode_uint64_seq(C.splice(bs, k*8, le_enc64(x)));
+    var s2 := decode_uint64_seq(bs)[k := x];
+    assert s1[k] == x by {
+        decode_uint64_seq_one_spec(C.splice(bs, k*8, le_enc64(x)), k);
+        lemma_le_enc_dec64(x);
+    }
+    var k0 := k;
+    forall k: nat | k < |bs|/8
+        ensures s1[k] == s2[k]
+    {
+        if k == k0 { }
+        else {
+            decode_uint64_seq_one_spec(C.splice(bs, k0*8, le_enc64(x)), k);
+            decode_uint64_seq_one_spec(bs, k);
+            assert C.splice(bs, k0*8, le_enc64(x))[k*8..(k+1)*8] == bs[k*8..(k+1)*8];
+        }
+    }
+    assert s1 == s2;
+}
+
 class Encoder
 {
     ghost var enc: seq<Encodable>;

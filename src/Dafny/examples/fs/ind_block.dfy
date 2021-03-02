@@ -92,8 +92,6 @@ module IndBlocks
     decode_uint64_seq_one_spec(bs.data, k);
   }
 
-  // this could be done in-place on bs more efficiently (and the spec allows it
-  // to return bs)
   method modify_one(bs: Bytes, k: nat, bn: Blkno) returns (bs': Bytes)
     modifies bs
     requires is_block(bs.data)
@@ -104,10 +102,9 @@ module IndBlocks
     var blknos := old(to_blknos(bs.data));
     blknos' == blknos.(s:=blknos.s[k := bn]))
   {
-    var blknos := decode_blknos(bs, to_blknos(bs.data));
-    blknos := blknos[k := bn];
-    bs' := encode_blknos(IndBlknos(blknos));
-    decode_encode_uint64_seq_id(blknos);
+    decode_uint64_seq_modify_one(bs.data, k, bn);
+    IntEncoding.UInt64Put(bn, (k as uint64)*8, bs);
+    bs' := bs;
   }
 
 }
