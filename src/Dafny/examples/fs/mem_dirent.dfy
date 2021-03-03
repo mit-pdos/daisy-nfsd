@@ -61,9 +61,15 @@ module MemDirEntries
     }
   }
 
+  predicate mem_seq_valid(s: seq<MemDirEnt>)
+    reads mem_dirs_repr(s)
+  {
+    forall i:nat | i < |s| :: s[i].Valid()
+  }
+
   function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
     reads mem_dirs_repr(s)
-    requires forall i:nat | i < |s| :: s[i].Valid()
+    requires mem_seq_valid(s)
   {
     seq(|s|, (i:nat)
       reads mem_dirs_repr(s)
@@ -73,8 +79,7 @@ module MemDirEntries
   }
 
   lemma mem_seq_val_app(s1: seq<MemDirEnt>, s2: seq<MemDirEnt>)
-    requires forall i:nat | i < |s1| :: s1[i].Valid()
-    requires forall i:nat | i < |s2| :: s2[i].Valid()
+    requires mem_seq_valid(s1) && mem_seq_valid(s2)
     ensures mem_seq_val(s1 + s2) == mem_seq_val(s1) + mem_seq_val(s2)
   {}
 
@@ -372,7 +377,7 @@ module MemDirEntries
 
     method usedDents() returns (dents: seq<MemDirEnt>)
       requires Valid()
-      ensures forall i:nat | i < |dents| :: dents[i].Valid()
+      ensures mem_seq_valid(dents)
       ensures fresh(mem_dirs_repr(dents))
       ensures seq_to_dir(mem_seq_val(dents)) == val.dir
       ensures |dents| == |val.dir|
@@ -382,7 +387,7 @@ module MemDirEntries
       while i < 128
         invariant 0 <= i as nat <= 128
         invariant |dents| <= i as nat
-        invariant forall k:nat | k < |dents| as nat :: dents[k].Valid()
+        invariant mem_seq_valid(dents)
         invariant fresh(mem_dirs_repr(dents))
         invariant mem_seq_val(dents) == used_dirents(val.s[..i])
       {

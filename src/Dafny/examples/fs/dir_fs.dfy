@@ -431,6 +431,7 @@ module DirFs
       requires is_dir(d_ino)
       ensures dents.val == dirents[d_ino]
       ensures fresh(dents.Repr)
+      ensures dents.Valid()
     {
       assert Valid_dirent_at(d_ino, fs.data()) by {
         get_data_at(d_ino);
@@ -453,8 +454,9 @@ module DirFs
       ensures r.Err? ==> r.err.BadHandle? || r.err.NotDir?
       ensures r.Ok? ==>
       && is_dir(d_ino)
-      && r.v.val == dirents[d_ino]
+      && r.v.Valid()
       && fresh(r.v.Repr)
+      && r.v.val == dirents[d_ino]
     {
       var i := startInode(txn, d_ino);
       if !i.meta.ty.DirType? {
@@ -709,7 +711,7 @@ module DirFs
       assert data[d_ino] == DirFile(d');
     }
 
-    method CREATE(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} CREATE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -750,7 +752,7 @@ module DirFs
       return Ok(ino);
     }
 
-    method GETATTR(txn: Txn, ino: Ino)
+    method {:verify false} GETATTR(txn: Txn, ino: Ino)
       returns (r: Result<Attributes>)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
@@ -939,7 +941,7 @@ module DirFs
       return Ok(bs);
     }
 
-    method MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1069,7 +1071,7 @@ module DirFs
       return Ok(());
     }
 
-    method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1148,6 +1150,8 @@ module DirFs
       ensures r.ErrBadHandle? ==> d_ino !in data
       ensures r.Ok? ==>
       (var dents_seq := r.v;
+      && mem_seq_valid(dents_seq)
+      && fresh(mem_dirs_repr(dents_seq))
       && d_ino in data
       && data[d_ino].DirFile?
       && seq_to_dir(mem_seq_val(dents_seq)) == data[d_ino].dir
@@ -1163,6 +1167,7 @@ module DirFs
         get_data_at(d_ino);
       }
       var dents_seq := dents.usedDents();
+      assume false;
       return Ok(dents_seq);
     }
 
