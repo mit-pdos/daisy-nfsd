@@ -3,6 +3,7 @@ package compile_test
 import (
 	"testing"
 
+	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
 	dirents "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	std "github.com/mit-pdos/dafny-jrnl/dafnygen/Std_Compile"
@@ -30,18 +31,22 @@ func seqOfString(s string) _dafny.Seq {
 	return _dafny.SeqOf(xs_i...)
 }
 
+func stringToBytes(name string) *bytes.Bytes {
+	return &bytes.Bytes{Data: []byte(name)}
+}
+
 var rootIno = dirfs.Companion_DirFilesys_.RootIno()
 
 func TestDirFsLookup(t *testing.T) {
 	fs := NewFs()
 	txn := fs.Begin()
-	r := fs.CREATE(txn, rootIno, seqOfString("foo"))
+	r := fs.CREATE(txn, rootIno, stringToBytes("foo"))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
 	ino := r.Val().(uint64)
 
 	txn = fs.Begin()
-	r = fs.LOOKUP(txn, rootIno, seqOfString("foo"))
+	r = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "Lookup should succeed")
 	ino2 := r.Val().(uint64)
