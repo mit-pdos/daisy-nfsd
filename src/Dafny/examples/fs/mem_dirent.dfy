@@ -386,7 +386,7 @@ module MemDirEntries
       requires e.Valid()
       requires k < 128
       requires val.findName(e.val().name) >= 128
-      ensures val == old(val.(s := val.s[k as nat := e.val()]))
+      ensures val == old(val.insert_ent(k as nat, e.val()))
     {
       ghost var v := e.val();
       v.enc_len();
@@ -395,12 +395,14 @@ module MemDirEntries
       var padded_name := e.name;
       C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, val.s), k as nat, v.enc(), 32);
       write_ent(this.bs, k, v, padded_name, e.ino);
-      // needed to ensure new Dirents is Valid
-      reveal val.find_name_spec();
-      val := val.(s := val.s[k as nat := v]);
-      assert C.seq_fmap(Dirents.encOne, val.s) == C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
-      // TODO: should be done, need to figure out what's missing
-      assume false;
+      assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
+      assert C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()] ==
+             C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
+      val := val.insert_ent(k as nat, v);
+      //assert C.seq_fmap(Dirents.encOne, val.s) ==
+      //  C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
     }
+
+    // TODO: deleteAt
   }
 }
