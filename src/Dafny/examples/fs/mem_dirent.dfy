@@ -156,7 +156,6 @@ module MemDirEntries
 
   method PadPathc(bs: Bytes)
     modifies bs
-    requires bs.Valid()
     requires is_pathc(bs.data)
     ensures bs.data == encode_pathc(old(bs.data))
   {
@@ -347,7 +346,7 @@ module MemDirEntries
 
     method findName(name: Bytes) returns (r: Option<(uint64, Ino)>)
       requires Valid()
-      requires name.Valid() && is_pathc(name.data)
+      requires is_pathc(name.data)
       ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == 128
       ensures r.Some? ==>
       && name.data in val.dir
