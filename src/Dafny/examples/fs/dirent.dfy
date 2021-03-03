@@ -300,10 +300,10 @@ module DirEntries
     }
   }
 
-  lemma {:induction s, i} seq_to_dir_delete(s: seq<DirEnt>, i: nat)
+  lemma {:induction s, i} seq_to_dir_delete(s: seq<DirEnt>, i: nat, dummy_name: PathComp)
     requires dirents_unique(s)
     requires i < |s| && s[i].used()
-    ensures seq_to_dir(s[i := DirEnt([], 0 as Ino)]) == map_delete(seq_to_dir(s), s[i].name)
+    ensures seq_to_dir(s[i := DirEnt(dummy_name, 0 as Ino)]) == map_delete(seq_to_dir(s), s[i].name)
   {
     if 0 < |s| && i == 0 {
       seq_to_dir_unique_here(s);
@@ -554,7 +554,7 @@ module DirEntries
       requires i < 128 && s[i].used()
       ensures dents.dir == map_delete(this.dir, s[i].name)
     {
-      seq_to_dir_delete(s, i);
+      seq_to_dir_delete(s, i, []);
       var s' := s[i := DirEnt([], 0 as Ino)];
       dents := Dirents(s');
     }

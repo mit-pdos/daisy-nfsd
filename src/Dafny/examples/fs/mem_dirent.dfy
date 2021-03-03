@@ -184,6 +184,16 @@ module MemDirEntries
       C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, 32);
     }
 
+    lemma data_one_name(k: nat)
+      requires Valid()
+      requires k < 128
+      ensures bs.data[k*32..k*32+24] == encode_pathc(val.s[k].name)
+    {
+      data_one(k);
+      val.s[k].enc_app();
+      assert bs.data[k*32..(k+1)*32][..24] == bs.data[k*32..k*32 + 24];
+    }
+
     lemma data_one_ino(k: nat)
       requires Valid()
       requires k < 128
@@ -192,6 +202,19 @@ module MemDirEntries
       data_one(k);
       val.s[k].enc_app();
       assert bs.data[k*32..(k+1)*32][24..32] == bs.data[k*32 + 24..k*32 + 32];
+    }
+
+    twostate lemma data_splice_one(k: nat, v: DirEnt)
+      requires old(Valid())
+      requires k < 128
+      requires (v.enc_len(); bs.data == C.splice(old(bs.data), k*32, v.enc()))
+      ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
+    {
+      v.enc_len();
+      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)), k as nat, v.enc(), 32);
+      //assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
+      assert C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()] ==
+             C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
     }
 
     method get_ino(k: uint64) returns (ino: Ino)
@@ -383,26 +406,47 @@ module MemDirEntries
     method insert_ent(k: uint64, e: MemDirEnt)
       modifies Repr, e.name
       requires Valid() ensures Valid()
-      requires e.Valid()
-      requires k < 128
+      requires e.Valid() && e.used()
+      requires k < 128 && k as nat == val.findFree()
       requires val.findName(e.val().name) >= 128
-      ensures val == old(val.insert_ent(k as nat, e.val()))
+      ensures val.dir == old(val.dir[e.val().name := e.val().ino])
     {
       ghost var v := e.val();
       v.enc_len();
+      val.insert_ent_dir(v);
       // modify in place to re-use space
       PadPathc(e.name);
       var padded_name := e.name;
-      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, val.s), k as nat, v.enc(), 32);
       write_ent(this.bs, k, v, padded_name, e.ino);
-      assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
-      assert C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()] ==
-             C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
+      data_splice_one(k as nat, v);
       val := val.insert_ent(k as nat, v);
-      //assert C.seq_fmap(Dirents.encOne, val.s) ==
-      //  C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
     }
 
-    // TODO: deleteAt
+    method deleteAt(k: uint64)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires k < 128 && val.s[k].used()
+      ensures val.dir == old(map_delete(val.dir, val.s[k].name))
+    {
+      ghost var old_name := old(val.s[k].name);
+      ghost var old_padded_name := bs.data[k*32..k*32 + 24];
+      assert old_padded_name == encode_pathc(old_name) by {
+        data_one_name(k as nat);
+      }
+
+      IntEncoding.UInt64Put(0, k*32 + 24, bs);
+
+      assert bs.data == C.splice(old(bs.data), k as nat * 32,
+        old_padded_name + IntEncoding.le_enc64(0));
+      // the new entry we're effectively writing (though without actually
+      // writing the old name again)
+      ghost var e := DirEnt(old_name, 0 as Ino);
+      assert old_padded_name + IntEncoding.le_enc64(0) == e.enc() by {
+        e.enc_app();
+      }
+      data_splice_one(k as nat, e);
+      val := val.(s := val.s[k as nat := e]);
+      seq_to_dir_delete(old(val.s), k as nat, old_name);
+    }
   }
 }
