@@ -454,6 +454,11 @@ lemma splice_till_end<T>(xs: seq<T>, off: nat, ys: seq<T>)
     ensures splice(xs, off, ys) == xs[..off] + ys
 {}
 
+lemma splice_all<T>(xs: seq<T>, ys: seq<T>)
+    requires |ys| == |xs|
+    ensures splice(xs, 0, ys) == ys
+{}
+
 lemma splice_prefix_comm<T>(xs: seq<T>, off: nat, ys: seq<T>, max: nat)
     requires off + |ys| <= max <= |xs|
     ensures splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)

@@ -1,5 +1,5 @@
 include "byte_fs.dfy"
-include "dirent.dfy"
+include "mem_dirent.dfy"
 
 module DirFs
 {
@@ -13,6 +13,7 @@ module DirFs
   import opened Alloc
 
   import opened DirEntries
+  import opened MemDirEntries
   import opened ByteFs
 
   import C = Collections
@@ -177,6 +178,19 @@ module DirFs
       requires Fs.ino_dom(fs.fs.metadata)
     {
       forall ino: Ino :: is_of_type(ino, fs.inode_types()[ino])
+    }
+
+    lemma invert_dir(ino: Ino)
+      requires Fs.ino_dom(fs.fs.metadata)
+      requires ValidTypes()
+      requires is_dir(ino)
+      ensures fs.inode_types()[ino] == Inode.DirType
+    {
+      reveal is_of_type();
+      ghost var t := fs.inode_types()[ino];
+      assert is_of_type(ino, t);
+      if t == Inode.InvalidType {}
+      else if t == Inode.FileType {}
     }
 
     predicate ValidAlloc()
@@ -411,11 +425,12 @@ module DirFs
     }
 
     method readDirentsInode(txn: Txn, d_ino: Ino, i: Inode.Inode)
-      returns (dents: Dirents)
+      returns (dents: MemDirents)
       requires ValidIno(d_ino, i)
       requires fs.fs.has_jrnl(txn)
       requires is_dir(d_ino)
-      ensures dents == dirents[d_ino]
+      ensures dents.val == dirents[d_ino]
+      ensures fresh(dents.Repr)
     {
       assert Valid_dirent_at(d_ino, fs.data()) by {
         get_data_at(d_ino);
@@ -424,11 +439,11 @@ module DirFs
         dirents[d_ino].enc_len();
       }
       var bs := fs.readInternal(txn, d_ino, i, 0, 4096);
-      dents := Dirents.decode(bs, dirents[d_ino]);
+      dents := new MemDirents(bs, dirents[d_ino]);
     }
 
     method readDirents(txn: Txn, d_ino: Ino)
-      returns (r: Result<Dirents>)
+      returns (r: Result<MemDirents>)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
       ensures unchanged(this)
@@ -436,7 +451,10 @@ module DirFs
       ensures r.ErrBadHandle? ==> is_invalid(d_ino)
       ensures r.ErrNotDir? ==> is_file(d_ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.NotDir?
-      ensures r.Ok? ==> is_dir(d_ino) && r.v == dirents[d_ino]
+      ensures r.Ok? ==>
+      && is_dir(d_ino)
+      && r.v.val == dirents[d_ino]
+      && fresh(r.v.Repr)
     {
       var i := startInode(txn, d_ino);
       if !i.meta.ty.DirType? {
@@ -457,56 +475,63 @@ module DirFs
       return Ok(dents);
     }
 
-    static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: Dirents)
+    static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: MemDirents)
       returns (ok:bool)
       modifies fs.Repr
       requires fs.Valid() ensures fs.Valid()
+      requires dents.Valid()
       requires fs.fs.has_jrnl(txn)
       requires |fs.data()[d_ino]| == 4096
       ensures fs.types_unchanged()
-      ensures ok ==> fs.data() == old(fs.data()[d_ino := dents.enc()])
+      ensures ok ==> fs.data() == old(fs.data()[d_ino := dents.val.enc()])
       ensures !ok ==> fs.data() == old(fs.data())
+      ensures dents.val == old(dents.val)
     {
+      assert dents.Repr !! fs.Repr;
       var i := fs.startInode(txn, d_ino);
       var bs := dents.encode();
-      assert |bs.data| == 4096 by {
-        dents.enc_len();
-      }
+      dents.val.enc_len();
+      C.splice_all(fs.data()[d_ino], bs.data);
       ok, i := fs.alignedWrite(txn, d_ino, i, bs, 0);
       fs.finishInode(txn, d_ino, i);
       if !ok {
         return;
       }
-      assert fs.data()[d_ino] == dents.enc();
+      assert fs.data()[d_ino] == dents.val.enc();
     }
 
-    method writeDirents(txn: Txn, d_ino: Ino, dents: Dirents)
+    method {:timeLimitMultiplier 2} writeDirents(txn: Txn, d_ino: Ino, dents: MemDirents)
       returns (ok:bool)
       modifies Repr
       requires fs.fs.has_jrnl(txn)
       requires Valid() ensures ok ==> Valid()
+      requires dents.Valid()
       requires is_dir(d_ino)
       ensures ok ==>
-           && dirents == old(dirents[d_ino := dents])
-           && data == old(data[d_ino := DirFile(dents.dir)])
+           && dirents == old(dirents[d_ino := dents.val])
+           && data == old(data[d_ino := DirFile(dents.dir())])
     {
       assert |fs.data()[d_ino]| == 4096 by {
         get_data_at(d_ino);
         dirents[d_ino].enc_len();
       }
+      assert fs.inode_types()[d_ino] == Inode.DirType by {
+        invert_dir(d_ino);
+      }
+      ghost var dents_val := dents.val;
       ok := writeDirentsToFs(fs, txn, d_ino, dents);
       if !ok {
         return;
       }
 
-      dirents := dirents[d_ino := dents];
-      data := data[d_ino := DirFile(dents.dir)];
+      dirents := dirents[d_ino := dents_val];
+      data := data[d_ino := DirFile(dents_val.dir)];
 
-      // assert is_dir(d_ino);
-      assert ValidRoot() by { reveal ValidRoot(); }
+      assert is_dir(d_ino);
       assert is_of_type(d_ino, fs.inode_types()[d_ino]) by { reveal is_of_type(); }
       mk_data_at(d_ino);
       ValidData_change_one(d_ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     // allocInode finds an invalid inode and prepares it for writes
@@ -647,21 +672,22 @@ module DirFs
     //
     // requires that e'.name is not already in the directory (in that case we
     // need to insert in a slightly different way that isn't implemented)
-    method linkInode(txn: Txn, d_ino: Ino, dents: Dirents, e': DirEnt)
+    method linkInode(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt)
       returns (ok: bool)
-      modifies Repr
+      modifies Repr, dents.Repr, e'.name
       requires Valid()
       ensures ok ==> Valid()
       requires fs.fs.has_jrnl(txn)
-      requires is_dir(d_ino) && dirents[d_ino] == dents
-      requires e'.used() && dents.findName(e'.name) >= 128
+      requires dents.Valid() && e'.Valid()
+      requires is_dir(d_ino) && dirents[d_ino] == dents.val
+      requires e'.used() && dents.val.findName(e'.path()) >= 128
       ensures ok ==>
       && data == old(
       var d0 := data[d_ino].dir;
-      var d' := DirFile(d0[e'.name := e'.ino]);
+      var d' := DirFile(d0[e'.path() := e'.ino]);
       data[d_ino := d'])
     {
-      assert data[d_ino] == DirFile(dents.dir) by {
+      assert data[d_ino] == DirFile(dents.val.dir) by {
         get_data_at(d_ino);
       }
       var i := dents.findFree();
@@ -670,11 +696,12 @@ module DirFs
         ok := false;
         return;
       }
-      dents.insert_ent_dir(e');
-      ghost var d := dents.dir;
-      var dents := dents.insert_ent(i, e');
-      ghost var d' := dents.dir;
-      assert d' == d[e'.name := e'.ino];
+      ghost var path := e'.path();
+      ghost var ino := e'.ino;
+      ghost var d := dents.val.dir;
+      dents.insert_ent(i, e');
+      ghost var d' := dents.val.dir;
+      assert d' == d[path := ino];
       ok := writeDirents(txn, d_ino, dents);
       if !ok {
         return;
@@ -682,10 +709,11 @@ module DirFs
       assert data[d_ino] == DirFile(d');
     }
 
-    method CREATE(txn: Txn, d_ino: Ino, name: PathComp)
+    method CREATE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
+      requires is_pathc(name.data)
       requires fs.fs.has_jrnl(txn)
       ensures r.Ok? ==>
       (var ino := r.v;
@@ -693,7 +721,7 @@ module DirFs
       && old(is_invalid(ino))
       && data == old(
         var d := data[d_ino].dir;
-        var d' := DirFile(d[name := ino]);
+        var d' := DirFile(d[name.data := ino]);
         data[ino := File.empty][d_ino := d'])
       )
     {
@@ -707,12 +735,13 @@ module DirFs
         return Err(NoSpc);
       }
       assert ino_ok: ino !in old(data);
-      if dents.findName(name) < 128 {
+      var name_opt := dents.findName(name);
+      if name_opt.None? {
         // TODO: support creating a file and overwriting existing (rather than
         // failing here)
         return Err(ServerFault);
       }
-      ok := linkInode(txn, d_ino, dents, DirEnt(name, ino));
+      ok := linkInode(txn, d_ino, dents, MemDirEnt(name, ino));
       if !ok {
         return Err(NoSpc);
       }
@@ -732,7 +761,7 @@ module DirFs
           && ino in data
           && attrs.is_dir == data[ino].DirFile?
           && data[ino].ByteFile? ==> attrs.size as nat == |data[ino].data|
-          && data[ino].DirFile? ==> attrs.size as nat == |data[ino].dir|
+          //&& data[ino].DirFile? ==> attrs.size as nat == |data[ino].dir|
           )
     {
       var i := startInode(txn, ino);
@@ -751,8 +780,9 @@ module DirFs
         assert Valid() by {
           // assert ValidFiles() by { reveal ValidFiles(); }
         }
-        var num_entries := dents.numValid();
-        var attrs := Attributes(true, num_entries);
+        // NOTE: not sure what the size of a directory is supposed to be, so
+        // just return its encoded size in bytes
+        var attrs := Attributes(true, 4096);
         return Ok(attrs);
       }
       // is a file
@@ -909,19 +939,20 @@ module DirFs
       return Ok(bs);
     }
 
-    method MKDIR(txn: Txn, d_ino: Ino, name: PathComp)
+    method MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
-      ensures (r.Err? && r.err.Exist?) ==> old(is_dir(d_ino)) && name in old(data[d_ino].dir)
+      requires is_pathc(name.data)
+      ensures (r.Err? && r.err.Exist?) ==> old(is_dir(d_ino)) && name.data in old(data[d_ino].dir)
       ensures r.Ok? ==>
       (var ino := r.v;
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && data == old(
         var d := data[d_ino].dir;
-        var d' := DirFile(d[name := ino]);
+        var d' := DirFile(d[name.data := ino]);
         data[ino := File.emptyDir][d_ino := d'])
       )
     {
@@ -938,11 +969,12 @@ module DirFs
       get_data_at(d_ino);
       assert ino != d_ino;
       assert ino_ok: ino !in old(data);
-      if dents.findName(name) < 128 {
-        dents.findName_found(name);
+      var name_opt := dents.findName(name);
+      if name_opt.Some? {
+        dents.val.findName_found(name.data);
         return Err(Exist);
       }
-      ok := linkInode(txn, d_ino, dents, DirEnt(name, ino));
+      ok := linkInode(txn, d_ino, dents, MemDirEnt(name, ino));
       if !ok {
         return Err(NoSpc);
       }
@@ -950,17 +982,18 @@ module DirFs
       return Ok(ino);
     }
 
-    method LOOKUP(txn: Txn, d_ino: Ino, name: PathComp)
+    method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r:Result<Ino>)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
+      requires is_pathc(name.data)
       ensures r.ErrBadHandle? ==> d_ino !in data
-      ensures r.ErrNoent? ==> is_dir(d_ino) && name !in data[d_ino].dir
+      ensures r.ErrNoent? ==> is_dir(d_ino) && name.data !in data[d_ino].dir
       ensures r.Ok? ==>
       (var ino := r.v;
       && is_dir(d_ino)
-      && name in data[d_ino].dir && data[d_ino].dir[name] == ino && ino != 0
+      && name.data in data[d_ino].dir && data[d_ino].dir[name.data] == ino && ino != 0
       )
     {
       var dents_r := readDirents(txn, d_ino);
@@ -968,16 +1001,16 @@ module DirFs
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
-      assert DirFile(dents.dir) == data[d_ino] by {
+      assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
-      var i := dents.findName(name);
-      if !(i < 128) {
-        dents.findName_not_found(name);
+      var name_opt := dents.findName(name);
+      if name_opt.None? {
+        dents.val.findName_not_found(name.data);
         return Err(Noent);
       }
-      var ino := dents.s[i].ino;
-      dents.findName_found(name);
+      var ino: Ino := name_opt.x.1;
+      dents.val.findName_found(name.data);
       return Ok(ino);
     }
 
@@ -1036,26 +1069,26 @@ module DirFs
       return Ok(());
     }
 
-    method REMOVE(txn: Txn, d_ino: Ino, name: PathComp)
+    method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
-      ensures r.ErrNoent? ==> old(is_dir(d_ino)) && name !in old(data[d_ino].dir)
+      ensures r.ErrNoent? ==> old(is_dir(d_ino)) && name.data !in old(data[d_ino].dir)
       ensures r.ErrIsDir? ==>
       && (old(is_dir(d_ino))
-      && name in old(data[d_ino].dir))
-      && (var ino := old(data[d_ino].dir[name]);
+      && name.data in old(data[d_ino].dir))
+      && (var ino := old(data[d_ino].dir[name.data]);
         && ino in old(data)
         && old(data[ino].DirFile?))
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
-      && name in old(data[d_ino].dir)
+      && name.data in old(data[d_ino].dir)
       && data ==
         (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, name);
-        map_delete(old(data)[d_ino := DirFile(d')], d0[name]))
+        var d' := map_delete(d0, name.data);
+        map_delete(old(data)[d_ino := DirFile(d')], d0[name.data]))
     {
       var dents_r := readDirents(txn, d_ino);
       if dents_r.IsError? {
@@ -1063,23 +1096,23 @@ module DirFs
       }
       assert was_dir: old(is_dir(d_ino));
       var dents := dents_r.v;
-      assert DirFile(dents.dir) == data[d_ino] by {
+      assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
-      ghost var d0 := old(data[d_ino].dir);
-      var i := dents.findName(name);
-      if !(i < 128) {
-        dents.findName_not_found(name);
-        assert name !in data[d_ino].dir;
+      ghost var d0: Directory := old(data[d_ino].dir);
+      var name_opt := dents.findName(name);
+      if name_opt.None? {
+        dents.val.findName_not_found(name.data);
+        assert name.data !in data[d_ino].dir;
         return Err(Noent);
       }
-      dents.findName_found(name);
-      assert name_present: name in old(data[d_ino].dir);
-      var ino := dents.s[i].ino;
-      assert ino == d0[name];
-      dents := dents.deleteAt(i);
-      ghost var d' := dents.dir;
-      assert d' == map_delete(d0, name);
+      var i := name_opt.x.0;
+      var ino := name_opt.x.1;
+      dents.val.findName_found(name.data);
+      assert name_present: name.data in old(data[d_ino].dir);
+      dents.deleteAt(i);
+      ghost var d': Directory := dents.dir();
+      assert d' == map_delete(d0, name.data);
       var ok := writeDirents(txn, d_ino, dents);
       if !ok {
         return Err(NoSpc);
@@ -1089,7 +1122,7 @@ module DirFs
       var remove_r := removeInode(txn, ino);
       if remove_r.IsError? {
         if remove_r.ErrBadHandle? {
-          assert map_delete(data, d0[name]) == data1;
+          assert map_delete(data, d0[name.data]) == data1;
           reveal was_dir;
           reveal name_present;
           //assert Valid();
@@ -1100,7 +1133,7 @@ module DirFs
       reveal was_dir;
       reveal name_present;
       //assert Valid();
-      assert data == map_delete(data1, d0[name]);
+      assert data == map_delete(data1, d0[name.data]);
       return Ok(());
     }
 
@@ -1108,7 +1141,7 @@ module DirFs
     // inode being removed and confirm that it's empty
 
     method READDIR(txn: Txn, d_ino: Ino)
-      returns (r: Result<seq<DirEnt>>)
+      returns (r: Result<seq<MemDirEnt>>)
       modifies fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
@@ -1117,7 +1150,7 @@ module DirFs
       (var dents_seq := r.v;
       && d_ino in data
       && data[d_ino].DirFile?
-      && seq_to_dir(dents_seq) == data[d_ino].dir
+      && seq_to_dir(mem_seq_val(dents_seq)) == data[d_ino].dir
       && |dents_seq| == |data[d_ino].dir|
       )
     {
@@ -1126,7 +1159,7 @@ module DirFs
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
-      assert DirFile(dents.dir) == data[d_ino] by {
+      assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
       var dents_seq := dents.usedDents();

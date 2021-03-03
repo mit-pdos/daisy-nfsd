@@ -11,6 +11,12 @@ module MemDirEntries
 
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
+    predicate Valid()
+      reads name
+    {
+      && is_pathc(name.data)
+    }
+
     function val(): DirEnt
       reads name
       requires Valid()
@@ -23,11 +29,13 @@ module MemDirEntries
       ino != 0
     }
 
-    predicate Valid()
+    function path(): PathComp
       reads name
+      requires Valid()
     {
-      && is_pathc(name.data)
+      name.data
     }
+
   }
 
   function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
@@ -165,15 +173,31 @@ module MemDirEntries
       && |bs.data| == 4096
     }
 
+    function dir(): Directory
+      reads this
+    {
+      val.dir
+    }
+
     constructor(bs: Bytes, ghost dents: Dirents)
       requires bs.data == dents.enc()
       ensures Valid()
       ensures val == dents
+      // for framing
+      ensures this.bs == bs
     {
       this.bs := bs;
       this.val := dents;
       new;
       val.enc_len();
+    }
+
+    method encode() returns (bs': Bytes)
+      requires Valid()
+      ensures bs' == bs
+      ensures bs'.data == val.enc()
+    {
+      bs' := bs;
     }
 
     lemma data_one(k: nat)
