@@ -124,7 +124,7 @@ module Fs {
     predicate Valid_balloc()
       reads this
     {
-      && this.balloc.max == ballocMax
+      && this.balloc.max <= ballocMax
       && this.balloc.Valid()
       && this.ialloc.max == iallocMax
       && this.ialloc.Valid()
@@ -173,7 +173,12 @@ module Fs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-      var balloc := new MaxAllocator(ballocMax);
+      var num_blks := DiskSize(d);
+      var actual_max := ballocMax;
+      if super_data_start < num_blks <= actual_max {
+        actual_max := Round.roundup64(num_blks - super_data_start, 8);
+      }
+      var balloc := new MaxAllocator(actual_max);
       this.balloc := balloc;
       var ialloc := new MaxAllocator(iallocMax);
       this.ialloc := ialloc;

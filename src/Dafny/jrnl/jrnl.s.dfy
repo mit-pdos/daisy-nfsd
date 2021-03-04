@@ -30,6 +30,9 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
 
     class {:extern} Disk{}
 
+    method DiskSize(d: Disk) returns (x: uint64)
+    {}
+
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
     datatype Object =
