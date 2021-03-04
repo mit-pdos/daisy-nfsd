@@ -142,6 +142,13 @@ module DirEntries
       enc_app();
     }
 
+    static lemma zero_enc()
+      ensures zero.enc() == C.repeat(0 as byte, 32)
+    {
+      zero.enc_app();
+      IntEncoding.lemma_enc_0();
+    }
+
     method encode() returns (bs:Bytes)
       ensures fresh(bs) && bs.Valid() && bs.data == enc()
     {
@@ -200,7 +207,6 @@ module DirEntries
     if s[0].used() {
       assert dirents_unique(used_dirents(s[1..]));
       // TODO: need to do this with a forall and line up indices
-      assume false;
       return;
     }
     assert used_dirents(s) == used_dirents(s[1..]);
@@ -369,6 +375,14 @@ module DirEntries
       ensures |enc()| == 4096
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), 32);
+    }
+
+    static lemma zero_enc()
+      ensures zero.enc() == C.repeat(0 as byte, 4096)
+    {
+      DirEnt.zero_enc();
+      assert C.seq_fmap(encOne, zero.s) == C.repeat(DirEnt.zero.enc(), 128);
+      C.concat_repeat(0 as byte, 32, 128);
     }
 
     method encode() returns (bs:Bytes)

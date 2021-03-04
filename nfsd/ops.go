@@ -3,9 +3,9 @@ package nfsd
 import (
 	"fmt"
 
-	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
+	memdirentries "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEntries_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
@@ -35,6 +35,19 @@ func (nfs *Nfs) runTxn(f func(txn *jrnl.Txn) dirfs.Result) (v interface{}, statu
 	}
 	status = nfstypes.Nfsstat3(r.Err__code())
 	return
+}
+
+func filenameToBytes(name nfstypes.Filename3) *bytes.Bytes {
+	return &bytes.Bytes{Data: []byte(name)}
+}
+
+func stringOfSeq(s dafny.Seq) string {
+	numbytes := s.LenInt()
+	bs := make([]byte, numbytes)
+	for i := 0; i < numbytes; i++ {
+		bs[i] = s.IndexInt(i).(uint8)
+	}
+	return string(bs)
 }
 
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
@@ -79,7 +92,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	var reply nfstypes.LOOKUP3res
 
 	inum := fh2ino(args.What.Dir)
-	name := seqOfString(args.What.Name)
+	name := filenameToBytes(args.What.Name)
 
 	f_ino, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
 		return nfs.filesys.LOOKUP(txn, inum, name)
@@ -147,31 +160,13 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func seqOfString(name nfstypes.Filename3) dafny.Seq {
-	var namebytes []interface{}
-	for _, ch := range name {
-		namebytes = append(namebytes, uint8(ch))
-	}
-	// TODO: SeqOf makes a defensive copy, we should use a lower-level constructor
-	return dafny.SeqOf(namebytes...)
-}
-
-func stringOfSeq(s dafny.Seq) string {
-	numbytes := s.LenInt()
-	bs := make([]byte, numbytes)
-	for i := 0; i < numbytes; i++ {
-		bs[i] = s.IndexInt(i).(uint8)
-	}
-	return string(bs)
-}
-
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
 
 	inum := fh2ino(args.Where.Dir)
 
-	nameseq := seqOfString(args.Where.Name)
+	nameseq := filenameToBytes(args.Where.Name)
 	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
 		return nfs.filesys.CREATE(txn, inum, nameseq)
 	})
@@ -194,10 +189,10 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 
 	inum := fh2ino(args.Where.Dir)
 
-	nameseq := seqOfString(args.Where.Name)
+	name := filenameToBytes(args.Where.Name)
 
 	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
-		return nfs.filesys.MKDIR(txn, inum, nameseq)
+		return nfs.filesys.MKDIR(txn, inum, name)
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
@@ -236,7 +231,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	var reply nfstypes.REMOVE3res
 
 	inum := fh2ino(args.Object.Dir)
-	name := seqOfString(args.Object.Name)
+	name := filenameToBytes(args.Object.Name)
 
 	_, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
 		return nfs.filesys.REMOVE(txn, inum, name)
@@ -288,11 +283,11 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	seqlen := seq.LenInt()
 	var ents *nfstypes.Entry3
 	for i := 0; i < seqlen; i++ {
-		dirent := seq.IndexInt(i).(direntries.DirEnt)
-		dirent2 := dirent.Get().(direntries.DirEnt_DirEnt)
+		dirent := seq.IndexInt(i).(memdirentries.MemDirEnt)
+		dirent2 := dirent.Get().(memdirentries.MemDirEnt_MemDirEnt)
 
 		de_ino := dirent2.Ino
-		de_name := stringOfSeq(dirent2.Name)
+		var de_name []byte = dirent2.Name.Data
 
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
