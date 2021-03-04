@@ -15,4 +15,9 @@ module Std
     requires k in m && k != k0
     ensures k in map_delete(m, k0) && map_delete(m, k0)[k] == m[k]
   {}
+
+  lemma map_delete_id<K, V>(m: map<K, V>, k: K)
+    requires k !in m
+    ensures map_delete(m, k) == m
+  {}
 }

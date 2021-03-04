@@ -64,8 +64,6 @@ module DirFs
     | Ok(v: T)
     | Err(err: Error)
   {
-    const IsError?: bool := !this.Ok?
-
     const ErrBadHandle?: bool := Err? && err.BadHandle?
     const ErrInval?: bool := Err? && err.Inval?
     const ErrNoent?: bool := Err? && err.Noent?
@@ -73,7 +71,7 @@ module DirFs
     const ErrNotDir?: bool := Err? && err.NotDir?
 
     function method Coerce<U>(): Result<U>
-      requires IsError?
+      requires Err?
     {
       Err(this.err)
     }
@@ -95,9 +93,9 @@ module DirFs
 
   method HandleResult<T>(r: Result<T>, txn: Txn) returns (r':Result<T>)
     requires txn.Valid()
-    ensures r.IsError? ==> r'.IsError?
+    ensures r.Err? ==> r'.Err?
   {
-    if r.IsError? {
+    if r.Err? {
       txn.Abort();
       return r;
     }
@@ -733,7 +731,7 @@ module DirFs
       )
     {
       var dents_r := readDirents(txn, d_ino);
-      if dents_r.IsError? {
+      if dents_r.Err? {
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
@@ -852,7 +850,7 @@ module DirFs
       data[ino := ByteFile(d')])
     {
       var i_r := openFile(txn, ino);
-      if i_r.IsError? {
+      if i_r.Err? {
         if i_r.err.IsDir? {
           return Err(Inval);
         }
@@ -920,7 +918,7 @@ module DirFs
         return Err(ServerFault);
       }
       var i_r := openFile(txn, ino);
-      if i_r.IsError? {
+      if i_r.Err? {
         if i_r.err.IsDir? {
           return Err(Inval);
         }
@@ -960,7 +958,7 @@ module DirFs
       )
     {
       var dents_r := readDirents(txn, d_ino);
-      if dents_r.IsError? {
+      if dents_r.Err? {
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
@@ -1005,7 +1003,7 @@ module DirFs
       )
     {
       var dents_r := readDirents(txn, d_ino);
-      if dents_r.IsError? {
+      if dents_r.Err? {
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
@@ -1037,23 +1035,24 @@ module DirFs
     }
 
     // this is a low-level function that deletes an inode (currently restricted
-    // to files) from the tree; Unlink currently doesn't call this so we leave a
-    // dangling inode
+    // to files) from the tree
     method {:timeLimitMultiplier 2} removeInode(txn: Txn, ino: Ino)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.fs.has_jrnl(txn)
-      ensures r.ErrBadHandle? ==> ino !in data && data == old(data)
-      ensures r.ErrIsDir? ==> ino in data && data[ino].DirFile? && data == old(data)
+      ensures r.ErrBadHandle? ==> is_invalid(ino) && data == old(data) == old(map_delete(data, ino))
+      ensures r.ErrIsDir? ==> is_dir(ino) && data == old(data) && dirents == old(dirents)
       ensures r.Err? ==> r.err.BadHandle? || r.err.IsDir?
       ensures r.Ok? ==>
-      && old(ino in data)
+      && old(is_file(ino))
       && data == old(map_delete(data, ino))
+      && dirents == old(dirents)
     {
       var i := startInode(txn, ino);
       if i.meta.ty == Inode.InvalidType {
         assert is_invalid(ino) by { reveal is_of_type(); }
+        Std.map_delete_id(data, ino);
         fs.finishInodeReadonly(ino, i);
         return Err(BadHandle);
       }
@@ -1077,32 +1076,28 @@ module DirFs
       return Ok(());
     }
 
-    // TODO: finish fixing this proof
-    method {:timeLimitMultiplier 3} REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<()>)
+    method unlink(txn: Txn, d_ino: Ino, name: Bytes)
+      returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
       requires is_pathc(name.data)
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
       ensures r.ErrNoent? ==> old(is_dir(d_ino)) && name.data !in old(data[d_ino].dir)
-      ensures r.ErrIsDir? ==>
-      && (old(is_dir(d_ino))
-      && name.data in old(data[d_ino].dir))
-      && (var ino := old(data[d_ino].dir[name.data]);
-        && ino in old(data)
-        && old(data[ino].DirFile?))
+      ensures r.ErrNotDir? ==> old(is_file(d_ino))
+      ensures !r.ErrIsDir?
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
       && name.data in old(data[d_ino].dir)
+      && r.v == old(data[d_ino].dir[name.data])
       && data ==
         (var d0 := old(data[d_ino].dir);
         var d' := map_delete(d0, old(name.data));
-        map_delete(old(data)[d_ino := DirFile(d')], d0[name.data]))
+        old(data)[d_ino := DirFile(d')])
     {
       ghost var path := name.data;
       var dents_r := readDirents(txn, d_ino);
-      if dents_r.IsError? {
+      if dents_r.Err? {
         return dents_r.Coerce();
       }
       assert was_dir: old(is_dir(d_ino));
@@ -1121,9 +1116,6 @@ module DirFs
         return Err(Noent);
       }
 
-      // TODO: factor out the part that deletes and writes out the dirents,
-      // should preserve validity
-
       var i := name_opt.x.0;
       var ino := name_opt.x.1;
       dents.val.findName_found(path);
@@ -1133,7 +1125,6 @@ module DirFs
       dents.deleteAt(i);
 
       ghost var d': Directory := dents.dir();
-      // TODO: this is really slow and possibly unhelpful
       assert d' == map_delete(d0, path);
 
       assert is_dir(d_ino);
@@ -1141,29 +1132,54 @@ module DirFs
       if !ok {
         return Err(NoSpc);
       }
+      return Ok(ino);
+    }
+
+    method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
+      returns (r: Result<()>)
+      modifies Repr
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      requires is_pathc(name.data)
+      ensures r.ErrBadHandle? ==> d_ino !in old(data)
+      ensures r.ErrNoent? ==>
+      && old(is_dir(d_ino))
+      && name.data !in old(data[d_ino].dir)
+      ensures r.ErrIsDir? ==>
+      && old(d_ino in data && data[d_ino].DirFile?)
+      && old(name.data) in old(data[d_ino].dir)
+      && (var ino := old(data[d_ino].dir[name.data]);
+        && ino in old(data)
+        && old(data[ino].DirFile?))
+      ensures r.Ok? ==>
+      && old(is_dir(d_ino))
+      && name.data in old(data[d_ino].dir)
+      && data ==
+        (var d0 := old(data[d_ino].dir);
+        var d' := map_delete(d0, old(name.data));
+        map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
+    {
+      ghost var path := name.data;
+      var old_ino_r := this.unlink(txn, d_ino, name);
+      if old_ino_r.Err? {
+        return old_ino_r.Coerce();
+      }
+      var ino := old_ino_r.v;
+      ghost var d0: Directory := old(data[d_ino].dir);
 
       ghost var data1 := data;
-      assert data1 == old(data)[d_ino := DirFile(d')];
-
       var remove_r := removeInode(txn, ino);
       assert name.data == path;
 
       if remove_r.ErrBadHandle? {
-        assert map_delete(data, d0[path]) == data1;
-        reveal was_dir;
-        reveal name_present;
-        //assert Valid();
         return Ok(());
       }
 
-      if remove_r.IsError? {
-        return remove_r.Coerce();
+      if remove_r.Err? {
+        assert remove_r.ErrIsDir?;
+        return Err(IsDir);
       }
 
-      reveal was_dir;
-      reveal name_present;
-      //assert Valid();
-      assert data == map_delete(data1, d0[name.data]);
       return Ok(());
     }
 
@@ -1187,7 +1203,7 @@ module DirFs
       )
     {
       var dents_r := readDirents(txn, d_ino);
-      if dents_r.IsError? {
+      if dents_r.Err? {
         return dents_r.Coerce();
       }
       var dents := dents_r.v;
