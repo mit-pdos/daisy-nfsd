@@ -26,7 +26,7 @@ module MemDirEntries
 
     predicate method used()
     {
-      ino != 0
+      ino as uint64 != 0
     }
 
     function path(): PathComp
@@ -295,7 +295,7 @@ module MemDirEntries
       && r.x.val() == val.s[k]
     {
       var ino := get_ino(k);
-      if ino == 0 {
+      if ino as uint64 == 0 {
         return None;
       }
       var name := get_name(k);
@@ -310,7 +310,7 @@ module MemDirEntries
       ensures p == val.s[k].used()
     {
       var ino := get_ino(k);
-      p := ino != 0;
+      p := ino as uint64 != 0;
     }
 
     method is_name(k: uint64, needle: Bytes) returns (r:Option<Ino>)
@@ -322,7 +322,7 @@ module MemDirEntries
       ensures r.Some? ==> val.s[k].used() && val.s[k].name == needle.data && val.s[k].ino == r.x
     {
       var ino := get_ino(k);
-      if ino == 0 {
+      if ino as uint64 == 0 {
         return None;
       }
       var name := get_name(k);
