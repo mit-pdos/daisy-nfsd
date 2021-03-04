@@ -191,6 +191,21 @@ module DirFs
       assert is_of_type(ino, t);
       if t == Inode.InvalidType {}
       else if t == Inode.FileType {}
+      else if t == Inode.DirType {}
+    }
+
+    lemma invert_file(ino: Ino)
+      requires Fs.ino_dom(fs.fs.metadata)
+      requires ValidTypes()
+      requires is_file(ino)
+      ensures fs.inode_types()[ino] == Inode.FileType
+    {
+      reveal is_of_type();
+      ghost var t := fs.inode_types()[ino];
+      assert is_of_type(ino, t);
+      if t == Inode.InvalidType {}
+      else if t == Inode.FileType {}
+      else if t == Inode.DirType {}
     }
 
     predicate ValidAlloc()
@@ -546,7 +561,7 @@ module DirFs
       ensures dirents == old(dirents)
       ensures data == old(data)
       ensures fs.types_unchanged()
-      ensures ok ==> old(is_invalid(ino)) && is_invalid(ino) && ino != rootIno
+      ensures ok ==> old(is_invalid(ino)) && is_invalid(ino)
       ensures ok ==> fs.data()[ino] == []
       ensures ok ==> ino != 0
     {
@@ -574,7 +589,7 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocFile(txn: Txn)
+    method {:timeLimitMultiplier 2} allocFile(txn: Txn)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
@@ -591,7 +606,6 @@ module DirFs
       if !ok {
         return;
       }
-
       assert this !in fs.Repr;
       i := fs.setType(ino, i, Inode.FileType);
       fs.finishInode(txn, ino, i);
@@ -618,8 +632,10 @@ module DirFs
     {
       var i := i;
       i := fs.setType(ino, i, Inode.DirType);
-      var emptyDir := Dirents.zero.encode();
-      Dirents.zero.enc_len();
+      var emptyDir := NewBytes(4096);
+      assert emptyDir.data == Dirents.zero.enc() by {
+        Dirents.zero_enc();
+      }
       ok, i := fs.appendIno(txn, ino, i, emptyDir);
       if !ok {
         return;
@@ -633,7 +649,7 @@ module DirFs
     //
     // creates a directory disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+    method {:timeLimitMultiplier 2} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.fs.has_jrnl(txn)
@@ -962,18 +978,19 @@ module DirFs
       assert dents.Repr !! Repr;
       assert name !in Repr;
       assert is_dir(d_ino);
-      var ok, ino := allocDir(txn);
-      if !ok {
-        return Err(NoSpc);
-      }
       get_data_at(d_ino);
-      assert ino != d_ino;
-      assert ino_ok: ino !in old(data);
       var name_opt := dents.findName(name);
       if name_opt.Some? {
         dents.val.findName_found(name.data);
         return Err(Exist);
       }
+
+      var ok, ino := allocDir(txn);
+      if !ok {
+        return Err(NoSpc);
+      }
+      assert ino != d_ino;
+
       var e' := MemDirEnt(name, ino);
       assert name.data == old(name.data);
       assert dents.Valid() && e'.Valid() && e'.used();
@@ -981,7 +998,6 @@ module DirFs
       if !ok {
         return Err(NoSpc);
       }
-      reveal ino_ok;
       return Ok(ino);
     }
 

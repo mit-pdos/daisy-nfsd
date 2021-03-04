@@ -170,7 +170,7 @@ module MemDirEntries
 
     ghost const Repr: set<object> := {this, bs}
 
-    predicate Valid()
+    predicate {:opaque} Valid()
       reads Repr
     {
       && bs.data == val.enc()
@@ -194,6 +194,7 @@ module MemDirEntries
       this.val := dents;
       new;
       val.enc_len();
+      reveal Valid();
     }
 
     method encode() returns (bs': Bytes)
@@ -201,22 +202,27 @@ module MemDirEntries
       ensures bs' == bs
       ensures bs'.data == val.enc()
     {
+      reveal Valid();
       bs' := bs;
     }
 
     lemma data_one(k: nat)
       requires Valid()
       requires k < 128
+      ensures |bs.data| == 4096
       ensures bs.data[k*32..(k+1) * 32] == val.s[k].enc()
     {
+      reveal Valid();
       C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, 32);
     }
 
     lemma data_one_name(k: nat)
       requires Valid()
       requires k < 128
+      ensures |bs.data| == 4096
       ensures bs.data[k*32..k*32+24] == encode_pathc(val.s[k].name)
     {
+      reveal Valid();
       data_one(k);
       val.s[k].enc_app();
       assert bs.data[k*32..(k+1)*32][..24] == bs.data[k*32..k*32 + 24];
@@ -225,8 +231,10 @@ module MemDirEntries
     lemma data_one_ino(k: nat)
       requires Valid()
       requires k < 128
+      ensures |bs.data| == 4096
       ensures bs.data[k*32 + 24..k*32 + 32] == IntEncoding.le_enc64(val.s[k].ino)
     {
+      reveal Valid();
       data_one(k);
       val.s[k].enc_app();
       assert bs.data[k*32..(k+1)*32][24..32] == bs.data[k*32 + 24..k*32 + 32];
@@ -235,9 +243,10 @@ module MemDirEntries
     twostate lemma data_splice_one(k: nat, v: DirEnt)
       requires old(Valid())
       requires k < 128
-      requires (v.enc_len(); bs.data == C.splice(old(bs.data), k*32, v.enc()))
+      requires (v.enc_len(); reveal Valid(); bs.data == C.splice(old(bs.data), k*32, v.enc()))
       ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
     {
+      reveal Valid();
       v.enc_len();
       C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)), k as nat, v.enc(), 32);
       //assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
@@ -250,6 +259,7 @@ module MemDirEntries
       requires k < 128
       ensures ino == val.s[k].ino
     {
+      reveal Valid();
       // we'll prove it's an Ino later, for now it's just a uint64
       var ino': uint64 := IntEncoding.UInt64Get(bs, k*32 + 24);
       data_one_ino(k as nat);
@@ -263,6 +273,7 @@ module MemDirEntries
       ensures fresh(name) && name.Valid() && |name.data| == 24
       ensures encode_pathc(val.s[k].name) == name.data
     {
+      reveal Valid();
       name := NewBytes(24);
       name.CopyFrom(bs, k*32, 24);
       data_one(k as nat);
@@ -439,6 +450,7 @@ module MemDirEntries
       requires val.findName(e.val().name) >= 128
       ensures val.dir == old(val.dir[e.val().name := e.val().ino])
     {
+      reveal Valid();
       ghost var v := e.val();
       v.enc_len();
       val.insert_ent_dir(v);
@@ -456,6 +468,7 @@ module MemDirEntries
       requires k < 128 && val.s[k].used()
       ensures val.dir == old(map_delete(val.dir, val.s[k].name))
     {
+      reveal Valid();
       ghost var old_name := old(val.s[k].name);
       ghost var old_padded_name := bs.data[k*32..k*32 + 24];
       assert old_padded_name == encode_pathc(old_name) by {
