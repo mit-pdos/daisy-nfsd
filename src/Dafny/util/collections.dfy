@@ -492,10 +492,14 @@ lemma concat_homogeneous_subslice<T>(xs: seq<seq<T>>, start: nat, end: nat, len:
     concat_homogeneous_len(xs[..start], len);
     concat_homogeneous_len(xs[start..end], len);
     concat_homogeneous_len(xs[end..], len);
-    assert |concat(xs[..start])| == start*len;
+    assert |concat(xs[..start])| == start*len by {
+        Arith.mul_comm(start, len);
+    }
     assert |concat(xs[start..end])| == end*len - start*len by {
         assert |xs[start..end]| == end - start;
         Arith.mul_distr_sub_r(end, start, len);
+        Arith.mul_comm(start, len);
+        Arith.mul_comm(end, len);
     }
 }
 
