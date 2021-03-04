@@ -159,6 +159,9 @@ module MemDirEntries
     requires is_pathc(bs.data)
     ensures bs.data == encode_pathc(old(bs.data))
   {
+    if bs.Len() >= 24 {
+      return;
+    }
     var zeros := NewBytes(24 - bs.Len());
     bs.AppendBytes(zeros);
   }

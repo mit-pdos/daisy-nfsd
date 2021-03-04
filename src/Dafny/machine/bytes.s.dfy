@@ -119,6 +119,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"} ByteSl
 
     method {:extern} NewBytes(sz: uint64)
     returns (bs:Bytes)
+    requires 0 < sz
     ensures fresh(bs)
     ensures bs.Valid()
     ensures bs.data == C.repeat(0 as byte, sz as nat)
