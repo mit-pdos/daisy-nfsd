@@ -32,10 +32,10 @@ module IndFs
     config_properties();
   }
 
-  class IndFilesys<InodeAllocState(!new)>
+  class IndFilesys
   {
     // filesys contains a mapping from allocated Blkno's to poss
-    const fs: Filesys<Pos, InodeAllocState>
+    const fs: Filesys<Pos>
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Pos, Blkno>

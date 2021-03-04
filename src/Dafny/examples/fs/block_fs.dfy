@@ -45,7 +45,7 @@ module BlockFs
   }
 
   // public
-  method New<InodeAllocState(!new)>(d: Disk) returns (fs: IndFilesys<InodeAllocState>)
+  method New(d: Disk) returns (fs: IndFilesys)
     ensures fs.ValidQ()
     ensures fresh(fs.Repr)
     ensures block_data(fs.data) == map ino: Ino {:trigger} :: InodeData.zero
@@ -58,7 +58,7 @@ module BlockFs
   }
 
   // public
-  method Read<InodeAllocState(!new)>(fs: IndFilesys<InodeAllocState>, txn: Txn, ino: Ino, i: Inode.Inode, n: uint64)
+  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: uint64)
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
@@ -114,10 +114,11 @@ module BlockFs
   }
 
   // workaround for https://github.com/dafny-lang/dafny/issues/1130
-  class WriteHelper<T(!new)>
+  // TODO: no longer needed, we don't have a type parameter
+  class WriteHelper
   {
-  const fs: IndFilesys<T>
-  constructor(fs: IndFilesys<T>)
+  const fs: IndFilesys
+  constructor(fs: IndFilesys)
     ensures this.fs == fs
   {
     this.fs := fs;
@@ -162,10 +163,10 @@ module BlockFs
   }
   }
 
-  class ZeroHelper<T(!new)>
+  class ZeroHelper
   {
-    const fs: IndFilesys<T>
-    constructor(fs: IndFilesys<T>)
+    const fs: IndFilesys
+    constructor(fs: IndFilesys)
       ensures this.fs == fs
     {
       this.fs := fs;

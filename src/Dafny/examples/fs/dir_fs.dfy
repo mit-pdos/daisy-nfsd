@@ -120,7 +120,7 @@ module DirFs
     // internal state, tracking exactly how directories are encoded
     // domain is just the inodes that are allocated directories
     ghost var dirents: map<Ino, Dirents>
-    const fs: ByteFilesys<()>
+    const fs: ByteFilesys
     const ialloc: MaxAllocator
 
     static const rootIno: Ino := 1 as Ino;
@@ -349,7 +349,7 @@ module DirFs
       && ValidDirFs()
     }
 
-    constructor Init(fs: ByteFilesys<()>)
+    constructor Init(fs: ByteFilesys)
       requires fs.Valid()
       requires fs.data() == map ino: Ino {:trigger} :: if ino == rootIno then Dirents.zero.enc() else []
       requires fs.inode_types() == map ino: Ino {:trigger} :: if ino == rootIno then Inode.DirType else Inode.InvalidType
@@ -373,7 +373,7 @@ module DirFs
       assert ValidTypes() by { reveal is_of_type(); }
     }
 
-    static method createRootDir(fs: ByteFilesys<()>, txn: Txn, ino: Ino) returns (ok: bool)
+    static method createRootDir(fs: ByteFilesys, txn: Txn, ino: Ino) returns (ok: bool)
       modifies fs.Repr
       requires fs.Valid() ensures ok ==> fs.Valid()
       requires fs.fs.has_jrnl(txn)
@@ -482,7 +482,7 @@ module DirFs
       return Ok(dents);
     }
 
-    static method writeDirentsToFs(fs: ByteFilesys<()>, txn: Txn, d_ino: Ino, dents: MemDirents)
+    static method writeDirentsToFs(fs: ByteFilesys, txn: Txn, d_ino: Ino, dents: MemDirents)
       returns (ok:bool)
       modifies fs.Repr
       requires fs.Valid() ensures fs.Valid()
@@ -610,7 +610,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    static method writeEmptyDirToFs(fs: ByteFilesys<()>, txn: Txn, ino: Ino, i: Inode.Inode)
+    static method writeEmptyDirToFs(fs: ByteFilesys, txn: Txn, ino: Ino, i: Inode.Inode)
       returns (ok: bool)
       modifies fs.Repr
       requires fs.fs.ValidIno(ino, i) ensures ok ==> fs.Valid()

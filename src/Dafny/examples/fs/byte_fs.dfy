@@ -61,9 +61,9 @@ module ByteFs {
     raw_inode_data(d)[..sz]
   }
 
-  class ByteFilesys<InodeAllocState(!new)>
+  class ByteFilesys
   {
-    const fs: IndFilesys<InodeAllocState>
+    const fs: IndFilesys
     const jrnl: Jrnl := fs.fs.jrnl
     ghost const Repr: set<object> := fs.Repr
 

@@ -40,7 +40,7 @@ module Fs {
     forall ino: Ino :: ino in m
   }
 
-  class Filesys<AllocState(!new), InodeAllocState(!new)>
+  class Filesys<AllocState(!new)>
   {
 
     // inodes, block_used, and data_block are basically just the data in the
@@ -56,7 +56,6 @@ module Fs {
 
     const jrnl: Jrnl;
     const balloc: MaxAllocator;
-    const ialloc: MaxAllocator;
 
     static predicate Valid_basics(jrnl: Jrnl)
       reads jrnl
@@ -119,15 +118,12 @@ module Fs {
     }
 
     static const ballocMax: uint64 := super.data_bitmaps as uint64 * (4096*8) - 8
-    static const iallocMax: uint64 := super.num_inodes as uint64 - 8
 
     predicate Valid_balloc()
       reads this
     {
       && this.balloc.max <= ballocMax
       && this.balloc.Valid()
-      && this.ialloc.max == iallocMax
-      && this.ialloc.Valid()
     }
 
     predicate Valid_jrnl_to_all()
@@ -140,7 +136,7 @@ module Fs {
       && Valid_jrnl_to_inodes(inodes)
     }
 
-    ghost const Repr: set<object> := {this, jrnl} + balloc.Repr + ialloc.Repr
+    ghost const Repr: set<object> := {this, jrnl} + balloc.Repr
 
     static predicate Valid_data_block(data_block: map<Blkno, Block>)
     {
@@ -181,8 +177,6 @@ module Fs {
       }
       var balloc := new MaxAllocator(actual_max);
       this.balloc := balloc;
-      var ialloc := new MaxAllocator(iallocMax);
-      this.ialloc := ialloc;
 
       this.inodes := map ino: Ino {:trigger} :: Inode.zero;
       this.cur_inode := None;
@@ -212,7 +206,6 @@ module Fs {
       ensures this.jrnl == jrnl_
     {
       var balloc := new MaxAllocator(ballocMax);
-      var ialloc := new MaxAllocator(iallocMax);
 
       var txn := jrnl_.Begin();
       blkno_bit_inbounds(jrnl_);
@@ -222,7 +215,6 @@ module Fs {
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
-        invariant ialloc.Valid()
         invariant 1 <= bn as nat <= ballocMax as nat
       {
         var used := txn.ReadBit(DataBitAddr(bn));
@@ -234,7 +226,6 @@ module Fs {
 
       this.jrnl := jrnl_;
       this.balloc := balloc;
-      this.ialloc := ialloc;
     }
 
     static predicate is_alloc_bn(bn: Blkno)
@@ -263,11 +254,6 @@ module Fs {
       }
       ok := true;
       reveal Valid_jrnl_to_block_used();
-    }
-
-    static predicate is_alloc_ino(ino: Ino)
-    {
-      && 0 < ino < iallocMax
     }
 
     // public
