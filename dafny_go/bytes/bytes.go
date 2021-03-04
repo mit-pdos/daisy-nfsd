@@ -51,7 +51,7 @@ func (bs *Bytes) CopyFrom(other *Bytes, off uint64, count uint64) {
 	if other == bs {
 		panic("attempt to CopyFrom self")
 	}
-	copy(bs.Data, other.Data[off:count])
+	copy(bs.Data, other.Data[off:off+count])
 }
 
 func (bs *Bytes) Split(off uint64) *Bytes {

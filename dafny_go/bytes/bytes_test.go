@@ -45,6 +45,14 @@ func TestCopyTo(t *testing.T) {
 	assert.Equal(t, []byte{0, 4}, bs2.Data)
 }
 
+func TestCopyFrom(t *testing.T) {
+	bs := NewBytes(5)
+	bs.Set(2, 3)
+	bs2 := NewBytes(2)
+	bs2.CopyFrom(bs, 2, 1)
+	assert.Equal(t, byte(3), bs2.Get(0))
+}
+
 func TestSplit(t *testing.T) {
 	bs := NewBytes(3)
 	bs.Data[1] = 1

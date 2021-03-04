@@ -175,4 +175,21 @@ module bytes_test {
         assert 3 as byte == bs.Get(0);
         assert 4 as byte == bs.Get(1);
     }
+
+    method TestCopyFrom()
+    {
+        // mirror of this Go test:
+        /*
+           bs := NewBytes(5)
+           bs.Set(2, 3)
+           bs2 := NewBytes(2)
+           bs2.CopyFrom(bs, 2, 1)
+           assert.Equal(t, byte(3), bs2.Get(0))
+        */
+        var bs := NewBytes(5);
+        bs.Set(2, 3);
+        var bs2 := NewBytes(2);
+        bs2.CopyFrom(bs, 2, 1);
+        assert 3 as byte == bs2.Get(0);
+    }
 }
