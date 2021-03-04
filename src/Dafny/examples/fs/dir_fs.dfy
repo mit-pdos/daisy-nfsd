@@ -1089,7 +1089,7 @@ module DirFs
     }
 
     // TODO: finish fixing this proof
-    method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:timeLimitMultiplier 3} REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1132,6 +1132,9 @@ module DirFs
         return Err(Noent);
       }
 
+      // TODO: factor out the part that deletes and writes out the dirents,
+      // should preserve validity
+
       var i := name_opt.x.0;
       var ino := name_opt.x.1;
       dents.val.findName_found(path);
@@ -1157,14 +1160,12 @@ module DirFs
       assert name.data == path;
 
       if remove_r.ErrBadHandle? {
-        assume false;
         assert map_delete(data, d0[path]) == data1;
         reveal was_dir;
         reveal name_present;
         //assert Valid();
         return Ok(());
       }
-      assume false;
 
       if remove_r.IsError? {
         return remove_r.Coerce();
