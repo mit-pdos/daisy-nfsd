@@ -2,7 +2,8 @@ DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 # these arguments don't affect verification outcomes
-DAFNY_BASIC_ARGS := /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:0.3
+DAFNY_LOAD := 0.5
+DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:$(DAFNY_LOAD)
 DAFNY_ARGS := /noNLarith /arith:5
 DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
@@ -27,6 +28,10 @@ endif
 
 # allow non-linear reasoning for nonlin directory specifically
 src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
+
+# dir_fs is a bit slow and on the edge of timing out, so avoid too much
+# concurrency
+src/Dafny/examples/fs/dir_fs.dfy.ok: DAFNY_LOAD = 0.2
 
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"
