@@ -175,8 +175,9 @@ module Fs {
       this.jrnl := jrnl;
       var num_blks := DiskSize(d);
       var actual_max := ballocMax;
-      if super_data_start < num_blks <= actual_max {
-        actual_max := Round.roundup64(num_blks - super_data_start, 8);
+      if super_data_start+8 < num_blks <= actual_max {
+        actual_max := Round.roundup64(num_blks - super_data_start - 8, 8);
+        assert super_data_start + actual_max < num_blks;
       }
       var balloc := new MaxAllocator(actual_max);
       this.balloc := balloc;
