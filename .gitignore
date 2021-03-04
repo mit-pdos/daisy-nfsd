@@ -4,3 +4,5 @@
 /dafny-qi.profile
 /dafnygen
 *.prof
+# from go build
+/dafny-nfsd
