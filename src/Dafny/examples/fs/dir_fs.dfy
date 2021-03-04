@@ -383,17 +383,7 @@ module DirFs
       && fs.inode_types() == old(fs.inode_types()[ino := Inode.DirType])
     {
       var i := fs.startInode(txn, ino);
-      i := fs.setType(ino, i, Inode.DirType);
-
-      var emptyDir := Dirents.zero.encode();
-      Dirents.zero.enc_len();
-      ok, i := fs.appendIno(txn, ino, i, emptyDir);
-      if !ok {
-        return;
-      }
-      assert fs.data()[ino] == Dirents.zero.enc();
-      fs.finishInode(txn, ino, i);
-      assert fs.Valid();
+      ok := writeEmptyDirToFs(fs, txn, ino, i);
     }
 
     static method New(d: Disk) returns (fs: Option<DirFilesys>)
@@ -620,15 +610,14 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method writeEmptyDir(txn: Txn, ino: Ino, i: Inode.Inode)
+    static method writeEmptyDirToFs(fs: ByteFilesys<()>, txn: Txn, ino: Ino, i: Inode.Inode)
       returns (ok: bool)
       modifies fs.Repr
-      requires ValidIno(ino, i) ensures ok ==> fs.Valid()
+      requires fs.fs.ValidIno(ino, i) ensures ok ==> fs.Valid()
       requires fs.fs.has_jrnl(txn)
       requires fs.data()[ino] == []
       ensures ok ==> fs.data() == old(fs.data()[ino := Dirents.zero.enc()])
       ensures ok ==> fs.inode_types() == old(fs.inode_types()[ino := Inode.DirType])
-      ensures unchanged(this)
     {
       var i := i;
       i := fs.setType(ino, i, Inode.DirType);
@@ -667,7 +656,7 @@ module DirFs
       }
 
       assert this !in fs.Repr;
-      ok := writeEmptyDir(txn, ino, i);
+      ok := writeEmptyDirToFs(fs, txn, ino, i);
       if !ok {
         return;
       }
