@@ -717,11 +717,12 @@ module DirFs
     method CREATE(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr, name
+      requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
-      requires is_pathc(name.data)
       requires fs.fs.has_jrnl(txn)
       ensures r.Ok? ==>
       (var ino := r.v;
+      && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && data == old(
@@ -730,6 +731,11 @@ module DirFs
         data[ino := File.empty][d_ino := d'])
       )
     {
+      var is_path := Pathc?(name);
+      if !is_path {
+        // could also have 0s in it but whatever
+        return Err(NameTooLong);
+      }
       var dents_r := readDirents(txn, d_ino);
       if dents_r.Err? {
         return dents_r.Coerce();
@@ -1012,18 +1018,27 @@ module DirFs
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.fs.has_jrnl(txn)
-      requires is_pathc(name.data)
-      ensures (r.Err? && r.err.Exist?) ==> old(is_dir(d_ino)) && name.data in old(data[d_ino].dir)
+      requires name.Valid()
+      ensures (r.Err? && r.err.Exist?) ==>
+      && old(is_dir(d_ino))
+      && is_pathc(name.data)
+      && name.data in old(data[d_ino].dir)
       ensures r.Ok? ==>
       (var ino := r.v;
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
+      && old(is_pathc(name.data))
       && data == old(
         var d := data[d_ino].dir;
         var d' := DirFile(d[name.data := ino]);
         data[ino := File.emptyDir][d_ino := d'])
       )
     {
+      var is_path := Pathc?(name);
+      if !is_path {
+        // could also have 0s in it but whatever
+        return Err(NameTooLong);
+      }
       var dents_r := readDirents(txn, d_ino);
       if dents_r.Err? {
         return dents_r.Coerce();

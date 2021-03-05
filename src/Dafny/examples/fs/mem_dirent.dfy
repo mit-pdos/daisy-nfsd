@@ -9,6 +9,27 @@ module MemDirEntries
   import opened FsKinds
   import IntEncoding
 
+  method Pathc?(name: Bytes) returns (p:bool)
+    requires name.Valid()
+    ensures p == is_pathc(name.data)
+  {
+    var i: uint64 := 0;
+    var len := name.Len();
+    if len > 24 {
+      return false;
+    }
+    while i < len
+      invariant 0 <= i as nat <= |name.data|
+      invariant is_pathc(name.data[..i])
+    {
+      if name.Get(i) == 0 {
+        return false;
+      }
+      i := i + 1;
+    }
+    return true;
+  }
+
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
     predicate Valid()
