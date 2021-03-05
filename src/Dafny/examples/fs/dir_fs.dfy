@@ -390,7 +390,7 @@ module DirFs
     {
       var fs_ := new ByteFilesys.Init(d);
 
-      var txn := fs_.jrnl.Begin();
+      var txn := fs_.fs.fs.jrnl.Begin();
       var ok := createRootDir(fs_, txn, rootIno);
       if !ok {
         return None;
