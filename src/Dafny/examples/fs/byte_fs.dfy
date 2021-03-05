@@ -197,7 +197,7 @@ module ByteFs {
       }
     }
 
-    method read_txn_with_inode(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+    method readWithInode(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
@@ -237,7 +237,7 @@ module ByteFs {
       assert data() == old(data());
     }
 
-    method read_txn(txn: Txn, ino: Ino, off: uint64, len: uint64)
+    method readTxn(txn: Txn, ino: Ino, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
@@ -252,7 +252,7 @@ module ByteFs {
         return;
       }
       var i := fs.startInode(txn, ino);
-      bs, ok := read_txn_with_inode(txn, ino, i, off, len);
+      bs, ok := readWithInode(txn, ino, i, off, len);
     }
 
     // public
@@ -266,25 +266,8 @@ module ByteFs {
       ensures data() == old(data())
     {
       var txn := fs.fs.jrnl.Begin();
-      bs, ok := read_txn(txn, ino, off, len);
+      bs, ok := readTxn(txn, ino, off, len);
       // TODO: this is read-only, no need to commit the transaction
-      var _ := txn.Commit();
-    }
-
-    // public
-    //
-    // this variant can be used in a larger transaction
-    method size_txn(txn: Txn, ino: Ino) returns (sz: uint64)
-      modifies fs.fs
-      requires fs.has_jrnl(txn)
-      requires Valid() ensures Valid()
-      ensures data() == old(data())
-      ensures sz as nat == |data()[ino]|
-    {
-      var i := fs.startInode(txn, ino);
-      sz := i.sz;
-      fs.inode_metadata(ino, i);
-      fs.finishInodeReadonly(ino, i);
       var _ := txn.Commit();
     }
 
@@ -296,7 +279,10 @@ module ByteFs {
       ensures sz as nat == |data()[ino]|
     {
       var txn := fs.fs.jrnl.Begin();
-      sz := size_txn(txn, ino);
+      var i := fs.startInode(txn, ino);
+      sz := i.sz;
+      fs.inode_metadata(ino, i);
+      fs.finishInodeReadonly(ino, i);
       // TODO: this is read-only, no need to commit the transaction
       var _ := txn.Commit();
     }

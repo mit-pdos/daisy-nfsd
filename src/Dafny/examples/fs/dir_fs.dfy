@@ -939,7 +939,7 @@ module DirFs
         return i_r.Coerce();
       }
       var i := i_r.v;
-      var bs, ok := fs.read_txn_with_inode(txn, ino, i, off, len);
+      var bs, ok := fs.readWithInode(txn, ino, i, off, len);
       if !ok {
         // TODO: I believe this should never happen, short reads are supposed to
         // return partial data and an EOF flag
