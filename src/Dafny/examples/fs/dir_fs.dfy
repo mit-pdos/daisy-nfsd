@@ -797,6 +797,7 @@ module DirFs
       return Ok(attrs);
     }
 
+    // TODO: finish this proof
     method {:timeLimitMultiplier 2} SETATTRsize(txn: Txn, ino: Ino, sz: uint64)
       returns (r:Result<()>, ghost junk: seq<byte>)
       modifies Repr
@@ -823,14 +824,14 @@ module DirFs
         return;
       }
       var i := i_r.v;
-      assert dirents == old(dirents);
       invert_file(ino);
-      ghost var d0 := old(data[ino].data);
-      get_data_at(ino);
+      ghost var d0: seq<byte> := old(fs.data()[ino]);
+      assert d0 == old(data[ino].data) by {
+        get_data_at(ino);
+      }
 
       assert this !in fs.Repr;
       i, junk := fs.setSize(txn, ino, i, sz);
-
       fs.finishInode(txn, ino, i);
       ghost var d' := fs.data()[ino];
 
@@ -840,13 +841,16 @@ module DirFs
       assert Valid() by {
         // TODO: why is this so slow?
         assert dirents == old(dirents);
-        assert is_file(ino);
-        mk_data_at(ino);
+        assert is_of_type(ino, fs.inode_types()[ino]) by {
+          assert is_file(ino);
+          reveal is_of_type();
+        }
         assert ValidRoot() by { reveal ValidRoot(); }
-        // TODO: finish proof
+        mk_data_at(ino);
         assume false;
         ValidData_change_one(ino);
       }
+      assume false;
 
       r := Ok(());
       return;
