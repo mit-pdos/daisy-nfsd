@@ -489,8 +489,10 @@ module ByteFs {
       ensures
       (var d0 := old(data()[ino]);
       var d' := setSize_with_junk(d0, sz' as nat, junk);
-      && data() == old(data()[ino := d'])
-      && sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
+      && data() == old(data()[ino := d']))
+      ensures
+      (var d0 := old(data()[ino]);
+      sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);

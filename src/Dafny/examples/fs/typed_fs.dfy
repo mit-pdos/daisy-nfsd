@@ -100,6 +100,7 @@ module TypedFs {
       reveal bytefsValid();
       && fsValidIno(ino, i)
       && ValidThis()
+      // && !types[ino].InvalidType?
     }
 
     constructor Init(d: Disk)
@@ -202,13 +203,112 @@ module TypedFs {
       reveal ValidFields();
     }
 
-    // todo
-      // fs.alignedWrite
-      // fs.appendIno
-      // fs.readInternal
-      // fs.readWithInode
-      // fs.setSize
-      // fs.shrinkToEmpty
+    method freeInode(txn: Txn, ino: Ino, i: Inode.Inode)
+      modifies Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures Valid()
+      ensures data == old(data[ino := []])
+      ensures types == old(types[ino := Inode.InvalidType])
+    {
+      reveal_valids();
+      var i := fs.setType(ino, i, Inode.InvalidType);
+      i := fs.shrinkToEmpty(txn, ino, i);
+      fs.finishInode(txn, ino, i);
+      data := fs.data();
+      types := fs.inode_types();
+      reveal ValidFields();
+      reveal ValidInvalid();
+    }
+
+    method append(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr, bs
+      requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i')
+      requires has_jrnl(txn)
+      requires !types[ino].InvalidType?
+      requires 0 < |bs.data| <= 4096
+      requires |data[ino]| + |bs.data| <= Inode.MAX_SZ
+      ensures ok ==>
+      && data == old(data[ino := data[ino] + bs.data])
+      ensures types_unchanged()
+    {
+      reveal ValidFields();
+      ok, i' := fs.appendIno(txn, ino, i, bs);
+      data := fs.data();
+      reveal ValidInvalid();
+    }
+
+    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr
+      requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i')
+      requires has_jrnl(txn)
+      requires !types[ino].InvalidType?
+      requires is_block(bs.data)
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= |data[ino]|
+      ensures types_unchanged()
+      ensures ok ==>
+      && data == old(
+      var d0 := data[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data[ino := d])
+    {
+      reveal ValidFields();
+      ok, i' := fs.alignedWrite(txn, ino, i, bs, off);
+      data := fs.data();
+      reveal ValidInvalid();
+    }
+
+    method readUnsafe(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+      returns (bs: Bytes)
+      requires ValidIno(ino, i)
+      requires has_jrnl(txn)
+      requires 0 < len <= 4096
+      requires off as nat + len as nat <= |data[ino]|
+      ensures fresh(bs)
+      ensures bs.data == this.data[ino][off..off as nat + len as nat]
+    {
+      reveal ValidFields();
+      bs := fs.readInternal(txn, ino, i, off, len);
+    }
+
+    method read(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+      returns (bs: Bytes, ok: bool)
+      modifies fs.fs.fs
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures Valid()
+      requires inode_unmodified(ino, i)
+      requires len <= 4096
+      ensures ok ==>
+          && off as nat + len as nat <= |data[ino]|
+          && bs.data == this.data[ino][off..off as nat + len as nat]
+    {
+      bs, ok := fs.readWithInode(txn, ino, i, off, len);
+      reveal ValidFields();
+    }
+
+    method setSize(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode, ghost junk: seq<byte>)
+      modifies Repr
+      requires ValidIno(ino, i) ensures ValidIno(ino, i')
+      requires has_jrnl(txn)
+      requires !types[ino].InvalidType?
+      requires sz' as nat <= Inode.MAX_SZ
+      ensures
+      (var d0 := old(data[ino]);
+      var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz' as nat, junk);
+      && data == old(data[ino := d']))
+      ensures
+      (var d0 := old(data[ino]);
+      && sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
+      ensures types_unchanged()
+    {
+      i', junk := fs.setSize(txn, ino, i, sz');
+      data := fs.data();
+      reveal ValidFields();
+      reveal ValidInvalid();
+    }
 
   }
 }
