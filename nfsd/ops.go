@@ -6,6 +6,7 @@ import (
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
 	memdirentries "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEntries_Compile"
+	dafny_nfs "github.com/mit-pdos/dafny-jrnl/dafnygen/Nfs_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
@@ -26,7 +27,10 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
 
-func (nfs *Nfs) runTxn(f func(txn *jrnl.Txn) dirfs.Result) (v interface{}, status nfstypes.Nfsstat3) {
+type Txn = *jrnl.Txn
+type Result = dafny_nfs.Result
+
+func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3) {
 	txn := nfs.filesys.Begin()
 	r := f(txn)
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
@@ -56,7 +60,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 
 	inum := fh2ino(args.Object)
 
-	stat, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	stat, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.GETATTR(txn, inum)
 	})
 	reply.Status = status
@@ -94,7 +98,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
 
-	f_ino, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	f_ino, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.LOOKUP(txn, inum, name)
 	})
 	reply.Status = status
@@ -122,7 +126,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	off := uint64(args.Offset)
 	count := uint64(args.Count)
 
-	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	r, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.READ(txn, inum, off, count)
 	})
 	reply.Status = status
@@ -147,7 +151,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	// XXX write at offset args.Offset
 
 	bs := bytes.Data(args.Data)
-	_, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.Append(txn, inum, bs)
 	})
 	reply.Status = status
@@ -167,7 +171,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	inum := fh2ino(args.Where.Dir)
 
 	nameseq := filenameToBytes(args.Where.Name)
-	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	r, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.CREATE(txn, inum, nameseq)
 	})
 	reply.Status = status
@@ -191,7 +195,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 
 	name := filenameToBytes(args.Where.Name)
 
-	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	r, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.MKDIR(txn, inum, name)
 	})
 	reply.Status = status
@@ -233,7 +237,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
 
-	_, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.REMOVE(txn, inum, name)
 	})
 	reply.Status = status
@@ -271,7 +275,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 
 	inum := fh2ino(args.Dir)
 
-	r, status := nfs.runTxn(func(txn *jrnl.Txn) dirfs.Result {
+	r, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.READDIR(txn, inum)
 	})
 	reply.Status = status
