@@ -490,6 +490,11 @@ module ByteFs {
       i' := this.shrinkTo(txn, ino, i, 0);
     }
 
+    static function setSize_with_junk(data: seq<byte>, sz: nat, junk: seq<byte>): seq<byte>
+    {
+      if sz <= |data| then data[..sz] else data + junk
+    }
+
     method setSize(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
       returns (i': Inode.Inode, ghost junk: seq<byte>)
       modifies Repr
@@ -498,7 +503,7 @@ module ByteFs {
       requires sz' as nat <= Inode.MAX_SZ
       ensures
       (var d0 := old(data()[ino]);
-      var d' := if sz' as nat <= |d0| then d0[..sz'] else d0 + junk;
+      var d' := setSize_with_junk(d0, sz' as nat, junk);
       && data() == old(data()[ino := d'])
       && sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
       ensures types_unchanged()

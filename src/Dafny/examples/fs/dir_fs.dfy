@@ -808,9 +808,8 @@ module DirFs
       ensures r.Ok? ==>
       && old(is_file(ino))
       && (var d0 := old(data[ino].data);
-        var sz0 := |d0|;
-        var d' := if sz as nat <= sz0 then d0[..sz] else d0 + junk;
-        && (sz as nat > sz0 ==> |junk| == sz as nat - sz0)
+        var d' := ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
+        && (sz as nat > |d0| ==> |junk| == sz as nat - |d0|)
         && data == old(data[ino := ByteFile(d')]))
     {
       junk := [];
@@ -824,31 +823,27 @@ module DirFs
         return;
       }
       var i := i_r.v;
+      assert dirents == old(dirents);
       invert_file(ino);
       ghost var d0: seq<byte> := old(fs.data()[ino]);
       assert d0 == old(data[ino].data) by {
         get_data_at(ino);
       }
 
+      fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
+
       i, junk := fs.setSize(txn, ino, i, sz);
       fs.finishInode(txn, ino, i);
-      ghost var d' := fs.data()[ino];
 
+      ghost var d' := ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
       data := data[ino := ByteFile(d')];
 
-      assert fs.inode_types()[ino] == Inode.FileType;
       assert Valid() by {
-        // TODO: why is this so slow?
-        assert dirents == old(dirents);
-        assert is_of_type(ino, fs.inode_types()[ino]) by {
-          assert is_file(ino);
-          reveal is_of_type();
-        }
-        assert ValidRoot() by { reveal ValidRoot(); }
-        mk_data_at(ino);
+        // TODO: we can prove all of the preconditions for this lemma here, but
+        // it still doesn't go through
         assume false;
-        ValidData_change_one(ino);
+        file_change_valid(ino, d');
       }
       assume false;
 
@@ -889,6 +884,27 @@ module DirFs
       }
       assert old(is_file(ino)) && is_file(ino) by { reveal is_of_type(); }
       return Ok(i);
+    }
+
+    twostate lemma file_change_valid(ino: Ino, d': seq<byte>)
+      requires old(Valid()) && fs.Valid()
+      requires old(is_file(ino))
+      requires fs.data() == old(fs.data()[ino := d'])
+      requires fs.types_unchanged()
+      requires dirents == old(dirents)
+      requires data == old(data[ino := ByteFile(d')])
+      ensures Valid()
+    {
+      assert old(this).is_of_type(ino, old(fs.inode_types())[ino]) by {
+        reveal is_of_type();
+      }
+      assert is_of_type(ino, fs.inode_types()[ino]) by {
+        assert is_file(ino);
+        reveal is_of_type();
+      }
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     // TODO: add support for writes to arbitrary offsets
@@ -943,14 +959,7 @@ module DirFs
       data := data[ino := f'];
 
       assert Valid() by {
-        assert dirents == old(dirents);
-        assert is_of_type(ino, fs.inode_types()[ino]) by {
-          assert is_file(ino);
-          reveal is_of_type();
-        }
-        mk_data_at(ino);
-        ValidData_change_one(ino);
-        assert ValidRoot() by { reveal ValidRoot(); }
+        file_change_valid(ino, d0 + old(bs.data));
       }
       return Ok(());
     }
