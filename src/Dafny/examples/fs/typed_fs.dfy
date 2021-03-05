@@ -21,7 +21,7 @@ module TypedFs {
 
     ghost const Repr: set<object> := {this} + fs.Repr + ialloc.Repr;
 
-    static const iallocMax: uint64 := super.num_inodes as uint64 - 8
+    static const iallocMax: uint64 := super.num_inodes as uint64
 
     predicate {:opaque} bytefsValid()
       reads fs.Repr
@@ -100,7 +100,7 @@ module TypedFs {
       reveal bytefsValid();
       && fsValidIno(ino, i)
       && ValidThis()
-      // && !types[ino].InvalidType?
+      && !types[ino].InvalidType?
     }
 
     constructor Init(d: Disk)
@@ -140,8 +140,9 @@ module TypedFs {
 
     method startInode(txn: Txn, ino: Ino) returns (i': Inode.Inode)
       modifies fs.fs.fs
-      requires has_jrnl(txn)
       requires Valid() ensures ValidIno(ino, i')
+      requires has_jrnl(txn)
+      requires !types[ino].InvalidType?
       ensures inode_unmodified(ino, i')
     {
       reveal_valids();
@@ -184,15 +185,17 @@ module TypedFs {
       modifies Repr
       requires Valid()
       requires has_jrnl(txn)
+      requires !ty.InvalidType?
       ensures ok ==>
       && old(types[ino].InvalidType?) && types == old(types[ino := ty])
       && data == old(data)
       && data[ino] == []
       && ValidIno(ino, i)
     {
+      reveal_valids();
       ino := ialloc.Alloc();
-      i := startInode(txn, ino);
-      inode_metadata(ino, i);
+      i := fs.startInode(txn, ino);
+      fs.inode_metadata(ino, i);
       if !i.meta.ty.InvalidType? {
         ok := false;
         return;
@@ -225,7 +228,6 @@ module TypedFs {
       modifies Repr, bs
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i')
       requires has_jrnl(txn)
-      requires !types[ino].InvalidType?
       requires 0 < |bs.data| <= 4096
       requires |data[ino]| + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
@@ -243,7 +245,6 @@ module TypedFs {
       modifies Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i')
       requires has_jrnl(txn)
-      requires !types[ino].InvalidType?
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data[ino]|
@@ -293,7 +294,6 @@ module TypedFs {
       modifies Repr
       requires ValidIno(ino, i) ensures ValidIno(ino, i')
       requires has_jrnl(txn)
-      requires !types[ino].InvalidType?
       requires sz' as nat <= Inode.MAX_SZ
       ensures
       (var d0 := old(data[ino]);
