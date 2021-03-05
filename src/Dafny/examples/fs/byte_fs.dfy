@@ -490,6 +490,28 @@ module ByteFs {
       i' := this.shrinkTo(txn, ino, i, 0);
     }
 
+    method setSize(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
+      returns (i': Inode.Inode, ghost junk: seq<byte>)
+      modifies Repr
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires sz' as nat <= Inode.MAX_SZ
+      ensures
+      (var d0 := old(data()[ino]);
+      var d' := if sz' as nat <= |d0| then d0[..sz'] else d0 + junk;
+      && data() == old(data()[ino := d'])
+      && sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
+      ensures types_unchanged()
+    {
+      fs.inode_metadata(ino, i);
+      assert i.sz as nat == |data()[ino]|;
+      if sz' <= i.sz {
+        i' := this.shrinkTo(txn, ino, i, sz');
+      } else {
+        i', junk := this.growBy(ino, i, sz' - i.sz);
+      }
+    }
+
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
       requires off + |bs| <= off/4096*4096 + 4096 <= |data0|
       requires

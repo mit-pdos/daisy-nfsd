@@ -797,6 +797,61 @@ module DirFs
       return Ok(attrs);
     }
 
+    method {:timeLimitMultiplier 2} SETATTRsize(txn: Txn, ino: Ino, sz: uint64)
+      returns (r:Result<()>, ghost junk: seq<byte>)
+      modifies Repr
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.fs.has_jrnl(txn)
+      ensures r.ErrBadHandle? ==> ino !in data
+      ensures r.ErrIsDir? ==> is_dir(ino)
+      ensures r.Ok? ==>
+      && old(is_file(ino))
+      && (var d0 := old(data[ino].data);
+        var sz0 := |d0|;
+        var d' := if sz as nat <= sz0 then d0[..sz] else d0 + junk;
+        && (sz as nat > sz0 ==> |junk| == sz as nat - sz0)
+        && data == old(data[ino := ByteFile(d')]))
+    {
+      junk := [];
+      if sz > Inode.MAX_SZ_u64 {
+        r := Err(FBig);
+        return;
+      }
+      var i_r := openFile(txn, ino);
+      if i_r.Err? {
+        r := i_r.Coerce();
+        return;
+      }
+      var i := i_r.v;
+      assert dirents == old(dirents);
+      invert_file(ino);
+      ghost var d0 := old(data[ino].data);
+      get_data_at(ino);
+
+      assert this !in fs.Repr;
+      i, junk := fs.setSize(txn, ino, i, sz);
+
+      fs.finishInode(txn, ino, i);
+      ghost var d' := fs.data()[ino];
+
+      data := data[ino := ByteFile(d')];
+
+      assert fs.inode_types()[ino] == Inode.FileType;
+      assert Valid() by {
+        // TODO: why is this so slow?
+        assert dirents == old(dirents);
+        assert is_file(ino);
+        mk_data_at(ino);
+        assert ValidRoot() by { reveal ValidRoot(); }
+        // TODO: finish proof
+        assume false;
+        ValidData_change_one(ino);
+      }
+
+      r := Ok(());
+      return;
+    }
+
     method openFile(txn: Txn, ino: Ino)
       returns (r:Result<Inode.Inode>)
       modifies fs.fs.fs
@@ -813,6 +868,7 @@ module DirFs
       ensures r.ErrIsDir? ==> is_dir(ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.IsDir?
       ensures unchanged(this)
+      ensures dirents == old(dirents)
     {
       var i := startInode(txn, ino);
       if i.meta.ty.InvalidType? {
@@ -856,11 +912,9 @@ module DirFs
         }
         return i_r.Coerce();
       }
-      assert dirents == old(dirents);
-      assert fs.inode_types()[ino] == Inode.FileType by {
-        reveal is_of_type();
-      }
       var i := i_r.v;
+      assert dirents == old(dirents);
+      invert_file(ino);
       assert ValidIno(ino, i);
       ghost var d0: seq<byte> := old(fs.data()[ino]);
       assert d0 == old(data[ino].data) by {
