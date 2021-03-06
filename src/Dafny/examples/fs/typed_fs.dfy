@@ -143,17 +143,20 @@ module TypedFs {
 
     method startInode(txn: Txn, ino: Ino) returns (ok: bool, i': Inode.Inode)
       modifies fs.fs.fs
-      requires Valid() ensures ok ==> ValidIno(ino, i')
+      requires Valid()
+      ensures ok ==> ValidIno(ino, i')
+      ensures !ok ==> Valid()
       requires has_jrnl(txn)
-      ensures inode_unchanged(ino, i')
-      ensures !ok ==> old(types[ino].InvalidType?)
+      ensures ok ==> inode_unchanged(ino, i')
       ensures ok ==> i'.meta.ty == types[ino]
+      ensures !ok ==> old(types[ino].InvalidType?)
     {
       reveal_valids();
       i' := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i');
       if i'.meta.ty.InvalidType? {
         ok := false;
+        fs.finishInodeReadonly(ino, i');
         reveal ValidFields();
         return;
       }
