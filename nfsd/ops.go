@@ -100,8 +100,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.SETATTRsize(txn, inum, size)
 	})
-
 	reply.Status = status
+
 	return reply
 }
 
@@ -266,7 +266,15 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	var reply nfstypes.RMDIR3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	inum := fh2ino(args.Object.Dir)
+	name := filenameToBytes(args.Object.Name)
+
+	_, status := nfs.runTxn(func(txn Txn) Result {
+		return nfs.filesys.RMDIR(txn, inum, name)
+	})
+	reply.Status = status
+
 	return reply
 }
 
