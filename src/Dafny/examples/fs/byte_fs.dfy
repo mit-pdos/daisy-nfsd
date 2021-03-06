@@ -567,6 +567,50 @@ module ByteFs {
       inode_types_metadata_unchanged();
     }
 
+    method write(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr, bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires |bs.data| <= 4096
+      requires off as nat + |bs.data| <= |data()[ino]|
+      ensures types_unchanged()
+      ensures ok ==> data() == old(
+      var d0 := data()[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data()[ino := d])
+    {
+      ghost var d0 := data()[ino];
+      i' := i;
+      if bs.Len() == 0 {
+        assert bs.data == [];
+        assert C.splice(d0, off as nat, bs.data) == d0;
+        return;
+      }
+      if off % 4096 + bs.Len() <= 4096 {
+        ok, i' := updateInPlace(txn, ino, i', off, bs);
+        return;
+      }
+      var len1 := 4096 - off % 4096;
+      var bs' := bs.Split(len1);
+      assert bs.data + bs'.data == old(bs.data);
+      ok, i' := updateInPlace(txn, ino, i', off, bs);
+      if !ok {
+        return;
+      }
+      var off' := off + len1;
+      ok, i' := updateInPlace(txn, ino, i', off', bs');
+      if !ok {
+        return;
+      }
+      ghost var d := data()[ino];
+      calc {
+        d;
+        C.splice(C.splice(d0, off as nat, bs.data), off' as nat, bs'.data);
+        C.splice(d0, off as nat, bs.data + bs'.data);
+      }
+    }
+
     // private
     method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
       returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
