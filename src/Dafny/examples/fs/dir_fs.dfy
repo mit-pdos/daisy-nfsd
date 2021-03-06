@@ -301,11 +301,7 @@ module DirFs
       && fs.data == old(fs.data[ino := Dirents.zero.enc()])
       && fs.types == old(fs.types[ino := Inode.DirType])
     {
-      var i;
-      ok, i := fs.startInode(txn, ino);
-      if !ok {
-        return;
-      }
+      var i := fs.allocateAt(txn, ino, Inode.DirType);
       ok := writeEmptyDirToFs(fs, txn, ino, i);
     }
 
@@ -334,6 +330,7 @@ module DirFs
       requires Valid()
       ensures fs.has_jrnl(txn)
     {
+      fs.reveal_valids();
       txn := fs.fs.fs.fs.jrnl.Begin();
     }
 
@@ -358,9 +355,8 @@ module DirFs
 
     method readDirents(txn: Txn, d_ino: Ino)
       returns (r: Result<MemDirents>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
-      ensures unchanged(this)
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> is_invalid(d_ino)
       ensures r.ErrNotDir? ==> is_file(d_ino)
@@ -374,6 +370,7 @@ module DirFs
       var ok, i := fs.startInode(txn, d_ino);
       if !ok {
         assert is_invalid(d_ino) by { reveal is_of_type(); }
+        fs.finishInodeReadonly(d_ino, i);
         return Err(BadHandle);
       }
       if i.meta.ty.FileType? {
@@ -645,7 +642,7 @@ module DirFs
 
     method GETATTR(txn: Txn, ino: Ino)
       returns (r: Result<Attributes>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> ino !in data
@@ -736,7 +733,7 @@ module DirFs
 
     method openFile(txn: Txn, ino: Ino)
       returns (r:Result<Inode.Inode>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
@@ -848,7 +845,7 @@ module DirFs
 
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
       returns (r: Result<Bytes>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> ino !in data
@@ -948,7 +945,7 @@ module DirFs
 
     method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r:Result<Ino>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
@@ -1131,7 +1128,7 @@ module DirFs
 
     method READDIR(txn: Txn, d_ino: Ino)
       returns (r: Result<seq<MemDirEnt>>)
-      modifies fs.fs.fs
+      modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> d_ino !in data
