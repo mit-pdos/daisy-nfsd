@@ -85,8 +85,23 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
+	if args.Guard.Check {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		return reply
+	}
+	// we don't support any other attributes
+	if !args.New_attributes.Size.Set_it {
+		reply.Status = nfstypes.NFS3_OK
+		return reply
+	}
+	inum := fh2ino(args.Object)
+	size := uint64(args.New_attributes.Size.Size)
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	_, status := nfs.runTxn(func(txn Txn) Result {
+		return nfs.filesys.SETATTRsize(txn, inum, size)
+	})
+
+	reply.Status = status
 	return reply
 }
 
