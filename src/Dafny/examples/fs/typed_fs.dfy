@@ -260,19 +260,20 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
-    method append(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
+    method write(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr, bs
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i')
       requires has_jrnl(txn)
       requires 0 < |bs.data| <= 4096
-      requires |data[ino]| + |bs.data| <= Inode.MAX_SZ
+      requires off as nat <= |data[ino]|
+      requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := data[ino] + bs.data])
+      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       reveal ValidFields();
-      ok, i' := fs.appendIno(txn, ino, i, bs);
+      ok, i' := fs.write(txn, ino, i, off, bs);
       data := fs.data();
       reveal ValidInvalid();
     }

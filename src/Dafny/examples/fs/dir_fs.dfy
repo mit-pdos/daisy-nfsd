@@ -501,7 +501,7 @@ module DirFs
       assert emptyDir.data == Dirents.zero.enc() by {
         Dirents.zero_enc();
       }
-      ok, i := fs.append(txn, ino, i, emptyDir);
+      ok, i := fs.write(txn, ino, i, 0, emptyDir);
       if !ok {
         return;
       }
@@ -788,21 +788,22 @@ module DirFs
     }
 
     // TODO: add support for writes to arbitrary offsets
-    method Append(txn: Txn, ino: Ino, bs: Bytes)
+    method WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
       returns (r: Result<()>)
       modifies Repr, bs
       requires Valid()
       // nothing to say in error case (need to abort)
       ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      requires bs.Valid() && 0 < bs.Len() <= 4096
+      requires 0 < |bs.data| <= 4096
       ensures r.ErrBadHandle? ==> ino !in old(data)
       ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
       && ino in old(data) && old(data[ino].ByteFile?)
+      && off as nat <= old(|data[ino].data|)
       && data == old(
       var d := data[ino].data;
-      var d' := d + bs.data;
+      var d' := ByteFs.write_data(d, off as nat, bs.data);
       data[ino := ByteFile(d')])
     {
       var i_r := openFile(txn, ino);
@@ -824,10 +825,14 @@ module DirFs
         // fs.finishInodeReadonly(ino, i);
         return Err(FBig);
       }
+      if off > i.sz {
+        // unsupported: creates a hole
+        return Err(ServerFault);
+      }
       fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
       var ok;
-      ok, i := fs.append(txn, ino, i, bs);
+      ok, i := fs.write(txn, ino, i, off, bs);
       if !ok {
         // fs.finishInode(txn, ino, i);
         return Err(NoSpc);
@@ -835,11 +840,11 @@ module DirFs
 
       fs.finishInode(txn, ino, i);
 
-      ghost var f' := ByteFile(d0 + old(bs.data));
+      ghost var f' := ByteFile(fs.data[ino]);
       data := data[ino := f'];
 
       assert Valid() by {
-        file_change_valid(ino, d0 + old(bs.data));
+        file_change_valid(ino, f'.data);
       }
       return Ok(());
     }
@@ -1232,7 +1237,7 @@ module DirFs
     // 1. Append (done)
     // 2. Read (done)
     // 3. CreateDir (done)
-    // 4. Write
+    // 4. Write (done)
     // 5. Rename (maybe?)
     // 6. Unlink (done)
 

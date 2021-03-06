@@ -782,6 +782,7 @@ module ByteFs {
       requires 0 < |bs.data| <= 4096
       requires off as nat <= |data()[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
+      ensures types_unchanged()
       ensures ok ==>
       && data() == old(
       var d0 := data()[ino];
