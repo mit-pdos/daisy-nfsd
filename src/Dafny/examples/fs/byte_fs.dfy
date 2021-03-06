@@ -61,6 +61,35 @@ module ByteFs {
     raw_inode_data(d)[..sz]
   }
 
+  // less general than actual WRITE semantics, which also supports creating
+  // holes by first extending data to make off in bounds
+  function write_data(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
+    requires off <= |data|
+  {
+    data[..off] + bs + if off + |bs| <= |data| then data[off + |bs|..] else []
+  }
+
+  lemma write_data_splice(data: seq<byte>, off: nat, bs: seq<byte>)
+    requires off + |bs| <= |data|
+    ensures write_data(data, off, bs) == C.splice(data, off, bs)
+  {}
+
+  lemma write_data_to_end(data: seq<byte>, off: nat, bs: seq<byte>)
+    requires off + |bs| == |data|
+    ensures write_data(data, off, bs) == data[..off] + bs
+  {}
+
+  lemma write_data_append(data: seq<byte>, off: nat, bs: seq<byte>)
+    requires off == |data|
+    ensures write_data(data, off, bs) == data + bs
+  {}
+
+  lemma write_data_past_end(data: seq<byte>, off: nat, bs: seq<byte>)
+    requires off <= |data|
+    requires off + |bs| > |data|
+    ensures write_data(data, off, bs) == data[..off] + bs
+  {}
+
   class ByteFilesys
   {
     const fs: IndFilesys
@@ -567,7 +596,7 @@ module ByteFs {
       inode_types_metadata_unchanged();
     }
 
-    method write(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
+    method overwrite(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr, bs
       requires fs.has_jrnl(txn)
@@ -697,7 +726,7 @@ module ByteFs {
       modifies Repr, bs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
-      requires bs.Valid() && 0 < bs.Len() <= 4096
+      requires 0 < |bs.data| <= 4096
       requires |data()[ino]| + |bs.data| <= Inode.MAX_SZ
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures types_unchanged()
@@ -742,6 +771,56 @@ module ByteFs {
           { C.split_rejoin(old(bs.data), written); }
           old(data()[ino]) + old(bs.data);
         }
+      }
+    }
+
+    method write(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
+      returns (ok: bool, i': Inode.Inode)
+      modifies Repr, bs
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires 0 < |bs.data| <= 4096
+      requires off as nat <= |data()[ino]|
+      requires off as nat + |bs.data| <= Inode.MAX_SZ
+      ensures ok ==>
+      && data() == old(
+      var d0 := data()[ino];
+      var d := write_data(d0, off as nat, bs.data);
+      data()[ino := d])
+    {
+      ghost var d0 := data()[ino];
+      i' := i;
+      fs.inode_metadata(ino, i');
+      assert |d0| == i'.sz as nat;
+      if off + bs.Len() <= i'.sz {
+        // all in place
+        ok, i' := this.overwrite(txn, ino, i', off, bs);
+        return;
+      }
+      if off == i'.sz {
+        write_data_append(d0, off as nat, bs.data);
+        ok, i' := this.appendIno(txn, ino, i', bs);
+        return;
+      }
+      write_data_past_end(d0, off as nat, bs.data);
+      // need to write some
+      var bs' := bs.Split(i'.sz - off);
+      ghost var bs1 := bs.data;
+      ghost var bs2 := bs'.data;
+      assert bs1 + bs2 == old(bs.data);
+      ok, i' := this.overwrite(txn, ino, i', off, bs);
+      if !ok {
+        return;
+      }
+      assert data()[ino] == d0[..off as nat] + bs1;
+      ok, i' := this.appendIno(txn, ino, i', bs');
+      if !ok {
+        return;
+      }
+      calc {
+        data()[ino];
+        d0[..off as nat] + bs1 + bs2;
+        d0[..off as nat] + (bs1 + bs2);
       }
     }
 
