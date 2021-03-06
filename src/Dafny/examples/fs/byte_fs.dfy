@@ -531,55 +531,39 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    // private
     method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
       returns (ok: bool, i': Inode.Inode)
       modifies Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
-      requires off as nat + |bs.data| <= off as nat + (4096 - off as nat % 4096) <= |data()[ino]|
+      requires 0 < |bs.data| <= 4096
+      requires off as nat + |bs.data| <= |data()[ino]|
+      requires off as nat % 4096 + |bs.data| <= 4096
       ensures types_unchanged()
-      ensures ok ==>
-        data() == old(
-        var d := data()[ino];
-        var d' := C.splice(d, off as nat, bs.data);
-        data()[ino := d'])
+      ensures ok ==> data() == old(
+      var d0 := data()[ino];
+      var d := C.splice(d0, off as nat, bs.data);
+      data()[ino := d])
     {
       i' := i;
-      if off % 4096 == 0 && bs.Len() == 4096 {
+      if bs.Len() == 4096 {
         ok, i' := this.alignedWrite(txn, ino, i', bs, off);
         inode_types_metadata_unchanged();
         return;
       }
-      ghost var data0 := data()[ino];
-
-      var off_u64 := off;
-      var aligned_off: uint64 := off_u64 / 4096 * 4096;
-      ghost var off: nat := off_u64 as nat;
-      ghost var off': nat := off / 4096 * 4096;
-
-      //Round.roundup_distance(off as nat, 4096);
+      ghost var d0 := data()[ino];
+      assert |data()[ino]| <= Inode.MAX_SZ;
+      var aligned_off: uint64 := off / 4096 * 4096;
+      assert aligned_off as nat + off as nat % 4096 == off as nat;
+      assert aligned_off as nat + 4096 <= Inode.MAX_SZ;
       var blk := this.alignedRead(txn, ino, i', aligned_off);
-
-      assert blk.data == data0[off'..off'+4096];
-
-      blk.CopyTo(off_u64 % 4096, bs);
-      ok, i' := this.alignedWrite(txn, ino, i', blk, aligned_off);
+      blk.CopyTo(off % 4096, bs);
+      ok, i' := this.alignedRawWrite(txn, ino, i', blk, aligned_off);
       if !ok {
-        inode_types_metadata_unchanged();
         return;
       }
-      ghost var data1 := data()[ino];
-      assert fs.ValidIno(ino, i');
-      assert |data1| == |data0|;
-      //assert off' == aligned_off as nat;
-      //assert off == off_u64 as nat;
-      //assert off == off' + off % 4096;
-
-      assert data1 == C.splice(data0, off, bs.data) by {
-        //assert (off_u64 % 4096) as nat == off % 4096;
-        data_update_in_place(data0, data1, off, bs.data, blk.data);
-      }
+      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data);
+      assert data()[ino] == C.splice(d0, off as nat, bs.data);
       inode_types_metadata_unchanged();
     }
 
