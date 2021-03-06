@@ -415,7 +415,7 @@ module DirFs
       assert fs.data[d_ino] == dents.val.enc();
     }
 
-    method {:timeLimitMultiplier 2} writeDirents(txn: Txn, d_ino: Ino, dents: MemDirents)
+    method writeDirents(txn: Txn, d_ino: Ino, dents: MemDirents)
       returns (ok:bool)
       modifies Repr
       requires fs.has_jrnl(txn)
@@ -453,7 +453,7 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method {:timeLimitMultiplier 2} allocFile(txn: Txn)
+    method allocFile(txn: Txn)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
@@ -514,7 +514,7 @@ module DirFs
     //
     // creates a directory disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method {:timeLimitMultiplier 2} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+    method allocDir(txn: Txn) returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
@@ -684,8 +684,7 @@ module DirFs
       return Ok(attrs);
     }
 
-    // TODO: finish this proof
-    method {:timeLimitMultiplier 2} SETATTRsize(txn: Txn, ino: Ino, sz: uint64)
+    method SETATTRsize(txn: Txn, ino: Ino, sz: uint64)
       returns (r:Result<()>, ghost junk: seq<byte>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -727,12 +726,8 @@ module DirFs
       data := data[ino := ByteFile(d')];
 
       assert Valid() by {
-        // TODO: we can prove all of the preconditions for this lemma here, but
-        // it still doesn't go through
-        assume false;
         file_change_valid(ino, d');
       }
-      assume false;
 
       r := Ok(());
       return;
@@ -793,7 +788,7 @@ module DirFs
     }
 
     // TODO: add support for writes to arbitrary offsets
-    method {:timeLimitMultiplier 2} Append(txn: Txn, ino: Ino, bs: Bytes)
+    method Append(txn: Txn, ino: Ino, bs: Bytes)
       returns (r: Result<()>)
       modifies Repr, bs
       requires Valid()
@@ -983,7 +978,7 @@ module DirFs
 
     // this is a low-level function that deletes an inode (currently restricted
     // to files) from the tree
-    method {:timeLimitMultiplier 2} removeInode(txn: Txn, ino: Ino)
+    method removeInode(txn: Txn, ino: Ino)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures Valid()
