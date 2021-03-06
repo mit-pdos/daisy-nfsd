@@ -215,6 +215,7 @@ module TypedFs {
         ok := false;
         return;
       }
+      ok := true;
       i := fs.setType(ino, i, ty);
       types := fs.inode_types();
       reveal ValidInvalid();
