@@ -591,8 +591,14 @@ module ByteFs {
       if !ok {
         return;
       }
+      fs.inode_metadata(ino, i');
       assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data);
-      assert data()[ino] == C.splice(d0, off as nat, bs.data);
+      calc {
+        data()[ino];
+        raw_data(ino)[..i'.sz];
+        { C.splice_prefix_comm(old(raw_data(ino)), off as nat, bs.data, i'.sz as nat); }
+        C.splice(d0, off as nat, bs.data);
+      }
       inode_types_metadata_unchanged();
     }
 
