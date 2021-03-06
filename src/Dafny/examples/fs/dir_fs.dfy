@@ -83,7 +83,7 @@ module DirFs
     }
 
     lemma mk_dir_type(ino: Ino)
-      requires fs.fs.Valid()
+      requires fs.Valid()
       requires is_dir(ino)
       requires fs.types[ino] == Inode.DirType
       ensures is_of_type(ino, fs.types[ino])
@@ -92,7 +92,7 @@ module DirFs
     }
 
     lemma mk_file_type(ino: Ino)
-      requires fs.fs.Valid()
+      requires fs.Valid()
       requires is_file(ino)
       requires fs.types[ino] == Inode.FileType
       ensures is_of_type(ino, fs.types[ino])
@@ -101,7 +101,7 @@ module DirFs
     }
 
     lemma mk_invalid_type(ino: Ino)
-      requires fs.fs.Valid()
+      requires fs.Valid()
       requires is_invalid(ino)
       requires fs.types[ino] == Inode.InvalidType
       ensures is_of_type(ino, fs.types[ino])
@@ -110,7 +110,7 @@ module DirFs
     }
 
     predicate ValidTypes()
-      reads this, fs.fs
+      reads this, fs
       requires fs.ValidDomains()
     {
       forall ino: Ino :: is_of_type(ino, fs.types[ino])
@@ -189,14 +189,14 @@ module DirFs
     }
 
     predicate ValidData()
-      requires fs.fs.Valid()
-      reads this, fs.Repr
+      requires fs.ValidDomains()
+      reads this, fs
     {
       forall ino: Ino :: Valid_data_at(ino, fs.data)
     }
 
     lemma get_data_at(ino: Ino)
-      requires fs.fs.Valid() && ValidData()
+      requires fs.ValidDomains() && ValidData()
       ensures Valid_dirent_at(ino, fs.data)
       ensures Valid_file_at(ino, fs.data)
       ensures Valid_dir_at(ino)
@@ -207,7 +207,7 @@ module DirFs
     }
 
     lemma mk_data_at(ino: Ino)
-      requires fs.fs.Valid()
+      requires fs.ValidDomains()
       requires Valid_dirent_at(ino, fs.data)
       requires Valid_file_at(ino, fs.data)
       requires Valid_dir_at(ino)
@@ -218,8 +218,8 @@ module DirFs
     }
 
     twostate lemma ValidData_change_one(ino: Ino)
-      requires old(fs.fs.Valid()) && old(ValidData()) && old(ValidTypes())
-      requires fs.fs.Valid()
+      requires old(fs.ValidDomains()) && old(ValidData()) && old(ValidTypes())
+      requires fs.ValidDomains()
       requires Valid_data_at(ino, fs.data)
       requires is_of_type(ino, fs.types[ino])
       requires (forall ino': Ino | ino' != ino ::
@@ -249,8 +249,8 @@ module DirFs
     }
 
     predicate ValidDirFs()
-      requires fs.fs.Valid()
-      reads Repr
+      requires fs.ValidDomains()
+      reads this, fs
     {
       && ValidTypes()
       && ValidRoot()
