@@ -379,6 +379,26 @@ module MemDirEntries
       return 128;
     }
 
+    method isEmpty() returns (p:bool)
+      requires Valid()
+      ensures p == (dir() == map[])
+    {
+      var i: uint64 := 0;
+      while i < 128
+        invariant 0 <= i as nat <= 128
+        invariant forall k:nat | k < i as nat :: !val.s[k].used()
+      {
+        var p := is_used(i);
+        if p {
+          seq_to_dir_present(val.s, i as nat);
+          return false;
+        }
+        i := i + 1;
+      }
+      none_used_is_empty(val.s);
+      return true;
+    }
+
     method findName(name: Bytes) returns (r: Option<(uint64, Ino)>)
       requires Valid()
       requires is_pathc(name.data)

@@ -1099,17 +1099,13 @@ module DirFs
         var d' := map_delete(d0, old(name.data));
         map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
     {
-      ghost var path := name.data;
       var old_ino_r := this.unlink(txn, d_ino, name);
       if old_ino_r.Err? {
         return old_ino_r.Coerce();
       }
-      var ino := old_ino_r.v;
-      ghost var d0: Directory := old(data[d_ino].dir);
 
-      ghost var data1 := data;
+      var ino := old_ino_r.v;
       var remove_r := removeInode(txn, ino);
-      assert name.data == path;
 
       if remove_r.ErrBadHandle? {
         return Ok(());
@@ -1123,8 +1119,85 @@ module DirFs
       return Ok(());
     }
 
-    // TODO: implement RMDIR, a variation of REMOVE that needs to also check the
-    // inode being removed and confirm that it's empty
+    // TODO: would be nice to combine this with removeInode; best way might be
+    // to require caller to do the startInode/type checking and only implement
+    // the removal part
+    method removeInodeDir(txn: Txn, ino: Ino)
+      modifies Repr
+      requires Valid() ensures Valid()
+      requires ino != rootIno
+      requires is_dir(ino)
+      requires fs.has_jrnl(txn)
+      ensures data == old(map_delete(data, ino))
+      ensures dirents == old(map_delete(dirents, ino))
+    {
+      var ok, i := fs.startInode(txn, ino);
+      if !ok {
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        assert false;
+      }
+      fs.freeInode(txn, ino, i);
+      data := map_delete(data, ino);
+      dirents := map_delete(dirents, ino);
+
+      mk_invalid_type(ino);
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
+    }
+
+    method RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
+      returns (r: Result<()>)
+      modifies Repr
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.has_jrnl(txn)
+      requires is_pathc(name.data)
+      ensures r.ErrBadHandle? ==> d_ino !in old(data)
+      ensures r.ErrNoent? ==>
+      && old(is_dir(d_ino))
+      && name.data !in old(data[d_ino].dir)
+      ensures r.ErrNotDir? ==>
+      (&& old(is_file(d_ino)))
+      || (&& old(d_ino in data && data[d_ino].DirFile?)
+         && old(name.data) in old(data[d_ino].dir)
+         && (var ino := old(data[d_ino].dir[name.data]);
+           && ino in old(data)
+           && old(data[ino].ByteFile?)))
+      ensures r.Ok? ==>
+      && old(is_dir(d_ino))
+      && name.data in old(data[d_ino].dir)
+      && data ==
+        (var d0 := old(data[d_ino].dir);
+        var d' := map_delete(d0, old(name.data));
+        map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
+    {
+      var old_ino_r := this.unlink(txn, d_ino, name);
+      if old_ino_r.Err? {
+        return old_ino_r.Coerce();
+      }
+
+      var ino := old_ino_r.v;
+      if ino == rootIno {
+        return Err(Inval);
+      }
+      var dents_r := readDirents(txn, ino);
+      if dents_r.ErrBadHandle? {
+        Std.map_delete_id(data, ino);
+        return Ok(());
+      }
+      if dents_r.ErrNotDir? {
+        return Err(NotDir);
+      }
+      var is_empty := dents_r.v.isEmpty();
+      if !is_empty {
+        get_data_at(ino);
+        assert data[ino].dir != map[];
+        return Err(NotEmpty);
+      }
+      removeInodeDir(txn, ino);
+
+      return Ok(());
+    }
 
     method READDIR(txn: Txn, d_ino: Ino)
       returns (r: Result<seq<MemDirEnt>>)

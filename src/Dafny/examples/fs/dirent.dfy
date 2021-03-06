@@ -339,6 +339,11 @@ module DirEntries
     C.seq_filter_size(DirEnt.is_used, s);
   }
 
+  lemma none_used_is_empty(s: seq<DirEnt>)
+    requires forall i:nat | i < |s| :: !s[i].used()
+    ensures seq_to_dir(s) == map[]
+  {}
+
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
     static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, 128))
