@@ -164,14 +164,13 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
 
-	// XXX write at offset args.Offset
-
-	bs := bytes.Data(args.Data)
+	bs := bytes.Data(args.Data[:args.Count])
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.WRITE(txn, inum, off, bs)
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Write error %d", status)
 		return reply
 	}
 
