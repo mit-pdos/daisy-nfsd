@@ -162,7 +162,12 @@ module IndirectPos
     ensures |config.ilevels| == 14
     ensures config.total == 10 + 3*512 + 512*512*512
     // these inodes can hold at least 10GB
-    ensures config.total * 3 / 1024 /* MB */ > 10_000
+    ensures config.total * 4 / 1024 /* MB */ > 10_000
+  {}
+
+  lemma config_total_to(k: uint64)
+    requires k as nat < |config.ilevels|
+    ensures config.total_to(k) == config.totals()[k]
   {}
 
   lemma config_totals_after_10(k: nat)
@@ -287,19 +292,20 @@ module IndirectPos
         }
         if n < 2*512 {
           assert from_flat(n0).k == 11;
-          // TODO: restore this proof, probably need more explicit div/mod
-          // reasoning
-          assume false;
+          assert config.total_to(11) == 10+512;
           return;
         }
         assert from_flat(n0).k == 12;
-        assume false;
+        assert config.total_to(12) == 10+2*512;
         return;
       }
       assert from_flat(n0).k == 13;
-      assume false;
+      assert config.total_to(13) == 10+3*512 by {
+        config_totals();
+        config_total_to(13);
+      }
       assert from_flat(n0).flat() == 10+3*512 + (n-3*512);
-    }
+  }
 
     static lemma from_flat_inj(n1: uint64, n2: uint64)
       requires n1 as nat < config.total && n2 as nat < config.total
