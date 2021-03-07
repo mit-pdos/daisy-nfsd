@@ -20,6 +20,8 @@ github.com/mit-pdos/goose-nfsd v0.0.0-20210301233726-ca5fc78421bf h1:U4CVTRvqZ2W
 github.com/mit-pdos/goose-nfsd v0.0.0-20210301233726-ca5fc78421bf/go.mod h1:m49FM9l/6VOeatwj5Sl/DcZyVcUO9eG1ApjfjD2mcz0=
 github.com/mit-pdos/goose-nfsd v0.0.0-20210302204906-28f0c08107b6 h1:hDDwWWKYfU4Thy6bcOZfQn8kQE1Pq1UlarvhTZqs15A=
 github.com/mit-pdos/goose-nfsd v0.0.0-20210302204906-28f0c08107b6/go.mod h1:m49FM9l/6VOeatwj5Sl/DcZyVcUO9eG1ApjfjD2mcz0=
+github.com/mit-pdos/goose-nfsd v0.0.0-20210307181243-1ef49b84c426 h1:8BLuJ36n2pu5hDQoAuz6iHOvoEOv7QKBcj6YQD7Hcy0=
+github.com/mit-pdos/goose-nfsd v0.0.0-20210307181243-1ef49b84c426/go.mod h1:m49FM9l/6VOeatwj5Sl/DcZyVcUO9eG1ApjfjD2mcz0=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -54,6 +56,8 @@ golang.org/x/sys v0.0.0-20200817155316-9781c653f443/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20210105210732-16f7687f5001/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210301091718-77cc2087c03b h1:kHlr0tATeLRMEiZJu5CknOw/E8V6h69sXXQFGoPtjcc=
 golang.org/x/sys v0.0.0-20210301091718-77cc2087c03b/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20210305230114-8fe3ee5dd75b h1:ggRgirZABFolTmi3sn6Ivd9SipZwLedQ5wR0aAKnFxU=
+golang.org/x/sys v0.0.0-20210305230114-8fe3ee5dd75b/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f h1:BLraFXnmrev5lT+xlilqcH8XK9/i0At2xKjWk4p6zsU=
