@@ -558,7 +558,7 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 3} updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires bs !in i.Repr
@@ -581,8 +581,8 @@ module ByteFs {
       ghost var d0 := data()[ino];
       assert |data()[ino]| <= Inode.MAX_SZ;
       var aligned_off: uint64 := off / 4096 * 4096;
-      assert aligned_off as nat + off as nat % 4096 == off as nat;
-      assert aligned_off as nat + 4096 <= Inode.MAX_SZ;
+      //assert aligned_off as nat + off as nat % 4096 == off as nat;
+      //assert aligned_off as nat + 4096 <= Inode.MAX_SZ;
       var blk := this.alignedRead(txn, ino, i, aligned_off);
       blk.CopyTo(off % 4096, bs);
       ok := this.alignedRawWrite(txn, ino, i, blk, aligned_off);
