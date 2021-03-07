@@ -3,7 +3,7 @@ include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
 include "../../jrnl/alloc.i.dfy"
 include "kinds.dfy"
-include "inode.dfy"
+include "mem_inode.dfy"
 
 module Fs {
   import Arith
@@ -11,6 +11,7 @@ module Fs {
   import C = Collections
 
   import Inode
+  import opened MemInodes
   import Round
   import opened Machine
   import opened ByteSlice
@@ -335,12 +336,13 @@ module Fs {
     }
 
     // public
-    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
-      modifies this, jrnl
+    method finishInode(txn: Txn, ino: Ino, i: MemInode)
+      modifies this, jrnl, i.Repr
       requires Valid()
       requires on_inode(ino)
       requires txn.jrnl == this.jrnl
-      requires is_inode(ino, i)
+      requires i.Valid()
+      requires is_inode(ino, i.val())
       ensures ValidQ()
       ensures inodes == old(inodes)
       ensures data_block == old(data_block)
@@ -348,7 +350,7 @@ module Fs {
     {
       cur_inode := None;
       inode_inbounds(jrnl, ino);
-      var buf' := Inode.encode_ino(i);
+      var buf' := i.encode();
       txn.Write(InodeAddr(ino), buf');
       assert jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]));
       assert Valid_jrnl_to_inodes(inodes) by {
@@ -396,31 +398,32 @@ module Fs {
     }
 
     // public
-    method getInode(txn: Txn, ino: Ino) returns (i:Inode.Inode)
+    method getInode(txn: Txn, ino: Ino) returns (i: MemInode)
       modifies {}
       requires ValidQ()
       requires txn.jrnl == jrnl
-      ensures is_inode(ino, i)
+      ensures i.Valid()
+      ensures is_inode(ino, i.val())
     {
       reveal_Valid_jrnl_to_inodes();
       inode_inbounds(jrnl, ino);
       var buf := txn.Read(InodeAddr(ino), 128*8);
-      i := Inode.decode_ino(buf, inodes[ino]);
+      i := new MemInode(buf, inodes[ino]);
     }
 
     // public
-    ghost method writeInode(ino: Ino, i': Inode.Inode)
+    ghost method writeInode(ino: Ino, i': MemInode)
       modifies this
       requires Valid() ensures Valid()
       requires on_inode(ino);
       requires i'.Valid()
-      ensures is_cur_inode(ino, i')
-      ensures inodes == old(inodes)[ino:=i']
+      ensures is_cur_inode(ino, i'.val())
+      ensures inodes == old(inodes)[ino:=i'.val()]
       ensures block_used == old(block_used)
       ensures data_block == old(data_block)
       ensures cur_inode == old(cur_inode)
     {
-      inodes := inodes[ino:=i'];
+      inodes := inodes[ino:=i'.val()];
 
       assert Valid_jrnl_to_all() by {
         reveal_Valid_jrnl_to_block_used();

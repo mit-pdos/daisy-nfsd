@@ -10,6 +10,7 @@ module BlockFs
   import opened IndirectPos
   import opened IndFs
   import Inode
+  import opened MemInodes
   import C = Collections
 
   datatype preInodeData = InodeData(blks: seq<Block>)
@@ -58,7 +59,7 @@ module BlockFs
   }
 
   // public
-  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: Inode.Inode, n: uint64)
+  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: MemInode, n: uint64)
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
@@ -125,10 +126,10 @@ module BlockFs
   }
 
   // public
-  method Do(txn: Txn, ino: Ino, i: Inode.Inode, n: uint64, blk: Bytes)
-    returns (ok: bool, i': Inode.Inode)
-    modifies fs.Repr
-    requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+  method Do(txn: Txn, ino: Ino, i: MemInode, n: uint64, blk: Bytes)
+    returns (ok: bool)
+    modifies fs.Repr, i.Repr
+    requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
     requires is_lba(n)
     requires is_block(blk.data)
@@ -140,7 +141,7 @@ module BlockFs
     ensures blk.data == old(blk.data)
     ensures !ok ==> block_data(fs.data) == old(block_data(fs.data))
   {
-    ok, i' := fs.write(txn, Pos.from_flat(ino, n), i, blk);
+    ok := fs.write(txn, Pos.from_flat(ino, n), i, blk);
     if !ok {
       return;
     }
@@ -178,10 +179,9 @@ module BlockFs
               C.splice(s, start, C.repeat(x, count))[start + count := x]
     {}
 
-    method Do(txn: Txn, ghost ino: Ino, i: Inode.Inode, start: uint64, len: uint64)
-      returns (i': Inode.Inode)
-      modifies fs.Repr
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+    method Do(txn: Txn, ghost ino: Ino, i: MemInode, start: uint64, len: uint64)
+      modifies fs.Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
       //requires start + len <= config.total
       requires start as nat + len as nat <= 10
@@ -194,7 +194,6 @@ module BlockFs
       )
       ensures fs.metadata == old(fs.metadata)
     {
-      i' := i;
       ghost var data0 := old(block_data(fs.data));
       ghost var d0 := data0[ino];
       ghost var blks0 := d0.blks;
@@ -202,9 +201,9 @@ module BlockFs
       assert C.splice(blks0, start as nat, []) == blks0;
       var k: uint64 := 0;
       while k < len
-        modifies fs.Repr
+        modifies fs.Repr, i.Repr
         invariant 0 <= k <= len
-        invariant fs.ValidIno(ino, i')
+        invariant fs.ValidIno(ino, i)
         invariant block_data(fs.data)[ino].blks ==
                   C.splice(blks0, start as nat, C.repeat(block0, k as nat))
         invariant forall ino': Ino | ino' != ino ::
@@ -214,7 +213,7 @@ module BlockFs
         ghost var fsdata_prev := fs.data;
         ghost var d_prev := block_data(fsdata_prev)[ino];
         var n := start + k;
-        i' := fs.zeroOut(txn, n, ino, i');
+        fs.zeroOut(txn, n, ino, i);
 
         ghost var d := block_data(fs.data)[ino];
         assert d.blks == d_prev.blks[n := block0] by {

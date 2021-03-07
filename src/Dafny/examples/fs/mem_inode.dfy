@@ -1,6 +1,6 @@
 include "inode.dfy"
 
-module MemInode {
+module MemInodes {
   import opened Machine
   import opened ByteSlice
 
@@ -27,8 +27,15 @@ module MemInode {
       Inode.Mk(Inode.Meta(sz, ty), blks)
     }
 
+    predicate has(i: Inode.Inode)
+      reads Repr
+    {
+      && Valid()
+      && val() == i
+    }
+
     predicate {:opaque} Valid()
-      reads this, bs
+      reads Repr
     {
       && |blks| == 14
       && sz as nat <= Inode.MAX_SZ

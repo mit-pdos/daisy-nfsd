@@ -12,9 +12,11 @@ module IndFs
   import opened JrnlSpec
   import opened Fs
   import opened Marshal
+  import C = Collections
+
   import IndBlocks
   import opened IndirectPos
-  import C = Collections
+  import opened MemInodes
 
   predicate pos_dom<T>(m: imap<Pos, T>)
   {
@@ -176,11 +178,12 @@ module IndFs
       && ValidData()
     }
 
-    predicate ValidIno(ino: Ino, i: Inode.Inode)
-      reads this.Repr
+    predicate ValidIno(ino: Ino, i: MemInode)
+      reads this.Repr, i.Repr
     {
       && Valid()
-      && fs.is_cur_inode(ino, i)
+      && i.Valid()
+      && fs.is_cur_inode(ino, i.val())
     }
 
     predicate ValidQ()
@@ -211,7 +214,7 @@ module IndFs
     }
 
     // private read
-    method read_(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+    method read_(txn: Txn, pos: Pos, i: MemInode) returns (b: Bytes)
       decreases pos.ilevel
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
@@ -224,7 +227,7 @@ module IndFs
       if pos.ilevel == 0 {
         reveal ValidPos();
         assert idx.off == IndOff.direct;
-        var bn := i.blks[idx.k];
+        var bn := i.get_blk(idx.k);
         if bn == 0 {
           b := NewBytes(4096);
           return;
@@ -255,13 +258,14 @@ module IndFs
       reveal ValidPos();
     }
 
-    twostate lemma {:timeLimitMultiplier 2} ValidInodes_change_one(pos: Pos, i': Inode.Inode, bn:Blkno)
+    twostate lemma {:timeLimitMultiplier 2} ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
       requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
-      requires fs.inodes == old(fs.inodes[pos.ino:=i'])
+      requires i'.Valid()
+      requires fs.inodes == old(fs.inodes)[pos.ino:=i'.val()]
       requires blkno_ok(bn)
-      requires i' == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
+      requires i'.val() == old(var i := fs.inodes[pos.ino]; i.(blks:=i.blks[pos.idx.k := bn]))
       requires old(ValidInodes())
       ensures ValidInodes()
     {
@@ -296,11 +300,11 @@ module IndFs
     }
 
     // private
-    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: Inode.Inode)
-      returns (ok: bool, i': Inode.Inode, bn: Blkno)
-      modifies Repr
+    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: MemInode)
+      returns (ok: bool, bn: Blkno)
+      modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
       ensures state_unchanged()
@@ -311,13 +315,12 @@ module IndFs
       }
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
-        i' := i;
         Valid_unchanged();
         return;
       }
 
-      i' := i.(blks := i.blks[idx.k := bn]);
-      fs.writeInode(pos.ino, i');
+      i.set_blk(idx.k, bn);
+      fs.writeInode(pos.ino, i);
 
       to_blkno := to_blkno[pos:=bn];
       var zeroblk := NewBytes(4096);
@@ -327,7 +330,7 @@ module IndFs
         ValidPos_alloc_one(bn, pos);
       }
       assert ValidInodes() by {
-        ValidInodes_change_one(pos, i', bn);
+        ValidInodes_change_one(pos, i, bn);
       }
       assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidIndirect() && ValidData() by {
@@ -410,20 +413,19 @@ module IndFs
     }
 
     // private
-    method resolveMetadata(txn: Txn, pos: Pos, i: Inode.Inode) returns (ok: bool, i': Inode.Inode, bn: Blkno)
+    method resolveMetadata(txn: Txn, pos: Pos, i: MemInode) returns (ok: bool, bn: Blkno)
       decreases pos.ilevel
-      modifies Repr
+      modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i')
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       ensures ok ==> bn != 0 && bn == to_blkno[pos]
       ensures state_unchanged()
     {
       reveal ValidInodes();
-      i' := i;
       var idx := pos.idx;
       if pos.ilevel == 0 {
         assert idx.off == IndOff.direct;
-        bn := i.blks[idx.k];
+        bn := i.get_blk(idx.k);
         if bn != 0 {
           // we haven't actually written anything, just resolved existing metadata
           ok := true;
@@ -431,14 +433,14 @@ module IndFs
         }
         assert bn == 0;
         // need to allocate a top-level indirect block
-        ok, i', bn := allocateRootMetadata(txn, pos, i');
+        ok, bn := allocateRootMetadata(txn, pos, i);
         return;
       }
       // recurse
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
       var ibn;
-      ok, i', ibn := this.resolveMetadata(txn, parent, i');
+      ok, ibn := this.resolveMetadata(txn, parent, i);
       if !ok { return; }
       // now we have somewhere to store the reference to this block, but might
       // need to allocate into the parent
@@ -447,14 +449,14 @@ module IndFs
       assert bn == to_blkno[pos] by {
         reveal ValidIndirect();
       }
-      assert ValidIno(pos.ino, i');
+      assert ValidIno(pos.ino, i);
       assert state_unchanged();
       if bn != 0 {
         return;
       }
 
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
-      assert ValidIno(pos.ino, i');
+      assert ValidIno(pos.ino, i);
       if !ok {
         return;
       }
@@ -463,7 +465,7 @@ module IndFs
     // public
     //
     // data version of more general read_ spec
-    method read(txn: Txn, pos: Pos, i: Inode.Inode) returns (b: Bytes)
+    method read(txn: Txn, pos: Pos, i: MemInode) returns (b: Bytes)
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i)
       requires pos.data?
@@ -475,9 +477,9 @@ module IndFs
     }
 
     // caller can extract size themselves
-    lemma inode_metadata(ino: Ino, i: Inode.Inode)
+    lemma inode_metadata(ino: Ino, i: MemInode)
       requires ValidIno(ino, i)
-      ensures i.meta == metadata[ino]
+      ensures i.val().meta == metadata[ino]
     {
       reveal ValidMetadata();
     }
@@ -489,22 +491,21 @@ module IndFs
       reveal ValidMetadata();
     }
 
-    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: Inode.Inode, blk: Bytes)
-      returns (ok: bool, i':Inode.Inode)
-      modifies Repr
+    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
+      returns (ok: bool)
+      modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ValidIno(pos.ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires pos.data?
       requires is_block(blk.data)
-      ensures ValidIno(pos.ino, i')
       ensures ok ==> data == old(data[pos := blk.data])
       ensures !ok ==> data == old(data)
       ensures metadata == old(metadata)
     {
-      i' := i;
+      var i': MemInode := i;
       var idx := pos.idx;
       var bn;
-      ok, i', bn := this.resolveMetadata(txn, pos, i');
+      ok, bn := this.resolveMetadata(txn, pos, i');
       if !ok {
          return;
       }
@@ -531,11 +532,10 @@ module IndFs
       }
     }
 
-    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: Inode.Inode)
-      returns (i': Inode.Inode)
-      modifies Repr
+    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ValidIno(ino, i) ensures ValidIno(ino, i')
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
       // serious limitation for now to only zero the direct blocks (indirect
       // blocks are also not too bad, but eventually we'll run the risk of
       // overflowing a transaction and it'll be necessary to split, which is
@@ -544,11 +544,11 @@ module IndFs
       ensures data == old(data[Pos.from_flat(ino, off) := block0])
       ensures metadata == old(metadata)
     {
-      i' := i;
+      var i': MemInode := i;
       ghost var pos := Pos.from_flat(ino, off);
       assert pos.idx.off == IndOff.direct;
       assert pos.data?;
-      var bn: Blkno := i'.blks[off];
+      var bn: Blkno := i'.get_blk(off);
       if bn == 0 {
         // already done, need to reveal some stuff to prove that
         reveal ValidInodes();
@@ -562,7 +562,7 @@ module IndFs
         reveal ValidPos();
       }
       fs.free(txn, bn);
-      i' := i'.(blks := i'.blks[off := 0 as Blkno]);
+      i'.set_blk(off, 0);
       fs.writeInode(ino, i');
       data := old(data[pos := block0]);
       to_blkno := to_blkno[pos := 0 as Blkno];
@@ -581,32 +581,32 @@ module IndFs
 
     // public
     method startInode(txn: Txn, ino: Ino)
-      returns (i: Inode.Inode)
+      returns (i: MemInode)
       modifies fs
       requires has_jrnl(txn)
       requires ValidQ()
       ensures ValidIno(ino, i)
-      ensures fs.cur_inode == Some((ino, i))
+      ensures fs.cur_inode == Some((ino, i.val()))
       ensures state_unchanged()
     {
       i := fs.getInode(txn, ino);
-      fs.startInode(ino, i);
+      fs.startInode(ino, i.val());
       Valid_unchanged();
     }
 
     // public
-    method writeInodeMeta(ghost ino: Ino, i: Inode.Inode, meta: Inode.Meta)
-      returns (i': Inode.Inode)
-      modifies Repr
+    method writeInodeMeta(ghost ino: Ino, i: MemInode, meta: Inode.Meta)
+      modifies Repr, i
       requires ValidIno(ino, i)
       requires meta.sz <= Inode.MAX_SZ_u64
-      ensures ValidIno(ino, i')
+      ensures ValidIno(ino, i)
       ensures data == old(data)
       ensures metadata == old(metadata[ino := meta])
     {
       reveal fsValid();
-      i' := i.(meta := meta);
-      fs.writeInode(ino, i');
+      i.set_ty(meta.ty);
+      i.set_sz(meta.sz);
+      fs.writeInode(ino, i);
       metadata := metadata[ino := meta];
       assert ValidBasics();
       assert ValidMetadata() by { reveal ValidMetadata(); }
@@ -617,8 +617,8 @@ module IndFs
     }
 
     // public
-    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
-      modifies Repr
+    method finishInode(txn: Txn, ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
       requires ValidIno(ino, i)
       requires has_jrnl(txn)
       ensures ValidQ()
@@ -629,14 +629,14 @@ module IndFs
     }
 
     // public
-    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+    ghost method finishInodeReadonly(ino: Ino, i: MemInode)
       modifies fs
       requires ValidIno(ino, i)
-      requires fs.cur_inode == Some((ino, i))
+      requires fs.cur_inode == Some((ino, i.val()))
       ensures ValidQ()
       ensures state_unchanged()
     {
-      fs.finishInodeReadonly(ino, i);
+      fs.finishInodeReadonly(ino, i.val());
       Valid_unchanged();
     }
 
