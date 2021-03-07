@@ -404,6 +404,7 @@ module Fs {
       requires txn.jrnl == jrnl
       ensures i.Valid()
       ensures is_inode(ino, i.val())
+      ensures fresh(i.Repr)
     {
       reveal_Valid_jrnl_to_inodes();
       inode_inbounds(jrnl, ino);

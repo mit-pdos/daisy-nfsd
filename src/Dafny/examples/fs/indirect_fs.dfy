@@ -479,9 +479,11 @@ module IndFs
     // caller can extract size themselves
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires ValidIno(ino, i)
-      ensures i.val().meta == metadata[ino]
+      ensures i.sz == metadata[ino].sz
+      ensures i.ty == metadata[ino].ty
     {
       reveal ValidMetadata();
+      assert i.val().meta == metadata[ino];
     }
 
     lemma metadata_bound(ino: Ino)
@@ -588,6 +590,7 @@ module IndFs
       ensures ValidIno(ino, i)
       ensures fs.cur_inode == Some((ino, i.val()))
       ensures state_unchanged()
+      ensures fresh(i.Repr)
     {
       i := fs.getInode(txn, ino);
       fs.startInode(ino, i.val());

@@ -4,9 +4,7 @@ include "../../util/min_max.dfy"
 module ByteFs {
   import opened Std
   import Fs
-  import opened BlockFs
   import IndirectPos
-  import opened IndFs
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
@@ -14,6 +12,10 @@ module ByteFs {
   import opened ByteSlice
   import opened MinMax
   import Round
+
+  import opened BlockFs
+  import opened IndFs
+  import opened MemInodes
   import Inode
 
   function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
@@ -162,7 +164,7 @@ module ByteFs {
       reveal raw_inode_data();
     }
 
-    method alignedRead(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64)
+    method alignedRead(txn: Txn, ino: Ino, i: MemInode, off: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -178,7 +180,7 @@ module ByteFs {
       raw_inode_index_one(d, off);
     }
 
-    method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+    method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -226,11 +228,11 @@ module ByteFs {
       }
     }
 
-    method readWithInode(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
+    method readWithInode(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) && fs.fs.cur_inode == Some( (ino, i) )
+      requires fs.ValidIno(ino, i) && fs.fs.cur_inode == Some( (ino, i.val()) )
       ensures Valid()
       requires len <= 4096
       ensures ok ==>
@@ -317,11 +319,11 @@ module ByteFs {
     }
 
     // private
-    method alignedRawWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr
+    method alignedRawWrite(txn: Txn, ino: Ino, i: MemInode, bs: Bytes, off: uint64)
+      returns (ok: bool)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= Inode.MAX_SZ
@@ -335,10 +337,9 @@ module ByteFs {
       ensures !ok ==> raw_data(ino) == old(raw_data(ino))
       ensures !ok ==> data() == old(data())
     {
-      i' := i;
       var blkoff: uint64 := off / 4096;
       var wh := new BlockFs.WriteHelper(fs);
-      ok, i' := wh.Do(txn, ino, i, blkoff, bs);
+      ok := wh.Do(txn, ino, i, blkoff, bs);
       assert types_unchanged() by {
         reveal inode_types();
       }
@@ -363,11 +364,11 @@ module ByteFs {
     }
 
     // private
-    method alignedWrite(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes, off: uint64)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr
+    method alignedWrite(txn: Txn, ino: Ino, i: MemInode, bs: Bytes, off: uint64)
+      returns (ok: bool)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data()[ino]|
@@ -380,8 +381,7 @@ module ByteFs {
       data()[ino := d])
       ensures !ok ==> data() == old(data())
     {
-      i' := i;
-      ok, i' := alignedRawWrite(txn, ino, i, bs, off);
+      ok := alignedRawWrite(txn, ino, i, bs, off);
       inode_types_metadata_unchanged();
       if !ok {
         return;
@@ -405,10 +405,10 @@ module ByteFs {
     // private
     //
     // grow an inode with junk so that it can be filled with in-bounds writes
-    method growBy(ghost ino: Ino, i: Inode.Inode, delta: uint64)
-      returns (i': Inode.Inode, ghost junk: seq<byte>)
-      modifies Repr
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+    method growBy(ghost ino: Ino, i: MemInode, delta: uint64)
+      returns (ghost junk: seq<byte>)
+      modifies Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires i.sz as nat + delta as nat <= Inode.MAX_SZ
       ensures |junk| == delta as nat
       ensures data() == old(data()[ino := data()[ino] + junk])
@@ -417,8 +417,8 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
       var sz' := i.sz + delta;
-      i' := fs.writeInodeMeta(ino, i, i.meta.(sz := sz'));
-      fs.inode_metadata(ino, i');
+      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.inode_metadata(ino, i);
       assert raw_data(ino) == old(raw_data(ino));
       junk := raw_data(ino)[sz..sz'];
       assert data()[ino] == old(data()[ino] + junk) by {
@@ -429,11 +429,11 @@ module ByteFs {
       }
     }
 
-    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: Inode.Inode, off: uint64, len: uint64)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr
+    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64, len: uint64)
+      returns (ok: bool)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires off % 4096 == 0 && len % 4096 == 0 && off as nat + len as nat <= Inode.MAX_SZ
       ensures (var ino0 := ino;
         forall ino:Ino | ino != ino0 ::
@@ -443,13 +443,12 @@ module ByteFs {
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
-      i' := i;
       if off + len <= 10 * 4096 {
         ok := true;
         var startblk: uint64 := off / 4096;
         var count: uint64 := len / 4096;
         var h := new BlockFs.ZeroHelper(fs);
-        i' := h.Do(txn, ino, i, startblk, count);
+        h.Do(txn, ino, i, startblk, count);
         inode_types_metadata_unchanged();
         assert raw_data(ino) ==
           old(C.splice(raw_data(ino), off as nat,
@@ -465,11 +464,10 @@ module ByteFs {
       return;
     }
 
-    method shrinkTo(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
-      returns (i': Inode.Inode)
-      modifies Repr
+    method shrinkTo(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires sz' <= i.sz
       ensures sz' as nat <= old(|data()[ino]|)
       ensures data() == old(data()[ino := data()[ino][..sz' as nat]])
@@ -480,11 +478,11 @@ module ByteFs {
       var unusedEnd := Round.roundup64(i.sz, 4096);
       Round.roundup_incr(sz' as nat, i.sz as nat, 4096);
       var ok;
-      ok, i' := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
+      ok := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
 
-      fs.inode_metadata(ino, i');
-      i' := fs.writeInodeMeta(ino, i', i'.meta.(sz:=sz'));
-      fs.inode_metadata(ino, i');
+      fs.inode_metadata(ino, i);
+      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.inode_metadata(ino, i);
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
         reveal raw_inode_data();
       }
@@ -493,15 +491,14 @@ module ByteFs {
       }
     }
 
-    method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: Inode.Inode)
-      returns (i': Inode.Inode)
-      modifies Repr
+    method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       ensures data() == old(data()[ino := []])
       ensures types_unchanged()
     {
-      i' := this.shrinkTo(txn, ino, i, 0);
+      this.shrinkTo(txn, ino, i, 0);
     }
 
     static function setSize_with_junk(data: seq<byte>, sz: nat, junk: seq<byte>): seq<byte>
@@ -509,11 +506,11 @@ module ByteFs {
       if sz <= |data| then data[..sz] else data + junk
     }
 
-    method setSize(txn: Txn, ghost ino: Ino, i: Inode.Inode, sz': uint64)
-      returns (i': Inode.Inode, ghost junk: seq<byte>)
-      modifies Repr
+    method setSize(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
+      returns (ghost junk: seq<byte>)
+      modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
       (var d0 := old(data()[ino]);
@@ -527,9 +524,9 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       assert i.sz as nat == |data()[ino]|;
       if sz' <= i.sz {
-        i' := this.shrinkTo(txn, ino, i, sz');
+         this.shrinkTo(txn, ino, i, sz');
       } else {
-        i', junk := this.growBy(ino, i, sz' - i.sz);
+        junk := this.growBy(ino, i, sz' - i.sz);
       }
     }
 
@@ -560,11 +557,12 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr
+    method {:timeLimitMultiplier 2} updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, i.Repr
+      requires bs !in i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires 0 < |bs.data| <= 4096
       requires off as nat + |bs.data| <= |data()[ino]|
       requires off as nat % 4096 + |bs.data| <= 4096
@@ -574,9 +572,8 @@ module ByteFs {
       var d := C.splice(d0, off as nat, bs.data);
       data()[ino := d])
     {
-      i' := i;
       if bs.Len() == 4096 {
-        ok, i' := this.alignedWrite(txn, ino, i', bs, off);
+        ok := this.alignedWrite(txn, ino, i, bs, off);
         inode_types_metadata_unchanged();
         return;
       }
@@ -585,28 +582,29 @@ module ByteFs {
       var aligned_off: uint64 := off / 4096 * 4096;
       assert aligned_off as nat + off as nat % 4096 == off as nat;
       assert aligned_off as nat + 4096 <= Inode.MAX_SZ;
-      var blk := this.alignedRead(txn, ino, i', aligned_off);
+      var blk := this.alignedRead(txn, ino, i, aligned_off);
       blk.CopyTo(off % 4096, bs);
-      ok, i' := this.alignedRawWrite(txn, ino, i', blk, aligned_off);
+      ok := this.alignedRawWrite(txn, ino, i, blk, aligned_off);
       if !ok {
         return;
       }
-      fs.inode_metadata(ino, i');
+      fs.inode_metadata(ino, i);
       assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data);
       calc {
         data()[ino];
-        raw_data(ino)[..i'.sz];
-        { C.splice_prefix_comm(old(raw_data(ino)), off as nat, bs.data, i'.sz as nat); }
+        raw_data(ino)[..i.sz];
+        { C.splice_prefix_comm(old(raw_data(ino)), off as nat, bs.data, i.sz as nat); }
         C.splice(d0, off as nat, bs.data);
       }
       inode_types_metadata_unchanged();
     }
 
-    method overwrite(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr, bs
+    method overwrite(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires bs !in i.Repr
       requires |bs.data| <= 4096
       requires off as nat + |bs.data| <= |data()[ino]|
       ensures types_unchanged()
@@ -616,25 +614,24 @@ module ByteFs {
       data()[ino := d])
     {
       ghost var d0 := data()[ino];
-      i' := i;
       if bs.Len() == 0 {
         assert bs.data == [];
         assert C.splice(d0, off as nat, bs.data) == d0;
         return;
       }
       if off % 4096 + bs.Len() <= 4096 {
-        ok, i' := updateInPlace(txn, ino, i', off, bs);
+        ok := updateInPlace(txn, ino, i, off, bs);
         return;
       }
       var len1 := 4096 - off % 4096;
       var bs' := bs.Split(len1);
       assert bs.data + bs'.data == old(bs.data);
-      ok, i' := updateInPlace(txn, ino, i', off, bs);
+      ok := updateInPlace(txn, ino, i, off, bs);
       if !ok {
         return;
       }
       var off' := off + len1;
-      ok, i' := updateInPlace(txn, ino, i', off', bs');
+      ok := updateInPlace(txn, ino, i, off', bs');
       if !ok {
         return;
       }
@@ -647,11 +644,12 @@ module ByteFs {
     }
 
     // private
-    method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode, ghost written: nat, bs': Bytes)
-      modifies Repr, bs
+    method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
+      returns (ok: bool, ghost written: nat, bs': Bytes)
+      modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires bs !in i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires bs.Valid()
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
@@ -663,25 +661,28 @@ module ByteFs {
       ensures !ok ==> data == old(data)
       ensures types_unchanged()
     {
-      i' := i;
-      fs.inode_metadata(ino, i');
+      fs.inode_metadata(ino, i);
+      var sz0 := i.sz;
 
-      var remaining_space := 4096 - i.sz % 4096;
+      var remaining_space := 4096 - sz0 % 4096;
       ghost var data0 := data()[ino];
       ghost var junk;
-      i', junk := this.growBy(ino, i', remaining_space);
+      junk := this.growBy(ino, i, remaining_space);
       ghost var data1 := data()[ino];
       assert data1 == data0 + junk;
+      assert bs.data == old(bs.data);
 
       var to_write: uint64 := min_u64(remaining_space, bs.Len());
-      var desired_size: uint64 := i.sz + to_write;
-      assert desired_size as nat <= i.sz as nat + remaining_space as nat;
+      var desired_size: uint64 := sz0 + to_write;
+      assert desired_size as nat <= sz0 as nat + remaining_space as nat;
       written := to_write as nat;
 
       bs' := bs.Split(to_write);
       assert bs.data == old(bs.data[..written]);
-      Round.roundup_distance(i.sz as nat, 4096);
-      ok, i' := this.updateInPlace(txn, ino, i', i.sz, bs);
+      assert bs' !in i.Repr;
+      fs.inode_metadata(ino, i);
+      Round.roundup_distance(sz0 as nat, 4096);
+      ok := this.updateInPlace(txn, ino, i, sz0, bs);
       if !ok {
         return;
       }
@@ -689,11 +690,11 @@ module ByteFs {
         assert written == old(|bs.data|);
         assert old(bs.data[..written]) == old(bs.data);
       }
-      fs.inode_metadata(ino, i');
+      fs.inode_metadata(ino, i);
       ghost var data2 := data()[ino];
-      assert desired_size as nat == i.sz as nat + to_write as nat;
+      assert desired_size as nat == sz0 as nat + to_write as nat;
 
-      i' := shrinkTo(txn, ino, i', desired_size);
+      shrinkTo(txn, ino, i, desired_size);
       ghost var data3 := data()[ino];
 
       assert |data3| == |data0| + written;
@@ -707,11 +708,12 @@ module ByteFs {
       assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
     }
 
-    method alignedAppend(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr, bs
+    method alignedAppend(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires bs !in i.Repr
       requires bs.Valid()
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
@@ -722,28 +724,28 @@ module ByteFs {
     {
       ghost var written;
       var bs';
-      ok, i', written, bs' := appendAtEnd(txn, ino, i, bs);
+      ok, written, bs' := appendAtEnd(txn, ino, i, bs);
       assert written == old(|bs.data|);
       assert old(bs.data[..written]) == old(bs.data);
     }
 
-    method {:timeLimitMultiplier 2} appendIno(txn: Txn, ino: Ino, i: Inode.Inode, bs: Bytes)
-      returns (ok:bool, i': Inode.Inode)
-      modifies Repr, bs
+    method {:timeLimitMultiplier 2} appendIno(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
+      returns (ok:bool)
+      modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires bs !in i.Repr
       requires 0 < |bs.data| <= 4096
       requires |data()[ino]| + |bs.data| <= Inode.MAX_SZ
       ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
       ensures types_unchanged()
     {
-      i' := i;
-      fs.inode_metadata(ino, i');
+      fs.inode_metadata(ino, i);
       ghost var sz0 := i.sz as nat;
 
       ghost var written;
       var bs';
-      ok, i', written, bs' := this.appendAtEnd(txn, ino, i', bs);
+      ok, written, bs' := this.appendAtEnd(txn, ino, i, bs);
       assert types_unchanged();
       if !ok {
         // TODO: we should really just abort here
@@ -753,15 +755,15 @@ module ByteFs {
         assert old(bs.data[..written]) == old(bs.data);
         return;
       }
-      fs.inode_metadata(ino, i');
-      assert i'.sz as nat + |bs'.data| == sz0 + old(|bs.data|) by {
+      fs.inode_metadata(ino, i);
+      assert i.sz as nat + |bs'.data| == sz0 + old(|bs.data|) by {
         assert old(|bs.data[..written]|) == written;
         assert |bs'.data| == old(|bs.data|) - written;
         assert |data()[ino]| == old(|data()[ino]|) + written;
       }
       assert |data()[ino]| % 4096 == 0;
 
-      ok, i' := this.alignedAppend(txn, ino, i', bs');
+      ok := this.alignedAppend(txn, ino, i, bs');
       assert types_unchanged();
       if !ok {
         // TODO: we should really just abort here
@@ -780,11 +782,12 @@ module ByteFs {
       }
     }
 
-    method write(txn: Txn, ino: Ino, i: Inode.Inode, off: uint64, bs: Bytes)
-      returns (ok: bool, i': Inode.Inode)
-      modifies Repr, bs
+    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires bs !in i.Repr
       requires 0 < |bs.data| <= 4096
       requires off as nat <= |data()[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
@@ -796,31 +799,30 @@ module ByteFs {
       data()[ino := d])
     {
       ghost var d0 := data()[ino];
-      i' := i;
-      fs.inode_metadata(ino, i');
-      assert |d0| == i'.sz as nat;
-      if off + bs.Len() <= i'.sz {
+      fs.inode_metadata(ino, i);
+      assert |d0| == i.sz as nat;
+      if off + bs.Len() <= i.sz {
         // all in place
-        ok, i' := this.overwrite(txn, ino, i', off, bs);
+        ok := this.overwrite(txn, ino, i, off, bs);
         return;
       }
-      if off == i'.sz {
+      if off == i.sz {
         write_data_append(d0, off as nat, bs.data);
-        ok, i' := this.appendIno(txn, ino, i', bs);
+        ok := this.appendIno(txn, ino, i, bs);
         return;
       }
       write_data_past_end(d0, off as nat, bs.data);
       // need to write some
-      var bs' := bs.Split(i'.sz - off);
+      var bs' := bs.Split(i.sz - off);
       ghost var bs1 := bs.data;
       ghost var bs2 := bs'.data;
       assert bs1 + bs2 == old(bs.data);
-      ok, i' := this.overwrite(txn, ino, i', off, bs);
+      ok := this.overwrite(txn, ino, i, off, bs);
       if !ok {
         return;
       }
       assert data()[ino] == d0[..off as nat] + bs1;
-      ok, i' := this.appendIno(txn, ino, i', bs');
+      ok := this.appendIno(txn, ino, i, bs');
       if !ok {
         return;
       }
@@ -860,8 +862,9 @@ module ByteFs {
         inode_types_metadata_unchanged();
         return;
       }
+
       fs.inode_metadata(ino, i);
-      ok, i := this.appendIno(txn, ino, i, bs);
+      ok := this.appendIno(txn, ino, i, bs);
       fs.finishInode(txn, ino, i);
       assert types_unchanged() by {
         reveal inode_types();
@@ -887,15 +890,14 @@ module ByteFs {
       ok := txn.Commit();
     }
 
-    method setType(ghost ino: Ino, i: Inode.Inode, ty': Inode.InodeType)
-      returns (i': Inode.Inode)
-      modifies Repr
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i')
+    method setType(ghost ino: Ino, i: MemInode, ty': Inode.InodeType)
+      modifies Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       ensures data() == old(data())
       ensures inode_types() == old(inode_types()[ino := ty'])
     {
       fs.inode_metadata(ino, i);
-      i' := fs.writeInodeMeta(ino, i, i.meta.(ty := ty'));
+      fs.writeInodeMeta(ino, i, Inode.Meta(i.sz, ty'));
       assert block_data(fs.data) == old(block_data(fs.data));
       assert data() == old(data()) by {
         reveal raw_inode_data();
@@ -905,31 +907,31 @@ module ByteFs {
       reveal inode_types();
     }
 
-    method startInode(txn: Txn, ino: Ino) returns (i': Inode.Inode)
+    method startInode(txn: Txn, ino: Ino) returns (i: MemInode)
       modifies fs.fs
       requires fs.has_jrnl(txn)
-      requires Valid() ensures fs.ValidIno(ino, i')
-      ensures fs.fs.cur_inode == Some( (ino, i') )
+      requires Valid() ensures fs.ValidIno(ino, i)
+      ensures fs.fs.cur_inode == Some( (ino, i.val()) )
       ensures data() == old(data())
       ensures types_unchanged()
     {
-      i' := fs.startInode(txn, ino);
+      i := fs.startInode(txn, ino);
       assert types_unchanged() by {
         reveal inode_types();
       }
     }
 
-    lemma inode_metadata(ino: Ino, i: Inode.Inode)
+    lemma inode_metadata(ino: Ino, i: MemInode)
       requires fs.ValidIno(ino, i)
-      ensures i.meta.ty == inode_types()[ino]
-      ensures i.meta.sz as nat == |data()[ino]|
+      ensures i.ty == inode_types()[ino]
+      ensures i.sz as nat == |data()[ino]|
     {
       fs.inode_metadata(ino, i);
       reveal inode_types();
     }
 
-    method finishInode(txn: Txn, ino: Ino, i: Inode.Inode)
-      modifies fs.Repr
+    method finishInode(txn: Txn, ino: Ino, i: MemInode)
+      modifies fs.Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i)
       ensures Valid()
@@ -942,10 +944,10 @@ module ByteFs {
       }
     }
 
-    ghost method finishInodeReadonly(ino: Ino, i: Inode.Inode)
+    ghost method finishInodeReadonly(ino: Ino, i: MemInode)
       modifies fs.fs
       requires fs.ValidIno(ino, i)
-      requires fs.fs.cur_inode == Some((ino, i))
+      requires fs.fs.cur_inode == Some((ino, i.val()))
       ensures Valid()
       ensures data() == old(data())
       ensures types_unchanged()
