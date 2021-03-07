@@ -33,7 +33,7 @@ module MemInode {
       && |blks| == 14
       && sz as nat <= Inode.MAX_SZ
       && |bs.data| == 128
-      && bs.data[16..] == Marshal.seq_enc_uint64(blks)
+      && Marshal.decode_uint64_seq(bs.data[16..]) == blks
     }
 
     constructor(bs: Bytes, ghost i: Inode.Inode)
@@ -60,6 +60,7 @@ module MemInode {
       Inode.enc_app(i);
       new;
       reveal Valid();
+      Marshal.decode_encode_uint64_seq_id(i.blks);
     }
 
     method encode() returns (bs: Bytes)
@@ -72,6 +73,7 @@ module MemInode {
       IntEncoding.UInt64Put(sz, 0, this.bs);
       IntEncoding.UInt64Put(ty.to_u64(), 8, this.bs);
       bs := this.bs;
+      assert bs.data[16..] == old(bs.data[16..]);
       Inode.enc_app(val());
     }
 
@@ -83,9 +85,9 @@ module MemInode {
     {
       reveal Valid();
       bn := IntEncoding.UInt64Get(this.bs, 16 + 8 * k);
-      assert bs.data[16 + 8 * k .. 16 + 8 * k + 8] == bs.data[16..][8*k .. 8*k + 8];
-      Marshal.enc_uint64_get_one(blks, k as nat);
-      IntEncoding.lemma_le_enc_dec64(blks[k]);
+      assert bs.data[16 + 8*k .. 16 + 8*k + 8] ==
+        bs.data[16..][8*k .. 8*k + 8];
+      Marshal.decode_uint64_seq_one_spec(bs.data[16..], k as nat);
     }
 
     method set_blk(k: uint64, bn: uint64)
@@ -98,10 +100,11 @@ module MemInode {
       ensures ty == old(ty)
     {
       reveal Valid();
-      IntEncoding.UInt64Put(bn, 16 + 8 * k, this.bs);
+      Marshal.decode_uint64_seq_modify_one(bs.data[16..], k as nat, bn);
+      IntEncoding.UInt64Put(bn, 16 + k*8, this.bs);
+      assert bs.data[16..] ==
+        old(C.splice(bs.data[16..], k as nat*8, IntEncoding.le_enc64(bn)));
       blks := blks[k as nat := bn];
-      // TODO: do this proof with seq_encode_concat and concat homogeneous splice lemma
-      assume false;
     }
 
     method set_ty(ty: Inode.InodeType)
