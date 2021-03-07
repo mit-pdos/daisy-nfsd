@@ -43,22 +43,12 @@ module Inode {
     const sz: uint64 := meta.sz
     const ty: InodeType := meta.ty
 
-    // how many blocks is the inode actually referencing with its size?
-    const used_blocks: nat := div_roundup_alt(sz as nat, 4096)
-
     static const preZero: preInode := Mk(Meta(0, InvalidType), C.repeat(0 as uint64, 14))
 
     predicate Valid()
     {
       && |blks| == 14
       && sz as nat <= MAX_SZ
-    }
-
-    function method {:opaque} used_blocks_u64(): (x:uint64)
-      requires Valid()
-      ensures x as nat == used_blocks
-    {
-      div_roundup64(sz, 4096)
     }
   }
   // NOTE(tej): we specifically don't provide a witness for performance reasons:
