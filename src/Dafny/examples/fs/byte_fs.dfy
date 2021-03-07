@@ -235,6 +235,7 @@ module ByteFs {
       requires fs.ValidIno(ino, i) && fs.fs.cur_inode == Some( (ino, i.val()) )
       ensures Valid()
       requires len <= 4096
+      ensures fresh(bs)
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
@@ -914,6 +915,7 @@ module ByteFs {
       ensures fs.fs.cur_inode == Some( (ino, i.val()) )
       ensures data() == old(data())
       ensures types_unchanged()
+      ensures fresh(i.Repr)
     {
       i := fs.startInode(txn, ino);
       assert types_unchanged() by {
