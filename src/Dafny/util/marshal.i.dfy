@@ -71,6 +71,22 @@ ensures |seq_enc_uint64(xs)| == 8*|xs|
     C.concat_homogeneous_len(seq_fmap(enc_encode, seq_fmap(encUInt64, xs)), 8);
 }
 
+lemma {:induction xs, k} enc_uint64_get_one(xs: seq<uint64>, k: nat)
+    requires k < |xs|
+    ensures (enc_uint64_len(xs);
+    seq_enc_uint64(xs)[8*k..8*k + 8] == IntEncoding.le_enc64(xs[k]))
+{
+    if k == 0 {}
+    else {
+        enc_uint64_get_one(xs[1..], k-1);
+        assert seq_fmap(encUInt64, xs[1..]) == seq_fmap(encUInt64, xs)[1..];
+        //assert seq_enc_uint64(xs[1..]) == seq_enc_uint64(xs)[8..];
+        enc_uint64_len(xs);
+        //assert xs[k] == xs[1..][k-1];
+        //assert seq_enc_uint64(xs)[8*k .. 8*k + 8] == seq_enc_uint64(xs)[8..][8*(k-1) .. 8*(k-1) + 8];
+    }
+}
+
 lemma zero_encode_seq_uint64_helper(n: nat)
   ensures seq_enc_uint64(C.repeat(0 as uint64, n)) == seq_encode(C.repeat(EncUInt64(0), n))
 {

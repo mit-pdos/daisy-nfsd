@@ -87,6 +87,15 @@ module Inode {
     seq_encode(inode_enc(i))
   }
 
+  lemma enc_app(i: Inode)
+    ensures enc(i) ==
+    (IntEncoding.le_enc64(i.meta.sz) + IntEncoding.le_enc64(i.meta.ty.to_u64())) +
+    seq_enc_uint64(i.blks)
+  {
+    reveal enc();
+    seq_encode_unfold(inode_enc(i));
+  }
+
   method encode_ino(i: Inode) returns (bs:Bytes)
     modifies {}
     ensures fresh(bs)
