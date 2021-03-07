@@ -1232,6 +1232,48 @@ module DirFs
       return Ok(dents_seq);
     }
 
+    method RENAME(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+      returns (r: Result<()>)
+      modifies Repr, dst_name
+      requires src_name.Valid() && dst_name.Valid()
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.has_jrnl(txn)
+      // TODO: need to write down the spec
+    {
+      var src_name_ok := Pathc?(src_name);
+      if !src_name_ok {
+        return Err(NameTooLong);
+      }
+      var dst_name_ok := Pathc?(dst_name);
+      if !dst_name_ok {
+        return Err(NameTooLong);
+      }
+      var ino_r := unlink(txn, src_d_ino, src_name);
+      if ino_r.Err? {
+        return ino_r.Coerce();
+      }
+      var ino := ino_r.v;
+      if ino == 0 {
+        return Err(Inval);
+      }
+      var dst_r := readDirents(txn, dst_d_ino);
+      if dst_r.Err? {
+        return dst_r.Coerce();
+      }
+      var dst := dst_r.v;
+      var name_opt := dst.findName(dst_name);
+      if name_opt.Some? {
+        // TODO: support overwriting with RENAME
+        return Err(ServerFault);
+      }
+      var e' := MemDirEnt(dst_name, ino);
+      var ok := linkInode(txn, dst_d_ino, dst, e');
+      if !ok {
+        return Err(NoSpc);
+      }
+      return Ok(());
+    }
+
     // TODO:
     //
     // 1. Append (done)
