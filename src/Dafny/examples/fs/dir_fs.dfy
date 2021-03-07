@@ -16,6 +16,7 @@ module DirFs
   import opened DirEntries
   import opened MemDirEntries
   import opened TypedFs
+  import opened MemInodes
 
   import opened Nfs
 
@@ -264,8 +265,8 @@ module DirFs
       && ValidDirFs()
     }
 
-    predicate ValidIno(ino: Ino, i: Inode.Inode)
-      reads Repr
+    predicate ValidIno(ino: Ino, i: MemInode)
+      reads Repr, i.Repr
     {
       && fs.ValidIno(ino, i)
       && ValidDirFs()
@@ -337,7 +338,7 @@ module DirFs
       txn := fs.fs.fs.fs.jrnl.Begin();
     }
 
-    method readDirentsInode(txn: Txn, d_ino: Ino, i: Inode.Inode)
+    method readDirentsInode(txn: Txn, d_ino: Ino, i: MemInode)
       returns (dents: MemDirents)
       requires ValidIno(d_ino, i)
       requires fs.has_jrnl(txn)
@@ -375,7 +376,7 @@ module DirFs
         assert is_invalid(d_ino) by { reveal is_of_type(); }
         return Err(BadHandle);
       }
-      if i.meta.ty.FileType? {
+      if i.ty.FileType? {
         fs.finishInodeReadonly(d_ino, i);
         assert is_file(d_ino) by { reveal is_of_type(); }
         return Err(NotDir);
@@ -407,7 +408,7 @@ module DirFs
       var bs := dents.encode();
       dents.val.enc_len();
       C.splice_all(fs.data[d_ino], bs.data);
-      ok, i := fs.writeBlockFile(txn, d_ino, i, bs);
+      ok := fs.writeBlockFile(txn, d_ino, i, bs);
       if !ok {
         return;
       }
@@ -487,21 +488,20 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    static method writeEmptyDirToFs(fs: TypedFilesys, txn: Txn, ino: Ino, i: Inode.Inode)
+    static method writeEmptyDirToFs(fs: TypedFilesys, txn: Txn, ino: Ino, i: MemInode)
       returns (ok: bool)
-      modifies fs.Repr
+      modifies fs.Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures ok ==> fs.Valid()
       requires fs.has_jrnl(txn)
       requires fs.data[ino] == []
       ensures fs.types_unchanged()
       ensures ok ==> fs.data == old(fs.data[ino := Dirents.zero.enc()])
     {
-      var i := i;
       var emptyDir := NewBytes(4096);
       assert emptyDir.data == Dirents.zero.enc() by {
         Dirents.zero_enc();
       }
-      ok, i := fs.write(txn, ino, i, 0, emptyDir);
+      ok := fs.write(txn, ino, i, 0, emptyDir);
       if !ok {
         return;
       }
@@ -667,7 +667,7 @@ module DirFs
         assert is_invalid(ino) by { reveal is_of_type(); }
         return Err(BadHandle);
       }
-      if i.meta.ty.DirType? {
+      if i.ty.DirType? {
         assert is_dir(ino) by { reveal is_of_type(); }
         //var dents := readDirentsInode(txn, ino, i);
         fs.finishInodeReadonly(ino, i);
@@ -677,7 +677,7 @@ module DirFs
         return Ok(attrs);
       }
       // is a file
-      assert i.meta.ty.FileType?;
+      assert i.ty.FileType?;
       assert is_file(ino) by { reveal is_of_type(); }
       fs.finishInodeReadonly(ino, i);
       var attrs := Attributes(false, i.sz);
@@ -708,7 +708,7 @@ module DirFs
         r := i_r.Coerce();
         return;
       }
-      var i := i_r.v;
+      var i: MemInode := i_r.v;
       assert dirents == old(dirents);
       invert_file(ino);
       ghost var d0: seq<byte> := old(fs.data[ino]);
@@ -719,7 +719,7 @@ module DirFs
       fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
 
-      i, junk := fs.setSize(txn, ino, i, sz);
+      junk := fs.setSize(txn, ino, i, sz);
       fs.finishInode(txn, ino, i);
 
       ghost var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
@@ -734,13 +734,14 @@ module DirFs
     }
 
     method openFile(txn: Txn, ino: Ino)
-      returns (r:Result<Inode.Inode>)
+      returns (r:Result<MemInode>)
       modifies fs.fs.fs.fs
       requires Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
+      && fresh(r.v.Repr)
       && ValidIno(ino, r.v)
-      && fs.inode_unchanged(ino, r.v)
+      && fs.inode_unchanged(ino, r.v.val())
       && is_file(ino)
       && old(is_file(ino))
       ensures !r.Ok? ==> Valid()
@@ -756,7 +757,7 @@ module DirFs
         assert is_invalid(ino) by { reveal is_of_type(); }
         return Err(BadHandle);
       }
-      if i.meta.ty.DirType? {
+      if i.ty.DirType? {
         assert is_dir(ino) by { reveal is_of_type(); }
         fs.finishInodeReadonly(ino, i);
         // assert ValidFiles() by { reveal ValidFiles(); }
@@ -832,7 +833,7 @@ module DirFs
       fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
       var ok;
-      ok, i := fs.write(txn, ino, i, off, bs);
+      ok := fs.write(txn, ino, i, off, bs);
       if !ok {
         // fs.finishInode(txn, ino, i);
         return Err(NoSpc);
@@ -1002,8 +1003,7 @@ module DirFs
         Std.map_delete_id(data, ino);
         return Err(BadHandle);
       }
-      if i.meta.ty == Inode.DirType {
-        // TODO: removeInode doesn't yet support directories
+      if i.ty == Inode.DirType {
         assert is_dir(ino) by { reveal is_of_type(); }
         fs.finishInodeReadonly(ino, i);
         return Err(IsDir);

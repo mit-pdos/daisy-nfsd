@@ -234,6 +234,7 @@ module TypedFs {
       ensures data == old(data)
       ensures data[ino] == []
       ensures types == old(types[ino := ty])
+      ensures fresh(i'.Repr)
     {
       reveal_valids();
       i' := fs.startInode(txn, ino);

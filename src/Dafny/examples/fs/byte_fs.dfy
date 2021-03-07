@@ -465,7 +465,7 @@ module ByteFs {
       return;
     }
 
-    method shrinkTo(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
+    method {:timeLimitMultiplier 2} shrinkTo(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -600,7 +600,7 @@ module ByteFs {
       inode_types_metadata_unchanged();
     }
 
-    method overwrite(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 2} overwrite(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
