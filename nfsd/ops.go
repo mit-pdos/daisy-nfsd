@@ -282,7 +282,17 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	util.DPrintf(1, "NFS Rename %v\n", args)
 	var reply nfstypes.RENAME3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	src_inum := fh2ino(args.From.Dir)
+	src_name := filenameToBytes(args.From.Name)
+	dst_inum := fh2ino(args.To.Dir)
+	dst_name := filenameToBytes(args.To.Name)
+
+	_, status := nfs.runTxn(func(txn Txn) Result {
+		return nfs.filesys.RENAME(txn, src_inum, src_name, dst_inum, dst_name)
+	})
+	reply.Status = status
+
 	return reply
 }
 
