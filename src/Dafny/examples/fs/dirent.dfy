@@ -18,15 +18,17 @@ module DirEntries
   const dirent_sz_u64: uint64 := 32
     // dirent_sz - 8
   const path_len: nat := 24
+  const path_len_u64: uint64 := 24
   const dir_sz: nat := 128
   const dir_sz_u64: uint64 := 128
-  const MAX_FILENAME_SZ: uint64 := 24
+
+  const MAX_FILENAME_SZ: uint64 := path_len_u64
 
   lemma dirent_sizes_consistent()
     ensures dirent_sz_u64 as nat == dirent_sz
     ensures dir_sz_u64 as nat == dir_sz
     ensures path_len == dirent_sz - 8
-    ensures MAX_FILENAME_SZ as nat == path_len
+    ensures path_len_u64 as nat == path_len
     ensures dirent_sz * dir_sz == 4096
   {}
 

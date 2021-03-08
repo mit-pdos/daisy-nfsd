@@ -567,7 +567,7 @@ module DirFs
       requires fs.has_jrnl(txn)
       requires dents.Valid() && e'.Valid()
       requires is_dir(d_ino) && dirents[d_ino] == dents.val
-      requires e'.used() && dents.val.findName(e'.path()) >= 128
+      requires e'.used() && dents.val.findName(e'.path()) >= dir_sz
       ensures ok ==>
       && data == old(
       var d0 := data[d_ino].dir;
@@ -578,7 +578,7 @@ module DirFs
         get_data_at(d_ino);
       }
       var i := dents.findFree();
-      if !(i < 128) {
+      if !(i < dir_sz_u64) {
         // no space in directory
         ok := false;
         return;

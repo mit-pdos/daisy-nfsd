@@ -235,49 +235,69 @@ module MemDirEntries
       bs' := bs;
     }
 
+    static function dirent_off(k: nat): nat
+    {
+      k * dirent_sz
+    }
+
+    static function dirent_off_u64(k: uint64): uint64
+      requires dir_off?(k)
+    {
+      k * dirent_sz_u64
+    }
+
+    static function path_ub(k: nat): nat
+    {
+      k * dirent_sz + path_len
+    }
+
     lemma data_one(k: nat)
       requires Valid()
       requires k < dir_sz
       ensures |bs.data| == 4096
-      ensures bs.data[k*32..(k+1) * 32] == val.s[k].enc()
+      ensures bs.data[dirent_off(k)..dirent_off(k+1)] == val.s[k].enc()
     {
       reveal Valid();
-      C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, 32);
+      C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, dirent_sz);
     }
 
     lemma data_one_name(k: nat)
       requires Valid()
       requires k < dir_sz
       ensures |bs.data| == 4096
-      ensures bs.data[k*32..k*32+24] == encode_pathc(val.s[k].name)
+      ensures bs.data[dirent_off(k)..path_ub(k)] == encode_pathc(val.s[k].name)
     {
       reveal Valid();
       data_one(k);
       val.s[k].enc_app();
-      assert bs.data[k*32..(k+1)*32][..24] == bs.data[k*32..k*32 + 24];
+      assert bs.data[dirent_off(k)..dirent_off(k+1)][..path_len] ==
+        bs.data[dirent_off(k)..path_ub(k)];
     }
 
     lemma data_one_ino(k: nat)
       requires Valid()
       requires k < dir_sz
       ensures |bs.data| == 4096
-      ensures bs.data[k*32 + 24..k*32 + 32] == IntEncoding.le_enc64(val.s[k].ino)
+      ensures bs.data[path_ub(k)..dirent_off(k+1)] == IntEncoding.le_enc64(val.s[k].ino)
     {
       reveal Valid();
       data_one(k);
       val.s[k].enc_app();
-      assert bs.data[k*32..(k+1)*32][24..32] == bs.data[k*32 + 24..k*32 + 32];
+      assert bs.data[dirent_off(k)..dirent_off(k+1)][path_len..dirent_sz] ==
+        bs.data[path_ub(k)..dirent_off(k+1)];
     }
 
     twostate lemma data_splice_one(k: nat, v: DirEnt)
       requires old(Valid())
       requires k < dir_sz
-      requires (v.enc_len(); reveal Valid(); bs.data == C.splice(old(bs.data), k*32, v.enc()))
+      requires (v.enc_len(); reveal Valid();
+                bs.data == C.splice(old(bs.data), k*dirent_sz, v.enc()))
       ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
     {
       reveal Valid();
       v.enc_len();
-      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)), k as nat, v.enc(), 32);
+      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)),
+        k as nat, v.enc(), dirent_sz);
       //assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
       assert C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()] ==
              C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
@@ -290,7 +310,7 @@ module MemDirEntries
     {
       reveal Valid();
       // we'll prove it's an Ino later, for now it's just a uint64
-      var ino': uint64 := IntEncoding.UInt64Get(bs, k*32 + 24);
+      var ino': uint64 := IntEncoding.UInt64Get(bs, k*dirent_sz_u64 + path_len_u64);
       data_one_ino(k as nat);
       IntEncoding.lemma_le_enc_dec64(val.s[k].ino);
       ino := ino';
@@ -299,15 +319,16 @@ module MemDirEntries
     method get_name(k: uint64) returns (name: Bytes)
       requires Valid()
       requires dir_off?(k)
-      ensures fresh(name) && name.Valid() && |name.data| == 24
+      ensures fresh(name) && name.Valid() && |name.data| == path_len
       ensures encode_pathc(val.s[k].name) == name.data
     {
       reveal Valid();
-      name := NewBytes(24);
-      name.CopyFrom(bs, k*32, 24);
+      name := NewBytes(path_len_u64);
+      name.CopyFrom(bs, k*dirent_sz_u64, path_len_u64);
       data_one(k as nat);
       val.s[k].enc_app();
-      assert bs.data[k*32..(k+1)*32][..24] == bs.data[k*32..k*32 + 24];
+      assert bs.data[dirent_off(k as nat)..dirent_off(k as nat+1)][..path_len] ==
+        bs.data[dirent_off(k as nat)..path_ub(k as nat)];
     }
 
     method get_dirent(k: uint64) returns (r:Option<MemDirEnt>)
@@ -369,7 +390,7 @@ module MemDirEntries
       ensures free_i as nat == val.findFree()
     {
       var i: uint64 := 0;
-      while i < 128
+      while i < dir_sz_u64
         invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: val.s[k].used()
       {
@@ -381,7 +402,7 @@ module MemDirEntries
         i := i + 1;
       }
       C.find_first_characterization(Dirents.is_unused, val.s, dir_sz);
-      return 128;
+      return dir_sz_u64;
     }
 
     method isEmpty() returns (p:bool)
@@ -389,7 +410,7 @@ module MemDirEntries
       ensures p == (dir() == map[])
     {
       var i: uint64 := 0;
-      while i < 128
+      while i < dir_sz_u64
         invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: !val.s[k].used()
       {
@@ -407,7 +428,7 @@ module MemDirEntries
     method findName(name: Bytes) returns (r: Option<(uint64, Ino)>)
       requires Valid()
       requires is_pathc(name.data)
-      ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == 128
+      ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == dir_sz
       ensures r.Some? ==>
       && name.data in val.dir
       && dir_off?(r.x.0)
@@ -416,7 +437,7 @@ module MemDirEntries
     {
       ghost var p: PathComp := name.data;
       var i: uint64 := 0;
-      while i < 128
+      while i < dir_sz_u64
         invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: !(val.s[k].used() && val.s[k].name == p)
       {
@@ -443,7 +464,7 @@ module MemDirEntries
     {
       dents := [];
       var i: uint64 := 0;
-      while i < 128
+      while i < dir_sz_u64
         invariant 0 <= i as nat <= dir_sz
         invariant |dents| <= i as nat
         invariant mem_seq_valid(dents)
@@ -482,13 +503,13 @@ module MemDirEntries
       requires dir_off?(k)
       requires |bs.data| == 4096
       requires name.data == encode_pathc(v.name) && v.ino == ino
-      ensures |v.enc()| == 32
-      ensures bs.data == C.splice(old(bs.data), k as nat*32, v.enc())
+      ensures |v.enc()| == dirent_sz
+      ensures bs.data == C.splice(old(bs.data), k as nat*dirent_sz, v.enc())
     {
       v.enc_len();
       v.enc_app();
-      bs.CopyTo(k*32, name);
-      IntEncoding.UInt64Put(ino, k*32+24, bs);
+      bs.CopyTo(k*dirent_sz_u64, name);
+      IntEncoding.UInt64Put(ino, k*dirent_sz_u64 + path_len_u64, bs);
     }
 
     method insert_ent(k: uint64, e: MemDirEnt)
@@ -496,7 +517,7 @@ module MemDirEntries
       requires Valid() ensures Valid()
       requires e.Valid() && e.used()
       requires dir_off?(k) && k as nat == val.findFree()
-      requires val.findName(e.val().name) >= 128
+      requires val.findName(e.val().name) >= dir_sz
       ensures val.dir == old(val.dir[e.val().name := e.val().ino])
     {
       reveal Valid();
@@ -519,14 +540,14 @@ module MemDirEntries
     {
       reveal Valid();
       ghost var old_name := old(val.s[k].name);
-      ghost var old_padded_name := bs.data[k*32..k*32 + 24];
+      ghost var old_padded_name := bs.data[dirent_off(k as nat)..path_ub(k as nat)];
       assert old_padded_name == encode_pathc(old_name) by {
         data_one_name(k as nat);
       }
 
-      IntEncoding.UInt64Put(0, k*32 + 24, bs);
+      IntEncoding.UInt64Put(0, k*dirent_sz_u64 + path_len_u64, bs);
 
-      assert bs.data == C.splice(old(bs.data), k as nat * 32,
+      assert bs.data == C.splice(old(bs.data), k as nat * dirent_sz,
         old_padded_name + IntEncoding.le_enc64(0));
       // the new entry we're effectively writing (though without actually
       // writing the old name again)
