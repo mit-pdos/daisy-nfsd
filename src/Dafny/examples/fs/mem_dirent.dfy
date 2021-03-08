@@ -15,7 +15,7 @@ module MemDirEntries
   {
     var i: uint64 := 0;
     var len := name.Len();
-    if len > 24 {
+    if len > path_len_u64 {
       return false;
     }
     while i < len
@@ -185,10 +185,7 @@ module MemDirEntries
     requires is_pathc(bs.data)
     ensures bs.data == encode_pathc(old(bs.data))
   {
-    if bs.Len() >= 24 {
-      return;
-    }
-    var zeros := NewBytes(24 - bs.Len());
+    var zeros := NewBytes(path_len_u64 - bs.Len());
     bs.AppendBytes(zeros);
   }
 

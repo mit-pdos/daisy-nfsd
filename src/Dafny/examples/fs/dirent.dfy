@@ -14,21 +14,18 @@ module DirEntries
 
   type String = seq<byte>
 
-  const dirent_sz: nat := 32
   const dirent_sz_u64: uint64 := 32
+  const dirent_sz: nat := dirent_sz_u64 as nat
     // dirent_sz - 8
-  const path_len: nat := 24
   const path_len_u64: uint64 := 24
-  const dir_sz: nat := 128
+  const path_len: nat := path_len_u64 as nat
   const dir_sz_u64: uint64 := 128
+  const dir_sz: nat := dir_sz_u64 as nat
 
   const MAX_FILENAME_SZ: uint64 := path_len_u64
 
   lemma dirent_sizes_consistent()
-    ensures dirent_sz_u64 as nat == dirent_sz
-    ensures dir_sz_u64 as nat == dir_sz
     ensures path_len == dirent_sz - 8
-    ensures path_len_u64 as nat == path_len
     ensures dirent_sz * dir_sz == 4096
   {}
 
