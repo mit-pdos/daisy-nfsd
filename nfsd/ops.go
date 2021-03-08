@@ -3,6 +3,7 @@ package nfsd
 import (
 	"fmt"
 
+	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
 	memdirentries "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEntries_Compile"
@@ -370,9 +371,13 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF3res {
 	util.DPrintf(1, "NFS Pathconf %v\n", args)
 	var reply nfstypes.PATHCONF3res
-	// TODO: should return name_max here (to 24, which is
-	// DirEntries.MAX_FILENAME_SZ)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	reply.Resok.Name_max = nfstypes.Uint32(direntries.Companion_Default___.MAX__FILENAME__SZ())
+	// If TRUE, the server will reject any request that includes a name longer
+	// than name_max with the error, NFS3ERR_NAMETOOLONG.
+	reply.Resok.No_trunc = true
+	reply.Resok.Linkmax = 1
+	reply.Resok.Case_preserving = true
+	reply.Status = nfstypes.NFS3_OK
 	return reply
 }
 
