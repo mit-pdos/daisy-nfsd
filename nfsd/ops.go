@@ -36,7 +36,7 @@ func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.N
 	r := f(txn)
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	if r.Is_Ok() {
-		v = r.Val()
+		v = r.Dtor_v()
 	}
 	status = nfstypes.Nfsstat3(r.Err__code())
 	return

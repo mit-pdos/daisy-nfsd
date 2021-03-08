@@ -34,6 +34,8 @@ module Nfs {
     }
   }
 
+  const NFS3_OK: uint32 := 0
+
   datatype Result<T> =
     | Ok(v: T)
     | Err(err: Error)
@@ -44,22 +46,41 @@ module Nfs {
     const ErrIsDir?: bool := Err? && err.IsDir?
     const ErrNotDir?: bool := Err? && err.NotDir?
 
-    function method Coerce<U>(): Result<U>
-      requires Err?
+    // make this a failure-compatible type
+    // (these duplicate the methods below with the names Dafny requires)
+
+    predicate method IsFailure()
+    {
+      this.Err?
+    }
+
+    function method PropagateFailure<U>(): Result<U>
+      requires IsFailure()
     {
       Err(this.err)
     }
 
-    function method Val(): T
-      requires this.Ok?
+    function method Extract(): T
+      requires !IsFailure()
     {
       this.v
+    }
+
+    // READ and WRITE are not supposed to return Err(IsDir) but should return
+    // Err(Inval) when the file is a directory. IsDirToInval transforms just that error
+    // condition, from a more primitive method that uses IsDir.
+    function method IsDirToInval(): Result<T>
+    {
+      match this {
+        case Ok(v) => Ok(v)
+        case Err(err) => if err.IsDir? then Err(Inval) else Err(err)
+      }
     }
 
     function method err_code(): uint32
     {
       match this {
-        case Ok(_) => 0
+        case Ok(_) => NFS3_OK
         case Err(err) => err.nfs3_code()
       }
     }

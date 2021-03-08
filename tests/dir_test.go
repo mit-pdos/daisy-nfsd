@@ -43,13 +43,13 @@ func TestDirFsLookup(t *testing.T) {
 	r := fs.CREATE(txn, rootIno, stringToBytes("foo"))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
-	ino := r.Val().(uint64)
+	ino := r.Dtor_v().(uint64)
 
 	txn = fs.Begin()
 	r = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "Lookup should succeed")
-	ino2 := r.Val().(uint64)
+	ino2 := r.Dtor_v().(uint64)
 	assert.Equal(t, ino, ino2, "lookup should return correct result")
 }
 

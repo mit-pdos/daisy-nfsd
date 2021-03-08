@@ -618,11 +618,7 @@ module DirFs
         // could also have 0s in it but whatever
         return Err(NameTooLong);
       }
-      var dents_r := readDirents(txn, d_ino);
-      if dents_r.Err? {
-        return dents_r.Coerce();
-      }
-      var dents := dents_r.v;
+      var dents :- readDirents(txn, d_ino);
       var ok, ino := allocFile(txn);
       if !ok {
         return Err(NoSpc);
@@ -632,7 +628,7 @@ module DirFs
       if name_opt.Some? {
         // TODO: support creating a file and overwriting existing (rather than
         // failing here)
-        return Err(ServerFault);
+        return Err(Exist);
       }
       var e' := MemDirEnt(name, ino);
 
@@ -703,12 +699,7 @@ module DirFs
         r := Err(FBig);
         return;
       }
-      var i_r := openFile(txn, ino);
-      if i_r.Err? {
-        r := i_r.Coerce();
-        return;
-      }
-      var i: MemInode := i_r.v;
+      var i :- openFile(txn, ino);
       assert dirents == old(dirents);
       invert_file(ino);
       ghost var d0: seq<byte> := old(fs.data[ino]);
@@ -808,13 +799,7 @@ module DirFs
       data[ino := ByteFile(d')])
     {
       var i_r := openFile(txn, ino);
-      if i_r.Err? {
-        if i_r.err.IsDir? {
-          return Err(Inval);
-        }
-        return i_r.Coerce();
-      }
-      var i := i_r.v;
+      var i :- i_r.IsDirToInval();
       assert dirents == old(dirents);
       invert_file(ino);
       assert ValidIno(ino, i);
@@ -871,13 +856,7 @@ module DirFs
         return Err(ServerFault);
       }
       var i_r := openFile(txn, ino);
-      if i_r.Err? {
-        if i_r.err.IsDir? {
-          return Err(Inval);
-        }
-        return i_r.Coerce();
-      }
-      var i := i_r.v;
+      var i :- i_r.IsDirToInval();
       var bs, ok := fs.read(txn, ino, i, off, len);
       if !ok {
         // TODO: I believe this should never happen, short reads are supposed to
@@ -919,11 +898,7 @@ module DirFs
         // could also have 0s in it but whatever
         return Err(NameTooLong);
       }
-      var dents_r := readDirents(txn, d_ino);
-      if dents_r.Err? {
-        return dents_r.Coerce();
-      }
-      var dents := dents_r.v;
+      var dents :- readDirents(txn, d_ino);
       assert dents.Repr !! Repr;
       assert name !in Repr;
       assert is_dir(d_ino);
@@ -969,11 +944,7 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
-      var dents_r := readDirents(txn, d_ino);
-      if dents_r.Err? {
-        return dents_r.Coerce();
-      }
-      var dents := dents_r.v;
+      var dents :- readDirents(txn, d_ino);
       assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
@@ -1046,12 +1017,8 @@ module DirFs
         old(data)[d_ino := DirFile(d')])
     {
       ghost var path := name.data;
-      var dents_r := readDirents(txn, d_ino);
-      if dents_r.Err? {
-        return dents_r.Coerce();
-      }
+      var dents :- readDirents(txn, d_ino);
       assert was_dir: old(is_dir(d_ino));
-      var dents := dents_r.v;
       assert dents.Repr !! Repr;
       assert name !in Repr;
 
@@ -1116,12 +1083,8 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
-      var old_ino_r := this.unlink(txn, d_ino, name);
-      if old_ino_r.Err? {
-        return old_ino_r.Coerce();
-      }
+      var ino :- this.unlink(txn, d_ino, name);
 
-      var ino := old_ino_r.v;
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
@@ -1195,12 +1158,7 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
-      var old_ino_r := this.unlink(txn, d_ino, name);
-      if old_ino_r.Err? {
-        return old_ino_r.Coerce();
-      }
-
-      var ino := old_ino_r.v;
+      var ino :- this.unlink(txn, d_ino, name);
       if ino == rootIno {
         return Err(Inval);
       }
@@ -1239,11 +1197,7 @@ module DirFs
       && |dents_seq| == |data[d_ino].dir|
       )
     {
-      var dents_r := readDirents(txn, d_ino);
-      if dents_r.Err? {
-        return dents_r.Coerce();
-      }
-      var dents := dents_r.v;
+      var dents :- readDirents(txn, d_ino);
       assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
@@ -1267,19 +1221,11 @@ module DirFs
       if !dst_name_ok {
         return Err(NameTooLong);
       }
-      var ino_r := unlink(txn, src_d_ino, src_name);
-      if ino_r.Err? {
-        return ino_r.Coerce();
-      }
-      var ino := ino_r.v;
+      var ino :- unlink(txn, src_d_ino, src_name);
       if ino == 0 {
         return Err(Inval);
       }
-      var dst_r := readDirents(txn, dst_d_ino);
-      if dst_r.Err? {
-        return dst_r.Coerce();
-      }
-      var dst := dst_r.v;
+      var dst :- readDirents(txn, dst_d_ino);
       var name_opt := dst.findName(dst_name);
       if name_opt.Some? {
         // TODO: support overwriting with RENAME

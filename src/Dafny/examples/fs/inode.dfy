@@ -55,7 +55,7 @@ module Inode {
   // if there is a witness, the generated code starts every function that
   // returns an Inode by instantiating it with the witness, and this requires
   // allocating and filling a seq.
-  type Inode = x:preInode | x.Valid() witness *
+  type Inode = x:preInode | x.Valid() ghost witness preInode.preZero
 
   const zero: Inode := preInode.preZero
 
