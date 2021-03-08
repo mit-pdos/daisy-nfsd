@@ -30,6 +30,11 @@ module MemDirEntries
     return true;
   }
 
+  predicate dir_off?(k: uint64)
+  {
+    k as nat < dir_sz
+  }
+
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
     predicate Valid()
@@ -280,7 +285,7 @@ module MemDirEntries
 
     method get_ino(k: uint64) returns (ino: Ino)
       requires Valid()
-      requires k < 128
+      requires dir_off?(k)
       ensures ino == val.s[k].ino
     {
       reveal Valid();
@@ -293,7 +298,7 @@ module MemDirEntries
 
     method get_name(k: uint64) returns (name: Bytes)
       requires Valid()
-      requires k < 128
+      requires dir_off?(k)
       ensures fresh(name) && name.Valid() && |name.data| == 24
       ensures encode_pathc(val.s[k].name) == name.data
     {
@@ -307,7 +312,7 @@ module MemDirEntries
 
     method get_dirent(k: uint64) returns (r:Option<MemDirEnt>)
       requires Valid()
-      requires k < 128
+      requires dir_off?(k)
       ensures r.None? ==> !val.s[k].used()
       ensures r.Some? ==>
       && val.s[k].used()
@@ -327,7 +332,7 @@ module MemDirEntries
 
     method is_used(k: uint64) returns (p:bool)
       requires Valid()
-      requires k < 128
+      requires dir_off?(k)
       ensures p == val.s[k].used()
     {
       var ino := get_ino(k);
@@ -336,7 +341,7 @@ module MemDirEntries
 
     method is_name(k: uint64, needle: Bytes) returns (r:Option<Ino>)
       requires Valid()
-      requires k < 128
+      requires dir_off?(k)
       requires needle.Valid()
       requires is_pathc(needle.data)
       ensures r.None? ==> !(val.s[k].used() && val.s[k].name == needle.data)
@@ -365,7 +370,7 @@ module MemDirEntries
     {
       var i: uint64 := 0;
       while i < 128
-        invariant 0 <= i as nat <= 128
+        invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: val.s[k].used()
       {
         var p := is_used(i);
@@ -385,7 +390,7 @@ module MemDirEntries
     {
       var i: uint64 := 0;
       while i < 128
-        invariant 0 <= i as nat <= 128
+        invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: !val.s[k].used()
       {
         var p := is_used(i);
@@ -405,14 +410,14 @@ module MemDirEntries
       ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == 128
       ensures r.Some? ==>
       && name.data in val.dir
-      && r.x.0 < 128
+      && dir_off?(r.x.0)
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
     {
       ghost var p: PathComp := name.data;
       var i: uint64 := 0;
       while i < 128
-        invariant 0 <= i as nat <= 128
+        invariant 0 <= i as nat <= dir_sz
         invariant forall k:nat | k < i as nat :: !(val.s[k].used() && val.s[k].name == p)
       {
         var ino := is_name(i, name);
@@ -439,7 +444,7 @@ module MemDirEntries
       dents := [];
       var i: uint64 := 0;
       while i < 128
-        invariant 0 <= i as nat <= 128
+        invariant 0 <= i as nat <= dir_sz
         invariant |dents| <= i as nat
         invariant mem_seq_valid(dents)
         invariant fresh(mem_dirs_repr(dents))
@@ -467,14 +472,14 @@ module MemDirEntries
         i := i + 1;
       }
 
-      assert val.s[..128] == val.s;
+      assert val.s[..dir_sz] == val.s;
       used_dirents_dir(val.s);
       used_dirents_size(val.s);
     }
 
     static method write_ent(bs: Bytes, k: uint64, ghost v: DirEnt, name: Bytes, ino: Ino)
       modifies bs
-      requires k < 128
+      requires dir_off?(k)
       requires |bs.data| == 4096
       requires name.data == encode_pathc(v.name) && v.ino == ino
       ensures |v.enc()| == 32
@@ -490,7 +495,7 @@ module MemDirEntries
       modifies Repr, e.name
       requires Valid() ensures Valid()
       requires e.Valid() && e.used()
-      requires k < 128 && k as nat == val.findFree()
+      requires dir_off?(k) && k as nat == val.findFree()
       requires val.findName(e.val().name) >= 128
       ensures val.dir == old(val.dir[e.val().name := e.val().ino])
     {
@@ -509,7 +514,7 @@ module MemDirEntries
     method deleteAt(k: uint64)
       modifies Repr
       requires Valid() ensures Valid()
-      requires k < 128 && val.s[k].used()
+      requires dir_off?(k) && val.s[k].used()
       ensures val.dir == old(map_delete(val.dir, val.s[k].name))
     {
       reveal Valid();
