@@ -53,6 +53,9 @@ jobs:
       - name: Install goimports
         run: |
           go get golang.org/x/tools/cmd/goimports
+      - name: Set up NFS
+        run: |
+          ./etc/ci-install-nfs.sh
       - name: Compile and test
         run: |
           echo "::group::Compile"
@@ -61,4 +64,7 @@ jobs:
           echo "::group::Test compiled code"
           go test -bench=. -timeout=1m -v ./tests
           go build ./cmd/dafny-nfsd
+          echo "::endgroup::"
+          echo "::group::Test NFS server"
+          ./etc/test-nfsd.sh ~/nfs
           echo "::endgroup::"
