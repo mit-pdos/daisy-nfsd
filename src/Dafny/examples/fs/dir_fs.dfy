@@ -955,15 +955,20 @@ module DirFs
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
-      requires is_pathc(name.data)
+      requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in data
       ensures r.ErrNoent? ==> is_dir(d_ino) && name.data !in data[d_ino].dir
       ensures r.Ok? ==>
       (var ino := r.v;
+      && is_pathc(name.data)
       && is_dir(d_ino)
       && name.data in data[d_ino].dir && data[d_ino].dir[name.data] == ino && ino != 0
       )
     {
+      var path_ok := Pathc?(name);
+      if !path_ok {
+        return Err(NameTooLong);
+      }
       var dents_r := readDirents(txn, d_ino);
       if dents_r.Err? {
         return dents_r.Coerce();
@@ -1085,25 +1090,32 @@ module DirFs
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      requires is_pathc(name.data)
+      requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
       ensures r.ErrNoent? ==>
       && old(is_dir(d_ino))
+      && is_pathc(name.data)
       && name.data !in old(data[d_ino].dir)
       ensures r.ErrIsDir? ==>
       && old(d_ino in data && data[d_ino].DirFile?)
+      && is_pathc(name.data)
       && old(name.data) in old(data[d_ino].dir)
       && (var ino := old(data[d_ino].dir[name.data]);
         && ino in old(data)
         && old(data[ino].DirFile?))
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
+      && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       && data ==
         (var d0 := old(data[d_ino].dir);
         var d' := map_delete(d0, old(name.data));
         map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
     {
+      var path_ok := Pathc?(name);
+      if !path_ok {
+        return Err(NameTooLong);
+      }
       var old_ino_r := this.unlink(txn, d_ino, name);
       if old_ino_r.Err? {
         return old_ino_r.Coerce();
@@ -1156,26 +1168,33 @@ module DirFs
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      requires is_pathc(name.data)
+      requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
       ensures r.ErrNoent? ==>
       && old(is_dir(d_ino))
+      && is_pathc(name.data)
       && name.data !in old(data[d_ino].dir)
       ensures r.ErrNotDir? ==>
-      (&& old(is_file(d_ino)))
-      || (&& old(d_ino in data && data[d_ino].DirFile?)
-         && old(name.data) in old(data[d_ino].dir)
-         && (var ino := old(data[d_ino].dir[name.data]);
-           && ino in old(data)
-           && old(data[ino].ByteFile?)))
+      && is_pathc(name.data)
+      && (old(is_file(d_ino))
+        || (&& old(d_ino in data && data[d_ino].DirFile?)
+          && old(name.data) in old(data[d_ino].dir)
+          && (var ino := old(data[d_ino].dir[name.data]);
+            && ino in old(data)
+            && old(data[ino].ByteFile?))))
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
+      && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       && data ==
         (var d0 := old(data[d_ino].dir);
         var d' := map_delete(d0, old(name.data));
         map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
     {
+      var path_ok := Pathc?(name);
+      if !path_ok {
+        return Err(NameTooLong);
+      }
       var old_ino_r := this.unlink(txn, d_ino, name);
       if old_ino_r.Err? {
         return old_ino_r.Coerce();
