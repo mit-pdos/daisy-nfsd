@@ -11,9 +11,12 @@ if [ -z "$path" ]; then
     exit 1
 fi
 
-sudo mount localhost:/ "$path"
 go run ./cmd/dafny-nfsd -debug=1 || true &
 NFSD_PID=$!
+
+sleep 1 # wait for server to start up
+kill -0 $NFSD_PID # make sure server is running
+sudo mount localhost:/ "$path"
 
 function cleanup {
     sudo umount -f -l "$path"
@@ -21,5 +24,4 @@ function cleanup {
 }
 trap cleanup EXIT
 
-sleep 1
 go run ./cmd/fs-test "$path"
