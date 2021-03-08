@@ -12,14 +12,17 @@ module DirEntries
   import opened Marshal
   import C = Collections
 
-  // TODO: how should we represent paths for the user? the types here are
-  // convenient value types for verification but horrendous in Go; we could use
-  // Bytes and then check that they satisfy all these constraints. That would be
-  // fairly realistic.
-
   type String = seq<byte>
 
+  const dirent_sz: nat := 32
+  const dir_sz: nat := 128
+  const path_len: nat := dirent_sz - 8
   const MAX_FILENAME_SZ: uint64 := 24
+
+  lemma dirent_sizes_consistent()
+    ensures MAX_FILENAME_SZ as nat == path_len
+    ensures dirent_sz * dir_sz == 4096
+  {}
 
   predicate is_pathc(s: String)
   {
@@ -30,9 +33,9 @@ module DirEntries
   type PathComp = s:String | is_pathc(s)
 
   function method encode_pathc(pc: PathComp): (s:seq<byte>)
-    ensures |s| == 24
+    ensures |s| == path_len
   {
-    pc + C.repeat(0 as byte, 24 - |pc|)
+    pc + C.repeat(0 as byte, path_len - |pc|)
   }
 
   function method decode_null_terminated(s: seq<byte>): String
@@ -50,7 +53,7 @@ module DirEntries
   {}
 
   function method decode_pathc(s: seq<byte>): PathComp
-    requires |s| == 24
+    requires |s| == path_len
   {
     decode_null_terminated_spec(s);
     decode_null_terminated(s)
@@ -89,8 +92,8 @@ module DirEntries
   lemma decode_encode(pc: PathComp)
     ensures decode_pathc(encode_pathc(pc)) == pc
   {
-    decode_nullterm_prefix(pc, C.repeat(0 as byte, 24 - |pc|));
-    decode_all_null(24 - |pc|);
+    decode_nullterm_prefix(pc, C.repeat(0 as byte, path_len - |pc|));
+    decode_all_null(path_len - |pc|);
   }
 
   method DecodeEncodeTest(s: PathComp) returns (s':seq<byte>)
@@ -137,13 +140,13 @@ module DirEntries
     }
 
     lemma enc_len()
-      ensures |enc()| == 32
+      ensures |enc()| == dirent_sz
     {
       enc_app();
     }
 
     static lemma zero_enc()
-      ensures zero.enc() == C.repeat(0 as byte, 32)
+      ensures zero.enc() == C.repeat(0 as byte, dirent_sz)
     {
       zero.enc_app();
       IntEncoding.lemma_enc_0();
@@ -346,25 +349,25 @@ module DirEntries
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
-    static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, 128))
+    static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, dir_sz))
 
     ghost const dir: Directory := seq_to_dir(s)
 
     static lemma zero_dir()
       ensures zero.dir == map[]
     {
-      seq_to_dir_zeros(128);
+      seq_to_dir_zeros(dir_sz);
     }
 
     predicate Valid()
     {
       // 128*32 == 4096 so these will fit in a block
-      && |s| == 128
+      && |s| == dir_sz
       && dirents_unique(s)
     }
 
     static function encOne(e: DirEnt): (s:seq<byte>)
-      ensures |s| == 32
+      ensures |s| == dirent_sz
     {
       e.enc_len();
       e.enc()
@@ -379,15 +382,15 @@ module DirEntries
       requires Valid()
       ensures |enc()| == 4096
     {
-      C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), 32);
+      C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);
     }
 
     static lemma zero_enc()
       ensures zero.enc() == C.repeat(0 as byte, 4096)
     {
       DirEnt.zero_enc();
-      assert C.seq_fmap(encOne, zero.s) == C.repeat(DirEnt.zero.enc(), 128);
-      C.concat_repeat(0 as byte, 32, 128);
+      assert C.seq_fmap(encOne, zero.s) == C.repeat(DirEnt.zero.enc(), dir_sz);
+      C.concat_repeat(0 as byte, dirent_sz, dir_sz);
     }
 
     method encode() returns (bs:Bytes)
@@ -399,7 +402,7 @@ module DirEntries
       while i < |s|
         invariant 0 <= i <= |s|
         invariant bs.data == C.concat(C.seq_fmap(encOne, this.s[..i]))
-        invariant |bs.data| == 32*i
+        invariant |bs.data| == dirent_sz*i
       {
         assert C.seq_fmap(encOne, this.s[..i+1])
           == C.seq_fmap(encOne, this.s[..i]) + [encOne(s[i])];
@@ -430,7 +433,7 @@ module DirEntries
         modifies allSlices, ent_s
         invariant 0 <= i <= 128
         invariant bs.data == C.concat(C.seq_fmap(encOne, ents.s[i..]))
-        invariant |bs.data| == 4096 - 32*i
+        invariant |bs.data| == 4096 - dirent_sz*i
         invariant ent_s[..i] == ents.s[..i]
         invariant fresh(allSlices - {bs0})
         invariant bs in allSlices
@@ -464,8 +467,8 @@ module DirEntries
 
     function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
-      requires i < 128
-      requires this.findName(e.name) >= 128
+      requires i < dir_sz
+      requires this.findName(e.name) >= dir_sz
       ensures ents'.Valid()
     {
       var s' := this.s[i := e];
@@ -477,8 +480,8 @@ module DirEntries
 
     lemma insert_ent_dir(e: DirEnt)
       requires Valid()
-      requires this.findName(e.name) >= 128
-      requires this.findFree() < 128 && e.used()
+      requires this.findName(e.name) >= dir_sz
+      requires this.findFree() < dir_sz && e.used()
       ensures this.insert_ent(this.findFree(), e).dir == this.dir[e.name := e.ino]
     {
       reveal find_name_spec();
@@ -498,7 +501,7 @@ module DirEntries
 
     function method findName(p: PathComp): (i:nat)
       requires Valid()
-      ensures i < 128 ==> s[i].used() && s[i].name == p
+      ensures i < dir_sz ==> s[i].used() && s[i].name == p
       ensures find_name_spec(p, i)
     {
       C.find_first_complete(findName_pred(p), s);
@@ -508,7 +511,7 @@ module DirEntries
 
     lemma findName_found(p: PathComp)
       requires Valid()
-      requires findName(p) < 128
+      requires findName(p) < dir_sz
       ensures p in this.dir && this.dir[p] == this.s[findName(p)].ino
     {
       seq_to_dir_present(this.s, findName(p));
@@ -516,7 +519,7 @@ module DirEntries
 
     lemma findName_not_found(p: PathComp)
       requires Valid()
-      requires findName(p) >= 128
+      requires findName(p) >= dir_sz
       ensures p !in this.dir
     {
       if p in this.dir {
@@ -538,7 +541,7 @@ module DirEntries
 
     function method findFree(): (i:nat)
       requires Valid()
-      ensures i < 128 ==> !s[i].used()
+      ensures i < dir_sz ==> !s[i].used()
       ensures find_free_spec(i)
     {
       C.find_first_complete(is_unused, s);
@@ -554,7 +557,7 @@ module DirEntries
       var i: uint64 := 0;
       var p := DirEnt.is_used;
       while i < 128
-        invariant 0 <= i as nat <= 128
+        invariant 0 <= i as nat <= dir_sz
         invariant n as nat == C.count_matching(p, s[..i])
       {
         assert s[..i+1] == s[..i] + [s[i]];
@@ -564,13 +567,13 @@ module DirEntries
         }
         i := i + 1;
       }
-      assert s[..128] == s;
+      assert s[..dir_sz] == s;
       seq_to_dir_size(s);
     }
 
     method deleteAt(i: nat) returns (dents: Dirents)
       requires Valid()
-      requires i < 128 && s[i].used()
+      requires i < dir_sz && s[i].used()
       ensures dents.dir == map_delete(this.dir, s[i].name)
     {
       seq_to_dir_delete(s, i, []);
@@ -588,5 +591,5 @@ module DirEntries
       dents := used_dirents(this.s);
     }
   }
-  type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, 128))
+  type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, dir_sz))
 }

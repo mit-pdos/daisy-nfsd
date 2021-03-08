@@ -232,7 +232,7 @@ module MemDirEntries
 
     lemma data_one(k: nat)
       requires Valid()
-      requires k < 128
+      requires k < dir_sz
       ensures |bs.data| == 4096
       ensures bs.data[k*32..(k+1) * 32] == val.s[k].enc()
     {
@@ -242,7 +242,7 @@ module MemDirEntries
 
     lemma data_one_name(k: nat)
       requires Valid()
-      requires k < 128
+      requires k < dir_sz
       ensures |bs.data| == 4096
       ensures bs.data[k*32..k*32+24] == encode_pathc(val.s[k].name)
     {
@@ -254,7 +254,7 @@ module MemDirEntries
 
     lemma data_one_ino(k: nat)
       requires Valid()
-      requires k < 128
+      requires k < dir_sz
       ensures |bs.data| == 4096
       ensures bs.data[k*32 + 24..k*32 + 32] == IntEncoding.le_enc64(val.s[k].ino)
     {
@@ -266,7 +266,7 @@ module MemDirEntries
 
     twostate lemma data_splice_one(k: nat, v: DirEnt)
       requires old(Valid())
-      requires k < 128
+      requires k < dir_sz
       requires (v.enc_len(); reveal Valid(); bs.data == C.splice(old(bs.data), k*32, v.enc()))
       ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
     {
@@ -375,7 +375,7 @@ module MemDirEntries
         }
         i := i + 1;
       }
-      C.find_first_characterization(Dirents.is_unused, val.s, 128);
+      C.find_first_characterization(Dirents.is_unused, val.s, dir_sz);
       return 128;
     }
 
@@ -424,7 +424,7 @@ module MemDirEntries
         }
         i := i + 1;
       }
-      C.find_first_characterization(preDirents.findName_pred(p), val.s, 128);
+      C.find_first_characterization(preDirents.findName_pred(p), val.s, dir_sz);
       val.findName_not_found(p);
       return None;
     }
