@@ -15,11 +15,17 @@ module DirEntries
   type String = seq<byte>
 
   const dirent_sz: nat := 32
+  const dirent_sz_u64: uint64 := 32
+    // dirent_sz - 8
+  const path_len: nat := 24
   const dir_sz: nat := 128
-  const path_len: nat := dirent_sz - 8
+  const dir_sz_u64: uint64 := 128
   const MAX_FILENAME_SZ: uint64 := 24
 
   lemma dirent_sizes_consistent()
+    ensures dirent_sz_u64 as nat == dirent_sz
+    ensures dir_sz_u64 as nat == dir_sz
+    ensures path_len == dirent_sz - 8
     ensures MAX_FILENAME_SZ as nat == path_len
     ensures dirent_sz * dir_sz == 4096
   {}
@@ -150,29 +156,6 @@ module DirEntries
     {
       zero.enc_app();
       IntEncoding.lemma_enc_0();
-    }
-
-    method encode() returns (bs:Bytes)
-      ensures fresh(bs) && bs.Valid() && bs.data == enc()
-    {
-      var enc := new Encoder(32);
-      enc.PutByteSeq(encode_pathc(name));
-      enc.PutInt(ino);
-      bs := enc.Finish();
-      reveal encoding();
-    }
-
-    static method decode(bs: Bytes, ghost ent: DirEnt) returns (ent': DirEnt)
-      requires bs.data == ent.enc()
-      ensures ent' == ent
-    {
-      assert |bs.data| == 32 by { ent.enc_len(); }
-      var dec := new Decoder.Init(bs, ent.encoding());
-      reveal ent.encoding();
-      var name_s := dec.GetByteSeq(24, encode_pathc(ent.name));
-      var ino := dec.GetInt(ent.ino);
-      ent' := DirEnt(decode_pathc(name_s), ino);
-      decode_encode(ent.name);
     }
   }
 
@@ -393,78 +376,6 @@ module DirEntries
       C.concat_repeat(0 as byte, dirent_sz, dir_sz);
     }
 
-    method encode() returns (bs:Bytes)
-      requires Valid()
-      ensures fresh(bs) && bs.Valid() && bs.data == enc()
-    {
-      var i := 0;
-      bs := NewBytes(0);
-      while i < |s|
-        invariant 0 <= i <= |s|
-        invariant bs.data == C.concat(C.seq_fmap(encOne, this.s[..i]))
-        invariant |bs.data| == dirent_sz*i
-      {
-        assert C.seq_fmap(encOne, this.s[..i+1])
-          == C.seq_fmap(encOne, this.s[..i]) + [encOne(s[i])];
-        C.concat_app1(C.seq_fmap(encOne, this.s[..i]), encOne(s[i]));
-        s[i].enc_len();
-        var bsOne := s[i].encode();
-        bs.AppendBytes(bsOne);
-        i := i + 1;
-      }
-      assert s[..|s|] == s;
-    }
-
-    static method decode(bs: Bytes, ghost ents: Dirents) returns (ents': Dirents)
-      modifies bs
-      requires bs.data == ents.enc()
-      ensures ents' == ents
-    {
-      var ent_s: array<DirEnt> := new DirEnt[128];
-      ghost var bs0 := bs;
-      // allSlices gather the slices created by repeated splitting, in order to
-      // track the dynamic frame of this method
-      ghost var allSlices: set<object> := {bs0};
-      var bs := bs;
-      ents.enc_len();
-
-      var i := 0;
-      while i < 128
-        modifies allSlices, ent_s
-        invariant 0 <= i <= 128
-        invariant bs.data == C.concat(C.seq_fmap(encOne, ents.s[i..]))
-        invariant |bs.data| == 4096 - dirent_sz*i
-        invariant ent_s[..i] == ents.s[..i]
-        invariant fresh(allSlices - {bs0})
-        invariant bs in allSlices
-      {
-        assert C.seq_fmap(encOne, ents.s[i..])[0] == encOne(ents.s[i]);
-        assert C.seq_fmap(encOne, ents.s[i..])[1..] == C.seq_fmap(encOne, ents.s[i+1..]);
-        assert C.concat(C.seq_fmap(encOne, ents.s[i..])) ==
-          encOne(ents.s[i]) + C.concat(C.seq_fmap(encOne, ents.s[i+1..]));
-
-        ents.s[i].enc_len();
-        var bs' := bs.Split(32);
-        // bs has ents.s[i], bs' is the next value for bs at the end of the loop
-        var bs_i := bs;
-        bs := bs';
-        allSlices := allSlices + {bs};
-        calc {
-          bs.data;
-          C.concat(C.seq_fmap(encOne, ents.s[i..]))[32..];
-          C.concat(C.seq_fmap(encOne, ents.s[i+1..]));
-        }
-
-        // assert bs_i.data == C.concat(C.seq_fmap(encOne, ents.s[i..]))[..32];
-        var ent := DirEnt.decode(bs_i, ents.s[i]);
-        ent_s[i] := ent;
-
-        i := i + 1;
-        //assert |bs.data| == 4096 - 32*i;
-      }
-      return Dirents(ent_s[..]);
-    }
-
     function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
       requires i < dir_sz
@@ -547,28 +458,6 @@ module DirEntries
       C.find_first_complete(is_unused, s);
       reveal find_free_spec();
       C.find_first(is_unused, s)
-    }
-
-    method numValid() returns (n:uint64)
-      requires Valid()
-      ensures n as nat == |this.dir|
-    {
-      n := 0;
-      var i: uint64 := 0;
-      var p := DirEnt.is_used;
-      while i < 128
-        invariant 0 <= i as nat <= dir_sz
-        invariant n as nat == C.count_matching(p, s[..i])
-      {
-        assert s[..i+1] == s[..i] + [s[i]];
-        C.count_matching_app(p, s[..i], [s[i]]);
-        if s[i].used() {
-          n := n + 1;
-        }
-        i := i + 1;
-      }
-      assert s[..dir_sz] == s;
-      seq_to_dir_size(s);
     }
 
     method deleteAt(i: nat) returns (dents: Dirents)
