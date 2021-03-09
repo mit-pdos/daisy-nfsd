@@ -13,6 +13,7 @@ module DirFs
   import opened JrnlSpec
 
   import opened DirEntries
+  import opened MemDirEnts
   import opened MemDirEntries
   import opened Paths
   import opened TypedFs

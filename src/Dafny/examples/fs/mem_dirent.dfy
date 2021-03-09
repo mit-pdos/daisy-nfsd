@@ -1,13 +1,11 @@
 include "dirent.dfy"
 include "paths.dfy"
 
-module MemDirEntries
+module MemDirEnts
 {
-  import opened Std
   import opened Machine
   import opened ByteSlice
   import opened FsKinds
-  import IntEncoding
 
   import opened DirEntries
   import opened Paths
@@ -38,7 +36,6 @@ module MemDirEntries
     {
       name.data
     }
-
   }
 
   function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
@@ -85,6 +82,19 @@ module MemDirEntries
     requires mem_seq_valid(s1) && mem_seq_valid(s2)
     ensures mem_seq_val(s1 + s2) == mem_seq_val(s1) + mem_seq_val(s2)
   {}
+}
+
+module MemDirEntries
+{
+  import opened Std
+  import opened Machine
+  import opened ByteSlice
+  import opened FsKinds
+  import IntEncoding
+
+  import opened MemDirEnts
+  import opened DirEntries
+  import opened Paths
 
   class MemDirents
   {

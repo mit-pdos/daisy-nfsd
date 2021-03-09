@@ -6,7 +6,7 @@ import (
 	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
-	memdirentries "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEntries_Compile"
+	memdirents "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEnts_Compile"
 	dafny_nfs "github.com/mit-pdos/dafny-jrnl/dafnygen/Nfs_Compile"
 	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
 
@@ -359,8 +359,8 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	seqlen := seq.LenInt()
 	var ents *nfstypes.Entry3
 	for i := 0; i < seqlen; i++ {
-		dirent := seq.IndexInt(i).(memdirentries.MemDirEnt)
-		dirent2 := dirent.Get().(memdirentries.MemDirEnt_MemDirEnt)
+		dirent := seq.IndexInt(i).(memdirents.MemDirEnt)
+		dirent2 := dirent.Get().(memdirents.MemDirEnt_MemDirEnt)
 
 		de_ino := dirent2.Ino
 		var de_name []byte = dirent2.Name.Data
