@@ -246,7 +246,6 @@ module TypedFs {
       reveal ValidFields();
     }
 
-
     method freeInode(txn: Txn, ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -258,9 +257,7 @@ module TypedFs {
       fs.setType(ino, i, Inode.InvalidType);
       fs.shrinkToEmpty(txn, ino, i);
       fs.finishInode(txn, ino, i);
-      if ino as uint64 != 0 {
-        ialloc.Free(ino);
-      }
+      FreeFrom(ialloc, ino);
       data := fs.data();
       types := fs.inode_types();
       reveal ValidFields();

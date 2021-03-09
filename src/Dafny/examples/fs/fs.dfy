@@ -55,6 +55,7 @@ module Fs {
 
     const jrnl: Jrnl;
     const balloc: Allocator;
+    const ballocActualMax: uint64;
 
     static predicate Valid_basics(jrnl: Jrnl)
       reads jrnl
@@ -121,7 +122,7 @@ module Fs {
     predicate Valid_balloc()
       reads this
     {
-      && this.balloc.max <= ballocMax
+      && this.balloc.max == ballocActualMax <= ballocMax
       && this.balloc.Valid()
     }
 
@@ -176,6 +177,7 @@ module Fs {
       }
       var balloc := NewAllocator(actual_max);
       this.balloc := balloc;
+      this.ballocActualMax := actual_max;
 
       this.inodes := map ino: Ino {:trigger} :: Inode.zero;
       this.cur_inode := None;
@@ -479,7 +481,7 @@ module Fs {
       blkno_bit_inbounds(jrnl);
       block_used := block_used[bn:=None];
       txn.WriteBit(DataBitAddr(bn), false);
-      if bn != 0 {
+      if 0 < bn < ballocActualMax {
         balloc.Free(bn);
       }
 

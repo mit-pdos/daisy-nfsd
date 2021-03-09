@@ -74,7 +74,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
     // stateless, so that no issues of concurrency arise.
     class {:extern} Allocator
     {
-        const max: uint64
+        ghost const max: uint64
 
         predicate Valid()
         {
@@ -108,6 +108,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
         method {:extern} Free(x: uint64)
             requires Valid()
             requires x != 0
+            requires x < max
         {
         }
     }
@@ -119,6 +120,16 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
         ensures fresh(a)
     {
         return new Allocator(max);
+    }
+
+    method FreeFrom(alloc: Allocator, x: uint64)
+        requires alloc.Valid()
+        requires x < alloc.max
+    {
+        if x == 0 {
+            return;
+        }
+        alloc.Free(x);
     }
 
     type JrnlData = map<Addr, Object>
