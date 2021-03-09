@@ -54,17 +54,22 @@ module MemInodes {
       this.bs := bs;
       this.blks := i.blks;
 
-      assert Marshal.seq_encode(Inode.inode_enc(i)) == bs.data by {
-        reveal Inode.enc();
-      }
-      var dec := new Marshal.Decoder.Init(bs, Inode.inode_enc(i));
-      var sz := dec.GetInt(i.meta.sz);
-      this.sz := sz;
-      var ty_u64 := dec.GetInt(i.meta.ty.to_u64());
-      i.meta.ty.from_to_u64();
-      var ty := Inode.InodeType.from_u64(ty_u64);
-      this.ty := ty;
       Inode.enc_app(i);
+      var sz := IntEncoding.UInt64Get(bs, 0);
+      assert sz == i.meta.sz by {
+        assert bs.data[..8] == IntEncoding.le_enc64(i.meta.sz);
+        IntEncoding.lemma_le_enc_dec64(i.meta.sz);
+      }
+      var ty_u64 := IntEncoding.UInt64Get(bs, 8);
+      var ty := Inode.InodeType.from_u64(ty_u64);
+      assert ty == i.meta.ty by {
+        IntEncoding.lemma_le_enc_dec64(i.meta.ty.to_u64());
+        i.meta.ty.from_to_u64();
+      }
+
+      this.sz := sz;
+      this.ty := ty;
+
       new;
       reveal Valid();
       Marshal.decode_encode_uint64_seq_id(i.blks);
