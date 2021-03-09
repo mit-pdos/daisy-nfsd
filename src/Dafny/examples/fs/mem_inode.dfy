@@ -10,7 +10,6 @@ module MemInodes {
 
   class MemInode
   {
-    // the inode represented
     var sz: uint64
     var ty: Inode.InodeType
     ghost var blks: seq<uint64>
@@ -19,6 +18,7 @@ module MemInodes {
 
     ghost const Repr: set<object> := {this, bs}
 
+    // the inode represented
     function val(): Inode.Inode
       reads Repr
       requires Valid()

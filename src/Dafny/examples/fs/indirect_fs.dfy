@@ -534,7 +534,7 @@ module IndFs
       }
     }
 
-    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    method {:timeLimitMultiplier 2} zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
