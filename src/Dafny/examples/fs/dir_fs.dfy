@@ -1202,7 +1202,7 @@ module DirFs
       return Ok(dents_seq);
     }
 
-    method renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+    method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
