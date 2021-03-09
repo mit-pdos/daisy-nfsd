@@ -1202,6 +1202,39 @@ module DirFs
       return Ok(dents_seq);
     }
 
+    method renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+      returns (r: Result<()>)
+      modifies Repr, dst_name
+      requires is_pathc(src_name.data) && is_pathc(dst_name.data)
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.has_jrnl(txn)
+    {
+      var ino :- unlink(txn, src_d_ino, src_name);
+      if ino == 0 {
+        return Err(Inval);
+      }
+      var dst :- readDirents(txn, dst_d_ino);
+      var name_opt := dst.findName(dst_name);
+      if name_opt.Some? {
+        var dst_ino := name_opt.x.1;
+        var _ :- removeInode(txn, dst_ino);
+        // TODO: need a lower-level removeInode that operates on dst directly,
+        // like linkInode
+        dst :- readDirents(txn, dst_d_ino);
+        name_opt := dst.findName(dst_name);
+        if name_opt.Some? {
+          // should be impossible
+          return Err(Inval);
+        }
+      }
+      var e' := MemDirEnt(dst_name, ino);
+      var ok := linkInode(txn, dst_d_ino, dst, e');
+      if !ok {
+        return Err(NoSpc);
+      }
+      return Ok(());
+    }
+
     method RENAME(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
@@ -1218,32 +1251,9 @@ module DirFs
       if !dst_name_ok {
         return Err(NameTooLong);
       }
-      var ino :- unlink(txn, src_d_ino, src_name);
-      if ino == 0 {
-        return Err(Inval);
-      }
-      var dst :- readDirents(txn, dst_d_ino);
-      var name_opt := dst.findName(dst_name);
-      if name_opt.Some? {
-        // TODO: support overwriting with RENAME
-        return Err(ServerFault);
-      }
-      var e' := MemDirEnt(dst_name, ino);
-      var ok := linkInode(txn, dst_d_ino, dst, e');
-      if !ok {
-        return Err(NoSpc);
-      }
+      var _ :- renamePaths(txn, src_d_ino, src_name, dst_d_ino, dst_name);
       return Ok(());
     }
-
-    // TODO:
-    //
-    // 1. Append (done)
-    // 2. Read (done)
-    // 3. CreateDir (done)
-    // 4. Write (done)
-    // 5. Rename (maybe?)
-    // 6. Unlink (done)
 
   }
 }
