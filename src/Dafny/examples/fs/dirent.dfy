@@ -361,7 +361,6 @@ module DirEntries
     }
 
     lemma enc_len()
-      requires Valid()
       ensures |enc()| == dirent_sz*|s|
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);

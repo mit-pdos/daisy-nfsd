@@ -12,11 +12,6 @@ module MemDirEntries
   import opened DirEntries
   import opened Paths
 
-  predicate dir_off?(k: uint64)
-  {
-    k as nat < dir_sz
-  }
-
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
     predicate Valid()
@@ -140,6 +135,11 @@ module MemDirEntries
     {
       reveal ValidCore();
       bs' := bs;
+    }
+
+    static predicate dir_off?(k: uint64)
+    {
+      k as nat < dir_sz
     }
 
     static function dirent_off(k: nat): nat
