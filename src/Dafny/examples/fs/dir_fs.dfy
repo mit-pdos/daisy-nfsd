@@ -156,7 +156,7 @@ module DirFs
       reads this
       requires ino_dom(fsdata)
     {
-      ino in dirents ==> fsdata[ino] == dirents[ino].enc()
+      ino in dirents ==> |dirents[ino].s| == dir_sz && fsdata[ino] == dirents[ino].enc()
     }
 
     predicate Valid_file_at(ino: Ino, fsdata: FsData)

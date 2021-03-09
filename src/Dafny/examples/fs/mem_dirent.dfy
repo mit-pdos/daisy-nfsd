@@ -98,11 +98,18 @@ module MemDirEntries
 
     ghost const Repr: set<object> := {this, bs}
 
-    predicate {:opaque} Valid()
+    predicate {:opaque} ValidCore()
       reads Repr
     {
       && bs.data == val.enc()
       && |bs.data| == 4096
+    }
+
+    predicate Valid()
+      reads Repr
+    {
+      && ValidCore()
+      && |val.s| == dir_sz
     }
 
     function dir(): Directory
@@ -113,6 +120,7 @@ module MemDirEntries
 
     constructor(bs: Bytes, ghost dents: Dirents)
       requires bs.data == dents.enc()
+      requires |dents.s| == dir_sz
       ensures Valid()
       ensures val == dents
       // for framing
@@ -122,7 +130,7 @@ module MemDirEntries
       this.val := dents;
       new;
       val.enc_len();
-      reveal Valid();
+      reveal ValidCore();
     }
 
     method encode() returns (bs': Bytes)
@@ -130,7 +138,7 @@ module MemDirEntries
       ensures bs' == bs
       ensures bs'.data == val.enc()
     {
-      reveal Valid();
+      reveal ValidCore();
       bs' := bs;
     }
 
@@ -156,7 +164,7 @@ module MemDirEntries
       ensures |bs.data| == 4096
       ensures bs.data[dirent_off(k)..dirent_off(k+1)] == val.s[k].enc()
     {
-      reveal Valid();
+      reveal ValidCore();
       C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, dirent_sz);
     }
 
@@ -166,7 +174,7 @@ module MemDirEntries
       ensures |bs.data| == 4096
       ensures bs.data[dirent_off(k)..path_ub(k)] == encode_pathc(val.s[k].name)
     {
-      reveal Valid();
+      reveal ValidCore();
       data_one(k);
       val.s[k].enc_app();
       assert bs.data[dirent_off(k)..dirent_off(k+1)][..path_len] ==
@@ -179,7 +187,7 @@ module MemDirEntries
       ensures |bs.data| == 4096
       ensures bs.data[path_ub(k)..dirent_off(k+1)] == IntEncoding.le_enc64(val.s[k].ino)
     {
-      reveal Valid();
+      reveal ValidCore();
       data_one(k);
       val.s[k].enc_app();
       assert bs.data[dirent_off(k)..dirent_off(k+1)][path_len..dirent_sz] ==
@@ -189,11 +197,11 @@ module MemDirEntries
     twostate lemma data_splice_one(k: nat, v: DirEnt)
       requires old(Valid())
       requires k < dir_sz
-      requires (v.enc_len(); reveal Valid();
+      requires (v.enc_len(); reveal ValidCore();
                 bs.data == C.splice(old(bs.data), k*dirent_sz, v.enc()))
       ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
     {
-      reveal Valid();
+      reveal ValidCore();
       v.enc_len();
       C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)),
         k as nat, v.enc(), dirent_sz);
@@ -207,7 +215,7 @@ module MemDirEntries
       requires dir_off?(k)
       ensures ino == val.s[k].ino
     {
-      reveal Valid();
+      reveal ValidCore();
       // we'll prove it's an Ino later, for now it's just a uint64
       var ino': uint64 := IntEncoding.UInt64Get(bs, k*dirent_sz_u64 + path_len_u64);
       data_one_ino(k as nat);
@@ -221,7 +229,7 @@ module MemDirEntries
       ensures fresh(name) && name.Valid() && |name.data| == path_len
       ensures encode_pathc(val.s[k].name) == name.data
     {
-      reveal Valid();
+      reveal ValidCore();
       name := NewBytes(path_len_u64);
       name.CopyFrom(bs, k*dirent_sz_u64, path_len_u64);
       data_one(k as nat);
@@ -419,7 +427,7 @@ module MemDirEntries
       requires val.findName(e.val().name) >= dir_sz
       ensures val.dir == old(val.dir[e.val().name := e.val().ino])
     {
-      reveal Valid();
+      reveal ValidCore();
       ghost var v := e.val();
       v.enc_len();
       val.insert_ent_dir(v);
@@ -437,7 +445,7 @@ module MemDirEntries
       requires dir_off?(k) && val.s[k].used()
       ensures val.dir == old(map_delete(val.dir, val.s[k].name))
     {
-      reveal Valid();
+      reveal ValidCore();
       ghost var old_name := old(val.s[k].name);
       ghost var old_padded_name := bs.data[dirent_off(k as nat)..path_ub(k as nat)];
       assert old_padded_name == encode_pathc(old_name) by {

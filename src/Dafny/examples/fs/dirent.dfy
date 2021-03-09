@@ -344,7 +344,7 @@ module DirEntries
     predicate Valid()
     {
       // 128*32 == 4096 so these will fit in a block
-      && |s| == dir_sz
+      && |s| <= dir_sz
       && dirents_unique(s)
     }
 
@@ -362,7 +362,7 @@ module DirEntries
 
     lemma enc_len()
       requires Valid()
-      ensures |enc()| == 4096
+      ensures |enc()| == dirent_sz*|s|
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);
     }
