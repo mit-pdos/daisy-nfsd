@@ -122,16 +122,6 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
         return new Allocator(max);
     }
 
-    method FreeFrom(alloc: Allocator, x: uint64)
-        requires alloc.Valid()
-        requires x < alloc.max
-    {
-        if x == 0 {
-            return;
-        }
-        alloc.Free(x);
-    }
-
     type JrnlData = map<Addr, Object>
 
     class {:extern} Jrnl
