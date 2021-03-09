@@ -1,7 +1,6 @@
 include "../../util/std.dfy"
 include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
-include "../../jrnl/alloc.i.dfy"
 include "kinds.dfy"
 include "mem_inode.dfy"
 
@@ -17,7 +16,6 @@ module Fs {
   import opened ByteSlice
   import opened JrnlTypes
   import opened JrnlSpec
-  import opened Alloc
   import opened Kinds
   import opened FsKinds
   import opened Marshal
@@ -56,7 +54,7 @@ module Fs {
     ghost var data_block: map<Blkno, Block>;
 
     const jrnl: Jrnl;
-    const balloc: MaxAllocator;
+    const balloc: Allocator;
 
     static predicate Valid_basics(jrnl: Jrnl)
       reads jrnl
@@ -137,7 +135,7 @@ module Fs {
       && Valid_jrnl_to_inodes(inodes)
     }
 
-    ghost const Repr: set<object> := {this, jrnl} + balloc.Repr
+    ghost const Repr: set<object> := {this, jrnl}
 
     static predicate Valid_data_block(data_block: map<Blkno, Block>)
     {
@@ -176,7 +174,7 @@ module Fs {
         actual_max := Round.roundup64(num_blks - super_data_start - 8, 8);
         assert super_data_start + actual_max < num_blks;
       }
-      var balloc := new MaxAllocator(actual_max);
+      var balloc := NewAllocator(actual_max);
       this.balloc := balloc;
 
       this.inodes := map ino: Ino {:trigger} :: Inode.zero;
@@ -206,13 +204,12 @@ module Fs {
       requires Valid_basics(jrnl_)
       ensures this.jrnl == jrnl_
     {
-      var balloc := new MaxAllocator(ballocMax);
+      var balloc := NewAllocator(ballocMax);
 
       var txn := jrnl_.Begin();
       blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
       while bn < ballocMax
-        modifies balloc.Repr
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
@@ -237,7 +234,6 @@ module Fs {
 
     // private
     method allocBlkno(txn: Txn) returns (ok:bool, bn:Blkno)
-      modifies balloc.Repr
       requires txn.jrnl == this.jrnl
       requires Valid() ensures Valid()
       ensures ok ==>
@@ -246,6 +242,9 @@ module Fs {
         )
     {
       bn := balloc.Alloc();
+      if bn == 0 {
+        return false, 0;
+      }
       blkno_bit_inbounds(jrnl);
       var used := txn.ReadBit(DataBitAddr(bn));
       if used {
@@ -480,7 +479,9 @@ module Fs {
       blkno_bit_inbounds(jrnl);
       block_used := block_used[bn:=None];
       txn.WriteBit(DataBitAddr(bn), false);
-      balloc.Free(bn);
+      if bn != 0 {
+        balloc.Free(bn);
+      }
 
       assert Valid_jrnl_to_all() by {
         reveal Valid_jrnl_to_block_used();

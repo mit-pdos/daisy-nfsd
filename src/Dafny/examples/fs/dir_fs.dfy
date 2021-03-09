@@ -11,7 +11,6 @@ module DirFs
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
-  import opened Alloc
 
   import opened DirEntries
   import opened MemDirEntries

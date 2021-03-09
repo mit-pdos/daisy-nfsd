@@ -7,7 +7,6 @@ module TypedFs {
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
-  import opened Alloc
   import opened Machine
   import opened ByteSlice
   import Inode
@@ -18,9 +17,9 @@ module TypedFs {
     ghost var data: map<Ino, seq<byte>>
     ghost var types: map<Ino, Inode.InodeType>
     const fs: ByteFilesys
-    const ialloc: MaxAllocator
+    const ialloc: Allocator
 
-    ghost const Repr: set<object> := {this} + fs.Repr + ialloc.Repr;
+    ghost const Repr: set<object> := {this} + fs.Repr;
 
     static const iallocMax: uint64 := super.num_inodes as uint64
 
@@ -69,11 +68,9 @@ module TypedFs {
     }
 
     predicate ValidAlloc()
-      reads ialloc.Repr
     {
       && ialloc.Valid()
       && ialloc.max == iallocMax
-      && ialloc.Repr !! fs.Repr
     }
 
     predicate ValidThis()
@@ -114,7 +111,7 @@ module TypedFs {
       this.fs := fs_;
       this.data := fs_.data();
       this.types := fs_.inode_types();
-      var ialloc := new MaxAllocator(iallocMax);
+      var ialloc := NewAllocator(iallocMax);
       // the root inode
       ialloc.MarkUsed(1);
       this.ialloc := ialloc;
@@ -197,12 +194,12 @@ module TypedFs {
       reveal ValidFields();
     }
 
-    method allocInode(txn: Txn, ty: Inode.InodeType) returns (ok: bool, ino: Ino, i: MemInode)
+    method allocInode(txn: Txn, ty: Inode.InodeType) returns (ok: bool, ino: Ino, i: MemInode?)
       modifies Repr
       requires Valid()
       requires has_jrnl(txn)
       requires !ty.InvalidType?
-      ensures ok ==> fresh(i.Repr)
+      ensures ok ==> i != null && fresh(i.Repr)
       ensures ok ==>
       && old(types[ino].InvalidType?) && types == old(types[ino := ty])
       && data == old(data)
@@ -212,6 +209,10 @@ module TypedFs {
     {
       reveal_valids();
       ino := ialloc.Alloc();
+      if ino == 0 {
+        ok := false;
+        return;
+      }
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
       if !i.ty.InvalidType? {
@@ -257,7 +258,9 @@ module TypedFs {
       fs.setType(ino, i, Inode.InvalidType);
       fs.shrinkToEmpty(txn, ino, i);
       fs.finishInode(txn, ino, i);
-      ialloc.Free(ino);
+      if ino as uint64 != 0 {
+        ialloc.Free(ino);
+      }
       data := fs.data();
       types := fs.inode_types();
       reveal ValidFields();
