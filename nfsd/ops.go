@@ -205,6 +205,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Create error %v", status)
 		return reply
 	}
 	finum := r.(uint64)
@@ -271,6 +272,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Remove error %v", status)
 		return reply
 	}
 
@@ -288,6 +290,9 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 		return nfs.filesys.RMDIR(txn, inum, name)
 	})
 	reply.Status = status
+	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Rmdir error %v", status)
+	}
 
 	return reply
 }
@@ -305,6 +310,9 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		return nfs.filesys.RENAME(txn, src_inum, src_name, dst_inum, dst_name)
 	})
 	reply.Status = status
+	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Rename error %v", status)
+	}
 
 	return reply
 }
