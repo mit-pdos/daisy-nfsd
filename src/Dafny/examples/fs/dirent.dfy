@@ -14,12 +14,12 @@ module DirEntries
 
   type String = seq<byte>
 
-  const dirent_sz_u64: uint64 := 32
+  const dirent_sz_u64: uint64 := 64
   const dirent_sz: nat := dirent_sz_u64 as nat
     // dirent_sz - 8
-  const path_len_u64: uint64 := 24
+  const path_len_u64: uint64 := 56
   const path_len: nat := path_len_u64 as nat
-  const dir_sz_u64: uint64 := 128
+  const dir_sz_u64: uint64 := 64
   const dir_sz: nat := dir_sz_u64 as nat
 
   const MAX_FILENAME_SZ: uint64 := path_len_u64
