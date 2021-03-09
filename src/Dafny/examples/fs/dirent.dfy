@@ -377,8 +377,8 @@ module DirEntries
 
     function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
-      requires i < dir_sz
-      requires this.findName(e.name) >= dir_sz
+      requires i < |s|
+      requires this.findName(e.name) >= |s|
       ensures ents'.Valid()
     {
       var s' := this.s[i := e];
@@ -390,8 +390,8 @@ module DirEntries
 
     lemma insert_ent_dir(e: DirEnt)
       requires Valid()
-      requires this.findName(e.name) >= dir_sz
-      requires this.findFree() < dir_sz && e.used()
+      requires this.findName(e.name) >= |s|
+      requires this.findFree() < |s| && e.used()
       ensures this.insert_ent(this.findFree(), e).dir == this.dir[e.name := e.ino]
     {
       reveal find_name_spec();
@@ -411,7 +411,7 @@ module DirEntries
 
     function method findName(p: PathComp): (i:nat)
       requires Valid()
-      ensures i < dir_sz ==> s[i].used() && s[i].name == p
+      ensures i < |s| ==> s[i].used() && s[i].name == p
       ensures find_name_spec(p, i)
     {
       C.find_first_complete(findName_pred(p), s);
@@ -421,7 +421,7 @@ module DirEntries
 
     lemma findName_found(p: PathComp)
       requires Valid()
-      requires findName(p) < dir_sz
+      requires findName(p) < |s|
       ensures p in this.dir && this.dir[p] == this.s[findName(p)].ino
     {
       seq_to_dir_present(this.s, findName(p));
@@ -429,7 +429,7 @@ module DirEntries
 
     lemma findName_not_found(p: PathComp)
       requires Valid()
-      requires findName(p) >= dir_sz
+      requires findName(p) >= |s|
       ensures p !in this.dir
     {
       if p in this.dir {
@@ -451,7 +451,7 @@ module DirEntries
 
     function method findFree(): (i:nat)
       requires Valid()
-      ensures i < dir_sz ==> !s[i].used()
+      ensures i < |s| ==> !s[i].used()
       ensures find_free_spec(i)
     {
       C.find_first_complete(is_unused, s);
@@ -461,7 +461,7 @@ module DirEntries
 
     method deleteAt(i: nat) returns (dents: Dirents)
       requires Valid()
-      requires i < dir_sz && s[i].used()
+      requires i < |s| && s[i].used()
       ensures dents.dir == map_delete(this.dir, s[i].name)
     {
       seq_to_dir_delete(s, i, []);
