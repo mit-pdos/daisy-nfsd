@@ -1218,13 +1218,14 @@ module DirFs
       if name_opt.Some? {
         var dst_ino := name_opt.x.1;
         var _ :- removeInode(txn, dst_ino);
-        // TODO: need a lower-level removeInode that operates on dst directly,
+        var _ :- unlink(txn, dst_d_ino, dst_name);
+        // TODO: need a lower-level unlink that operates on dst directly,
         // like linkInode
         dst :- readDirents(txn, dst_d_ino);
         name_opt := dst.findName(dst_name);
         if name_opt.Some? {
-          // should be impossible
-          return Err(Inval);
+          // should be impossible, due to unlink above
+          return Err(ServerFault);
         }
       }
       var e' := MemDirEnt(dst_name, ino);
