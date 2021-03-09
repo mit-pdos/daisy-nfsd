@@ -210,19 +210,22 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
 
 	inum := fh2ino(args.Where.Dir)
+	size := uint64(0)
+	if args.How.Obj_attributes.Size.Set_it {
+		size = uint64(args.How.Obj_attributes.Size.Size)
+	}
 
 	nameseq := filenameToBytes(args.Where.Name)
 	r, status := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.CREATE(txn, inum, nameseq)
+		return nfs.filesys.CREATE(txn, inum, nameseq, size)
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Create error %v", status)
 		return reply
 	}
-	finum := r.(uint64)
 
-	// XXX set size based on args.How.Obj_attributes.Size
+	finum := r.(uint64)
 
 	reply.Resok.Obj.Handle_follows = true
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()

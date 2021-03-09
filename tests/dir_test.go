@@ -40,7 +40,7 @@ var rootIno = dirfs.Companion_DirFilesys_.RootIno()
 func TestDirFsLookup(t *testing.T) {
 	fs := NewFs()
 	txn := fs.Begin()
-	r := fs.CREATE(txn, rootIno, stringToBytes("foo"))
+	r := fs.CREATE(txn, rootIno, stringToBytes("foo"), 0)
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
 	ino := r.Dtor_v().(uint64)

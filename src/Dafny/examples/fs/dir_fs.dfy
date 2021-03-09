@@ -595,10 +595,11 @@ module DirFs
       assert data[d_ino] == DirFile(d');
     }
 
-    method CREATE(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<Ino>)
+    method CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
+      returns (r: Result<Ino>, ghost junk: seq<byte>)
       modifies Repr, name
       requires name.Valid()
+      requires sz <= Inode.MAX_SZ_u64
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
@@ -606,28 +607,32 @@ module DirFs
       && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
+      && |junk| == sz as nat
       && data == old(
         var d := data[d_ino].dir;
         var d' := DirFile(d[name.data := ino]);
-        data[ino := File.empty][d_ino := d'])
+        data[ino := ByteFile(junk)][d_ino := d'])
       )
     {
       var is_path := Pathc?(name);
       if !is_path {
         // could also have 0s in it but whatever
-        return Err(NameTooLong);
+        r := Err(NameTooLong);
+        return;
       }
       var dents :- readDirents(txn, d_ino);
       var ok, ino := allocFile(txn);
       if !ok {
-        return Err(NoSpc);
+        r := Err(NoSpc);
+        return;
       }
       assert ino_ok: ino !in old(data);
       var name_opt := dents.findName(name);
       if name_opt.Some? {
         // TODO: support creating a file and overwriting existing (rather than
         // failing here)
-        return Err(Exist);
+        r := Err(Exist);
+        return;
       }
       var e' := MemDirEnt(name, ino);
 
@@ -636,11 +641,19 @@ module DirFs
       // this just kept timing out rather than reporting a modifies clause error
       ok := linkInode(txn, d_ino, dents, e');
       if !ok {
-        return Err(NoSpc);
+        r := Err(NoSpc);
+        return;
+      }
+      junk := [];
+      if sz > 0 {
+        var unused_r;
+        unused_r, junk :- SETATTRsize(txn, ino, sz);
+        assert ByteFs.ByteFilesys.setSize_with_junk([], sz as nat, junk) == junk;
       }
       // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
       reveal ino_ok;
-      return Ok(ino);
+      r := Ok(ino);
+      return;
     }
 
     method GETATTR(txn: Txn, ino: Ino)
