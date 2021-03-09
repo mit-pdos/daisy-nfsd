@@ -807,7 +807,6 @@ module DirFs
         get_data_at(ino);
       }
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        // fs.finishInodeReadonly(ino, i);
         return Err(FBig);
       }
       if off > i.sz {
@@ -819,7 +818,6 @@ module DirFs
       var ok;
       ok := fs.write(txn, ino, i, off, bs);
       if !ok {
-        // fs.finishInode(txn, ino, i);
         return Err(NoSpc);
       }
 

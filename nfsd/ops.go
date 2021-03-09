@@ -164,11 +164,24 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
+	cnt := uint64(args.Count)
 
-	bs := bytes.Data(args.Data[:args.Count])
+	bs := bytes.Data(args.Data[:cnt])
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.WRITE(txn, inum, off, bs)
 	})
+	if status == nfstypes.NFS3ERR_SERVERFAULT {
+		util.DPrintf(1, "NFS Write: handling write hole off %d cnt %d", off, cnt)
+		// FIXME: hack to support holes (without properly zeroing them)
+		_, status = nfs.runTxn(func(txn Txn) Result {
+			return nfs.filesys.SETATTRsize(txn, inum, off+cnt)
+		})
+		if status == nfstypes.NFS3_OK {
+			_, status = nfs.runTxn(func(txn Txn) Result {
+				return nfs.filesys.WRITE(txn, inum, off, bs)
+			})
+		}
+	}
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Write error %d", status)
