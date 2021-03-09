@@ -90,6 +90,21 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		return reply
 	}
+	if args.New_attributes.Mode.Set_it {
+		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
+	}
+	if args.New_attributes.Uid.Set_it {
+		util.DPrintf(1, "NFS SetAttr uid not supported %v\n", args)
+	}
+	if args.New_attributes.Gid.Set_it {
+		util.DPrintf(1, "NFS SetAttr gid not supported %v\n", args)
+	}
+	if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
+		util.DPrintf(1, "NFS SetAttr atime not supported")
+	}
+	if args.New_attributes.Mtime.Set_it != nfstypes.DONT_CHANGE {
+		util.DPrintf(1, "NFS SetAttr mtime not supported")
+	}
 	// we don't support any other attributes
 	if !args.New_attributes.Size.Set_it {
 		reply.Status = nfstypes.NFS3_OK
@@ -147,6 +162,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Read error %v", status)
 		return reply
 	}
 	bs := r.(*bytes.Bytes)
@@ -226,6 +242,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Mkdir error %v", status)
 		return reply
 	}
 	finum := r.(uint64)
@@ -331,6 +348,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS Readdir error %v", status)
 		return reply
 	}
 	seq := r.(dafny.Seq)
@@ -380,7 +398,6 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Resok.Wtmax = nfstypes.Uint32(4096)
 	reply.Resok.Wtpref = reply.Resok.Wtmax
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.Companion_Default___.MAX__SZ__u64())
-	reply.Resok.Dtpref = 128
 	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)
 	return reply
 }
