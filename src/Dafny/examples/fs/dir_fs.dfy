@@ -14,6 +14,7 @@ module DirFs
 
   import opened DirEntries
   import opened MemDirEntries
+  import opened Paths
   import opened TypedFs
   import opened MemInodes
 
