@@ -2,7 +2,6 @@
 
 ## Verified 2PL
 
-**current plan**
 In Iris, verify refinement for a 2PL system. The spec is something like a
 refinement between Go + 2PL and Go + disk, where the 2PL API has a single
 operation `doTransaction(txn)`. The hard part is making `txn` expressive enough
@@ -22,31 +21,18 @@ in Dafny proves refinement against the 2PL API, and then by some transitivity
 argument we can link with the real 2PL implementation and the whole thing has
 the right refinement spec.
 
-## Dafny for sequential WP proofs
-
-Client needs to set up locking. Dafny only proves the sequential part of the
-overall WPC proof, using lock operations to get access to lock invariant state
-(represented as Dafny objects). The final theorem is one in Perennial, but we
-don't formalize it because we would then need both sides to agree on the lock
-invariants.
-
-## Verified journal with lifting
-
-Prove a refinement spec for our current code, where client needs to have a
-locking discipline. API has ghost operations for moving ownership around, which
-it must do to avoid undefined behavior. Spec out concurrent separation logic
-locks for Dafny to get access to ownership, which it then moves around with the
-ghost operations.
-
 # Compilation
 
 ## Dafny to Go compilation
 
-**current plan**
-
 Native integer types are accessible with `{:nativeType}` on a subset type.
 
-Byte slices are axiomatized as an `{:extern}` class.
+Byte slices are axiomatized as an `{:extern}` class. These have a number of
+operations, but notably we don't have a notion of a slice which is a view into
+the same memory as another slice (modeling this would require separating
+"allocations" from slices, which would be views into allocations). This
+simplifies the representation and avoids extra disjointness statements but it
+does require a bunch of extra operations and offsets as part of every API.
 
 All external interfaces are also implemented by operating on maps and sequences.
 These implementations are never run but check that the spec is non-trivial. This
@@ -54,19 +40,10 @@ is especially important because Dafny _will_ exploit a contradictory spec - for
 example leaving off `modifies` and specifying `data == old(data) + bs` means
 data is both `old(data)` and `bs`, thus asserting those expressions are equal.
 
-The generated code is horrible, and possibly also low performance. We haven't
-measured anything.
-
-## Go to Dafny
-
-Follow the same strategy as Goose, translating Go using the jrnl API to Dafny
-over the axiomatized interface. We would need Dafny models of all the Go code we
-care about; these models will probably be a bit more limited than Goose, so
-we'll have slightly less idiomatic and/or efficient use of pointers.
-
-One concern is that the Dafny code needs proof annotations, which we can't
-easily write in Go (because it would lack the interactive feedback from Dafny).
-I think we will want to do something to take the old Dafny output with
-annotations and re-translate while preserving those annotations. In any case we
-should be able to snapshot the annotations somewhere since we're modifying
-auto-generated code.
+The generated code is horrible to read but manageable. It's easy to write
+low-performance code: for example, sequences are just too inefficient for
+anything of moderate size, and when `nat`s show up in the code they're quite
+slow. We have efficient byte slices as an extern interface, but this does mean
+that we can't us integer slices (unless we had a separate extern interface for
+those). Linear types seem like they would help a lot, but the VeriBetrKV linear
+types version of Dafny only supports the C++ backend.
