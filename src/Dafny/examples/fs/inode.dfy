@@ -95,34 +95,4 @@ module Inode {
     reveal enc();
     seq_encode_unfold(inode_enc(i));
   }
-
-  method encode_ino(i: Inode) returns (bs:Bytes)
-    modifies {}
-    ensures fresh(bs)
-    ensures bs.data == enc(i)
-  {
-    var e := new Encoder(128);
-    e.PutInt(i.sz);
-    e.PutInt(i.meta.ty.to_u64());
-    e.PutInts(i.blks);
-    assert e.enc == inode_enc(i);
-    reveal_enc();
-    bs := e.Finish();
-  }
-
-  method decode_ino(bs: Bytes, ghost i: Inode) returns (i': Inode)
-    modifies {}
-    requires bs.Valid()
-    requires bs.data == enc(i)
-    ensures i' == i
-  {
-    reveal_enc();
-    var dec := new Decoder.Init(bs, inode_enc(i));
-    var sz := dec.GetInt(i.sz);
-    var ty_u64 := dec.GetInt(i.meta.ty.to_u64());
-    i.meta.ty.from_to_u64();
-    var ty := InodeType.from_u64(ty_u64);
-    var blks := dec.GetInts(14, i.blks);
-    return Mk(Meta(sz as uint64, ty), blks);
-  }
 }
