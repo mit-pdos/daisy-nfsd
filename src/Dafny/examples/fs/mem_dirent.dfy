@@ -96,6 +96,98 @@ module MemDirEntries
   import opened DirEntries
   import opened Paths
 
+  predicate dir_off?(k: uint64)
+  {
+    k as nat < dir_sz
+  }
+
+  function dirent_off(k: nat): nat
+  {
+    k * dirent_sz
+  }
+
+  function dirent_off_u64(k: uint64): uint64
+    requires dir_off?(k)
+  {
+    k * dirent_sz_u64
+  }
+
+  function path_ub(k: nat): nat
+  {
+    k * dirent_sz + path_len
+  }
+
+  lemma seq_data_one(data: seq<byte>, val: Dirents, k: nat)
+    requires val.enc() == data
+    requires k < |val.s|
+    ensures data[dirent_off(k)..dirent_off(k+1)] == val.s[k].enc()
+  {
+    C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, dirent_sz);
+  }
+
+  lemma seq_data_one_name(data: seq<byte>, val: Dirents, k: nat)
+    requires val.enc() == data
+    requires k < |val.s|
+    ensures data[dirent_off(k)..path_ub(k)] == encode_pathc(val.s[k].name)
+  {
+    seq_data_one(data, val, k);
+    val.s[k].enc_app();
+    assert data[dirent_off(k)..dirent_off(k+1)][..path_len] ==
+      data[dirent_off(k)..path_ub(k)];
+  }
+
+  lemma seq_data_one_ino(data: seq<byte>, val: Dirents, k: nat)
+    requires val.enc() == data
+    requires k < |val.s|
+    ensures IntEncoding.le_dec64(data[path_ub(k)..dirent_off(k+1)]) == val.s[k].ino
+  {
+    seq_data_one(data, val, k);
+    val.s[k].enc_app();
+    assert data[dirent_off(k)..dirent_off(k+1)][path_len..dirent_sz] ==
+      data[path_ub(k)..dirent_off(k+1)];
+    assert data[path_ub(k)..dirent_off(k+1)] == IntEncoding.le_enc64(val.s[k].ino);
+    IntEncoding.lemma_le_enc_dec64(val.s[k].ino);
+  }
+
+  lemma seq_data_splice_one(data: seq<byte>, val: Dirents, k: nat, v: DirEnt)
+    returns (val': preDirents)
+    requires val.enc() == data
+    requires k < |val.s|
+    // return this expression for caller's convenience
+    ensures val' == Dirents(val.s[k := v])
+    ensures (v.enc_len();
+    C.splice(data, k*dirent_sz, v.enc()) == val'.enc())
+  {
+    v.enc_len();
+    C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, val.s),
+      k as nat, v.enc(), dirent_sz);
+    //assert data == C.concat(C.seq_fmap(Dirents.encOne, val.s)[k as nat := v.enc()]);
+    assert C.seq_fmap(Dirents.encOne, val.s)[k as nat := v.enc()] ==
+            C.seq_fmap(Dirents.encOne, val.s[k as nat := v]);
+    val' := Dirents(val.s[k := v]);
+  }
+
+  lemma seq_data_splice_ino(data: seq<byte>, val: Dirents, k: nat, ino': Ino)
+    returns (val': preDirents)
+    requires val.enc() == data
+    requires k < |val.s|
+    ensures val' == Dirents(val.s[k := val.s[k].(ino := ino')])
+    ensures
+    C.splice(data, k*dirent_sz + path_len, IntEncoding.le_enc64(ino')) == val'.enc()
+  {
+    var old_name := val.s[k].name;
+    var old_padded_name := data[dirent_off(k)..path_ub(k)];
+    assert old_padded_name == encode_pathc(old_name) by {
+      seq_data_one_name(data, val, k);
+    }
+    var e' := val.s[k].(ino := ino');
+    e'.enc_app();
+    // splicing in just the inode encoding is like splicing in the encoding of the new entry
+    assert C.splice(data, k*dirent_sz + path_len, IntEncoding.le_enc64(ino')) ==
+      C.splice(data, k*dirent_sz, e'.enc());
+    val' := seq_data_splice_one(data, val, k, e');
+  }
+
   class MemDirents
   {
     ghost var val: Dirents
@@ -134,7 +226,6 @@ module MemDirEntries
       this.bs := bs;
       this.val := dents;
       new;
-      val.enc_len();
       reveal ValidCore();
     }
 
@@ -147,79 +238,6 @@ module MemDirEntries
       bs' := bs;
     }
 
-    static predicate dir_off?(k: uint64)
-    {
-      k as nat < dir_sz
-    }
-
-    static function dirent_off(k: nat): nat
-    {
-      k * dirent_sz
-    }
-
-    static function dirent_off_u64(k: uint64): uint64
-      requires dir_off?(k)
-    {
-      k * dirent_sz_u64
-    }
-
-    static function path_ub(k: nat): nat
-    {
-      k * dirent_sz + path_len
-    }
-
-    lemma data_one(k: nat)
-      requires Valid()
-      requires k < dir_sz
-      ensures |bs.data| == 4096
-      ensures bs.data[dirent_off(k)..dirent_off(k+1)] == val.s[k].enc()
-    {
-      reveal ValidCore();
-      C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, dirent_sz);
-    }
-
-    lemma data_one_name(k: nat)
-      requires Valid()
-      requires k < dir_sz
-      ensures |bs.data| == 4096
-      ensures bs.data[dirent_off(k)..path_ub(k)] == encode_pathc(val.s[k].name)
-    {
-      reveal ValidCore();
-      data_one(k);
-      val.s[k].enc_app();
-      assert bs.data[dirent_off(k)..dirent_off(k+1)][..path_len] ==
-        bs.data[dirent_off(k)..path_ub(k)];
-    }
-
-    lemma data_one_ino(k: nat)
-      requires Valid()
-      requires k < dir_sz
-      ensures |bs.data| == 4096
-      ensures bs.data[path_ub(k)..dirent_off(k+1)] == IntEncoding.le_enc64(val.s[k].ino)
-    {
-      reveal ValidCore();
-      data_one(k);
-      val.s[k].enc_app();
-      assert bs.data[dirent_off(k)..dirent_off(k+1)][path_len..dirent_sz] ==
-        bs.data[path_ub(k)..dirent_off(k+1)];
-    }
-
-    twostate lemma data_splice_one(k: nat, v: DirEnt)
-      requires old(Valid())
-      requires k < dir_sz
-      requires (v.enc_len(); reveal ValidCore();
-                bs.data == C.splice(old(bs.data), k*dirent_sz, v.enc()))
-      ensures bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s[k := v])))
-    {
-      reveal ValidCore();
-      v.enc_len();
-      C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, old(val.s)),
-        k as nat, v.enc(), dirent_sz);
-      //assert bs.data == C.concat(C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()]);
-      assert C.seq_fmap(Dirents.encOne, old(val.s))[k as nat := v.enc()] ==
-             C.seq_fmap(Dirents.encOne, old(val.s)[k as nat := v]);
-    }
-
     method get_ino(k: uint64) returns (ino: Ino)
       requires Valid()
       requires dir_off?(k)
@@ -228,8 +246,7 @@ module MemDirEntries
       reveal ValidCore();
       // we'll prove it's an Ino later, for now it's just a uint64
       var ino': uint64 := IntEncoding.UInt64Get(bs, k*dirent_sz_u64 + path_len_u64);
-      data_one_ino(k as nat);
-      IntEncoding.lemma_le_enc_dec64(val.s[k].ino);
+      seq_data_one_ino(bs.data, val, k as nat);
       ino := ino';
     }
 
@@ -242,10 +259,7 @@ module MemDirEntries
       reveal ValidCore();
       name := NewBytes(path_len_u64);
       name.CopyFrom(bs, k*dirent_sz_u64, path_len_u64);
-      data_one(k as nat);
-      val.s[k].enc_app();
-      assert bs.data[dirent_off(k as nat)..dirent_off(k as nat+1)][..path_len] ==
-        bs.data[dirent_off(k as nat)..path_ub(k as nat)];
+      seq_data_one_name(bs.data, val, k as nat);
     }
 
     method get_dirent(k: uint64) returns (r:Option<MemDirEnt>)
@@ -423,7 +437,6 @@ module MemDirEntries
       ensures |v.enc()| == dirent_sz
       ensures bs.data == C.splice(old(bs.data), k as nat*dirent_sz, v.enc())
     {
-      v.enc_len();
       v.enc_app();
       bs.CopyTo(k*dirent_sz_u64, name);
       IntEncoding.UInt64Put(ino, k*dirent_sz_u64 + path_len_u64, bs);
@@ -441,12 +454,11 @@ module MemDirEntries
       ghost var v := e.val();
       v.enc_len();
       val.insert_ent_dir(v);
+      val := seq_data_splice_one(bs.data, val, k as nat, v);
       // modify in place to re-use space
       PadPathc(e.name);
       var padded_name := e.name;
       write_ent(this.bs, k, v, padded_name, e.ino);
-      data_splice_one(k as nat, v);
-      val := val.insert_ent(k as nat, v);
     }
 
     method deleteAt(k: uint64)
@@ -456,24 +468,9 @@ module MemDirEntries
       ensures val.dir == old(map_delete(val.dir, val.s[k].name))
     {
       reveal ValidCore();
-      ghost var old_name := old(val.s[k].name);
-      ghost var old_padded_name := bs.data[dirent_off(k as nat)..path_ub(k as nat)];
-      assert old_padded_name == encode_pathc(old_name) by {
-        data_one_name(k as nat);
-      }
-
+      var old_name := val.s[k].name;
+      val := seq_data_splice_ino(bs.data, val, k as nat, 0 as Ino);
       IntEncoding.UInt64Put(0, k*dirent_sz_u64 + path_len_u64, bs);
-
-      assert bs.data == C.splice(old(bs.data), k as nat * dirent_sz,
-        old_padded_name + IntEncoding.le_enc64(0));
-      // the new entry we're effectively writing (though without actually
-      // writing the old name again)
-      ghost var e := DirEnt(old_name, 0 as Ino);
-      assert old_padded_name + IntEncoding.le_enc64(0) == e.enc() by {
-        e.enc_app();
-      }
-      data_splice_one(k as nat, e);
-      val := val.(s := val.s[k as nat := e]);
       seq_to_dir_delete(old(val.s), k as nat, old_name);
     }
   }

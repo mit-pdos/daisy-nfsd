@@ -71,6 +71,19 @@ module ByteFs {
     data[..off] + bs + if off + |bs| <= |data| then data[off + |bs|..] else []
   }
 
+  function write_data_holes(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
+  {
+    if off > |data| then data + C.repeat(0 as byte, off - |data|) + bs
+    else write_data(data, off, bs)
+  }
+
+  // since this definition is a spec and is quite complicated, we prove
+  // something simple about it
+  lemma write_data_holes_sanity_check(data: seq<byte>, off: nat, bs: seq<byte>)
+    ensures off + |bs| <= |write_data_holes(data, off, bs)|
+    ensures write_data_holes(data, off, bs)[off..off + |bs|] == bs
+  {}
+
   lemma write_data_splice(data: seq<byte>, off: nat, bs: seq<byte>)
     requires off + |bs| <= |data|
     ensures write_data(data, off, bs) == C.splice(data, off, bs)

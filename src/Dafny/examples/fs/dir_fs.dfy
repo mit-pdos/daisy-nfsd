@@ -351,9 +351,7 @@ module DirFs
       assert Valid_dirent_at(d_ino, fs.data) by {
         get_data_at(d_ino);
       }
-      assert |fs.data[d_ino]| == 4096 by {
-        dirents[d_ino].enc_len();
-      }
+      assert |fs.data[d_ino]| == 4096;
       var bs := fs.readUnsafe(txn, d_ino, i, 0, 4096);
       dents := new MemDirents(bs, dirents[d_ino]);
     }
@@ -407,7 +405,6 @@ module DirFs
         return;
       }
       var bs := dents.encode();
-      dents.val.enc_len();
       C.splice_all(fs.data[d_ino], bs.data);
       ok := fs.writeBlockFile(txn, d_ino, i, bs);
       if !ok {
@@ -430,7 +427,6 @@ module DirFs
     {
       assert |fs.data[d_ino]| == 4096 by {
         get_data_at(d_ino);
-        dirents[d_ino].enc_len();
       }
       assert fs.types[d_ino] == Inode.DirType by {
         invert_dir(d_ino);
