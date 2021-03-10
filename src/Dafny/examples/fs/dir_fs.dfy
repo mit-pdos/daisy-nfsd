@@ -396,6 +396,7 @@ module DirFs
       var dents := readDirentsInode(txn, d_ino, i);
       fs.finishInodeReadonly(d_ino, i);
       assert ValidData();
+      assert ValidDirents(dents, d_ino);
       assume false;
       return Ok(dents);
     }
@@ -573,12 +574,13 @@ module DirFs
     // need to insert in a slightly different way that isn't implemented)
     method linkInode(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt)
       returns (ok: bool)
-      modifies Repr, dents.Repr(), e'.name, dents
+      modifies Repr, dents.Repr(), dents.file.ReprFs, e'.name
+      requires e'.name != dents.file.bs
       requires Valid()
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
       requires ValidDirents(dents, d_ino) && e'.Valid()
-      ensures dents.Valid()
+      ensures ok ==> dents.Valid()
       requires is_dir(d_ino) && dirents[d_ino] == dents.val
       requires e'.used() && dents.val.findName(e'.path()) >= dir_sz
       ensures ok ==>
@@ -612,7 +614,7 @@ module DirFs
       assert data[d_ino] == DirFile(d');
     }
 
-    method CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
+    method {:verify false} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
       returns (r: Result<Ino>, ghost junk: seq<byte>)
       modifies Repr, name
       requires name.Valid()
@@ -899,7 +901,7 @@ module DirFs
       return Ok(bs);
     }
 
-    method MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
@@ -952,7 +954,7 @@ module DirFs
       return Ok(ino);
     }
 
-    method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r:Result<Ino>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
@@ -1024,7 +1026,7 @@ module DirFs
       return Ok(());
     }
 
-    method unlink(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} unlink(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1235,7 +1237,7 @@ module DirFs
       return Ok(dents_seq);
     }
 
-    method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+    method {:verify false} {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)

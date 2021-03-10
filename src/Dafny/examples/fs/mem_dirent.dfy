@@ -203,14 +203,20 @@ module MemDirEntries
       && file.contents() == val.enc()
     }
 
+    predicate {:opaque} ValidVal()
+      reads this
+    {
+        // arbitrary limit to prevent integer overflow
+      && |val.s| <= 1024
+      && |val.s| % 64 == 0
+    }
+
     predicate Valid()
       reads Repr(), file.ReprFs
     {
       && file.Valid()
       && ValidCore()
-        // arbitrary limit to prevent integer overflow
-      && |val.s| <= 1024
-      && |val.s| % 64 == 0
+      && ValidVal()
     }
 
     function dir(): Directory
@@ -232,6 +238,7 @@ module MemDirEntries
       this.val := dents;
       new;
       reveal ValidCore();
+      reveal ValidVal();
     }
 
     static function dir_blk(k: nat): nat
@@ -274,9 +281,11 @@ module MemDirEntries
     lemma file_data(k: nat)
       requires Valid()
       requires at_dir_off(k)
+      ensures |val.s| % 64 == 0
       ensures file.has_data(val.enc()[dir_blk(k) .. dir_blk(k) + 4096])
     {
       reveal ValidCore();
+      reveal ValidVal();
       file.data_ok();
     }
 
@@ -576,6 +585,7 @@ module MemDirEntries
       ok := file.writeback(txn);
       val := val';
       C.double_splice_auto(old(file.contents()));
+      assert ok ==> Valid() by { reveal ValidVal(); }
     }
 
     method deleteAt(txn: Txn, k: uint64)
@@ -602,6 +612,7 @@ module MemDirEntries
       ok := file.writeback(txn);
       val := val';
       C.double_splice_auto(old(file.contents()));
+      assert ok ==> Valid() by { reveal ValidVal(); }
     }
   }
 }
