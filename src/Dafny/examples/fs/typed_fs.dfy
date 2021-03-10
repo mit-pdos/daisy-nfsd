@@ -274,6 +274,25 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
+    method writeBlock(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
+      requires bs !in i.Repr
+      requires |bs.data| == 4096
+      requires off % 4096 == 0
+      requires off as nat + 4096 <= |data[ino]|
+      ensures ok ==>
+      data == old(data[ino := C.splice(data[ino], off as nat, bs.data)])
+      ensures types_unchanged()
+    {
+      reveal ValidFields();
+      ok := fs.alignedWrite(txn, ino, i, bs, off);
+      data := fs.data();
+      reveal ValidInvalid();
+    }
+
     method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
