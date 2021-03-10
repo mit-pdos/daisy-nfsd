@@ -18,8 +18,6 @@ func TestBankSanity(t *testing.T) {
 	b.Transfer(0, 2)
 	b.Transfer(1, 2)
 
-	assert.True(b.Audit(), "audit failed")
-
 	jrnl := b.Jrnl
 	b = bank.New_Bank_()
 	b.Recover(jrnl)
