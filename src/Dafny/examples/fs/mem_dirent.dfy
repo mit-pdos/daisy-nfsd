@@ -197,14 +197,14 @@ module MemDirEntries
     }
 
     predicate {:opaque} ValidCore()
-      requires file.Valid()
-      reads this, file.Repr()
+      requires file.fs.ValidDomains()
+      reads this, file.fs
     {
       && file.contents() == val.enc()
     }
 
     predicate Valid()
-      reads Repr()
+      reads Repr(), file.ReprFs
     {
       && file.Valid()
       && ValidCore()
@@ -544,14 +544,16 @@ module MemDirEntries
 
     method insert_ent(txn: Txn, k: uint64, e: MemDirEnt)
       returns (ok:bool)
-      modifies Repr(), e.name
+      modifies Repr(), e.name, file.ReprFs
       requires Valid() ensures ok ==> Valid()
       requires has_jrnl(txn)
       requires e.name != file.bs
       requires e.Valid() && e.used()
       requires k as nat < |val.s| && k as nat == val.findFree()
       requires val.findName(e.val().name) >= dir_sz
+      ensures file.fs.types_unchanged()
       ensures ok ==> val.dir == old(val.dir[e.val().name := e.val().ino])
+      ensures ok ==> file.fs.data == file.fs.data[file.ino := val.enc()]
     {
       reveal ValidCore();
       ghost var v := e.val();
@@ -578,11 +580,13 @@ module MemDirEntries
 
     method deleteAt(txn: Txn, k: uint64)
       returns (ok: bool)
-      modifies Repr()
+      modifies Repr(), file.ReprFs
       requires Valid() ensures ok ==> Valid()
       requires has_jrnl(txn)
       requires k as nat < |val.s| && val.s[k].used()
+      ensures file.fs.types_unchanged()
       ensures ok ==> val.dir == old(map_delete(val.dir, val.s[k].name))
+      ensures ok ==> file.fs.data == file.fs.data[file.ino := val.enc()]
     {
       reveal ValidCore();
       var old_name := val.s[k].name;

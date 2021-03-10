@@ -22,11 +22,14 @@ module FileCursor {
     function Repr(): set<object>
       reads this
     {
-      {this} + fs.Repr + i.Repr + (if bs != null then {bs} else {})
+      // this doesn't include fs.Repr and i.Repr; we list those explicitly
+      {this} + (if bs != null then {bs} else {})
     }
 
+    ghost const ReprFs: set<object> := fs.Repr + i.Repr
+
     predicate {:opaque} ValidFs()
-      reads this, fs.Repr, i.Repr
+      reads this, ReprFs
     {
       && fs.ValidIno(ino, i)
       && |fs.data[ino]| % 4096 == 0
@@ -46,7 +49,7 @@ module FileCursor {
     }
 
     predicate Valid()
-      reads Repr()
+      reads Repr(), fs.Repr, i.Repr
     {
       && fs.ValidDomains()
       && ValidFs()
@@ -76,6 +79,7 @@ module FileCursor {
       ensures this.i == i
       ensures this.fs == fs
       ensures bs == null
+      // ensures fresh(Repr())
     {
       this.ino := ino;
       this.i := i;
@@ -137,16 +141,16 @@ module FileCursor {
 
     method writeback(txn: Txn)
       returns (ok: bool)
-      modifies fs.Repr, i.Repr
+      modifies ReprFs
       // note that ValidFs is preserved just by not modifying this directly and modifying bs
       requires ValidFs()
       requires fs.has_jrnl(txn)
       requires bs != null && |bs.data| == 4096
+      ensures fs.types_unchanged()
       ensures ok ==>
       (reveal ValidFs();
         && Valid()
-        && fs.data == old(fs.data[ino := C.splice(fs.data[ino], off as nat, bs.data)])
-        && fs.types_unchanged())
+        && fs.data == old(fs.data[ino := C.splice(fs.data[ino], off as nat, bs.data)]))
     {
       reveal ValidFs();
       ok := fs.writeBlock(txn, ino, i, off, bs);
@@ -155,14 +159,14 @@ module FileCursor {
 
     method grow(txn: Txn)
       returns (ok: bool)
-      modifies Repr()
+      modifies Repr(), ReprFs
       requires Valid()
       requires fs.has_jrnl(txn)
       requires |fs.data[ino]| + 4096 <= Inode.MAX_SZ
+      ensures fs.types_unchanged()
       ensures ok ==>
       && Valid()
       && fs.data == old(fs.data[ino := fs.data[ino] + JrnlTypes.block0])
-      && fs.types_unchanged()
     {
       reveal ValidFs();
       var blk := NewBytes(4096);
