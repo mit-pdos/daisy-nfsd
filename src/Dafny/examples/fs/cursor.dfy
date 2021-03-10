@@ -53,6 +53,14 @@ module FileCursor {
       && (bs != null ==> ValidBytes())
     }
 
+    // convenience function since this is a core concept
+    function contents(): seq<byte>
+      reads fs
+      requires fs.ValidDomains()
+    {
+      fs.data[ino]
+    }
+
     predicate has_data(data: seq<byte>)
       reads this, bs
     {
@@ -88,6 +96,16 @@ module FileCursor {
     {
       reveal ValidFs();
       reveal ValidBytes();
+    }
+
+    method size() returns (sz: uint64)
+      requires Valid()
+      ensures sz as nat == |fs.data[ino]|
+      ensures sz % 4096 == 0
+    {
+      reveal ValidFs();
+      fs.inode_metadata(ino, i);
+      return i.sz;
     }
 
     method advanceTo(txn: Txn, off': uint64)
