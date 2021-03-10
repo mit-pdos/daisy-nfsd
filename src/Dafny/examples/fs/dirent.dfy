@@ -131,6 +131,11 @@ module DirEntries
       [EncBytes(encode_pathc(name)), EncUInt64(ino)]
     }
 
+    // TODO: might be good to add a length postcondition so enc_len() isn't
+    // needed so often
+    //
+    // this function doesn't really show up often anyway so it probably won't
+    // trigger too many things
     function enc(): seq<byte>
     {
       Marshal.seq_encode(encoding())
@@ -355,15 +360,14 @@ module DirEntries
       e.enc()
     }
 
-    function enc(): seq<byte>
-    {
-      C.concat(C.seq_fmap(encOne, this.s))
-    }
-
-    lemma enc_len()
-      ensures |enc()| == dirent_sz*|s|
+    // note that this does not require Valid, so we can call it on a Dirents(s)
+    // without first proving validity (that is, it's really a method for any
+    // seq<DirEnt>)
+    function enc(): (data:seq<byte>)
+      ensures |data| == dirent_sz*|s|
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);
+      C.concat(C.seq_fmap(encOne, this.s))
     }
 
     static lemma zero_enc()
