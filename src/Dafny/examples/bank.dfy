@@ -54,8 +54,8 @@ class Bank
         && jrnl.Valid()
         && jrnl.kinds == BankKinds
         && |accts| == 512
-        && forall n: uint64 :: n < 512 ==>
-            (var acct_ := Acct(n);
+        && (forall n: uint64 :: n < 512 ==>
+            var acct_ := Acct(n);
              && acct_ in jrnl.data
              && jrnl.size(acct_) == 64
              && accts[n] < U64.MAX
@@ -95,10 +95,9 @@ class Bank
     ensures forall n: nat:: n < 512 ==> accts[n] == init_bal as nat
     ensures acct_sum == 512*(init_bal as nat)
     {
-        // BUG: we can't actually use the constant because then Dafny makes the type
+        // BUG: without the "as" operators in the next line, Dafny makes the type
         // of the map display expression map<int,int>.
-        assert 6 == KindUInt64;
-        var kinds: map<Blkno, Kind> := map[513:=6];
+        var kinds := map[513 as Blkno := KindUInt64 as Kind];
         var jrnl := NewJrnl(d, kinds);
 
         assert kindSize(jrnl.kinds[513]) == 64;
@@ -131,11 +130,9 @@ class Bank
         this.jrnl := jrnl;
 
         // NOTE: this was really annoying to figure out - turns out needed the
-        // accounts to be a repeat of nats instead of uint64 (hence the extra
-        // let binding and type annotations)
-        var new_accts: seq<nat> := repeat(init_bal as nat, 512);
+        // accounts to be a repeat of nats instead of uint64
         sum_repeat(init_bal as nat, 512);
-        accts := new_accts;
+        accts := repeat(init_bal as nat, 512);
         acct_sum := 512*(init_bal as nat);
 
         forall n: uint64 | n < 512
@@ -195,7 +192,7 @@ class Bank
 
     method Get(acct: uint64)
         returns (bal: uint64)
-        requires Valid() ensures Valid()
+        requires Valid()
         requires acct < 512
         ensures bal as nat == accts[acct]
     {
@@ -208,12 +205,10 @@ class Bank
 
     // this is kind of silly but it gets the point across (without requiring the
     // reader to understand Valid())
-    method Audit() returns (b:bool)
-    modifies {}
-    requires Valid()
-    ensures b == (sum_nat(accts) == acct_sum)
+    lemma Audit()
+        requires Valid()
+        ensures sum_nat(accts) == acct_sum
     {
-        return true;
     }
 }
 

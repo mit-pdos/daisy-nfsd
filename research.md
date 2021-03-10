@@ -25,7 +25,7 @@ the right refinement spec.
 
 ## Dafny to Go compilation
 
-Native integer types are accessible with `{:nativeType}` on a subset type.
+Native integer types are accessible with `{:nativeType}` on a `newtype` type.
 
 Byte slices are axiomatized as an `{:extern}` class. These have a number of
 operations, but notably we don't have a notion of a slice which is a view into
