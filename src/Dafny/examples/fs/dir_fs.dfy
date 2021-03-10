@@ -351,12 +351,14 @@ module DirFs
     method readDirentsInode(txn: Txn, d_ino: Ino, i: MemInode)
       returns (dents: MemDirents)
       requires ValidIno(d_ino, i)
+      requires fs.inode_unchanged(d_ino, i.val())
       requires fs.has_jrnl(txn)
       requires is_dir(d_ino)
-      ensures dents.val == dirents[d_ino]
       ensures fresh(dents.Repr())
+      ensures dents.val == dirents[d_ino]
       ensures dents.file.i == i
       ensures ValidDirents(dents, d_ino)
+      ensures dents.inode_unchanged()
     {
       assert Valid_dirent_at(d_ino, fs.data) by {
         get_data_at(d_ino);
@@ -370,17 +372,21 @@ module DirFs
     method readDirents(txn: Txn, d_ino: Ino)
       returns (r: Result<MemDirents>)
       modifies fs.fs.fs.fs
-      requires Valid() ensures Valid()
+      requires Valid()
+      ensures r.Err? ==> Valid()
+      ensures r.Ok? ==> ValidIno(d_ino, r.v.file.i)
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> is_invalid(d_ino)
       ensures r.ErrNotDir? ==> is_file(d_ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.NotDir?
       ensures r.Ok? ==>
       && is_dir(d_ino)
-      && ValidDirents(r.v, d_ino)
-      && fresh(r.v.Repr())
-      && fresh(r.v.file.i)
-      && r.v.val == dirents[d_ino]
+      && (var dents := r.v;
+        && ValidDirents(dents, d_ino)
+        && fresh(dents.Repr())
+        && fresh(dents.file.i)
+        && dents.val == dirents[d_ino]
+        && dents.inode_unchanged())
     {
       var ok, i := fs.startInode(txn, d_ino);
       if !ok {
@@ -394,10 +400,8 @@ module DirFs
       }
       assert is_dir(d_ino) by { reveal is_of_type(); }
       var dents := readDirentsInode(txn, d_ino, i);
-      fs.finishInodeReadonly(d_ino, i);
+      //fs.finishInodeReadonly(d_ino, i);
       assert ValidData();
-      assert ValidDirents(dents, d_ino);
-      assume false;
       return Ok(dents);
     }
 

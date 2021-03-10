@@ -266,6 +266,35 @@ module MemDirEntries
       file.fs.has_jrnl(txn)
     }
 
+    predicate inode_unchanged()
+      reads file.fs.fs.fs.fs, file.i.Repr
+      requires file.i.Valid()
+    {
+      file.fs.inode_unchanged(file.ino, file.i.val())
+    }
+
+    method finishReadonly()
+      modifies file.fs.fs.fs.fs
+      requires Valid()
+      requires (reveal file.ValidFs(); inode_unchanged())
+      ensures file.fs.Valid()
+    {
+      reveal file.ValidFs();
+      file.fs.finishInodeReadonly(file.ino, file.i);
+    }
+
+    method finish(txn: Txn)
+      modifies file.ReprFs
+      requires has_jrnl(txn)
+      requires Valid()
+      ensures file.fs.Valid()
+      ensures file.fs.types_unchanged()
+      ensures file.fs.data == old(file.fs.data)
+    {
+      reveal file.ValidFs();
+      file.fs.finishInode(txn, file.ino, file.i);
+    }
+
     method loadDirOff(txn: Txn, k: uint64)
       modifies file
       requires Valid() ensures Valid()
