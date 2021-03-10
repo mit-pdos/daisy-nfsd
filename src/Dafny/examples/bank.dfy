@@ -22,10 +22,7 @@ class Bank
 
     var jrnl: Jrnl;
 
-    static const BankKinds : map<Blkno, Kind> := map[513:=6]
-    static lemma bank_kinds_is_correct__()
-        ensures BankKinds[513] == KindUInt64
-    {}
+    static const BankKinds : map<Blkno, Kind> := map[513 as Blkno := KindUInt64 as Kind]
 
     static function method Acct(n: uint64): (a:Addr)
     requires n < 512
@@ -55,9 +52,9 @@ class Bank
         && jrnl.kinds == BankKinds
         && |accts| == 512
         && (forall n: uint64 :: n < 512 ==>
-            var acct_ := Acct(n);
-             && acct_ in jrnl.data
-             && jrnl.size(acct_) == 64
+            var acct := Acct(n);
+             && acct in jrnl.data
+             && jrnl.size(acct) == 64
              && accts[n] < U64.MAX
              && acct_val(jrnl, n, accts[n]))
         && acct_sum == sum_nat(accts)
@@ -100,6 +97,8 @@ class Bank
         var kinds := map[513 as Blkno := KindUInt64 as Kind];
         var jrnl := NewJrnl(d, kinds);
 
+        // help with constant calculation
+        assert kindSize(6) == 64;
         assert kindSize(jrnl.kinds[513]) == 64;
         forall n: uint64 | n < 512
             ensures Acct(n) in jrnl.data
