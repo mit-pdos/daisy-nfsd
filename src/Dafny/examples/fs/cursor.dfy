@@ -108,6 +108,12 @@ module FileCursor {
       return i.sz;
     }
 
+    twostate predicate buffer_fresh()
+      reads this
+    {
+      bs == old(bs) || fresh(bs)
+    }
+
     method advanceTo(txn: Txn, off': uint64)
       modifies this
       requires fs.has_jrnl(txn)
@@ -116,7 +122,7 @@ module FileCursor {
       requires off' as nat < |fs.data[ino]|
       ensures this.off == off'
       ensures bs != null
-      ensures bs == old(bs) || fresh(bs)
+      ensures buffer_fresh()
       ensures Valid()
     {
       if off' == off && bs != null {
@@ -138,9 +144,9 @@ module FileCursor {
       requires bs != null && |bs.data| == 4096
       ensures ok ==>
       (reveal ValidFs();
-      && Valid()
+        && Valid()
         && fs.data == old(fs.data[ino := C.splice(fs.data[ino], off as nat, bs.data)])
-      && fs.types_unchanged())
+        && fs.types_unchanged())
     {
       reveal ValidFs();
       ok := fs.writeBlock(txn, ino, i, off, bs);

@@ -265,6 +265,7 @@ module MemDirEntries
       requires has_jrnl(txn)
       requires k as nat < |val.s|
       ensures at_dir_off(k as nat)
+      ensures file.buffer_fresh()
     {
       reveal ValidCore();
       file.advanceTo(txn, k / 64 * 64);
@@ -279,14 +280,6 @@ module MemDirEntries
       file.data_ok();
     }
 
-    lemma file_bs_size()
-      requires file.Valid()
-      requires file.bs != null
-      ensures |file.bs.data| == 4096
-    {
-      reveal file.ValidBytes();
-    }
-
     // give the caller the right double-subslice fact
     lemma file_subslice(k: nat, start: nat, end: nat)
       requires Valid()
@@ -294,7 +287,9 @@ module MemDirEntries
       requires start <= end <= 4096
       ensures |file.bs.data| == 4096
       ensures dir_blk(k) + end <= |file.contents()|
-      ensures file.bs.data[start..end] == file.contents()[dir_blk(k) + start .. dir_blk(k) + end]
+      ensures
+        file.bs.data[start..end] ==
+        file.contents()[dir_blk(k) + start .. dir_blk(k) + end]
     {
       file.data_ok();
       C.double_subslice_auto(file.fs.data[file.ino]);
@@ -547,13 +542,14 @@ module MemDirEntries
       IntEncoding.UInt64Put(ino, k*dirent_sz_u64 + path_len_u64, bs);
     }
 
-    method {:verify false} insert_ent(txn: Txn, k: uint64, e: MemDirEnt)
+    method insert_ent(txn: Txn, k: uint64, e: MemDirEnt)
       returns (ok:bool)
       modifies Repr(), e.name
       requires Valid() ensures ok ==> Valid()
       requires has_jrnl(txn)
+      requires e.name != file.bs
       requires e.Valid() && e.used()
-      requires dir_off?(k) && k as nat == val.findFree()
+      requires k as nat < |val.s| && k as nat == val.findFree()
       requires val.findName(e.val().name) >= dir_sz
       ensures ok ==> val.dir == old(val.dir[e.val().name := e.val().ino])
     {
@@ -561,28 +557,47 @@ module MemDirEntries
       ghost var v := e.val();
       v.enc_len();
       val.insert_ent_dir(v);
-      val := seq_data_splice_one(file.contents(), val, k as nat, v);
+      ghost var val' := seq_data_splice_one(file.contents(), val, k as nat, v);
+
+      loadDirOff(txn, k);
+      file_data(k as nat);
       // modify in place to re-use space
       PadPathc(e.name);
       var padded_name := e.name;
-      loadDirOff(txn, k);
+      assert |file.bs.data| == 4096 by {
+        reveal file.ValidBytes();
+      }
       write_ent(file.bs, k % 64, v, padded_name, e.ino);
+      assert file.ValidFs() by {
+        reveal file.ValidFs();
+      }
       ok := file.writeback(txn);
+      val := val';
+      C.double_splice_auto(old(file.contents()));
     }
 
-    method {:verify false} deleteAt(txn: Txn, k: uint64)
+    method deleteAt(txn: Txn, k: uint64)
       returns (ok: bool)
       modifies Repr()
       requires Valid() ensures ok ==> Valid()
-      requires dir_off?(k) && val.s[k].used()
+      requires has_jrnl(txn)
+      requires k as nat < |val.s| && val.s[k].used()
       ensures ok ==> val.dir == old(map_delete(val.dir, val.s[k].name))
     {
       reveal ValidCore();
       var old_name := val.s[k].name;
-      val := seq_data_splice_ino(file.contents(), val, k as nat, 0 as Ino);
+      ghost var val' := seq_data_splice_ino(file.contents(), val, k as nat, 0 as Ino);
+
+      loadDirOff(txn, k);
+      file_data(k as nat);
       IntEncoding.UInt64Put(0, (k%64)*dirent_sz_u64 + path_len_u64, file.bs);
       seq_to_dir_delete(old(val.s), k as nat, old_name);
+      assert file.ValidFs() by {
+        reveal file.ValidFs();
+      }
       ok := file.writeback(txn);
+      val := val';
+      C.double_splice_auto(old(file.contents()));
     }
   }
 }

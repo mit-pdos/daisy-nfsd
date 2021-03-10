@@ -470,6 +470,21 @@ lemma splice_prefix_comm_auto<T>(xs: seq<T>)
         splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
 {}
 
+lemma double_splice<T>(xs: seq<T>, start: nat, end: nat, off: nat, ys: seq<T>)
+    requires start <= end <= |xs|
+    requires off + |ys| <= end - start
+    ensures splice(xs, start, splice(xs[start..end], off, ys)) ==
+            splice(xs, start + off, ys)
+{}
+
+lemma double_splice_auto<T>(xs: seq<T>)
+    ensures forall start: nat, end: nat, off: nat, ys: seq<T> ::
+        start <= end <= |xs| ==>
+        off + |ys| <= end - start ==>
+        splice(xs, start, splice(xs[start..end], off, ys)) ==
+            splice(xs, start + off, ys)
+{}
+
 lemma concat_homogeneous_subslice<T>(xs: seq<seq<T>>, start: nat, end: nat, len: nat)
     requires start <= end <= |xs|
     requires 0 < len
@@ -521,6 +536,7 @@ lemma concat_homogeneous_suffix<T>(xs: seq<seq<T>>, start: nat, len: nat)
     ensures concat(xs[start..]) == concat(xs)[start*len..]
 {
     concat_homogeneous_subslice(xs, start, |xs|, len);
+    assert xs[start..|xs|] == xs[start..];
 }
 
 lemma concat_homogeneous_splice_one<T>(xs: seq<seq<T>>, off: nat, ys: seq<T>, len: nat)
