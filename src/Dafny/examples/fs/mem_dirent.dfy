@@ -185,10 +185,10 @@ module MemDirEntries
     ghost var val: Dirents
     const file: Cursor
 
-    function Repr(): set<object>
+    function Repr(): set<object?>
       reads this.file
     {
-        {this, this.file} + file.Repr
+        {this, this.file} + file.Repr()
     }
 
     predicate {:opaque} ValidCore()
@@ -206,7 +206,7 @@ module MemDirEntries
       && |val.s| % 64 == 0
     }
 
-    predicate Valid()
+    predicate {:opaque} Valid()
       reads this.file, Repr(), file.ReprFs
     {
       && file.Valid()
@@ -233,6 +233,7 @@ module MemDirEntries
       new;
       reveal ValidCore();
       reveal ValidVal();
+      reveal Valid();
     }
 
     static function dir_blk(k: nat): nat
@@ -251,7 +252,7 @@ module MemDirEntries
     {
       && file.off as nat < |val.s|
       && file.off as nat == dir_blk(k)
-      && file.bs != null
+      && file.valid?
     }
 
     predicate has_jrnl(txn: Txn)
@@ -262,17 +263,18 @@ module MemDirEntries
 
     predicate inode_unchanged()
       reads file.fs.fs.fs.fs, file.i.Repr
-      requires file.i.Valid()
     {
-      file.fs.inode_unchanged(file.ino, file.i.val())
+      && file.i.Valid()
+      && file.fs.inode_unchanged(file.ino, file.i.val())
     }
 
     method finishReadonly()
       modifies file.fs.fs.fs.fs
       requires Valid()
-      requires (reveal file.ValidFs(); inode_unchanged())
+      requires inode_unchanged()
       ensures file.fs.Valid()
     {
+      reveal Valid();
       reveal file.ValidFs();
       file.fs.finishInodeReadonly(file.ino, file.i);
     }
@@ -285,6 +287,7 @@ module MemDirEntries
       ensures file.fs.types_unchanged()
       ensures file.fs.data == old(file.fs.data)
     {
+      reveal Valid();
       reveal file.ValidFs();
       file.fs.finishInode(txn, file.ino, file.i);
     }
@@ -297,6 +300,7 @@ module MemDirEntries
       ensures at_dir_off(k as nat)
       ensures file.buffer_fresh()
     {
+      reveal Valid();
       reveal ValidCore();
       file.advanceTo(txn, k / 64 * 64);
     }
@@ -307,16 +311,26 @@ module MemDirEntries
       ensures |val.s| % 64 == 0
       ensures file.has_data(val.enc()[dir_blk(k) .. dir_blk(k) + 4096])
     {
+      reveal Valid();
       reveal ValidCore();
       reveal ValidVal();
       file.data_ok();
     }
 
+    // internal method to give well-formedness
+    lemma reveal_fs_dom()
+      requires Valid()
+      ensures file.fs.ValidDomains()
+    {
+      reveal Valid();
+    }
+
     // we need this invariant, so help caller maintain it
     lemma fs_ino_size()
       requires Valid()
-      ensures |file.fs.data[file.ino]| % 4096 == 0
+      ensures (reveal_fs_dom(); |file.fs.data[file.ino]| % 4096 == 0)
     {
+      reveal Valid();
       reveal ValidCore();
       reveal ValidVal();
     }
@@ -327,11 +341,12 @@ module MemDirEntries
       requires at_dir_off(k)
       requires start <= end <= 4096
       ensures |file.bs.data| == 4096
-      ensures dir_blk(k) + end <= |file.contents()|
-      ensures
-        file.bs.data[start..end] ==
-        file.contents()[dir_blk(k) + start .. dir_blk(k) + end]
+      ensures (reveal_fs_dom();
+      && dir_blk(k) + end <= |file.contents()|
+      && file.bs.data[start..end] ==
+        file.contents()[dir_blk(k) + start .. dir_blk(k) + end])
     {
+      reveal Valid();
       file.data_ok();
       C.double_subslice_auto(file.fs.data[file.ino]);
     }
@@ -344,6 +359,7 @@ module MemDirEntries
       ensures ino == val.s[k].ino
       ensures file.buffer_fresh()
     {
+      reveal Valid();
       reveal ValidCore();
       loadDirOff(txn, k);
       var off: uint64 := (k%64) * dirent_sz_u64 + path_len_u64;
@@ -365,6 +381,7 @@ module MemDirEntries
       ensures encode_pathc(val.s[k].name) == name.data
       ensures file.buffer_fresh()
     {
+      reveal Valid();
       reveal ValidCore();
       loadDirOff(txn, k);
       name := NewBytes(path_len_u64);
@@ -387,6 +404,7 @@ module MemDirEntries
       && r.x.val() == val.s[k]
       ensures file.buffer_fresh()
     {
+      reveal Valid();
       var ino := get_ino(txn, k);
       if ino as uint64 == 0 {
         return None;
@@ -441,6 +459,7 @@ module MemDirEntries
       requires Valid()
       ensures num as nat == |val.s|
     {
+      reveal Valid();
       var sz := file.size();
       num := sz / 64;
       reveal ValidCore();
@@ -453,6 +472,7 @@ module MemDirEntries
       ensures free_i as nat == val.findFree()
       ensures file.buffer_fresh()
     {
+      reveal Valid();
       var num_ents := dirSize();
       var i: uint64 := 0;
       while i < num_ents
@@ -506,10 +526,10 @@ module MemDirEntries
       ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == |val.s|
       ensures r.Some? ==>
       && name.data in val.dir
-      && r.x.0 as nat <= |val.s|
+      && r.x.0 as nat < |val.s|
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
-      ensures file.buffer_fresh()
+      ensures fresh(Repr() - old(Repr()))
     {
       ghost var p: PathComp := name.data;
       var num_ents := dirSize();
@@ -602,11 +622,12 @@ module MemDirEntries
       requires e.name != file.bs
       requires e.Valid() && e.used()
       requires k as nat < |val.s| && k as nat == val.findFree()
-      requires val.findName(e.val().name) >= dir_sz
+      requires val.findName(e.val().name) >= |val.s|
       ensures file.fs.types_unchanged()
       ensures ok ==> val.dir == old(val.dir[e.val().name := e.val().ino])
       ensures ok ==> file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
+      reveal Valid();
       reveal ValidCore();
       ghost var v := e.val();
       v.enc_len();
@@ -642,6 +663,7 @@ module MemDirEntries
       ensures ok ==> val.dir == old(map_delete(val.dir, val.s[k].name))
       ensures ok ==> file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
+      reveal Valid();
       reveal ValidCore();
       var old_name := val.s[k].name;
       ghost var val' := seq_data_splice_ino(file.contents(), val, k as nat, 0 as Ino);
@@ -658,12 +680,14 @@ module MemDirEntries
         return;
       }
       val := val';
-      C.double_splice_auto(old(file.contents()));
+      C.double_splice(old(file.contents()),
+        dir_blk(k as nat), dir_blk(k as nat) + 4096,
+        k as nat % 64, IntEncoding.le_enc64(0 as uint64));
+      assert file.fs.data[file.ino] == val.enc();
       assert Valid() by {
         assert ValidCore();
         reveal ValidVal();
       }
-      assert file.fs.data[file.ino] == val.enc();
     }
   }
 }

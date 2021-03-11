@@ -346,6 +346,7 @@ module DirFs
       && dents.Valid()
       && dents.file.fs == this.fs
       && dents.file.ino == ino
+      && ValidIno(ino, dents.file.i)
     }
 
     method readDirentsInode(txn: Txn, d_ino: Ino, i: MemInode)
@@ -382,7 +383,7 @@ module DirFs
       && (var dents := r.v;
         && ValidDirents(dents, d_ino)
         && fresh(dents.Repr())
-        && fresh(dents.file.i)
+        && fresh(dents.file.i.Repr)
         && dents.val == dirents[d_ino]
         && dents.inode_unchanged())
     {
@@ -576,14 +577,13 @@ module DirFs
     // need to insert in a slightly different way that isn't implemented)
     method linkInode(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt)
       returns (ok: bool)
-      modifies Repr, dents.Repr(), dents.file.ReprFs, e'.name
-      requires e'.name !in dents.file.Repr
-      requires Valid()
+      modifies Repr, dents.Repr(), dents.file.i.Repr, e'.name
+      requires e'.name != dents.file.bs
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
       requires ValidDirents(dents, d_ino) && e'.Valid()
       requires is_dir(d_ino) && dirents[d_ino] == dents.val
-      requires e'.used() && dents.val.findName(e'.path()) >= dir_sz
+      requires e'.used() && dents.val.findName(e'.path()) >= |dents.val.s|
       ensures ok ==>
       && data == old(
       var d0 := data[d_ino].dir;
@@ -601,11 +601,8 @@ module DirFs
         ok := false;
         return;
       }
-      assert e'.name != dents.file.bs by {
-        if dents.file.bs == null {}
-        else {
-          assert dents.file.bs in dents.file.Repr;
-        }
+      assert e'.name != dents.file.bs && e'.name !in dents.file.i.Repr by {
+        reveal dents.Valid();
       }
       ghost var path := e'.path();
       ghost var ino := e'.ino;
@@ -629,7 +626,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method {:verify false} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
+    method CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
       returns (r: Result<Ino>, ghost junk: seq<byte>)
       modifies Repr, name
       requires name.Valid()
@@ -648,6 +645,11 @@ module DirFs
         data[ino := ByteFile(junk)][d_ino := d'])
       )
     {
+      var ok, ino := allocFile(txn);
+      if !ok {
+        r := Err(NoSpc);
+        return;
+      }
       var is_path := Pathc?(name);
       if !is_path {
         // could also have 0s in it but whatever
@@ -655,11 +657,6 @@ module DirFs
         return;
       }
       var dents :- readDirents(txn, d_ino);
-      var ok, ino := allocFile(txn);
-      if !ok {
-        r := Err(NoSpc);
-        return;
-      }
       assert ino_ok: ino !in old(data);
       var name_opt := dents.findName(txn, name);
       if name_opt.Some? {
@@ -668,9 +665,21 @@ module DirFs
         r := Err(Exist);
         return;
       }
+      // TODO: why is this block of proof needed? can we reduce it?
+      assert fresh(dents.Repr());
+      assert fresh(dents.file.i.Repr);
       var e' := MemDirEnt(name, ino);
+      assert e'.name != dents.file.i.bs by {
+        reveal dents.Valid();
+      }
+      assert is_dir(d_ino);
+      assert e'.Valid() && e'.used();
+      assert dents.val.findName(e'.path()) == |dents.val.s|;
+      assert ValidDirents(dents, d_ino);
+      assert fs.has_jrnl(txn);
+      assert dirents[d_ino] == dents.val;
 
-      assert dents.Repr() !! Repr;
+      //assert dents.Repr() !! Repr;
       // NOTE(tej): when e.name was missing from this method's modifies clause,
       // this just kept timing out rather than reporting a modifies clause error
       ok := linkInode(txn, d_ino, dents, e');
