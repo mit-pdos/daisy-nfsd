@@ -28,7 +28,7 @@ class Bank
     requires n < 512
     ensures a.off as nat % kindSize(KindUInt64) == 0
     {
-        assert kindSize(KindUInt64) == 64;
+        assert kindSize(6) == 64;
         Arith.mul_mod(n as nat, 64);
         Addr(513, n*64)
     }
