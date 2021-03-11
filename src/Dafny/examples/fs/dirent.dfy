@@ -250,7 +250,7 @@ module DirEntries
     // }
   }
 
-  predicate dirents_unique(s: seq<DirEnt>)
+  predicate {:opaque} dirents_unique(s: seq<DirEnt>)
   {
     forall i, j | 0 <= i < |s| && 0 <= j < |s| ::
       s[i].name == s[j].name && s[i].used() && s[j].used() ==> i == j
@@ -277,6 +277,7 @@ module DirEntries
     requires dirents_unique(s)
     ensures s[i].name in seq_to_dir(s) && seq_to_dir(s)[s[i].name] == s[i].ino
   {
+    reveal dirents_unique();
     if s == [] { assert false; }
     else {
       if i == 0 {
@@ -291,6 +292,7 @@ module DirEntries
     requires 0 < |s| && s[0].used()
     ensures s[0].name !in seq_to_dir(s[1..])
   {
+    reveal dirents_unique();
     if s[0].name in seq_to_dir(s[1..]) {
       var i := seq_to_dir_in_dir(s[1..], s[0].name);
     }
@@ -301,6 +303,7 @@ module DirEntries
     requires i < |s| && s[i].used()
     ensures seq_to_dir(s[i := DirEnt(dummy_name, 0 as Ino)]) == map_delete(seq_to_dir(s), s[i].name)
   {
+    reveal dirents_unique();
     if 0 < |s| && i == 0 {
       seq_to_dir_unique_here(s);
     }
@@ -310,6 +313,7 @@ module DirEntries
     requires dirents_unique(s)
     ensures |seq_to_dir(s)| == C.count_matching(DirEnt.is_used, s)
   {
+    reveal dirents_unique();
     if s == [] {}
     else {
       seq_to_dir_size(s[1..]);
@@ -360,11 +364,16 @@ module DirEntries
     requires forall i:nat | i < |s'| :: !s'[i].used()
     requires dirents_unique(s)
     ensures dirents_unique(s + s')
-  {}
+  {
+    reveal dirents_unique();
+  }
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
-    static function method zeros(n: nat): preDirents {
+    static function method zeros(n: nat): (dents:preDirents)
+      ensures dirents_unique(dents.s)
+    {
+      reveal dirents_unique();
       Dirents(C.repeat(DirEnt.zero, n))
     }
     static const zero: Dirents := preDirents.zeros(dir_sz)
@@ -400,7 +409,7 @@ module DirEntries
     // note that this does not require Valid, so we can call it on a Dirents(s)
     // without first proving validity (that is, it's really a method for any
     // seq<DirEnt>)
-    function enc(): (data:seq<byte>)
+    function {:opaque} enc(): (data:seq<byte>)
       ensures |data| == dirent_sz*|s|
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);
@@ -410,6 +419,7 @@ module DirEntries
     static lemma enc_app(s1: seq<DirEnt>, s2: seq<DirEnt>)
       ensures Dirents(s1 + s2).enc() == Dirents(s1).enc() + Dirents(s2).enc()
     {
+      reveal Dirents(s1 + s2).enc();
       C.seq_fmap_app(encOne, s1, s2);
       C.concat_app(C.seq_fmap(encOne, s1), C.seq_fmap(encOne, s2));
     }
@@ -417,6 +427,7 @@ module DirEntries
     static lemma zeros_enc(n: nat)
       ensures zeros(n).enc() == C.repeat(0 as byte, dirent_sz * n)
     {
+      reveal zeros(n).enc();
       DirEnt.zero_enc();
       assert C.seq_fmap(encOne, zeros(n).s) == C.repeat(DirEnt.zero.enc(), n);
       C.concat_repeat(0 as byte, dirent_sz, n);
@@ -437,6 +448,7 @@ module DirEntries
       var s' := this.s[i := e];
       var ents': preDirents := Dirents(s');
       reveal find_name_spec();
+      reveal dirents_unique();
       assert ents'.Valid();
       ents'
     }
@@ -566,5 +578,5 @@ module DirEntries
       C.find_first_characterization(is_unused, extend_zero(n).s, |s|);
     }
   }
-  type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, dir_sz))
+  type Dirents = x:preDirents | x.Valid() ghost witness Dirents.zeros(0)
 }

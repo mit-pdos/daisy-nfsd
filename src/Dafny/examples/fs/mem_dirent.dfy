@@ -114,6 +114,7 @@ module MemDirEntries
     requires k < |val.s|
     ensures data[dirent_off(k)..dirent_off(k+1)] == val.s[k].enc()
   {
+    reveal val.enc();
     C.concat_homogeneous_one_list(C.seq_fmap(Dirents.encOne, val.s), k, dirent_sz);
   }
 
@@ -157,6 +158,7 @@ module MemDirEntries
     assert C.seq_fmap(Dirents.encOne, val.s)[k as nat := v.enc()] ==
             C.seq_fmap(Dirents.encOne, val.s[k as nat := v]);
     val' := Dirents(val.s[k := v]);
+    reveal val'.enc();
   }
 
   lemma seq_data_splice_ino(data: seq<byte>, val: Dirents, k: nat, ino': Ino)
@@ -185,10 +187,10 @@ module MemDirEntries
     ghost var val: Dirents
     const file: Cursor
 
-    function Repr(): set<object?>
+    function Repr(): set<object>
       reads this.file
     {
-        {this, this.file} + file.Repr()
+        {this} + file.Repr()
     }
 
     predicate {:opaque} ValidCore()
@@ -207,7 +209,7 @@ module MemDirEntries
     }
 
     predicate {:opaque} Valid()
-      reads this.file, Repr(), file.ReprFs
+      reads Repr(), file.ReprFs
     {
       && file.Valid()
       && ValidCore()
@@ -529,7 +531,7 @@ module MemDirEntries
       && r.x.0 as nat < |val.s|
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
-      ensures fresh(Repr() - old(Repr()))
+      ensures fresh(file.Repr() - old(file.Repr()))
     {
       ghost var p: PathComp := name.data;
       var num_ents := dirSize();

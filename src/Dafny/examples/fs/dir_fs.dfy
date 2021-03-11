@@ -340,13 +340,15 @@ module DirFs
       txn := fs.fs.fs.fs.jrnl.Begin();
     }
 
-    predicate ValidDirents(dents: MemDirents, ino: Ino)
+    predicate ValidDirents(dents: MemDirents, d_ino: Ino)
       reads this, dents.Repr(), dents.file.ReprFs
     {
       && dents.Valid()
       && dents.file.fs == this.fs
-      && dents.file.ino == ino
-      && ValidIno(ino, dents.file.i)
+      && dents.file.ino == d_ino
+      && ValidIno(d_ino, dents.file.i)
+      && is_dir(d_ino)
+      && dirents[d_ino] == dents.val
     }
 
     method readDirentsInode(txn: Txn, d_ino: Ino, i: MemInode)
@@ -356,7 +358,6 @@ module DirFs
       requires fs.has_jrnl(txn)
       requires is_dir(d_ino)
       ensures fresh(dents.Repr())
-      ensures dents.val == dirents[d_ino]
       ensures dents.file.i == i
       ensures ValidDirents(dents, d_ino)
       ensures dents.inode_unchanged()
@@ -364,8 +365,18 @@ module DirFs
       assert Valid_dirent_at(d_ino, fs.data) by {
         get_data_at(d_ino);
       }
+      assert is_dir(d_ino);
       var file := new Cursor(this.fs, d_ino, i);
       dents := new MemDirents(file, dirents[d_ino]);
+    }
+
+    twostate predicate dirents_for(new dents: MemDirents, d_ino: Ino)
+      reads this, dents.Repr(), dents.file.ReprFs
+    {
+      && ValidDirents(dents, d_ino)
+      && fresh(dents.Repr())
+      && fresh(dents.file.i.Repr)
+      && dents.inode_unchanged()
     }
 
     method readDirents(txn: Txn, d_ino: Ino)
@@ -373,19 +384,13 @@ module DirFs
       modifies fs.fs.fs.fs
       requires Valid()
       ensures r.Err? ==> Valid()
-      ensures r.Ok? ==> ValidIno(d_ino, r.v.file.i)
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> is_invalid(d_ino)
       ensures r.ErrNotDir? ==> is_file(d_ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.NotDir?
       ensures r.Ok? ==>
       && is_dir(d_ino)
-      && (var dents := r.v;
-        && ValidDirents(dents, d_ino)
-        && fresh(dents.Repr())
-        && fresh(dents.file.i.Repr)
-        && dents.val == dirents[d_ino]
-        && dents.inode_unchanged())
+      && dirents_for(r.v, d_ino)
     {
       var ok, i := fs.startInode(txn, d_ino);
       if !ok {
@@ -582,7 +587,6 @@ module DirFs
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
       requires ValidDirents(dents, d_ino) && e'.Valid()
-      requires is_dir(d_ino) && dirents[d_ino] == dents.val
       requires e'.used() && dents.val.findName(e'.path()) >= |dents.val.s|
       ensures ok ==>
       && data == old(
@@ -626,7 +630,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
+    method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
       returns (r: Result<Ino>, ghost junk: seq<byte>)
       modifies Repr, name
       requires name.Valid()
@@ -657,6 +661,10 @@ module DirFs
         return;
       }
       var dents :- readDirents(txn, d_ino);
+      assert dirents_for(dents, d_ino);
+      assert fresh(dents.file.bs) by {
+        assert dents.file.bs in dents.Repr();
+      }
       assert ino_ok: ino !in old(data);
       var name_opt := dents.findName(txn, name);
       if name_opt.Some? {
@@ -665,19 +673,14 @@ module DirFs
         r := Err(Exist);
         return;
       }
-      // TODO: why is this block of proof needed? can we reduce it?
-      assert fresh(dents.Repr());
-      assert fresh(dents.file.i.Repr);
+      // TODO: somehow this block of assertions speeds up the proof, even though
+      // they should just be a copy of the linkInode precondition
       var e' := MemDirEnt(name, ino);
-      assert e'.name != dents.file.i.bs by {
-        reveal dents.Valid();
-      }
       assert is_dir(d_ino);
       assert e'.Valid() && e'.used();
       assert dents.val.findName(e'.path()) == |dents.val.s|;
       assert ValidDirents(dents, d_ino);
       assert fs.has_jrnl(txn);
-      assert dirents[d_ino] == dents.val;
 
       //assert dents.Repr() !! Repr;
       // NOTE(tej): when e.name was missing from this method's modifies clause,
@@ -1050,7 +1053,67 @@ module DirFs
       return Ok(());
     }
 
-    method {:verify false} unlink(txn: Txn, d_ino: Ino, name: Bytes)
+    method unlinkInode(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes)
+      returns (r: Result<Ino>)
+      modifies Repr, dents.Repr(), dents.file.i.Repr
+      requires fs.has_jrnl(txn)
+      requires is_pathc(name.data)
+      requires name != dents.file.bs
+      requires ValidDirents(dents, d_ino) ensures r.Ok? ==> Valid()
+      ensures r.ErrNoent? ==> name.data !in old(data[d_ino].dir)
+      ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?
+      ensures r.Ok? ==>
+      && name.data in old(data[d_ino].dir)
+      && r.v == old(data[d_ino].dir[name.data])
+      && data ==
+        (var d0 := old(data[d_ino].dir);
+        var d' := map_delete(d0, old(name.data));
+        old(data)[d_ino := DirFile(d')])
+    {
+      ghost var path := name.data;
+      invert_dir(d_ino);
+      assert dents.Repr() !! Repr;
+
+      assert DirFile(dents.dir()) == data[d_ino] by {
+        get_data_at(d_ino);
+      }
+      ghost var d0: Directory := old(data[d_ino].dir);
+      var name_opt := dents.findName(txn, name);
+      if name_opt.None? {
+        return Err(Noent);
+      }
+
+      var i := name_opt.x.0;
+      var ino := name_opt.x.1;
+      // assert path == dents.val.s[i].name;
+
+      var ok := dents.deleteAt(txn, i);
+      if !ok {
+        return Err(NoSpc);
+      }
+      dents.finish(txn);
+
+      dirents := dirents[d_ino := dents.val];
+
+      ghost var d': Directory := dents.val.dir;
+      // assert d' == map_delete(d0, path);
+      data := data[d_ino := DirFile(d')];
+
+      assert is_dir(d_ino);
+      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      assume false;
+      mk_data_at(d_ino);
+      ValidData_change_one(d_ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
+      assume false;
+      //var ok := writeDirents(txn, d_ino, dents);
+      //if !ok {
+      //  return Err(NoSpc);
+      //}
+      return Ok(ino);
+    }
+
+    method unlink(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1071,41 +1134,11 @@ module DirFs
     {
       ghost var path := name.data;
       var dents :- readDirents(txn, d_ino);
-      assert was_dir: old(is_dir(d_ino));
-      assert dents.Repr() !! Repr;
-      assert name !in Repr;
-
-      assert DirFile(dents.dir()) == data[d_ino] by {
-        get_data_at(d_ino);
+      assert old(is_dir(d_ino));
+      assert fresh(dents.file.bs) by {
+        assert dents.file.bs in dents.Repr();
       }
-      ghost var d0: Directory := old(data[d_ino].dir);
-      var name_opt := dents.findName(txn, name);
-      if name_opt.None? {
-        dents.val.findName_not_found(path);
-        assert path !in data[d_ino].dir;
-        return Err(Noent);
-      }
-
-      var i := name_opt.x.0;
-      var ino := name_opt.x.1;
-      dents.val.findName_found(path);
-      assert path == dents.val.s[i].name;
-      assert name_present: path in old(data[d_ino].dir);
-
-      var ok := dents.deleteAt(txn, i);
-      if !ok {
-        return Err(NoSpc);
-      }
-
-      ghost var d': Directory := dents.dir();
-      assert d' == map_delete(d0, path);
-
-      assert is_dir(d_ino);
-      //var ok := writeDirents(txn, d_ino, dents);
-      //if !ok {
-      //  return Err(NoSpc);
-      //}
-      return Ok(ino);
+      r := unlinkInode(txn, d_ino, dents, name);
     }
 
     method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
