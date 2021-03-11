@@ -158,7 +158,7 @@ module DirFs
       reads this
       requires ino_dom(fsdata)
     {
-      ino in dirents ==> fsdata[ino] == dirents[ino].enc()
+      ino in dirents ==> |fsdata[ino]| % 4096 == 0 && fsdata[ino] == dirents[ino].enc()
     }
 
     predicate Valid_file_at(ino: Ino, fsdata: FsData)
@@ -363,8 +363,6 @@ module DirFs
       assert Valid_dirent_at(d_ino, fs.data) by {
         get_data_at(d_ino);
       }
-      assert |fs.data[d_ino]| == 4096;
-      var bs := fs.readUnsafe(txn, d_ino, i, 0, 4096);
       var file := new Cursor(this.fs, d_ino, i);
       dents := new MemDirents(file, dirents[d_ino]);
     }
@@ -616,6 +614,7 @@ module DirFs
       if !ok {
         return;
       }
+      dents.fs_ino_size();
       assert dents.file.ino == d_ino;
       dents.finish(txn);
       dirents := dirents[d_ino := dents.val];
@@ -1174,7 +1173,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:verify false} RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1229,7 +1228,7 @@ module DirFs
       return Ok(());
     }
 
-    method READDIR(txn: Txn, d_ino: Ino)
+    method {:verify false} READDIR(txn: Txn, d_ino: Ino)
       returns (r: Result<seq<MemDirEnt>>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()

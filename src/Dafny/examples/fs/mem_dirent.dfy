@@ -99,11 +99,6 @@ module MemDirEntries
   import opened Paths
   import opened FileCursor
 
-  predicate dir_off?(k: uint64)
-  {
-    k as nat < dir_sz
-  }
-
   function dirent_off(k: nat): nat
   {
     k * dirent_sz
@@ -228,10 +223,9 @@ module MemDirEntries
     constructor(file: Cursor, ghost dents: Dirents)
       requires file.Valid()
       requires file.contents() == dents.enc()
-      requires |dents.s| == dir_sz
+      requires |file.contents()| % 4096 == 0
       ensures Valid()
       ensures val == dents
-      // for framing
       ensures this.file == file
     {
       this.file := file;
@@ -316,6 +310,15 @@ module MemDirEntries
       reveal ValidCore();
       reveal ValidVal();
       file.data_ok();
+    }
+
+    // we need this invariant, so help caller maintain it
+    lemma fs_ino_size()
+      requires Valid()
+      ensures |file.fs.data[file.ino]| % 4096 == 0
+    {
+      reveal ValidCore();
+      reveal ValidVal();
     }
 
     // give the caller the right double-subslice fact
@@ -503,7 +506,7 @@ module MemDirEntries
       ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == |val.s|
       ensures r.Some? ==>
       && name.data in val.dir
-      && dir_off?(r.x.0)
+      && r.x.0 as nat <= |val.s|
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
       ensures file.buffer_fresh()
@@ -651,10 +654,16 @@ module MemDirEntries
         reveal file.ValidFs();
       }
       ok := file.writeback(txn);
+      if !ok {
+        return;
+      }
       val := val';
       C.double_splice_auto(old(file.contents()));
-      assert ok ==> Valid() by { reveal ValidVal(); }
-      assert ok ==> file.fs.data[file.ino] == val.enc();
+      assert Valid() by {
+        assert ValidCore();
+        reveal ValidVal();
+      }
+      assert file.fs.data[file.ino] == val.enc();
     }
   }
 }

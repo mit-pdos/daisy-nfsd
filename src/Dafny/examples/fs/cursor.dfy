@@ -77,10 +77,11 @@ module FileCursor {
       requires fs.ValidIno(ino, i)
       requires |fs.data[ino]| % 4096 == 0
       ensures Valid()
+      ensures this.fs == fs
+      ensures this.i == i
       ensures this.ino == ino
       ensures fresh(Repr - {this})
       ensures bs == null
-      // ensures fresh(Repr())
     {
       this.ino := ino;
       this.i := i;
