@@ -193,7 +193,7 @@ module MemDirEntries
     function Repr(): set<object>
       reads this.file
     {
-        {this} + file.Repr()
+        {this, this.file} + file.Repr
     }
 
     predicate {:opaque} ValidCore()
@@ -212,7 +212,7 @@ module MemDirEntries
     }
 
     predicate Valid()
-      reads Repr(), file.ReprFs
+      reads this.file, Repr(), file.ReprFs
     {
       && file.Valid()
       && ValidCore()
@@ -339,6 +339,7 @@ module MemDirEntries
       requires has_jrnl(txn)
       requires k as nat < |val.s|
       ensures ino == val.s[k].ino
+      ensures file.buffer_fresh()
     {
       reveal ValidCore();
       loadDirOff(txn, k);
@@ -359,6 +360,7 @@ module MemDirEntries
       // to become name
       ensures name != file.bs && fresh(name) && |name.data| == path_len
       ensures encode_pathc(val.s[k].name) == name.data
+      ensures file.buffer_fresh()
     {
       reveal ValidCore();
       loadDirOff(txn, k);
@@ -380,6 +382,7 @@ module MemDirEntries
       && fresh(r.x.name)
       && r.x.Valid()
       && r.x.val() == val.s[k]
+      ensures file.buffer_fresh()
     {
       var ino := get_ino(txn, k);
       if ino as uint64 == 0 {
@@ -397,6 +400,7 @@ module MemDirEntries
       requires has_jrnl(txn)
       requires k as nat < |val.s|
       ensures p == val.s[k].used()
+      ensures file.buffer_fresh()
     {
       var ino := get_ino(txn, k);
       p := ino as uint64 != 0;
@@ -411,6 +415,7 @@ module MemDirEntries
       requires is_pathc(needle.data)
       ensures r.None? ==> !(val.s[k].used() && val.s[k].name == needle.data)
       ensures r.Some? ==> val.s[k].used() && val.s[k].name == needle.data && val.s[k].ino == r.x
+      ensures file.buffer_fresh()
     {
       var ino := get_ino(txn, k);
       if ino as uint64 == 0 {
@@ -443,11 +448,13 @@ module MemDirEntries
       requires Valid() ensures Valid()
       requires has_jrnl(txn)
       ensures free_i as nat == val.findFree()
+      ensures file.buffer_fresh()
     {
       var num_ents := dirSize();
       var i: uint64 := 0;
       while i < num_ents
         invariant Valid()
+        invariant file.buffer_fresh()
         invariant 0 <= i as nat <= |val.s|
         invariant forall k:nat | k < i as nat :: val.s[k].used()
       {
@@ -467,11 +474,13 @@ module MemDirEntries
       requires Valid() ensures Valid()
       requires has_jrnl(txn)
       ensures p == (dir() == map[])
+      ensures file.buffer_fresh()
     {
       var num_ents := dirSize();
       var i: uint64 := 0;
       while i < num_ents
         invariant Valid()
+        invariant file.buffer_fresh()
         invariant 0 <= i as nat <= |val.s|
         invariant forall k:nat | k < i as nat :: !val.s[k].used()
       {
@@ -497,12 +506,14 @@ module MemDirEntries
       && dir_off?(r.x.0)
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
+      ensures file.buffer_fresh()
     {
       ghost var p: PathComp := name.data;
       var num_ents := dirSize();
       var i: uint64 := 0;
       while i < num_ents
-        invariant Valid();
+        invariant Valid()
+        invariant file.buffer_fresh()
         invariant 0 <= i as nat <= |val.s|
         invariant forall k:nat | k < i as nat :: !(val.s[k].used() && val.s[k].name == p)
       {
@@ -580,7 +591,7 @@ module MemDirEntries
       IntEncoding.UInt64Put(ino, k*dirent_sz_u64 + path_len_u64, bs);
     }
 
-    method insert_ent(txn: Txn, k: uint64, e: MemDirEnt)
+    method insertEnt(txn: Txn, k: uint64, e: MemDirEnt)
       returns (ok:bool)
       modifies Repr(), e.name, file.ReprFs
       requires Valid() ensures ok ==> Valid()
@@ -591,7 +602,7 @@ module MemDirEntries
       requires val.findName(e.val().name) >= dir_sz
       ensures file.fs.types_unchanged()
       ensures ok ==> val.dir == old(val.dir[e.val().name := e.val().ino])
-      ensures ok ==> file.fs.data == file.fs.data[file.ino := val.enc()]
+      ensures ok ==> file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
       reveal ValidCore();
       ghost var v := e.val();
@@ -615,6 +626,7 @@ module MemDirEntries
       val := val';
       C.double_splice_auto(old(file.contents()));
       assert ok ==> Valid() by { reveal ValidVal(); }
+      assert ok ==> file.fs.data[file.ino] == val.enc();
     }
 
     method deleteAt(txn: Txn, k: uint64)
@@ -625,7 +637,7 @@ module MemDirEntries
       requires k as nat < |val.s| && val.s[k].used()
       ensures file.fs.types_unchanged()
       ensures ok ==> val.dir == old(map_delete(val.dir, val.s[k].name))
-      ensures ok ==> file.fs.data == file.fs.data[file.ino := val.enc()]
+      ensures ok ==> file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
       reveal ValidCore();
       var old_name := val.s[k].name;
@@ -642,6 +654,7 @@ module MemDirEntries
       val := val';
       C.double_splice_auto(old(file.contents()));
       assert ok ==> Valid() by { reveal ValidVal(); }
+      assert ok ==> file.fs.data[file.ino] == val.enc();
     }
   }
 }

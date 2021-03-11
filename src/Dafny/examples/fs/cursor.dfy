@@ -19,12 +19,8 @@ module FileCursor {
     var off: uint64
     var bs: Bytes?
 
-    function Repr(): set<object>
-      reads this
-    {
-      // this doesn't include fs.Repr and i.Repr; we list those explicitly
-      {this} + (if bs != null then {bs} else {})
-    }
+    // this doesn't include fs.Repr and i.Repr; we list those explicitly
+    var Repr: set<object>
 
     ghost const ReprFs: set<object> := fs.Repr + i.Repr
 
@@ -38,8 +34,14 @@ module FileCursor {
       && (bs != null ==> off as nat + 4096 <= |fs.data[ino]|)
     }
 
+    predicate ValidRepr()
+      reads this
+    {
+      Repr == if bs == null then {this} else {this, bs}
+    }
+
     predicate {:opaque} ValidBytes()
-      reads this, fs, bs
+      reads this, bs, fs
       requires fs.ValidDomains()
       requires bs != null
     {
@@ -49,8 +51,9 @@ module FileCursor {
     }
 
     predicate Valid()
-      reads Repr(), fs.Repr, i.Repr
+      reads this, Repr, fs.Repr, i.Repr
     {
+      && ValidRepr()
       && fs.ValidDomains()
       && ValidFs()
       && (bs != null ==> ValidBytes())
@@ -75,9 +78,7 @@ module FileCursor {
       requires |fs.data[ino]| % 4096 == 0
       ensures Valid()
       ensures this.ino == ino
-      // for Repr
-      ensures this.i == i
-      ensures this.fs == fs
+      ensures fresh(Repr - {this})
       ensures bs == null
       // ensures fresh(Repr())
     {
@@ -87,6 +88,7 @@ module FileCursor {
 
       this.off := 0;
       this.bs := null;
+      this.Repr := {this};
       new;
       reveal ValidFs();
       reveal ValidBytes();
@@ -115,7 +117,7 @@ module FileCursor {
     twostate predicate buffer_fresh()
       reads this
     {
-      bs == old(bs) || fresh(bs)
+      fresh(Repr - old(Repr))
     }
 
     method advanceTo(txn: Txn, off': uint64)
@@ -136,17 +138,20 @@ module FileCursor {
       this.off := off';
       var blk := fs.readUnsafe(txn, ino, i, off, 4096);
       bs := blk;
+      Repr := {this, bs};
       reveal ValidBytes();
     }
 
     method writeback(txn: Txn)
       returns (ok: bool)
       modifies ReprFs
+      requires ValidRepr()
       // note that ValidFs is preserved just by not modifying this directly and modifying bs
       requires ValidFs()
       requires fs.has_jrnl(txn)
       requires bs != null && |bs.data| == 4096
       ensures fs.types_unchanged()
+      ensures buffer_fresh()
       ensures ok ==>
       (reveal ValidFs();
         && Valid()
@@ -159,11 +164,12 @@ module FileCursor {
 
     method grow(txn: Txn)
       returns (ok: bool)
-      modifies Repr(), ReprFs
+      modifies Repr, ReprFs
       requires Valid()
       requires fs.has_jrnl(txn)
       requires |fs.data[ino]| + 4096 <= Inode.MAX_SZ
       ensures fs.types_unchanged()
+      ensures buffer_fresh()
       ensures ok ==>
       && Valid()
       && fs.data == old(fs.data[ino := fs.data[ino] + JrnlTypes.block0])

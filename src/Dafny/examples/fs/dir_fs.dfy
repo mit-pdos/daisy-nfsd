@@ -158,7 +158,7 @@ module DirFs
       reads this
       requires ino_dom(fsdata)
     {
-      ino in dirents ==> |dirents[ino].s| == dir_sz && fsdata[ino] == dirents[ino].enc()
+      ino in dirents ==> fsdata[ino] == dirents[ino].enc()
     }
 
     predicate Valid_file_at(ino: Ino, fsdata: FsData)
@@ -579,12 +579,11 @@ module DirFs
     method linkInode(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt)
       returns (ok: bool)
       modifies Repr, dents.Repr(), dents.file.ReprFs, e'.name
-      requires e'.name != dents.file.bs
+      requires e'.name !in dents.file.Repr
       requires Valid()
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
       requires ValidDirents(dents, d_ino) && e'.Valid()
-      ensures ok ==> dents.Valid()
       requires is_dir(d_ino) && dirents[d_ino] == dents.val
       requires e'.used() && dents.val.findName(e'.path()) >= dir_sz
       ensures ok ==>
@@ -596,26 +595,39 @@ module DirFs
       assert data[d_ino] == DirFile(dents.val.dir) by {
         get_data_at(d_ino);
       }
+      invert_dir(d_ino);
+      var sz := dents.dirSize();
       var i := dents.findFree(txn);
-      if !(i < dir_sz_u64) {
+      if !(i < sz) {
         // no space in directory
         ok := false;
         return;
       }
+      assert e'.name != dents.file.bs by {
+        if dents.file.bs == null {}
+        else {
+          assert dents.file.bs in dents.file.Repr;
+        }
+      }
       ghost var path := e'.path();
       ghost var ino := e'.ino;
       ghost var d := dents.val.dir;
-      ok := dents.insert_ent(txn, i, e');
+      ok := dents.insertEnt(txn, i, e');
       if !ok {
         return;
       }
+      assert dents.file.ino == d_ino;
+      dents.finish(txn);
+      dirents := dirents[d_ino := dents.val];
+      ghost var new_val := dents.val;
       ghost var d' := dents.val.dir;
       assert d' == d[path := ino];
-      //ok := writeDirents(txn, d_ino, dents);
-      //if !ok {
-      //  return;
-      //}
-      assert data[d_ino] == DirFile(d');
+      data := data[d_ino := DirFile(d')];
+      // assert fs.data == old(fs.data[d_ino := new_val.enc()]);
+      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      mk_data_at(d_ino);
+      ValidData_change_one(d_ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
     }
 
     method {:verify false} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
