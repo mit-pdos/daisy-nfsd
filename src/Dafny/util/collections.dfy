@@ -60,6 +60,10 @@ ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
     if xs == [] then [] else [f(xs[0])] + seq_fmap(f, xs[1..])
 }
 
+lemma seq_fmap_app<T,U>(f: T -> U, xs: seq<T>, ys: seq<T>)
+    ensures seq_fmap(f, xs + ys) == seq_fmap(f, xs) + seq_fmap(f, ys)
+{}
+
 lemma seq_fmap_compose<T,U,V>(f: T -> U, g: U -> V, xs: seq<T>)
     ensures seq_fmap(g, seq_fmap(f, xs)) == seq_fmap(x => g(f(x)), xs)
 {}

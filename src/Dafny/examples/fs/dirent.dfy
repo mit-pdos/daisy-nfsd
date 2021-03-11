@@ -334,16 +334,53 @@ module DirEntries
     ensures seq_to_dir(s) == map[]
   {}
 
+  lemma {:induction s1} seq_dir_app(s1: seq<DirEnt>, s2: seq<DirEnt>)
+    // map union is right-biased, so these reverse (if s1 + s2 is unique they
+    // should be the same, but we haven't proven that)
+    ensures seq_to_dir(s1 + s2) == seq_to_dir(s2) + seq_to_dir(s1)
+  {
+    if s1 == [] {
+      assert s1 + s2 == s2;
+    } else {
+      var e := s1[0];
+      assert (s1 + s2)[1..] == s1[1..] + s2;
+      seq_dir_app(s1[1..], s2);
+    }
+  }
+
+  lemma seq_dir_extend_unused(s: seq<DirEnt>, s': seq<DirEnt>)
+    requires forall i:nat | i < |s'| :: !s'[i].used()
+    ensures seq_to_dir(s + s') == seq_to_dir(s)
+  {
+    seq_dir_app(s, s');
+    none_used_is_empty(s');
+  }
+
+  lemma seq_dir_extend_unused_unique(s: seq<DirEnt>, s': seq<DirEnt>)
+    requires forall i:nat | i < |s'| :: !s'[i].used()
+    requires dirents_unique(s)
+    ensures dirents_unique(s + s')
+  {}
+
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
-    static const zero: Dirents := Dirents(C.repeat(DirEnt.zero, dir_sz))
+    static function method zeros(n: nat): preDirents {
+      Dirents(C.repeat(DirEnt.zero, n))
+    }
+    static const zero: Dirents := preDirents.zeros(dir_sz)
 
     ghost const dir: Directory := seq_to_dir(s)
+
+    static lemma zeros_dir(n: nat)
+      ensures zeros(n).dir == map[]
+    {
+      seq_to_dir_zeros(n);
+    }
 
     static lemma zero_dir()
       ensures zero.dir == map[]
     {
-      seq_to_dir_zeros(dir_sz);
+      zeros_dir(dir_sz);
     }
 
     predicate Valid()
@@ -370,15 +407,28 @@ module DirEntries
       C.concat(C.seq_fmap(encOne, this.s))
     }
 
+    static lemma enc_app(s1: seq<DirEnt>, s2: seq<DirEnt>)
+      ensures Dirents(s1 + s2).enc() == Dirents(s1).enc() + Dirents(s2).enc()
+    {
+      C.seq_fmap_app(encOne, s1, s2);
+      C.concat_app(C.seq_fmap(encOne, s1), C.seq_fmap(encOne, s2));
+    }
+
+    static lemma zeros_enc(n: nat)
+      ensures zeros(n).enc() == C.repeat(0 as byte, dirent_sz * n)
+    {
+      DirEnt.zero_enc();
+      assert C.seq_fmap(encOne, zeros(n).s) == C.repeat(DirEnt.zero.enc(), n);
+      C.concat_repeat(0 as byte, dirent_sz, n);
+    }
+
     static lemma zero_enc()
       ensures zero.enc() == C.repeat(0 as byte, 4096)
     {
-      DirEnt.zero_enc();
-      assert C.seq_fmap(encOne, zero.s) == C.repeat(DirEnt.zero.enc(), dir_sz);
-      C.concat_repeat(0 as byte, dirent_sz, dir_sz);
+      zeros_enc(dir_sz);
     }
 
-    function method insert_ent(i: nat, e: DirEnt): (ents': Dirents)
+    function insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
       requires i < |s|
       requires this.findName(e.name) >= |s|
@@ -480,6 +530,27 @@ module DirEntries
       used_dirents_dir(s);
       used_dirents_size(s);
       dents := used_dirents(this.s);
+    }
+
+    lemma enc_extend_zero(n: nat)
+      ensures
+      Dirents(s + C.repeat(DirEnt.zero, n)).enc()
+      == this.enc() + C.repeat(0 as byte, dirent_sz * n)
+    {
+      enc_app(s, C.repeat(DirEnt.zero, n));
+      zeros_enc(n);
+    }
+
+    function extend_zero(n: nat): (dents: Dirents)
+      requires Valid()
+      requires |s| + n <= dir_sz
+      ensures dents.Valid()
+      ensures dents.dir == this.dir
+      ensures dents.enc() == this.enc() + C.repeat(0 as byte, dirent_sz * n)
+    {
+      seq_dir_extend_unused(s, C.repeat(DirEnt.zero, n));
+      enc_extend_zero(n);
+      Dirents(s + C.repeat(DirEnt.zero, n))
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, dir_sz))
