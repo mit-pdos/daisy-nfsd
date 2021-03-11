@@ -547,10 +547,23 @@ module DirEntries
       ensures dents.Valid()
       ensures dents.dir == this.dir
       ensures dents.enc() == this.enc() + C.repeat(0 as byte, dirent_sz * n)
+      // it's obvious from the body that |dents.s| == |this.s| + n
     {
       seq_dir_extend_unused(s, C.repeat(DirEnt.zero, n));
       enc_extend_zero(n);
-      Dirents(s + C.repeat(DirEnt.zero, n))
+      var dents := Dirents(s + C.repeat(DirEnt.zero, n));
+      assert |dents.s| == |s| + n;
+      dents
+    }
+
+    lemma extend_zero_has_free(n: nat)
+      requires Valid()
+      requires |s| + n <= dir_sz
+      requires findFree() >= |s|
+      ensures extend_zero(n).findFree() == |s|
+    {
+      C.find_first_complete(is_unused, s);
+      C.find_first_characterization(is_unused, extend_zero(n).s, |s|);
     }
   }
   type Dirents = x:preDirents | x.Valid() witness Dirents(C.repeat(DirEnt.zero, dir_sz))
