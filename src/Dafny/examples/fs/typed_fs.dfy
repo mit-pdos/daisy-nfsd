@@ -220,7 +220,7 @@ module TypedFs {
         return;
       }
       ok := true;
-       fs.setType(ino, i, ty);
+      fs.setType(ino, i, ty);
       types := fs.inode_types();
       reveal ValidInvalid();
       reveal ValidFields();

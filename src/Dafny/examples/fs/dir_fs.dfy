@@ -928,7 +928,7 @@ module DirFs
       return Ok(bs);
     }
 
-    method {:verify false} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
@@ -954,22 +954,29 @@ module DirFs
         // could also have 0s in it but whatever
         return Err(NameTooLong);
       }
+      var ok, ino := allocDir(txn);
+      if !ok {
+        return Err(NoSpc);
+      }
+      // we allocate before reading d_ino because readDirents keeps the
+      // directory open; if the caller guesses the newly-allocated directory, we
+      // should fail
+      if d_ino == ino {
+        return Err(Inval);
+      }
+
       var dents :- readDirents(txn, d_ino);
       assert dents.Repr() !! Repr;
       assert name !in Repr;
-      assert is_dir(d_ino);
+      assert ino != d_ino;
+      //assert is_dir(d_ino);
       get_data_at(d_ino);
       var name_opt := dents.findName(txn, name);
       if name_opt.Some? {
         dents.val.findName_found(name.data);
         return Err(Exist);
       }
-
-      var ok, ino := allocDir(txn);
-      if !ok {
-        return Err(NoSpc);
-      }
-      assert ino != d_ino;
+      dents.val.findName_not_found(name.data);
 
       var e' := MemDirEnt(name, ino);
       assert name.data == old(name.data);
@@ -981,7 +988,7 @@ module DirFs
       return Ok(ino);
     }
 
-    method {:verify false} LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
+    method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r:Result<Ino>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
@@ -1004,9 +1011,12 @@ module DirFs
       assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
+      assert name != dents.file.bs by {
+        assert dents.file.bs in dents.Repr();
+      }
       var name_opt := dents.findName(txn, name);
+      dents.finishReadonly();
       if name_opt.None? {
-        dents.val.findName_not_found(name.data);
         return Err(Noent);
       }
       var ino: Ino := name_opt.x.1;
