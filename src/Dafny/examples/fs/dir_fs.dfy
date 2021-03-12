@@ -1318,7 +1318,7 @@ module DirFs
       return Ok(());
     }
 
-    method {:verify false} READDIR(txn: Txn, d_ino: Ino)
+    method READDIR(txn: Txn, d_ino: Ino)
       returns (r: Result<seq<MemDirEnt>>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
@@ -1338,7 +1338,11 @@ module DirFs
       assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
+      assert fresh(dents.file) by {
+        assert dents.file in dents.Repr();
+      }
       var dents_seq := dents.usedDents(txn);
+      dents.finishReadonly();
       return Ok(dents_seq);
     }
 
