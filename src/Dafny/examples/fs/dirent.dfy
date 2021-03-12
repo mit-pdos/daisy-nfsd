@@ -29,17 +29,24 @@ module DirEntries
     ensures dirent_sz * dir_sz == 4096
   {}
 
-  predicate is_pathc(s: String)
+  predicate {:opaque} is_pathc(s: String)
   {
     && |s| <= MAX_FILENAME_SZ as nat
     && forall i | 0 <= i < |s| :: s[i] != 0
   }
 
-  type PathComp = s:String | is_pathc(s)
+  type PathComp = s:String | is_pathc(s) ghost witness (reveal is_pathc(); [])
+
+  function method empty_path(): PathComp
+  {
+    reveal is_pathc();
+    []
+  }
 
   function method encode_pathc(pc: PathComp): (s:seq<byte>)
     ensures |s| == path_len
   {
+    reveal is_pathc();
     pc + C.repeat(0 as byte, path_len - |pc|)
   }
 
@@ -61,6 +68,7 @@ module DirEntries
     requires |s| == path_len
   {
     decode_null_terminated_spec(s);
+    reveal is_pathc();
     decode_null_terminated(s)
   }
 
@@ -97,6 +105,7 @@ module DirEntries
   lemma decode_encode(pc: PathComp)
     ensures decode_pathc(encode_pathc(pc)) == pc
   {
+    reveal is_pathc();
     decode_nullterm_prefix(pc, C.repeat(0 as byte, path_len - |pc|));
     decode_all_null(path_len - |pc|);
   }
@@ -110,7 +119,7 @@ module DirEntries
 
   datatype DirEnt = DirEnt(name: PathComp, ino: Ino)
   {
-    static const zero := DirEnt([], 0 as Ino)
+    static const zero := DirEnt(empty_path(), 0 as Ino)
 
     // we don't call this valid because unused DirEnts do show up (eg, a Dirents
     // will in general have unused DirEnts and this isn't a problem)
@@ -217,6 +226,7 @@ module DirEntries
 
   lemma test_seq_to_dir_overwrite()
   {
+    reveal is_pathc();
     var e1 := DirEnt([1], 1 as Ino);
     var e2 := DirEnt([1], 2 as Ino);
     var e3 := DirEnt([2], 0 as Ino);
