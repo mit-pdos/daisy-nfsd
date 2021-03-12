@@ -1259,7 +1259,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method {:verify false} RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1303,12 +1303,16 @@ module DirFs
       if dents_r.ErrNotDir? {
         return Err(NotDir);
       }
-      var is_empty := dents_r.v.isEmpty(txn);
+      assert dents_r.Ok?;
+      var dents := dents_r.v;
+      var is_empty := dents.isEmpty(txn);
+      dents.finishReadonly();
       if !is_empty {
         get_data_at(ino);
         assert data[ino].dir != map[];
         return Err(NotEmpty);
       }
+
       removeInodeDir(txn, ino);
 
       return Ok(());
