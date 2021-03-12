@@ -621,7 +621,7 @@ module IndFs
 
     // public
     method finishInode(txn: Txn, ino: Ino, i: MemInode)
-      modifies Repr, i.Repr
+      modifies Repr, i.bs
       requires ValidIno(ino, i)
       requires has_jrnl(txn)
       ensures ValidQ()

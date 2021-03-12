@@ -1063,7 +1063,7 @@ module DirFs
       ensures r.ErrNoent? ==> name.data !in old(data[d_ino].dir)
       ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?
       ensures r.Ok? ==>
-      && name.data in old(data[d_ino].dir)
+      && old(name.data in data[d_ino].dir)
       && r.v == old(data[d_ino].dir[name.data])
       && data ==
         (var d0 := old(data[d_ino].dir);
@@ -1087,31 +1087,32 @@ module DirFs
       var ino := name_opt.x.1;
       // assert path == dents.val.s[i].name;
 
+      assert ino_ok: path in d0 && ino == d0[path] by {
+        dents.val.findName_found(path);
+      }
+
       var ok := dents.deleteAt(txn, i);
       if !ok {
         return Err(NoSpc);
+      }
+      assert |fs.data[d_ino]| % 4096 == 0 by {
+        dents.fs_ino_size();
       }
       dents.finish(txn);
 
       dirents := dirents[d_ino := dents.val];
       ghost var d': Directory := dents.val.dir;
-      // assert d' == map_delete(d0, path);
+      assert d' == map_delete(d0, path);
       data := data[d_ino := DirFile(d')];
 
       assert is_dir(d_ino);
       assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
-      // takes 5s up to here
-      assume false;
-
-      // but this times out
       mk_data_at(d_ino);
       ValidData_change_one(d_ino);
-      assert ValidRoot() by { reveal ValidRoot(); }
-      assume false;
-      //var ok := writeDirents(txn, d_ino, dents);
-      //if !ok {
-      //  return Err(NoSpc);
-      //}
+      assert Valid() by {
+        assert ValidRoot() by { reveal ValidRoot(); }
+      }
+      reveal ino_ok;
       return Ok(ino);
     }
 

@@ -338,7 +338,7 @@ module Fs {
 
     // public
     method finishInode(txn: Txn, ino: Ino, i: MemInode)
-      modifies this, jrnl, i.Repr
+      modifies this, jrnl, i.bs
       requires Valid()
       requires on_inode(ino)
       requires txn.jrnl == this.jrnl
