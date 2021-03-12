@@ -1063,18 +1063,24 @@ module DirFs
       return Ok(());
     }
 
-    method unlinkInode(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes)
-      returns (r: Result<Ino>)
+    method unlinkInodeAt(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes,
+      // i and ino are the result of a succesfull findName call
+      i: uint64, ghost ino: Ino)
+      returns (r: Result<()>)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
       requires name != dents.file.bs
       requires ValidDirents(dents, d_ino) ensures r.Ok? ==> Valid()
-      ensures r.ErrNoent? ==> name.data !in old(data[d_ino].dir)
-      ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?
+      requires
+      // findName postcondition (when Some((i, ino)))
+      && dents.val.findName(name.data) == i as nat
+      && i as nat < |dents.val.s|
+      && name.data in dents.val.dir
+      && dents.val.dir[name.data] == ino
+      ensures r.Err? ==> r.err.NoSpc?
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
-      && r.v == old(data[d_ino].dir[name.data])
       && data ==
         (var d0 := old(data[d_ino].dir);
         var d' := map_delete(d0, old(name.data));
@@ -1082,20 +1088,10 @@ module DirFs
     {
       ghost var path := name.data;
       invert_dir(d_ino);
-      assert dents.Repr() !! Repr;
-
       assert DirFile(dents.dir()) == data[d_ino] by {
         get_data_at(d_ino);
       }
       ghost var d0: Directory := old(data[d_ino].dir);
-      var name_opt := dents.findName(txn, name);
-      if name_opt.None? {
-        return Err(Noent);
-      }
-
-      var i := name_opt.x.0;
-      var ino := name_opt.x.1;
-      // assert path == dents.val.s[i].name;
 
       assert ino_ok: path in d0 && ino == d0[path] by {
         dents.val.findName_found(path);
@@ -1123,6 +1119,41 @@ module DirFs
         assert ValidRoot() by { reveal ValidRoot(); }
       }
       reveal ino_ok;
+      return Ok(());
+    }
+
+    method unlinkInode(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes)
+      returns (r: Result<Ino>)
+      modifies Repr, dents.Repr(), dents.file.i.Repr
+      requires fs.has_jrnl(txn)
+      requires is_pathc(name.data)
+      requires name != dents.file.bs
+      requires ValidDirents(dents, d_ino) ensures r.Ok? ==> Valid()
+      ensures r.ErrNoent? ==> name.data !in old(data[d_ino].dir)
+      ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?
+      ensures r.Ok? ==>
+      && old(name.data in data[d_ino].dir)
+      && r.v == old(data[d_ino].dir[name.data])
+      && data ==
+        (var d0 := old(data[d_ino].dir);
+        var d' := map_delete(d0, old(name.data));
+        old(data)[d_ino := DirFile(d')])
+    {
+      ghost var path := name.data;
+      assert dents.Repr() !! Repr;
+
+      assert DirFile(dents.dir()) == data[d_ino] by {
+        get_data_at(d_ino);
+      }
+      var name_opt := dents.findName(txn, name);
+      if name_opt.None? {
+        return Err(Noent);
+      }
+
+      var i := name_opt.x.0;
+      var ino := name_opt.x.1;
+
+      var _ :- unlinkInodeAt(txn, d_ino, dents, name, i, ino);
       return Ok(ino);
     }
 
