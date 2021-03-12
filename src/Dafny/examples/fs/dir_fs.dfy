@@ -1346,7 +1346,7 @@ module DirFs
       return Ok(dents_seq);
     }
 
-    method {:verify false} {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+    method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
@@ -1358,19 +1358,33 @@ module DirFs
         return Err(Inval);
       }
       var dst :- readDirents(txn, dst_d_ino);
+      assert fresh(dst.file.bs) by {
+        assert dst.file.bs in dst.Repr();
+      }
+      assert dst_name != dst.file.bs;
       var name_opt := dst.findName(txn, dst_name);
       if name_opt.Some? {
+        var i := name_opt.x.0;
         var dst_ino := name_opt.x.1;
+        var _ :- unlinkInodeAt(txn, dst_d_ino, dst, dst_name, i, dst_ino);
+
         var _ :- removeInode(txn, dst_ino);
-        var _ :- unlink(txn, dst_d_ino, dst_name);
-        // TODO: need a lower-level unlink that operates on dst directly,
-        // like linkInode
+
+        // need to re-confirm that dst_name was removed since unlink's
+        // postcondition isn't strong enough
         dst :- readDirents(txn, dst_d_ino);
         name_opt := dst.findName(txn, dst_name);
         if name_opt.Some? {
           // should be impossible, due to unlink above
           return Err(ServerFault);
         }
+        assert dst_name != dst.file.bs by {
+          assert dst.file.bs in dst.Repr();
+          assert fresh(dst.file.bs);
+        }
+        assume false;
+      } else {
+        assume false;
       }
       var e' := MemDirEnt(dst_name, ino);
       var ok := linkInode(txn, dst_d_ino, dst, e');
