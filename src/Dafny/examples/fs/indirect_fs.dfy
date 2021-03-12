@@ -196,7 +196,7 @@ module IndFs
     constructor Init(d: Disk)
       ensures ValidQ()
       ensures fresh(Repr)
-      ensures data == imap pos: Pos | pos.idx.data? :: block0
+      ensures data == imap pos: Pos {:trigger pos.idx.data?} | pos.idx.data? :: block0
       ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
     {
       this.fs := new Filesys.Init(d);

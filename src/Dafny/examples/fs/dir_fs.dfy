@@ -1094,14 +1094,16 @@ module DirFs
       dents.finish(txn);
 
       dirents := dirents[d_ino := dents.val];
-
       ghost var d': Directory := dents.val.dir;
       // assert d' == map_delete(d0, path);
       data := data[d_ino := DirFile(d')];
 
       assert is_dir(d_ino);
       assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      // takes 5s up to here
       assume false;
+
+      // but this times out
       mk_data_at(d_ino);
       ValidData_change_one(d_ino);
       assert ValidRoot() by { reveal ValidRoot(); }
