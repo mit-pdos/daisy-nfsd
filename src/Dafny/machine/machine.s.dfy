@@ -1,7 +1,7 @@
 include "../util/collections.dfy"
 
 module Machine {
-    type byte = bv8
+    newtype {:nativeType "byte"} byte = x:int | 0 <= x < 256
     newtype {:nativeType "uint"} uint32 = x:int | 0 <= x < U32.MAX
     newtype {:nativeType "ulong"} uint64 = x:int | 0 <= x < U64.MAX
 

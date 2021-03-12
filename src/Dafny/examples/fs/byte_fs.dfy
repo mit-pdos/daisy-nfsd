@@ -667,7 +667,7 @@ module ByteFs {
       requires bs.Valid()
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
-      ensures written <= old(|bs.data|)
+      //ensures written <= old(|bs.data|)
       // we don't make this abstract because it's needed to guarantee progress
       ensures written == old(min(4096 - |data()[ino]| % 4096, |bs.data|))
       ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
@@ -711,13 +711,15 @@ module ByteFs {
       shrinkTo(txn, ino, i, desired_size);
       ghost var data3 := data()[ino];
 
-      assert |data3| == |data0| + written;
-      assert data3[..|data0|] == data0;
-      assert data3[|data0|..] == bs.data;
-      calc {
-        data3;
-        data3[..|data0|] + data3[|data0|..];
-        data0 + bs.data;
+      assert data3 == data0 + bs.data by {
+        assert |data3| == |data0| + written;
+        assert data3[..|data0|] == data0;
+        assert data3[|data0|..] == bs.data;
+        calc {
+          data3;
+          data3[..|data0|] + data3[|data0|..];
+          data0 + bs.data;
+        }
       }
       assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
     }
@@ -796,7 +798,7 @@ module ByteFs {
       }
     }
 
-    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 2} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
