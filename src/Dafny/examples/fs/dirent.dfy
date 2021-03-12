@@ -447,7 +447,7 @@ module DirEntries
     {
       var s' := this.s[i := e];
       var ents': preDirents := Dirents(s');
-      reveal find_name_spec();
+      findName_spec(e.name);
       reveal dirents_unique();
       assert ents'.Valid();
       ents'
@@ -459,14 +459,8 @@ module DirEntries
       requires this.findFree() < |s| && e.used()
       ensures this.insert_ent(this.findFree(), e).dir == this.dir[e.name := e.ino]
     {
-      reveal find_name_spec();
+      findName_spec(e.name);
       seq_to_dir_insert(s, this.findFree(), e);
-    }
-
-    predicate {:opaque} find_name_spec(p: PathComp, i: nat)
-    {
-      && i <= |s|
-      && forall k:nat | k < i :: !(s[k].used() && s[k].name == p)
     }
 
     static function method findName_pred(p: PathComp): DirEnt -> bool
@@ -474,14 +468,21 @@ module DirEntries
       (e:DirEnt) => e.used() && e.name == p
     }
 
-    function method findName(p: PathComp): (i:nat)
+    function findName(p: PathComp): (i:nat)
       requires Valid()
-      ensures i < |s| ==> s[i].used() && s[i].name == p
-      ensures find_name_spec(p, i)
+    {
+      C.find_first(findName_pred(p), s)
+    }
+
+    // NOTE: this is a really heavyweight postcondition; most callers should
+    // pick findName_found or findName_not_found
+    lemma findName_spec(p: PathComp)
+      requires Valid()
+      ensures findName(p) <= |s|
+      ensures forall k:nat | k < findName(p) :: !(s[k].used() && s[k].name == p)
+      ensures findName(p) < |s| ==> s[findName(p)].used() && s[findName(p)].name == p
     {
       C.find_first_complete(findName_pred(p), s);
-      reveal find_name_spec();
-      C.find_first(findName_pred(p), s)
     }
 
     lemma findName_found(p: PathComp)
@@ -498,8 +499,8 @@ module DirEntries
       ensures p !in this.dir
     {
       if p in this.dir {
-       var i := seq_to_dir_in_dir(s, p);
-       reveal find_name_spec();
+        var i := seq_to_dir_in_dir(s, p);
+        C.find_first_complete(findName_pred(p), s);
       }
     }
 
