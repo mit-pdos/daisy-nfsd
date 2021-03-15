@@ -564,7 +564,9 @@ module DirFs
 
       dirents := dirents[ino := Dirents.zero];
       data := data[ino := File.emptyDir];
-      assert File.emptyDir.DirFile?;
+      assert Valid_dirent_at(ino, fs.data) by {
+        Dirents.zero_enc();
+      }
       assert is_dir(ino);
 
       Dirents.zero_dir();
