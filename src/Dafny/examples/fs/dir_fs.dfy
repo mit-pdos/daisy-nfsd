@@ -1079,6 +1079,7 @@ module DirFs
       && name.data in dents.val.dir
       && dents.val.dir[name.data] == ino
       ensures r.Err? ==> r.err.NoSpc?
+      ensures name.data == old(name.data)
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
       && data ==
@@ -1346,6 +1347,55 @@ module DirFs
       return Ok(dents_seq);
     }
 
+    method {:timeLimitMultiplier 2} readWithNameFree(txn: Txn, d_ino: Ino, name: Bytes)
+      returns (r: Result<MemDirents>)
+      modifies Repr
+      requires fs.has_jrnl(txn)
+      requires is_pathc(name.data)
+      requires Valid()
+      ensures r.ErrBadHandle? ==> is_invalid(d_ino)
+      ensures r.ErrNotDir? ==> is_file(d_ino)
+      ensures name.data == old(name.data)
+      ensures r.Ok? ==>
+      && dirents_for(r.v, d_ino)
+      && r.v.val.findName(name.data) == |r.v.val.s|
+      && r.v.file.bs != name
+    {
+      var dents :- readDirents(txn, d_ino);
+      assert name != dents.file.bs by {
+        assert dents.file.bs in dents.Repr();
+      }
+      assert fresh(dents.file) by {
+        assert dents.file in dents.Repr();
+      }
+      var name_opt := dents.findName(txn, name);
+      if name_opt.None? {
+        return Ok(dents);
+      }
+      var i := name_opt.x.0;
+      var dst_ino := name_opt.x.1;
+      var _ :- unlinkInodeAt(txn, d_ino, dents, name, i, dst_ino);
+
+      // need to re-confirm that name was removed since unlink's
+      // postcondition isn't strong enough
+      dents :- assert readDirents(txn, d_ino);
+      assert name != dents.file.bs by {
+        assert dents.file.bs in dents.Repr();
+      }
+      assert fresh(dents.file) by {
+        assert dents.file in dents.Repr();
+      }
+      assert fresh(dents.file.Repr()) by {
+        assert dents.file.Repr() <= dents.Repr();
+      }
+      name_opt := dents.findName(txn, name);
+      if name_opt.Some? {
+        // should be impossible, due to unlink above
+        return Err(ServerFault);
+      }
+      return Ok(dents);
+    }
+
     method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
@@ -1357,34 +1407,9 @@ module DirFs
       if ino == 0 {
         return Err(Inval);
       }
-      var dst :- readDirents(txn, dst_d_ino);
-      assert fresh(dst.file.bs) by {
+      var dst :- readWithNameFree(txn, dst_d_ino, dst_name);
+      assert dst_name != dst.file.bs by {
         assert dst.file.bs in dst.Repr();
-      }
-      assert dst_name != dst.file.bs;
-      var name_opt := dst.findName(txn, dst_name);
-      if name_opt.Some? {
-        var i := name_opt.x.0;
-        var dst_ino := name_opt.x.1;
-        var _ :- unlinkInodeAt(txn, dst_d_ino, dst, dst_name, i, dst_ino);
-
-        var _ :- removeInode(txn, dst_ino);
-
-        // need to re-confirm that dst_name was removed since unlink's
-        // postcondition isn't strong enough
-        dst :- readDirents(txn, dst_d_ino);
-        name_opt := dst.findName(txn, dst_name);
-        if name_opt.Some? {
-          // should be impossible, due to unlink above
-          return Err(ServerFault);
-        }
-        assert dst_name != dst.file.bs by {
-          assert dst.file.bs in dst.Repr();
-          assert fresh(dst.file.bs);
-        }
-        assume false;
-      } else {
-        assume false;
       }
       var e' := MemDirEnt(dst_name, ino);
       var ok := linkInode(txn, dst_d_ino, dst, e');

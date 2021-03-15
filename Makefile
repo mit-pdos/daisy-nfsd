@@ -29,6 +29,9 @@ endif
 # allow non-linear reasoning for nonlin directory specifically
 src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 
+# these proofs are slow and prone to timeouts
+src/Dafny/examples/fs/dir_fs.dfy.ok: DAFNY_LOAD = 0.2
+
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"
 	$(Q)$(DAFNY) "$<"
