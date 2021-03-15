@@ -167,6 +167,13 @@ module Arith {
     mul_div_id(a, k);
   }
 
+  lemma mod_add_modulus(a: nat, k: nat)
+    requires 0 < k
+    ensures (a + k) % k == a % k
+  {
+    mod_add(a, k, k);
+  }
+
   lemma zero_mod(k: int)
     requires k != 0
     ensures 0 % k == 0

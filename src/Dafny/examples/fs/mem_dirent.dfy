@@ -203,8 +203,7 @@ module MemDirEntries
     predicate {:opaque} ValidVal()
       reads this
     {
-        // arbitrary limit to prevent integer overflow
-      && |val.s| <= 1024
+      && |val.s| <= dir_sz
       && |val.s| % 64 == 0
     }
 
@@ -240,7 +239,7 @@ module MemDirEntries
 
     static function dir_blk(k: nat): nat
     {
-        k / 64 * 64
+        k / 64 * 4096
     }
 
     // offset of a whole-file offset within one paged-in block in the cursor
@@ -252,7 +251,7 @@ module MemDirEntries
     predicate at_dir_off(k: nat)
       reads this, file
     {
-      && file.off as nat < |val.s|
+      && k < |val.s|
       && file.off as nat == dir_blk(k)
       && file.valid?
     }
@@ -304,7 +303,7 @@ module MemDirEntries
     {
       reveal Valid();
       reveal ValidCore();
-      file.advanceTo(txn, k / 64 * 64);
+      file.advanceTo(txn, k / 64 * 4096);
     }
 
     lemma file_data(k: nat)
@@ -685,11 +684,53 @@ module MemDirEntries
       C.double_splice(old(file.contents()),
         dir_blk(k as nat), dir_blk(k as nat) + 4096,
         k as nat % 64, IntEncoding.le_enc64(0 as uint64));
+      assert file.contents() == C.splice(old(file.contents()),
+        k as nat * dirent_sz + path_len, IntEncoding.le_enc64(0 as Ino));
       assert file.fs.data[file.ino] == val.enc();
       assert Valid() by {
         assert ValidCore();
         reveal ValidVal();
       }
     }
+
+    method grow(txn: Txn)
+      returns (ok: bool)
+      modifies Repr(), file.ReprFs
+      requires Valid() ensures ok ==> Valid()
+      requires has_jrnl(txn)
+      requires val.findFree() >= |val.s|
+      ensures file.fs.types_unchanged()
+      ensures val.dir == old(val.dir)
+      ensures fresh(file.Repr() - old(file.Repr()))
+      ensures ok ==> |val.s| == old(|val.s| + 64) && val.findFree() == old(|val.s|)
+    {
+      reveal Valid();
+      var sz := file.size();
+      if sz >= 64*dir_sz_u64 {
+        ok := false;
+        return;
+      }
+      assert |val.s|+64 <= dir_sz by {
+        reveal ValidCore();
+        reveal ValidVal();
+      }
+      ok := file.grow(txn);
+      if !ok {
+        return;
+      }
+      reveal ValidCore();
+      val.extend_zero_has_free(64);
+      val := val.extend_zero(64);
+      assert |val.s| == old(|val.s| + 64);
+      assert Valid() by {
+        assert ValidCore();
+        assert file.Valid();
+        assert ValidVal() by {
+          reveal ValidVal();
+          Arith.mod_add_modulus(old(|val.s|), 64);
+        }
+      }
+    }
+
   }
 }

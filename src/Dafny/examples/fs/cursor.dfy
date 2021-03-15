@@ -170,6 +170,7 @@ module FileCursor {
       ensures buffer_fresh()
       ensures ok ==>
       && Valid()
+      && off == old(off)
       && fs.data == old(fs.data[ino := fs.data[ino] + JrnlTypes.block0])
     {
       reveal ValidFs();

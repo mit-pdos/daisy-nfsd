@@ -19,14 +19,14 @@ module DirEntries
     // dirent_sz - 8
   const path_len_u64: uint64 := 56
   const path_len: nat := path_len_u64 as nat
-  const dir_sz_u64: uint64 := 64
+    // arbitrary limit to prevent integer overflow/overflowing inode max sz
+  const dir_sz_u64: uint64 := 1024
   const dir_sz: nat := dir_sz_u64 as nat
 
   const MAX_FILENAME_SZ: uint64 := path_len_u64
 
   lemma dirent_sizes_consistent()
     ensures path_len == dirent_sz - 8
-    ensures dirent_sz * dir_sz == 4096
   {}
 
   predicate {:opaque} is_pathc(s: String)
@@ -386,7 +386,7 @@ module DirEntries
       reveal dirents_unique();
       Dirents(C.repeat(DirEnt.zero, n))
     }
-    static const zero: Dirents := preDirents.zeros(dir_sz)
+    static const zero: Dirents := preDirents.zeros(64)
 
     ghost const dir: Directory := seq_to_dir(s)
 
@@ -399,7 +399,7 @@ module DirEntries
     static lemma zero_dir()
       ensures zero.dir == map[]
     {
-      zeros_dir(dir_sz);
+      zeros_dir(64);
     }
 
     predicate Valid()
@@ -446,7 +446,7 @@ module DirEntries
     static lemma zero_enc()
       ensures zero.enc() == C.repeat(0 as byte, 4096)
     {
-      zeros_enc(dir_sz);
+      zeros_enc(64);
     }
 
     function insert_ent(i: nat, e: DirEnt): (ents': Dirents)
