@@ -1397,7 +1397,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:timeLimitMultiplier 2} RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
