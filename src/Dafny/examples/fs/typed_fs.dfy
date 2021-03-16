@@ -301,7 +301,7 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
-    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method writeOne_(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
@@ -316,8 +316,74 @@ module TypedFs {
     {
       reveal ValidFields();
       ok := fs.write(txn, ino, i, off, bs);
+      if !ok {
+        return;
+      }
       data := fs.data();
-      reveal ValidInvalid();
+      assert ValidIno(ino, i) by {
+        reveal ValidInvalid();
+      }
+    }
+
+    method {:timeLimitMultiplier 2} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+      returns (ok: bool)
+      modifies Repr, bs, i.Repr
+      requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
+      requires bs !in i.Repr
+      requires has_jrnl(txn)
+      requires 0 < |bs.data| <= 6*4096
+      requires off as nat <= |data[ino]|
+      requires off as nat + |bs.data| <= Inode.MAX_SZ
+      ensures ok ==>
+      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+      ensures types_unchanged()
+    {
+      reveal ValidFields();
+      ghost var data0 := bs.data;
+      ghost var original_bs := bs;
+      var bs := bs;
+      var written: uint64 := 0 as uint64;
+      assert data0[..written as nat] == [];
+      assert write_data(data[ino], off as nat, []) == data[ino];
+
+      while bs.Len() > 4096
+        decreases |bs.data|
+        invariant fresh({bs} - {original_bs})
+        invariant 0 < |bs.data| <= |data0| <= 6*4096
+        invariant ValidIno(ino, i)
+        invariant bs !in i.Repr
+        invariant written as nat <= |data0|
+        invariant bs.data == data0[written..]
+        invariant data == old(data[ino := write_data(data[ino], off as nat, data0[..written])])
+        invariant types_unchanged()
+      {
+        write_data_app(data[ino], off as nat,
+          // already written
+          data0[..written],
+          // newly written
+          data0[written..written + 4096]);
+        assert data0[..written] + data0[written..written + 4096] == data0[..written + 4096];
+        assert |data0[..written]| == written as nat;
+        var bs_remaining := bs.Split(4096);
+        assert bs.data == data0[written..written + 4096];
+        ok := writeOne_(txn, ino, i, off + written, bs);
+        if !ok {
+          return;
+        }
+        assert data[ino] == old(write_data(data[ino], off as nat, data0[..written + 4096]));
+        bs := bs_remaining;
+        written := written + 4096;
+      }
+
+      write_data_app(data[ino], off as nat,
+        data0[..written], data0[written..]);
+      assert data0 == data0[..written] + data0[written..];
+      assert |data0[..written]| == written as nat;
+      ok := writeOne_(txn, ino, i, off + written, bs);
+      if !ok {
+        return;
+      }
+      assert data[ino] == old(write_data(data[ino], off as nat, data0));
     }
 
     method writeBlockFile(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)

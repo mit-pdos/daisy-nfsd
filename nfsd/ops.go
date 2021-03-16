@@ -399,7 +399,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Rtmax = nfstypes.Uint32(4096)
 	reply.Resok.Rtpref = reply.Resok.Rtmax
-	reply.Resok.Wtmax = nfstypes.Uint32(4096)
+	reply.Resok.Wtmax = nfstypes.Uint32(6 * 4096)
 	reply.Resok.Wtpref = reply.Resok.Wtmax
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.Companion_Default___.MAX__SZ__u64())
 	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)

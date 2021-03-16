@@ -105,6 +105,11 @@ module ByteFs {
     ensures write_data(data, off, bs) == data[..off] + bs
   {}
 
+  lemma write_data_app(data: seq<byte>, off: nat, bs1: seq<byte>, bs2: seq<byte>)
+    requires off <= |data|
+    ensures write_data(data, off, bs1 + bs2) == write_data(write_data(data, off, bs1), off + |bs1|, bs2)
+  {}
+
   class ByteFilesys
   {
     const fs: IndFilesys
