@@ -1513,21 +1513,16 @@ module DirFs
       var dst_ino := name_opt.x.1;
       var _ :- unlinkInodeAt(txn, d_ino, dents, name, i, dst_ino);
 
-      // need to re-confirm that name was removed since unlink's
-      // postcondition isn't strong enough
+      // need to re-confirm that name was removed since unlink's postcondition
+      // isn't strong enough
       dents :- assert readDirents(txn, d_ino);
-      assert name != dents.file.bs by {
-        assert dents.file.bs in dents.Repr();
-      }
-      assert fresh(dents.file) by {
-        assert dents.file in dents.Repr();
-      }
+
       assert fresh(dents.file.Repr()) by {
         assert dents.file.Repr() <= dents.Repr();
       }
+
       name_opt := dents.findName(txn, name);
       if name_opt.Some? {
-        // should be impossible, due to unlink above
         return Err(ServerFault);
       }
       return Ok(dents);

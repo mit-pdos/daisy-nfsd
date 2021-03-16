@@ -538,7 +538,7 @@ module MemDirEntries
       && r.x.0 as nat < |val.s|
       && r.x.0 as nat == val.findName(name.data)
       && val.dir[name.data] == r.x.1
-      ensures fresh(file.Repr() - old(file.Repr()))
+      ensures fresh(Repr() - old(Repr()))
     {
       ghost var p: PathComp := name.data;
       var num_ents := dirSize();
