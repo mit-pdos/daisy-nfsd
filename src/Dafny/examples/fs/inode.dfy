@@ -36,6 +36,10 @@ module Inode {
     {}
   }
 
+  datatype NfsTime = NfsTime(sec: uint32, nsec: uint32)
+
+  datatype Attrs = Attrs(mode: uint32, atime: NfsTime, mtime: NfsTime)
+
   datatype Meta = Meta(sz: uint64, ty: InodeType)
 
   datatype preInode = Mk(meta: Meta, blks: seq<uint64>)
