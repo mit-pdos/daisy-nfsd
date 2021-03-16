@@ -15,10 +15,9 @@ module TypedFs {
   predicate is_read_data(data: seq<byte>, off: nat, len: nat,
     bs: seq<byte>, eof: bool)
   {
-    && off + |bs| <= |data|
     && |bs| <= len
-    && bs == data[off..off + |bs|]
-    && (eof <==> off + |bs| == |data|)
+    && (off + |bs| <= |data| ==> bs == data[off..off + |bs|])
+    && (eof <==> off + |bs| >= |data|)
   }
 
   class TypedFilesys
@@ -368,10 +367,11 @@ module TypedFs {
         ok := false;
         return;
       }
-      fs.inode_metadata(ino, i);
+      inode_metadata(ino, i);
       if off > i.sz {
         bs := NewBytes(0);
-        ok := false;
+        ok := true;
+        eof := true;
         return;
       }
       var readLen: uint64 := len;
