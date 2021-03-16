@@ -61,10 +61,17 @@ module FsKinds {
     ensures super_data_start as nat == super.data_start
   {}
 
-  type Ino = ino:uint64 | ino_ok(ino)
+  function zero_inode_witness(): (x:uint64)
+    ensures ino_ok(x)
+  {
+    reveal ino_ok();
+    0 as uint64
+  }
+
+  type Ino = ino:uint64 | ino_ok(ino) ghost witness zero_inode_witness()
 
   predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
-  predicate ino_ok(ino: uint64) { ino as nat < super.num_inodes }
+  predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
 
   // if you want to make a disk for the fs this is a usable number
   lemma NumBlocks_upper_bound()
@@ -74,6 +81,7 @@ module FsKinds {
   function method InodeBlk(ino: Ino): (bn':Blkno)
     ensures InodeBlk?(bn')
   {
+    reveal ino_ok();
     513 + ino / 32
   }
 

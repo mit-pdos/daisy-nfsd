@@ -175,7 +175,7 @@ module TypedFs {
     }
 
     method finishInode(txn: Txn, ino: Ino, i: MemInode)
-      modifies fs.Repr, i.Repr
+      modifies fs.Repr, i.bs
       requires has_jrnl(txn)
       requires ValidIno(ino, i)
       ensures Valid()
@@ -220,7 +220,7 @@ module TypedFs {
         return;
       }
       ok := true;
-       fs.setType(ino, i, ty);
+      fs.setType(ino, i, ty);
       types := fs.inode_types();
       reveal ValidInvalid();
       reveal ValidFields();

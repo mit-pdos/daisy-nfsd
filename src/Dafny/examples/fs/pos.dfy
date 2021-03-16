@@ -296,7 +296,9 @@ module IndirectPos
           return;
         }
         assert from_flat(n0).k == 12;
-        assert config.total_to(12) == 10+2*512;
+        assert config.total_to(12) == 10+2*512 by {
+          config_totals_after_10(12);
+        }
         return;
       }
       assert from_flat(n0).k == 13;

@@ -52,7 +52,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"} JrnlSpec
         if k == 0 then ObjBit(false)
         else
             kind_at_least_byte(k);
-            ObjData(C.repeat(0 as bv8, kindSize(k)/8))
+            ObjData(C.repeat(0 as byte, kindSize(k)/8))
     }
 
     predicate kindsValid(kinds: map<Blkno, Kind>)
