@@ -1058,7 +1058,7 @@ module DirFs
       return Ok(bs);
     }
 
-    method MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    method {:timeLimitMultiplier 2} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
       returns (r: Result<Ino>)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
