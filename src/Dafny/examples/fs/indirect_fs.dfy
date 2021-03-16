@@ -206,7 +206,7 @@ module IndFs
       new;
       assert ValidBasics() by { reveal fsValid(); }
       IndBlocks.to_blknos_zero();
-      reveal ValidPos();
+      assert ValidPos() by { reveal ValidPos(); }
       reveal ValidInodes();
       reveal ValidIndirect();
       reveal ValidMetadata();
