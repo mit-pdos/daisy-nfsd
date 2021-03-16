@@ -165,7 +165,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 		util.DPrintf(1, "NFS Read error %v", status)
 		return reply
 	}
-	rr := r.(*dirfs.ReadResult)
+	rr := r.(dirfs.ReadResult)
 	bs := rr.Dtor_data()
 	eof := rr.Dtor_eof()
 
