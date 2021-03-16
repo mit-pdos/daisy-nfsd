@@ -12,8 +12,8 @@ module Inode {
   import opened ByteSlice
   import opened Marshal
 
-  const MAX_SZ: nat := 4096 * (10 + 3*512 + 512*512*512);
-  const MAX_SZ_u64: uint64 := MAX_SZ as uint64;
+  const MAX_SZ_u64: uint64 := 4096 * (10 + 3*512 + 512*512*512);
+  const MAX_SZ: nat := MAX_SZ_u64 as nat;
 
   datatype InodeType = InvalidType | FileType | DirType
   {
