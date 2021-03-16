@@ -973,6 +973,54 @@ module DirFs
       return Ok(());
     }
 
+    method {:timeLimitMultiplier 2} WRITEgeneral(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
+      returns (r: Result<()>)
+      modifies Repr, bs
+      requires Valid()
+      requires fs.has_jrnl(txn)
+      requires 0 < |bs.data| <= 4096
+      // nothing to say in error case (need to abort)
+      ensures r.Ok? ==> Valid()
+    {
+      var i_r := openFile(txn, ino);
+      var i :- i_r.IsDirToInval();
+      assert dirents == old(dirents);
+      invert_file(ino);
+      assert ValidIno(ino, i);
+      ghost var d0: seq<byte> := old(fs.data[ino]);
+      assert d0 == old(data[ino].data) by {
+        get_data_at(ino);
+      }
+      if i.sz + bs.Len() > Inode.MAX_SZ_u64 ||
+        sum_overflows(off, bs.Len()) ||
+        off + bs.Len() > Inode.MAX_SZ_u64 {
+        return Err(FBig);
+      }
+      if off > i.sz {
+        fs.inode_metadata(ino, i);
+        // unverified (because we should set this to zeros)
+        ghost var junk := fs.setSize(txn, ino, i, off);
+        assert |fs.data[ino]| == off as nat;
+      }
+      fs.inode_metadata(ino, i);
+      assert this !in fs.Repr;
+      var ok;
+      ok := fs.write(txn, ino, i, off, bs);
+      if !ok {
+        return Err(NoSpc);
+      }
+
+      fs.finishInode(txn, ino, i);
+
+      ghost var f' := ByteFile(fs.data[ino]);
+      data := data[ino := f'];
+
+      assert Valid() by {
+        file_change_valid(ino, f'.data);
+      }
+      return Ok(());
+    }
+
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
       returns (r: Result<Bytes>)
       modifies fs.fs.fs.fs

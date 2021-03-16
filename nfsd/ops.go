@@ -190,8 +190,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		util.DPrintf(1, "NFS Write: handling write hole off %d cnt %d", off, cnt)
 		// FIXME: hack to support holes (without properly zeroing them)
 		_, status = nfs.runTxn(func(txn Txn) Result {
-			nfs.filesys.SETATTRsize(txn, inum, off+cnt)
-			return nfs.filesys.WRITE(txn, inum, off, bs)
+			return nfs.filesys.WRITEgeneral(txn, inum, off, bs)
 		})
 	}
 	reply.Status = status
