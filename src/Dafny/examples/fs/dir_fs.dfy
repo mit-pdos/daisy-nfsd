@@ -52,6 +52,8 @@ module DirFs
 
   datatype Attributes = Attributes(is_dir: bool, size: uint64)
 
+  datatype ReadResult = ReadResult(data: Bytes, eof: bool)
+
   class DirFilesys
   {
     // external abstract state
@@ -578,7 +580,7 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method growInodeFor(txn: Txn, ghost d_ino: Ino, dents: MemDirents, ghost path: PathComp)
+    method {:timeLimitMultiplier 2} growInodeFor(txn: Txn, ghost d_ino: Ino, dents: MemDirents, ghost path: PathComp)
       returns (ok: bool)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires ValidDirents(dents, d_ino)
@@ -609,15 +611,18 @@ module DirFs
         dents.fs_ino_size();
       }
       val0.extend_zero_not_found(64, path);
-      assert dents.val.findName(path) >= |dents.val.s|;
-      // assert dents.val.findFree() == old(dents.val.findFree());
-      // assert dents.val.findFree() < |dents.val.s|;
+      assert dents_ok:
+        && dents.val.findName(path) >= |dents.val.s|
+        && dents.val.findFree() == old(dents.val.findFree())
+        && dents.val.findFree() < |dents.val.s|;
 
       dirents := dirents[d_ino := dents.val];
-      assert fs.types[d_ino] == Inode.DirType;
       assert data == old(data);
       assert is_dir(d_ino);
-      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      assert is_of_type(d_ino, fs.types[d_ino]) by {
+        assert fs.types[d_ino] == Inode.DirType;
+        reveal is_of_type();
+      }
       //assert Valid_dirent_at(d_ino, fs.data);
       mk_data_at(d_ino);
       ValidData_change_one(d_ino);
@@ -625,6 +630,7 @@ module DirFs
         dents.fs_valid_ino();
         assert ValidRoot() by { reveal ValidRoot(); }
       }
+      reveal dents_ok;
     }
 
     // linkInodeAtFree inserts a new entry e' into d_ino
@@ -1022,7 +1028,7 @@ module DirFs
     }
 
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
-      returns (r: Result<Bytes>)
+      returns (r: Result<ReadResult>)
       modifies fs.fs.fs.fs
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1030,10 +1036,10 @@ module DirFs
       ensures r.ErrInval? ==> ino in data && data[ino].DirFile?
       ensures unchanged(this)
       ensures r.Ok? ==>
-      (var bs := r.v;
+      (var bs := r.v.data;
+       var eof := r.v.eof;
       && ino in data && data[ino].ByteFile?
-      && off as nat + len as nat <= |data[ino].data|
-      && bs.data == data[ino].data[off as nat..off as nat + len as nat]
+      && is_read_data(data[ino].data, off as nat, len as nat, bs.data, eof)
       )
     {
       if len > 4096 {
@@ -1043,11 +1049,11 @@ module DirFs
       }
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
-      var bs, ok := fs.read(txn, ino, i, off, len);
+      var bs, ok, eof := fs.read(txn, ino, i, off, len);
       fs.finishInodeReadonly(ino, i);
       if !ok {
-        // TODO: I believe this should never happen, short reads are supposed to
-        // return partial data and an EOF flag
+        // TODO: this now only happens if the offset if completely
+        // out-of-bounds, which I'm not sure we're supposed to handle
         return Err(ServerFault);
       }
       get_data_at(ino);
@@ -1056,7 +1062,7 @@ module DirFs
           reveal Valid_data_at();
         }
       }
-      return Ok(bs);
+      return Ok(ReadResult(bs, eof));
     }
 
     method {:timeLimitMultiplier 2} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)

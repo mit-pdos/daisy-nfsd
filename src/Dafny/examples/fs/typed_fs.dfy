@@ -12,6 +12,15 @@ module TypedFs {
   import Inode
   import opened MemInodes
 
+  predicate is_read_data(data: seq<byte>, off: nat, len: nat,
+    bs: seq<byte>, eof: bool)
+  {
+    && off + |bs| <= |data|
+    && |bs| <= len
+    && bs == data[off..off + |bs|]
+    && (eof <==> off + |bs| == |data|)
+  }
+
   class TypedFilesys
   {
     ghost var data: map<Ino, seq<byte>>
@@ -344,7 +353,7 @@ module TypedFs {
     }
 
     method read(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
-      returns (bs: Bytes, ok: bool)
+      returns (bs: Bytes, ok: bool, eof: bool)
       modifies fs.fs.fs
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
@@ -352,11 +361,27 @@ module TypedFs {
       requires inode_unchanged(ino, i.val())
       requires len <= 4096
       ensures fresh(bs)
-      ensures ok ==>
-          && off as nat + len as nat <= |data[ino]|
-          && bs.data == this.data[ino][off..off as nat + len as nat]
+      ensures ok ==> is_read_data(data[ino], off as nat, len as nat, bs.data, eof)
     {
-      bs, ok := fs.readWithInode(txn, ino, i, off, len);
+      if sum_overflows(off, len) {
+        bs := NewBytes(0);
+        ok := false;
+        return;
+      }
+      fs.inode_metadata(ino, i);
+      if off > i.sz {
+        bs := NewBytes(0);
+        ok := false;
+        return;
+      }
+      var readLen: uint64 := len;
+      if off + len >= i.sz {
+        readLen := i.sz - off;
+        eof := true;
+      } else {
+        eof := false;
+      }
+      bs, ok := fs.readWithInode(txn, ino, i, off, readLen);
       reveal ValidFields();
     }
 
