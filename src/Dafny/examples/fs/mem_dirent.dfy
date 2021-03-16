@@ -336,6 +336,14 @@ module MemDirEntries
       reveal ValidVal();
     }
 
+    lemma fs_valid_ino()
+      requires Valid()
+      ensures file.fs.ValidIno(file.ino, file.i)
+    {
+      reveal Valid();
+      reveal file.ValidFs();
+    }
+
     // give the caller the right double-subslice fact
     lemma file_subslice(k: nat, start: nat, end: nat)
       requires Valid()
@@ -702,9 +710,17 @@ module MemDirEntries
       ensures file.fs.types_unchanged()
       ensures val.dir == old(val.dir)
       ensures fresh(file.Repr() - old(file.Repr()))
-      ensures ok ==> |val.s| == old(|val.s| + 64) && val.findFree() == old(|val.s|)
+      ensures ok ==>
+      && old(|val.s| + 64 <= dir_sz)
+      && val == old(val.extend_zero(64))
+      && val.findFree() == old(val.findFree())
+      && val.findFree() < |val.s|
+      && file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
       reveal Valid();
+      assert val.findFree() == |val.s| by {
+        reveal val.find_free_spec();
+      }
       var sz := file.size();
       if sz >= 64*dir_sz_u64 {
         ok := false;

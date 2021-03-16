@@ -588,6 +588,17 @@ module DirEntries
       C.find_first_complete(is_unused, s);
       C.find_first_characterization(is_unused, extend_zero(n).s, |s|);
     }
+
+    lemma extend_zero_not_found(n: nat, p: PathComp)
+      requires Valid()
+      requires |s| + n <= dir_sz
+      requires findName(p) >= |s|
+      ensures extend_zero(n).findName(p) == |extend_zero(n).s|
+    {
+      C.find_first_complete(findName_pred(p), s);
+      var xs := s + C.repeat(DirEnt.zero, n);
+      C.find_first_characterization(findName_pred(p), xs, |s| + n);
+    }
   }
   type Dirents = x:preDirents | x.Valid() ghost witness Dirents.zeros(0)
 }

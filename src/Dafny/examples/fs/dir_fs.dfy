@@ -578,6 +578,110 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
+    method growInodeFor(txn: Txn, ghost d_ino: Ino, dents: MemDirents, ghost path: PathComp)
+      returns (ok: bool)
+      modifies Repr, dents.Repr(), dents.file.i.Repr
+      requires ValidDirents(dents, d_ino)
+      requires fs.has_jrnl(txn)
+      requires dents.val.findName(path) >= |dents.val.s|
+      requires dents.val.findFree() >= |dents.val.s|
+      ensures fs.types_unchanged()
+      ensures ok ==>
+      && ValidDirents(dents, d_ino)
+      && dents.val.findName(path) >= |dents.val.s|
+      && dents.val.findFree() == old(dents.val.findFree())
+      && dents.val.findFree() < |dents.val.s|
+      && data == old(data)
+      ensures fresh(dents.Repr() - old(dents.Repr()))
+    {
+      assert Repr !! dents.Repr();
+      invert_dir(d_ino);
+      assert Valid_dir_at(d_ino) by {
+        get_data_at(d_ino);
+      }
+
+      ghost var val0 := dents.val;
+      ok := dents.grow(txn);
+      if !ok {
+        return;
+      }
+      assert |fs.data[d_ino]| % 4096 == 0 by {
+        dents.fs_ino_size();
+      }
+      val0.extend_zero_not_found(64, path);
+      assert dents.val.findName(path) >= |dents.val.s|;
+      // assert dents.val.findFree() == old(dents.val.findFree());
+      // assert dents.val.findFree() < |dents.val.s|;
+
+      dirents := dirents[d_ino := dents.val];
+      assert fs.types[d_ino] == Inode.DirType;
+      assert data == old(data);
+      assert is_dir(d_ino);
+      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      //assert Valid_dirent_at(d_ino, fs.data);
+      mk_data_at(d_ino);
+      ValidData_change_one(d_ino);
+      assert ValidIno(d_ino, dents.file.i) by {
+        dents.fs_valid_ino();
+        assert ValidRoot() by { reveal ValidRoot(); }
+      }
+    }
+
+    // linkInodeAtFree inserts a new entry e' into d_ino
+    //
+    // requires caller to provide a free slot
+    method linkInodeAtFree(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt, i: uint64)
+      returns (ok: bool)
+      modifies Repr, dents.Repr(), dents.file.i.Repr, e'.name
+      requires e'.name != dents.file.bs
+      requires i as nat == dents.val.findFree()
+      requires i as nat < |dents.val.s|
+      ensures ok ==> Valid()
+      requires fs.has_jrnl(txn)
+      requires ValidDirents(dents, d_ino) && e'.Valid()
+      requires e'.used() && dents.val.findName(e'.path()) >= |dents.val.s|
+      ensures ok ==>
+      && data == old(
+      var d0 := data[d_ino].dir;
+      var d' := DirFile(d0[e'.path() := e'.ino]);
+      data[d_ino := d'])
+    {
+      assert data[d_ino] == DirFile(dents.val.dir) by {
+        get_data_at(d_ino);
+      }
+
+      assert data[d_ino] == DirFile(dents.val.dir) by {
+        get_data_at(d_ino);
+      }
+      invert_dir(d_ino);
+
+      assert e'.name != dents.file.bs && e'.name !in dents.file.i.Repr by {
+        reveal dents.Valid();
+      }
+      ghost var path := e'.path();
+      ghost var ino := e'.ino;
+      ghost var d := dents.val.dir;
+      ok := dents.insertEnt(txn, i, e');
+      if !ok {
+        return;
+      }
+      dents.fs_ino_size();
+      //assert dents.file.ino == d_ino;
+      dents.finish(txn);
+
+      dirents := dirents[d_ino := dents.val];
+      ghost var new_val := dents.val;
+      ghost var d' := dents.val.dir;
+      assert d' == d[path := ino];
+      data := data[d_ino := DirFile(d')];
+      assert is_dir(d_ino);
+      assert fs.types[d_ino] == Inode.DirType;
+      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
+      mk_data_at(d_ino);
+      ValidData_change_one(d_ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
+    }
+
     // linkInode inserts a new entry e' into d_ino
     //
     // requires that e'.name is not already in the directory (in that case we
@@ -596,40 +700,16 @@ module DirFs
       var d' := DirFile(d0[e'.path() := e'.ino]);
       data[d_ino := d'])
     {
-      assert data[d_ino] == DirFile(dents.val.dir) by {
-        get_data_at(d_ino);
-      }
-      invert_dir(d_ino);
       var sz := dents.dirSize();
       var i := dents.findFree(txn);
       if !(i < sz) {
-        // no space in directory
-        ok := false;
-        return;
+        ok := growInodeFor(txn, d_ino, dents, e'.path());
+        // could not make space
+        if !ok {
+          return;
+        }
       }
-      assert e'.name != dents.file.bs && e'.name !in dents.file.i.Repr by {
-        reveal dents.Valid();
-      }
-      ghost var path := e'.path();
-      ghost var ino := e'.ino;
-      ghost var d := dents.val.dir;
-      ok := dents.insertEnt(txn, i, e');
-      if !ok {
-        return;
-      }
-      dents.fs_ino_size();
-      assert dents.file.ino == d_ino;
-      dents.finish(txn);
-      dirents := dirents[d_ino := dents.val];
-      ghost var new_val := dents.val;
-      ghost var d' := dents.val.dir;
-      assert d' == d[path := ino];
-      data := data[d_ino := DirFile(d')];
-      // assert fs.data == old(fs.data[d_ino := new_val.enc()]);
-      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
-      mk_data_at(d_ino);
-      ValidData_change_one(d_ino);
-      assert ValidRoot() by { reveal ValidRoot(); }
+      ok := linkInodeAtFree(txn, d_ino, dents, e', i);
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
