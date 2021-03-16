@@ -1044,6 +1044,7 @@ module DirFs
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
       var bs, ok := fs.read(txn, ino, i, off, len);
+      fs.finishInodeReadonly(ino, i);
       if !ok {
         // TODO: I believe this should never happen, short reads are supposed to
         // return partial data and an EOF flag

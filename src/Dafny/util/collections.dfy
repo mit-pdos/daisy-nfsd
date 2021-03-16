@@ -15,6 +15,11 @@ function to_seq<T>(s: seq<T>): seq<T> { s }
 
 // sequence indexing
 
+lemma double_prefix<T>(xs: seq<T>, a: nat, b: nat)
+    requires b <= a <= |xs|
+    ensures xs[..a][..b] == xs[..b]
+{}
+
 lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     requires a <= b <= |xs|
     requires c <= d <= (b-a)

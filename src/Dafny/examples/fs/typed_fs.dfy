@@ -347,7 +347,8 @@ module TypedFs {
       returns (bs: Bytes, ok: bool)
       modifies fs.fs.fs
       requires has_jrnl(txn)
-      requires ValidIno(ino, i) ensures Valid()
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      ensures fs.fs.fs.cur_inode == old(fs.fs.fs.cur_inode)
       requires inode_unchanged(ino, i.val())
       requires len <= 4096
       ensures fresh(bs)

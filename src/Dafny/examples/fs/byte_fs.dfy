@@ -245,10 +245,11 @@ module ByteFs {
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) && fs.fs.cur_inode == Some( (ino, i.val()) )
-      ensures Valid()
+      requires fs.ValidIno(ino, i)
+      ensures fs.ValidIno(ino, i)
       requires len <= 4096
       ensures fresh(bs)
+      ensures fs.fs.cur_inode == old(fs.fs.cur_inode)
       ensures ok ==>
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
@@ -258,7 +259,6 @@ module ByteFs {
       if sum_overflows(off, len) || off+len > i.sz {
         ok := false;
         bs := NewBytes(0);
-        fs.finishInodeReadonly(ino, i);
         return;
       }
       assert off as nat + len as nat <= |data()[ino]|;
@@ -266,7 +266,6 @@ module ByteFs {
       ok := true;
       if len == 0 {
         bs := NewBytes(0);
-        fs.finishInodeReadonly(ino, i);
         calc {
           this.data()[ino][off..off+len];
           { assert off+len == off; }
@@ -278,7 +277,6 @@ module ByteFs {
       }
       assert 0 < len <= 4096;
       bs := readInternal(txn, ino, i, off, len);
-      fs.finishInodeReadonly(ino, i);
       assert data() == old(data());
     }
 
@@ -298,6 +296,7 @@ module ByteFs {
       }
       var i := fs.startInode(txn, ino);
       bs, ok := readWithInode(txn, ino, i, off, len);
+      fs.finishInodeReadonly(ino, i);
     }
 
     // public
@@ -498,7 +497,7 @@ module ByteFs {
       fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
       fs.inode_metadata(ino, i);
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
-        reveal raw_inode_data();
+        C.double_prefix(raw_data(ino), i.sz as nat, sz' as nat);
       }
       assert types_unchanged() by {
         reveal inode_types();
