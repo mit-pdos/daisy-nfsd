@@ -49,7 +49,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"} ByteSl
 
         method {:extern} Append(b: byte)
         modifies this
-        requires Valid() ensures Valid()
+        ensures Valid()
         requires no_overflow(|data|, 1)
         ensures data == old(data) + [b]
         {
@@ -61,7 +61,7 @@ module {:extern "bytes", "github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"} ByteSl
             // NOTE: I did not think of this initially, until the model proof
             // caught it
             requires bs != this
-            ensures old(Valid()) ==> Valid()
+            ensures Valid()
             requires bs.Valid()
             requires no_overflow(|data|, |bs.data|)
             ensures data == old(data) + bs.data
