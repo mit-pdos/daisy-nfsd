@@ -722,7 +722,6 @@ module DirFs
       returns (r: Result<Ino>, ghost junk: seq<byte>)
       modifies Repr, name
       requires name.Valid()
-      requires sz <= Inode.MAX_SZ_u64
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
@@ -737,6 +736,10 @@ module DirFs
         data[ino := ByteFile(junk)][d_ino := d'])
       )
     {
+      if sz > Inode.MAX_SZ_u64 {
+        r := Err(NoSpc);
+        return;
+      }
       var ok, ino := allocFile(txn);
       if !ok {
         r := Err(NoSpc);
