@@ -10,7 +10,7 @@ import opened JrnlTypes
 import opened JrnlSpec
 import opened Kinds
 import opened Marshal
-import opened Collections
+import C = Collections
 
 /*
 Demo of bank transfer using axiomatized journal API
@@ -57,7 +57,7 @@ class Bank
              && jrnl.size(acct) == 64
              && accts[n] < U64.MAX
              && acct_val(jrnl, n, accts[n]))
-        && acct_sum == sum_nat(accts)
+        && acct_sum == C.sum_nat(accts)
     }
 
     predicate Valid()
@@ -130,8 +130,8 @@ class Bank
 
         // NOTE: this was really annoying to figure out - turns out needed the
         // accounts to be a repeat of nats instead of uint64
-        sum_repeat(init_bal as nat, 512);
-        accts := repeat(init_bal as nat, 512);
+        C.sum_repeat(init_bal as nat, 512);
+        accts := C.repeat(init_bal as nat, 512);
         acct_sum := 512*(init_bal as nat);
 
         forall n: uint64 | n < 512
@@ -161,9 +161,9 @@ class Bank
         requires acct as nat < |accts|
         requires no_overflow(accts[acct], amt)
         ensures accts == old(accts[acct as nat:=accts[acct] + amt])
-        ensures sum_nat(accts) == old(sum_nat(accts) + amt)
+        ensures C.sum_nat(accts) == old(C.sum_nat(accts) + amt)
     {
-        sum_update(accts, acct as nat, accts[acct] as nat + amt);
+        C.sum_update(accts, acct as nat, accts[acct] as nat + amt);
         accts := accts[acct as nat:=accts[acct] + amt];
     }
 
@@ -206,7 +206,7 @@ class Bank
     // reader to understand Valid())
     lemma Audit()
         requires Valid()
-        ensures sum_nat(accts) == acct_sum
+        ensures C.sum_nat(accts) == acct_sum
     {
     }
 }
