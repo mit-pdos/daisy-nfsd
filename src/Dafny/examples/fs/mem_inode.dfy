@@ -63,8 +63,7 @@ module MemInodes {
       var ty_u64 := IntEncoding.UInt64Get(bs, 8);
       var ty := Inode.InodeType.from_u64(ty_u64);
       assert ty == i.meta.ty by {
-        IntEncoding.lemma_le_enc_dec64(i.meta.ty.to_u64());
-        i.meta.ty.from_to_u64();
+        i.meta.ty.enc_dec();
       }
 
       this.sz := sz;

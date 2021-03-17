@@ -34,6 +34,18 @@ module Inode {
     lemma from_to_u64()
       ensures from_u64(to_u64()) == this
     {}
+
+    function enc(): seq<byte>
+    {
+      IntEncoding.le_enc64(to_u64())
+    }
+
+    lemma enc_dec()
+      ensures from_u64(IntEncoding.le_dec64(this.enc())) == this
+    {
+      IntEncoding.lemma_le_enc_dec64(to_u64());
+      from_to_u64();
+    }
   }
 
   datatype NfsTime = NfsTime(sec: uint32, nsec: uint32)
@@ -50,7 +62,7 @@ module Inode {
   {
     function enc(): seq<byte>
     {
-      IntEncoding.le_enc64(sz) + IntEncoding.le_enc64(ty.to_u64())
+      IntEncoding.le_enc64(sz) + ty.enc()
     }
   }
 
@@ -94,7 +106,7 @@ module Inode {
 
   lemma enc_app(i: Inode)
     ensures enc(i) ==
-    (IntEncoding.le_enc64(i.meta.sz) + IntEncoding.le_enc64(i.meta.ty.to_u64())) +
+    (IntEncoding.le_enc64(i.meta.sz) + i.meta.ty.enc()) +
     seq_enc_uint64(i.blks)
   {
     reveal enc();

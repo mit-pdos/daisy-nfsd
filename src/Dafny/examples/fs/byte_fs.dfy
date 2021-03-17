@@ -502,7 +502,14 @@ module ByteFs {
       fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
       fs.inode_metadata(ino, i);
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
-        C.double_prefix(raw_data(ino), i.sz as nat, sz' as nat);
+        calc {
+          data()[ino];
+          raw_data(ino)[..i.sz as nat];
+          old(data()[ino][..sz' as nat]);
+          old(raw_data(ino)[..i.sz as nat][..sz' as nat]);
+          { C.double_prefix(raw_data(ino), i.sz as nat, sz' as nat); }
+          old(raw_data(ino)[..sz' as nat]);
+        }
       }
       assert types_unchanged() by {
         reveal inode_types();
