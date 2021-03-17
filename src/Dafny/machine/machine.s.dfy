@@ -52,32 +52,3 @@ module Machine {
         const MAX: nat := 0x1_0000_0000
     }
 }
-
-module {:extern "debug", "github.com/mit-pdos/dafny-jrnl/dafny_go/debug"} DebugPrint {
-    method {:extern} Print(s: string)
-}
-
-module Debug
-{
-    import DebugPrint
-
-    method Print(s: string)
-    {
-        DebugPrint.Print(s);
-    }
-
-    method Println(s: string)
-    {
-        DebugPrint.Print(s + "\n");
-    }
-}
-
-module debug_test
-{
-    import opened Debug
-
-    method test()
-    {
-        Println("hello world");
-    }
-}
