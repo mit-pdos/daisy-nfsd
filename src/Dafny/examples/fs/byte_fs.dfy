@@ -130,6 +130,7 @@ module ByteFs {
         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
 
+    // TODO: probably shove attributes into the codomain here
     function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
       reads fs
       requires Fs.ino_dom(fs.metadata)
@@ -435,7 +436,7 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
       var sz' := i.sz + delta;
-      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.writeInodeMeta(ino, i, i.meta().(sz := sz'));
       fs.inode_metadata(ino, i);
       assert raw_data(ino) == old(raw_data(ino));
       junk := raw_data(ino)[sz..sz'];
@@ -461,7 +462,7 @@ module ByteFs {
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
-      if off + len <= 10 * 4096 {
+      if off + len <= 8 * 4096 {
         ok := true;
         var startblk: uint64 := off / 4096;
         var count: uint64 := len / 4096;
@@ -499,7 +500,7 @@ module ByteFs {
       ok := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
 
       fs.inode_metadata(ino, i);
-      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.writeInodeMeta(ino, i, i.meta().(sz := sz'));
       fs.inode_metadata(ino, i);
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
         calc {
@@ -928,7 +929,7 @@ module ByteFs {
       ensures inode_types() == old(inode_types()[ino := ty'])
     {
       fs.inode_metadata(ino, i);
-      fs.writeInodeMeta(ino, i, Inode.Meta(i.sz, ty'));
+      fs.writeInodeMeta(ino, i, i.meta().(ty := ty'));
       assert block_data(fs.data) == old(block_data(fs.data));
       assert data() == old(data()) by {
         reveal raw_inode_data();

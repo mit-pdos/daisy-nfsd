@@ -148,6 +148,8 @@ module Inode {
 
   datatype Meta = Meta(sz: uint64, ty: InodeType, attrs: Attrs)
   {
+    static const zero: Meta := Meta(0, InvalidType, Attrs.zero)
+
     function enc(): seq<byte>
     {
       (IntEncoding.le_enc64(sz) + ty.enc()) + attrs.enc()

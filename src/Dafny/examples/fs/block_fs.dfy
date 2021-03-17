@@ -50,7 +50,7 @@ module BlockFs
     ensures fs.ValidQ()
     ensures fresh(fs.Repr)
     ensures block_data(fs.data) == map ino: Ino {:trigger} :: InodeData.zero
-    ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
+    ensures fs.metadata == map ino: Ino {:trigger} :: Inode.Meta.zero
   {
     fs := new IndFilesys.Init(d);
     reveal inode_blocks();
@@ -184,7 +184,7 @@ module BlockFs
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
       //requires start + len <= config.total
-      requires start as nat + len as nat <= 10
+      requires start as nat + len as nat <= 8
       ensures block_data(fs.data) ==
       (var data := old(block_data(fs.data));
       var d0 := data[ino];

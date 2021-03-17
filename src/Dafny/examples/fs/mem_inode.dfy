@@ -28,13 +28,6 @@ module MemInodes {
       Inode.Mk(Inode.Meta(sz, ty, attrs), blks)
     }
 
-    predicate has(i: Inode.Inode)
-      reads Repr
-    {
-      && Valid()
-      && val() == i
-    }
-
     predicate {:opaque} Valid()
       reads Repr
     {
@@ -42,6 +35,12 @@ module MemInodes {
       && sz as nat <= Inode.MAX_SZ
       && |bs.data| == 128
       && Marshal.decode_uint64_seq(bs.data[32..]) == blks
+    }
+
+    function method meta(): Inode.Meta
+      reads this
+    {
+      Inode.Meta(sz, ty, attrs)
     }
 
     constructor(bs: Bytes, ghost i: Inode.Inode)
