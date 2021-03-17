@@ -20,6 +20,11 @@ lemma double_prefix<T>(xs: seq<T>, a: nat, b: nat)
     ensures xs[..a][..b] == xs[..b]
 {}
 
+lemma double_suffix<T>(xs: seq<T>, a: nat, b: nat)
+    requires a+b <= |xs|
+    ensures xs[a..][b..] == xs[a+b..]
+{}
+
 lemma double_subslice<T>(xs: seq<T>, a: nat, b: nat, c: nat, d: nat)
     requires a <= b <= |xs|
     requires c <= d <= (b-a)
