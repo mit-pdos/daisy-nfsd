@@ -694,38 +694,42 @@ module ByteFs {
       var desired_size: uint64 := sz0 + to_write;
       assert desired_size as nat <= sz0 as nat + remaining_space as nat;
       written := to_write as nat;
+      assert written_ok: written == old(min(4096 - |data()[ino]| % 4096, |bs.data|));
 
       bs' := bs.Split(to_write);
-      assert bs.data == old(bs.data[..written]);
+      assert bs'_ok: bs'.data == old(bs.data[written..]);
+      // assert bs.data == old(bs.data[..written]);
       assert bs' !in i.Repr;
       fs.inode_metadata(ino, i);
-      Round.roundup_distance(sz0 as nat, 4096);
+      //Round.roundup_distance(sz0 as nat, 4096);
       ok := this.updateInPlace(txn, ino, i, sz0, bs);
       if !ok {
         return;
       }
-      if bs'.Len() == 0 {
-        assert written == old(|bs.data|);
-        assert old(bs.data[..written]) == old(bs.data);
-      }
+      assert |bs'.data| == 0 ==>
+        && written == old(|bs.data|)
+        && old(bs.data[..written]) == old(bs.data);
       fs.inode_metadata(ino, i);
       ghost var data2 := data()[ino];
-      assert desired_size as nat == sz0 as nat + to_write as nat;
 
       shrinkTo(txn, ino, i, desired_size);
       ghost var data3 := data()[ino];
 
       assert data3 == data0 + bs.data by {
         assert |data3| == |data0| + written;
-        assert data3[..|data0|] == data0;
-        assert data3[|data0|..] == bs.data;
         calc {
           data3;
           data3[..|data0|] + data3[|data0|..];
+          {
+            assert data3[..|data0|] == data0;
+            assert data3[|data0|..] == bs.data;
+          }
           data0 + bs.data;
         }
       }
-      assert data() == old(data()[ino := data()[ino] + bs.data[..written]]);
+      assert data()[ino] == old(data()[ino] + bs.data[..written]);
+      reveal written_ok;
+      reveal bs'_ok;
     }
 
     method alignedAppend(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
