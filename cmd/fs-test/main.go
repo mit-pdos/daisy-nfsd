@@ -61,8 +61,8 @@ func main() {
 	assertEqual(n, len("hello, "), "short write")
 	_, err = f.Write([]byte("world\n"))
 	assertNoError(err)
-	err = f.Close()
-	assertNoError(err)
+	f.Sync()
+	f.Close()
 
 	ents, err = os.ReadDir(mnt)
 	assertNoError(err)
