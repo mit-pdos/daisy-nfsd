@@ -8,7 +8,7 @@ include "kinds.dfy"
 // Every type defined here is a subset type that builds-in some Validity
 // predicate which restricts all the indices to be in-bounds. To make this work
 // we have to declare the structure of an inode as a global constant config:
-// Config, which specifies the indirection level for the 14 blocks that are
+// Config, which specifies the indirection level for the 12 blocks that are
 // stored directly in an inode.
 
 module IndirectPos
@@ -155,14 +155,14 @@ module IndirectPos
 
   }
 
-  const config: Config := Config([0,0,0,0,0,0,0,0,0,0,1,1,1,3])
+  const config: Config := Config([0,0,0,0,0,0,0,0,1,1,1,3])
 
   lemma config_properties()
     ensures config.Valid()
-    ensures |config.ilevels| == 14
-    ensures config.total == 10 + 3*512 + 512*512*512
-    // these inodes can hold at least 10GB
-    ensures config.total * 4 / 1024 /* MB */ > 10_000
+    ensures |config.ilevels| == 12
+    ensures config.total == 8 + 3*512 + 512*512*512
+    // these inodes can hold at least 8GB
+    ensures config.total * 4 / 1024 /* MB */ > 8_000
   {}
 
   lemma config_total_to(k: uint64)
@@ -170,39 +170,34 @@ module IndirectPos
     ensures config.total_to(k) == config.totals()[k]
   {}
 
-  lemma config_totals_after_10(k: nat)
-    requires 10 <= k < |config.ilevels|
-    ensures Config.sum_nat([1,1,1,3][..k-10]) <= 10+3*512+512*512*512
-    ensures config.totals()[k] == 10 + Config.sum([1,1,1,3][..k-10])
+  lemma config_totals_after_8(k: nat)
+    requires 8 <= k < |config.ilevels|
+    ensures Config.sum_nat([1,1,1,3][..k-8]) <= 8+3*512+512*512*512
+    ensures config.totals()[k] == 8 + Config.sum([1,1,1,3][..k-8])
   {
     // config.totals()[k] == Config.sum_nat(config.ilevels[..k])
-    assert config.ilevels[..k] == config.ilevels[..10] + config.ilevels[10..][..k-10];
-    Config.sum_app(config.ilevels[..10], config.ilevels[10..][..k-10]);
-    assert config.ilevels[..10] == [0,0,0,0,0,0,0,0,0,0];
-    assert Config.sum_nat([0,0,0,0,0,0,0,0,0,0]) == 10;
-    assert Config.sum_nat(config.ilevels[..10]) == 10;
-    Config.sum_nat_prefix_lt([1,1,1,3], k-10);
+    assert config.ilevels[..k] == config.ilevels[..8] + config.ilevels[8..][..k-8];
+    Config.sum_app(config.ilevels[..8], config.ilevels[8..][..k-8]);
+    assert config.ilevels[..8] == [0,0,0,0,0,0,0,0];
+    assert Config.sum_nat([0,0,0,0,0,0,0,0]) == 8;
+    assert Config.sum_nat(config.ilevels[..8]) == 8;
+    Config.sum_nat_prefix_lt([1,1,1,3], k-8);
   }
 
   lemma config_totals()
-    ensures config.totals() == [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512, 10+3*512 + 512*512*512]
+    ensures config.totals() == [0,1,2,3,4,5,6,7,8,8+512,8+2*512,8+3*512, 8+3*512 + 512*512*512]
   {
-    var totals: seq<uint64> := [0,1,2,3,4,5,6,7,8,9,10,10+512,10+2*512,10+3*512, 10+3*512 + 512*512*512];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..0] == [];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..1] == [0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..2] == [0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..3] == [0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..4] == [0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..5] == [0, 0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..6] == [0, 0, 0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..7] == [0, 0, 0, 0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..8] == [0, 0, 0, 0, 0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..9] == [0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..10] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    //assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..11] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-    //assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..12] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1];
-    //assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..13] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1];
-    assert [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..14] == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3];
+    var totals: seq<uint64> := [0,1,2,3,4,5,6,7,8,8+512,8+2*512,8+3*512, 8+3*512 + 512*512*512];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..0] == [];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..1] == [0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..2] == [0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..3] == [0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..4] == [0, 0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..5] == [0, 0, 0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..6] == [0, 0, 0, 0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..7] == [0, 0, 0, 0, 0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..8] == [0, 0, 0, 0, 0, 0, 0, 0];
+    assert [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3][..12] == [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3];
     assert config.totals()[0] == totals[0];
     assert config.totals()[1] == totals[1];
     assert config.totals()[2] == totals[2];
@@ -212,20 +207,18 @@ module IndirectPos
     assert config.totals()[6] == totals[6];
     assert config.totals()[7] == totals[7];
     assert config.totals()[8] == totals[8];
-    assert config.totals()[9] == totals[9];
-    assert config.totals()[10] == totals[10];
-    assert config.totals()[11] == totals[11] by {
-      config_totals_after_10(11);
+    assert config.totals()[8+1] == totals[8+1] by {
+      config_totals_after_8(8+1);
     }
-    assert config.totals()[12] == totals[12] by {
+    assert config.totals()[8+2] == totals[8+2] by {
       assert [1,1,1,3][..2] == [1,1];
-      config_totals_after_10(12);
+      config_totals_after_8(8+2);
     }
-    assert config.totals()[13] == totals[13] by {
+    assert config.totals()[8+3] == totals[8+3] by {
       assert [1,1,1,3][..3] == [1,1,1];
-      config_totals_after_10(13);
+      config_totals_after_8(8+3);
     }
-    assert config.totals()[14] == totals[14];
+    assert config.totals()[8+3] == totals[8+3];
   }
 
   datatype preIdx = Idx(k: uint64, off: IndOff)
@@ -260,17 +253,17 @@ module IndirectPos
       requires n < config.total as uint64
       ensures i.data?
     {
-      if n < 10 then
+      if n < 8 then
         Idx(n, IndOff.direct)
       else (
-        var n: uint64 := n-10;
+        var n: uint64 := n-8;
         if n < 3*512 then
-          Idx(10+n/512, IndOff(1, n%512))
+          Idx(8+n/512, IndOff(1, n%512))
         else (
           var n: uint64 := n-3*512;
           // there's only one triply-indirect block so no complicated
           // calculations are needed here
-          Idx(13, IndOff(3, n))
+          Idx(8+3, IndOff(3, n))
         )
       )
     }
@@ -280,33 +273,33 @@ module IndirectPos
       ensures from_flat(n).flat() == n
     {
       config_totals();
-      if n < 10 { return; }
-      assert n >= 10;
+      if n < 8 { return; }
+      assert n >= 8;
       var n0: uint64 := n;
-      var n: uint64 := n-10;
+      var n: uint64 := n-8;
       if n < 3*512 {
-        assert 10 <= from_flat(n0).k < 13;
+        assert 8 <= from_flat(n0).k < 8+3;
         if n < 512 {
-          assert from_flat(n0).k == 10;
+          assert from_flat(n0).k == 8;
           return;
         }
         if n < 2*512 {
-          assert from_flat(n0).k == 11;
-          assert config.total_to(11) == 10+512;
+          assert from_flat(n0).k == 8+1;
+          assert config.total_to(8+1) == 8+512;
           return;
         }
-        assert from_flat(n0).k == 12;
-        assert config.total_to(12) == 10+2*512 by {
-          config_totals_after_10(12);
+        assert from_flat(n0).k == 8+2;
+        assert config.total_to(8+2) == 8+2*512 by {
+          config_totals_after_8(8+2);
         }
         return;
       }
-      assert from_flat(n0).k == 13;
-      assert config.total_to(13) == 10+3*512 by {
+      assert from_flat(n0).k == 8+3;
+      assert config.total_to(8+3) == 8+3*512 by {
         config_totals();
-        config_total_to(13);
+        config_total_to(8+3);
       }
-      assert from_flat(n0).flat() == 10+3*512 + (n-3*512);
+      assert from_flat(n0).flat() == 8+3*512 + (n-3*512);
   }
 
     static lemma from_flat_inj(n1: uint64, n2: uint64)
