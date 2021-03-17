@@ -37,10 +37,22 @@ module Inode {
   }
 
   datatype NfsTime = NfsTime(sec: uint32, nsec: uint32)
+  {
+    static const zero: NfsTime := NfsTime(0, 0)
+  }
 
   datatype Attrs = Attrs(mode: uint32, atime: NfsTime, mtime: NfsTime)
+  {
+    static const zero: Attrs := Attrs(0, NfsTime.zero, NfsTime.zero)
+  }
 
   datatype Meta = Meta(sz: uint64, ty: InodeType)
+  {
+    function enc(): seq<byte>
+    {
+      IntEncoding.le_enc64(sz) + IntEncoding.le_enc64(ty.to_u64())
+    }
+  }
 
   datatype preInode = Mk(meta: Meta, blks: seq<uint64>)
   {
@@ -66,29 +78,18 @@ module Inode {
   lemma zero_encoding()
     ensures repeat(0 as byte, 128) == enc(zero)
   {
-    assert inode_enc(zero) == [EncUInt64(0), EncUInt64(0)] + repeat(EncUInt64(0), 14);
     IntEncoding.lemma_enc_0();
-    zero_encode_seq_uint64(15);
-    reveal_enc();
-  }
-
-  function inode_enc(i: Inode): seq<Encodable>
-  {
-    [EncUInt64(i.sz), EncUInt64(i.meta.ty.to_u64())] + seq_fmap(encUInt64, i.blks)
-  }
-
-  lemma encode_len(i: Inode)
-    ensures |seq_encode(inode_enc(i))| == 128
-  {
-    enc_uint64_len(i.blks);
+    zero_encode_seq_uint64(14);
+    reveal enc();
   }
 
   function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
-    encode_len(i);
-    assert |seq_encode(inode_enc(i))| == 128;
-    seq_encode(inode_enc(i))
+    assert i.Valid();
+    var blk_enc := seq_enc_uint64(i.blks);
+    enc_uint64_len(i.blks);
+    i.meta.enc() + blk_enc
   }
 
   lemma enc_app(i: Inode)
@@ -97,6 +98,5 @@ module Inode {
     seq_enc_uint64(i.blks)
   {
     reveal enc();
-    seq_encode_unfold(inode_enc(i));
   }
 }
