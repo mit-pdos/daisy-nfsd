@@ -8,9 +8,9 @@ module Inode {
   import opened Round
   import IntEncoding
   import opened Arith
-  import opened Collections
   import opened ByteSlice
   import opened Marshal
+  import C = Collections
 
   const MAX_SZ_u64: uint64 := 4096 * (10 + 3*512 + 512*512*512);
   const MAX_SZ: nat := MAX_SZ_u64 as nat;
@@ -88,7 +88,7 @@ module Inode {
   const zero: Inode := preInode.preZero
 
   lemma zero_encoding()
-    ensures repeat(0 as byte, 128) == enc(zero)
+    ensures C.repeat(0 as byte, 128) == enc(zero)
   {
     IntEncoding.lemma_enc_0();
     zero_encode_seq_uint64(14);
