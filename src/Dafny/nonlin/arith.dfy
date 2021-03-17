@@ -174,19 +174,27 @@ module Arith {
     mod_add(a, k, k);
   }
 
-  lemma {:verify false} divisible_bound(x: nat, y: nat, k: nat)
+  lemma divisible_bound(x: nat, y: nat, k: nat)
     requires 0 < k
     requires x < y
     requires x % k == 0 && y % k == 0
     ensures x + k <= y
   {
+    if x/k == y/k {
+      assert false;
+    }
+    assert x/k < y/k;
+    assert x/k + 1 <= y/k;
+    calc {
+      x + k;
+    ==
+      (x/k + 1) * k;
+    <=
+      y/k*k;
+    ==
+      y;
+    }
   }
-
-  lemma divisible_bound_4k(x: nat, y: nat)
-    requires x < y
-    requires x % 4096 == 0 && y % 4096 == 0
-    ensures x + 4096 <= y
-  {}
 
   lemma zero_mod(k: int)
     requires k != 0

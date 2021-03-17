@@ -135,7 +135,7 @@ module FileCursor {
       }
       reveal ValidFs();
       assert off' as nat + 4096 <= |fs.data[ino]| by {
-        Arith.divisible_bound_4k(off' as nat, |fs.data[ino]|);
+        Arith.divisible_bound(off' as nat, |fs.data[ino]|, 4096);
       }
       this.off := off';
       var blk := fs.readUnsafe(txn, ino, i, off, 4096);
