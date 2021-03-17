@@ -8,12 +8,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+# settings shared across all jobs
+env:
+  dafny: "3.0.0"
+  go: "1.16.x"
+defaults:
+  runs-on: ubuntu-20.04
+
 jobs:
   verify:
     name: Verify
-    runs-on: ubuntu-20.04
-    env:
-      dafny: "3.0.0"
     steps:
       - name: Install Dafny
         uses: tchajed/setup-dafny-action@v1
@@ -24,9 +28,6 @@ jobs:
         run: make -j2 verify
   test-support:
     name: Test dafny_go
-    runs-on: ubuntu-20.04
-    env:
-      go: "1.16.0"
     steps:
       - uses: actions/setup-go@v2
         with:
@@ -37,10 +38,6 @@ jobs:
           go test -v -timeout=1m ./dafny_go/...
   test-compiled:
     name: Compile and test
-    runs-on: ubuntu-20.04
-    env:
-      dafny: "3.0.0"
-      go: "1.16.0"
     steps:
       - name: Install Dafny
         uses: tchajed/setup-dafny-action@v1
@@ -52,7 +49,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install goimports
         run: |
-          go get golang.org/x/tools/cmd/goimports
+          go install golang.org/x/tools/cmd/goimports@latest
       - name: Set up NFS
         run: |
           ./etc/ci-install-nfs.sh
