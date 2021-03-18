@@ -564,7 +564,7 @@ module DirEntries
       zeros_enc(n);
     }
 
-    function extend_zero(n: nat): (dents: Dirents)
+    function {:opaque} extend_zero(n: nat): (dents: Dirents)
       requires Valid()
       requires |s| + n <= dir_sz
       ensures dents.Valid()
@@ -585,6 +585,7 @@ module DirEntries
       requires findFree() >= |s|
       ensures extend_zero(n).findFree() == |s|
     {
+      reveal extend_zero();
       C.find_first_complete(is_unused, s);
       C.find_first_characterization(is_unused, extend_zero(n).s, |s|);
     }
@@ -595,6 +596,7 @@ module DirEntries
       requires findName(p) >= |s|
       ensures extend_zero(n).findName(p) == |extend_zero(n).s|
     {
+      reveal extend_zero();
       C.find_first_complete(findName_pred(p), s);
       var xs := s + C.repeat(DirEnt.zero, n);
       C.find_first_characterization(findName_pred(p), xs, |s| + n);
