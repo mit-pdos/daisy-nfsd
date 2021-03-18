@@ -672,54 +672,33 @@ module MemDirEntries
       ensures ok ==> val.dir == old(map_delete(val.dir, val.s[k].name))
       ensures ok ==> file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
-      // this proof is really fragile for reasons that are not related to my changes.
-      // I left a super ugly proof here, but it's just a rearrangement of what was there before,
-      // except that Dafny likes this rearrangement and not the old way...
-      //
-      // I tried to clean it up but it is very picky.
-
       reveal Valid();
       reveal ValidCore();
-      var old_name := val.s[k].name;
-      ghost var val' := seq_data_splice_ino(file.contents(), val, k as nat, 0 as Ino);
+      ghost var old_name := val.s[k].name;
+      ghost var old_file := file.contents();
 
       loadDirOff(txn, k);
       file_data(k as nat);
+
       var put_off := (k%64)*dirent_sz_u64 + path_len_u64;
-      ghost var pre_put_data := file.bs.data;
       IntEncoding.UInt64Put(0, put_off, file.bs);
-      assert file.bs.data == pre_put_data[..put_off as nat] + IntEncoding.le_enc64(0) + pre_put_data[put_off as nat+IntEncoding.u64_bytes..];
-      assert file.bs.data == C.splice(pre_put_data, put_off as nat, IntEncoding.le_enc64(0));
-      seq_to_dir_delete(old(val.s), k as nat, old_name);
+
       assert file.ValidFs() by {
         reveal file.ValidFs();
       }
-      ghost var old_data := file.fs.data;
-      ghost var old_ino := file.ino;
-      ghost var old_contents := file.contents();
-      ghost var old_b_data := file.bs.data;
       ok := file.writeback(txn);
       if !ok {
         return;
       }
+      ghost var val' := seq_data_splice_ino(old_file, val, k as nat, 0 as Ino);
       val := val';
 
-      var off := file.off as nat;
-      assert off + |old_b_data| <= |old_data[old_ino]|;
-      assert file.fs.data == old_data[old_ino := C.splice(old_contents, off, old_b_data)];
-      assert old(file.contents()) == old_contents;
-      assert file.ino == old_ino;
-
-      calc {
-        C.splice(old_contents, off, C.splice(pre_put_data, put_off as nat, IntEncoding.le_enc64(0)));
-        {
-          C.double_splice(old(file.contents()), dir_blk(k as nat), dir_blk(k as nat) + 4096, k as nat % 64, IntEncoding.le_enc64(0 as uint64));
-        }
-        C.splice(old(file.contents()), k as nat * dirent_sz + path_len, IntEncoding.le_enc64(0 as Ino));
+      seq_to_dir_delete(old(val.s), k as nat, old_name);
+      assert file.fs.data[file.ino] == val.enc() by {
+        C.double_splice(old(file.contents()),
+          dir_blk(k as nat), dir_blk(k as nat) + 4096,
+          k as nat % 64, IntEncoding.le_enc64(0 as uint64));
       }
-
-      // assert file.contents() == C.splice(old(file.contents()), k as nat * dirent_sz + path_len, IntEncoding.le_enc64(0 as Ino));
-      assert file.fs.data[file.ino] == val.enc();
       assert Valid() by {
         assert ValidCore();
         reveal ValidVal();
