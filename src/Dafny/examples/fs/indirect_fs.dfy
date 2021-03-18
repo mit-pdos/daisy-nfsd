@@ -196,12 +196,12 @@ module IndFs
     constructor Init(d: Disk)
       ensures ValidQ()
       ensures fresh(Repr)
-      ensures data == imap pos: Pos {:trigger pos.idx.data?} | pos.idx.data? :: block0
+      ensures data == imap pos: Pos {:trigger pos.idx.data?()} | pos.idx.data?() :: block0
       ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
     {
       this.fs := new Filesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
-      this.data := imap pos: Pos | pos.idx.data? :: block0;
+      this.data := imap pos: Pos | pos.idx.data?() :: block0;
       this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType);
       new;
       assert ValidBasics() by { reveal fsValid(); }

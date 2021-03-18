@@ -231,7 +231,12 @@ module IndirectPos
   datatype preIdx = Idx(k: uint64, off: IndOff)
   {
     const ilevel: uint64 := off.ilevel
-    const data?: bool := k as nat < |config.ilevels| && off.ilevel == config.ilevels[k]
+    predicate method data?()
+    {
+      && k as nat < |config.ilevels|
+      && off.ilevel == config.ilevels[k]
+    }
+
 
     static function from_inode(k: uint64): Idx
       requires k as nat < |config.ilevels|
@@ -248,7 +253,7 @@ module IndirectPos
     // "flat" indices are logical block addresses (LBAs) for the inode
     function flat(): uint64
       requires Valid()
-      requires this.data?
+      requires this.data?()
     {
       config.total_to(k) + off.j
     }
@@ -258,7 +263,7 @@ module IndirectPos
     // i.split() until we get a direct block)
     static function method from_flat(n: uint64): (i:Idx)
       requires n < config.total as uint64
-      ensures i.data?
+      ensures i.data?()
     {
       if n < 10 then
         Idx(n, IndOff.direct)
@@ -330,7 +335,7 @@ module IndirectPos
   datatype Pos = Pos(ino: Ino, idx: Idx)
   {
     const ilevel: uint64 := idx.off.ilevel;
-    const data?: bool := idx.data?
+    const data?: bool := idx.data?()
 
     static function method from_flat(ino: Ino, n: uint64): Pos
       requires n as nat < config.total
