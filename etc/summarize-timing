@@ -2,6 +2,7 @@
 
 import sys
 from timing import parse_df
+import pandas as pd
 import argparse
 
 
@@ -18,6 +19,10 @@ def main():
     df.sort_values(by="time_s", ascending=False, inplace=True)
 
     top_df = df.head(args.max) if args.max > 0 else df
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', None)
+    pd.set_option('display.max_colwidth', None)
     print(top_df)
 
     total_s = df.time_s.sum()
