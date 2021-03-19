@@ -1,6 +1,6 @@
 include "inode_fs.dfy"
-include "ind_block.dfy"
-include "pos.dfy"
+include "indirect/ind_block.dfy"
+include "indirect/pos.dfy"
 
 module IndFs
 {

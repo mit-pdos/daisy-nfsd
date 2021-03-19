@@ -1,6 +1,5 @@
-include "../../machine/machine.s.dfy"
-include "../../jrnl/jrnl.s.dfy"
-include "../../util/marshal.i.dfy"
+include "../../../jrnl/jrnl.s.dfy"
+include "../../../util/marshal.i.dfy"
 
 module IndBlocks
 {

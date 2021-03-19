@@ -1,4 +1,4 @@
-include "dirent.dfy"
+include "dir/dirent.dfy"
 
 module Paths {
   import opened Std

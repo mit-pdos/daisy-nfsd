@@ -1,8 +1,8 @@
 include "../../util/std.dfy"
 include "../../util/marshal.i.dfy"
 include "../../jrnl/jrnl.s.dfy"
-include "kinds.dfy"
-include "mem_inode.dfy"
+include "super.dfy"
+include "inode/mem_inode.dfy"
 
 module InodeFs {
   import Arith

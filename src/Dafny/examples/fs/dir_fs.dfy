@@ -1,5 +1,5 @@
 include "typed_fs.dfy"
-include "mem_dirent.dfy"
+include "dir/mem_dirent.dfy"
 include "nfs.s.dfy"
 
 module DirFs

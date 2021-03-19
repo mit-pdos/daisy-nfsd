@@ -1,6 +1,6 @@
 include "dirent.dfy"
-include "paths.dfy"
-include "cursor.dfy"
+include "../paths.dfy"
+include "../cursor.dfy"
 
 module MemDirEnts
 {

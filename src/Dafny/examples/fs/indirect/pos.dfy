@@ -1,4 +1,4 @@
-include "kinds.dfy"
+include "../super.dfy"
 
 // Define Pos, an abstract position for a block in the file system. A Pos is a
 // multidimensional index that includes an inode and a location in its metadata
