@@ -671,7 +671,7 @@ module ByteFs {
     }
 
     // private
-    method {:timeLimitMultiplier 2} appendAtEnd(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
+    method appendAtEnd(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
       returns (ok: bool, ghost written: nat, bs': Bytes)
       modifies Repr, bs, i.Repr
       requires fs.has_jrnl(txn)
@@ -680,7 +680,7 @@ module ByteFs {
       requires bs.Valid()
       requires i.sz as nat + |bs.data| <= Inode.MAX_SZ
       requires 0 < |bs.data| <= 4096
-      //ensures written <= old(|bs.data|)
+      ensures written <= old(|bs.data|)
       // we don't make this abstract because it's needed to guarantee progress
       ensures written == old(min(4096 - |data()[ino]| % 4096, |bs.data|))
       ensures ok ==> fresh(bs') && bs'.Valid() && bs'.data == old(bs.data[written..])
@@ -696,28 +696,19 @@ module ByteFs {
       ghost var junk;
       junk := this.growBy(ino, i, remaining_space);
       ghost var data1 := data()[ino];
-      assert data1 == data0 + junk;
-      assert bs.data == old(bs.data);
 
       var to_write: uint64 := min_u64(remaining_space, bs.Len());
       var desired_size: uint64 := sz0 + to_write;
-      assert desired_size as nat <= sz0 as nat + remaining_space as nat;
       written := to_write as nat;
-      assert written_ok: written == old(min(4096 - |data()[ino]| % 4096, |bs.data|));
 
       bs' := bs.Split(to_write);
       assert bs'_ok: bs'.data == old(bs.data[written..]);
-      // assert bs.data == old(bs.data[..written]);
-      assert bs' !in i.Repr;
+      assert bs.data == old(bs.data[..written]);
       fs.inode_metadata(ino, i);
-      //Round.roundup_distance(sz0 as nat, 4096);
       ok := this.updateInPlace(txn, ino, i, sz0, bs);
       if !ok {
         return;
       }
-      assert |bs'.data| == 0 ==>
-        && written == old(|bs.data|)
-        && old(bs.data[..written]) == old(bs.data);
       fs.inode_metadata(ino, i);
       ghost var data2 := data()[ino];
 
@@ -736,8 +727,7 @@ module ByteFs {
           data0 + bs.data;
         }
       }
-      assert data()[ino] == old(data()[ino] + bs.data[..written]);
-      reveal written_ok;
+      C.map_update(old(data()), data(), ino, old(data()[ino] + bs.data[..written]));
       reveal bs'_ok;
     }
 

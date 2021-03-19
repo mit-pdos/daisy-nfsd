@@ -340,6 +340,15 @@ function method map_domain<K, V>(m: map<K, V>): set<K> {
     set k:K | k in m
 }
 
+// map lemmas
+
+lemma map_update<K, V>(m1: map<K, V>, m2: map<K, V>, k: K, v: V)
+    requires k in m2 && m2[k] == v
+    requires forall k':K :: k' in m1 <==> k' in m2
+    requires forall k':K | k != k' && k' in m1 && k' in m2 :: m1[k'] == m2[k']
+    ensures m2 == m1[k := v]
+{}
+
 // prefix_of
 
 predicate prefix_of<T>(s1: seq<T>, s2: seq<T>) {
