@@ -40,7 +40,7 @@ module BlockFs
 
   function {:opaque} block_data(data: imap<Pos, Block>): (m:map<Ino, InodeData>)
     requires data_dom(data)
-    ensures Fs.ino_dom(m)
+    ensures InodeFs.ino_dom(m)
   {
     map ino:Ino :: inode_blocks(ino, data)
   }

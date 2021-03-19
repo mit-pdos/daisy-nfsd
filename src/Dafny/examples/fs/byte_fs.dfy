@@ -3,7 +3,7 @@ include "../../util/min_max.dfy"
 
 module ByteFs {
   import opened Std
-  import Fs
+  import InodeFs
   import IndirectPos
   import opened FsKinds
   import opened JrnlTypes
@@ -134,21 +134,21 @@ module ByteFs {
 
     function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
       reads fs
-      requires Fs.ino_dom(fs.metadata)
-      ensures Fs.ino_dom(m)
+      requires InodeFs.ino_dom(fs.metadata)
+      ensures InodeFs.ino_dom(m)
     {
       map ino: Ino :: fs.metadata[ino].ty
     }
 
     twostate predicate types_unchanged()
       reads fs
-      requires old(Fs.ino_dom(fs.metadata)) && Fs.ino_dom(fs.metadata)
+      requires old(InodeFs.ino_dom(fs.metadata)) && InodeFs.ino_dom(fs.metadata)
     {
       inode_types() == old(inode_types())
     }
 
     twostate lemma inode_types_metadata_unchanged()
-      requires old(Fs.ino_dom(fs.metadata)) && Fs.ino_dom(fs.metadata)
+      requires old(InodeFs.ino_dom(fs.metadata)) && InodeFs.ino_dom(fs.metadata)
       requires fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {

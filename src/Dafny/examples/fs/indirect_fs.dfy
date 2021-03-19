@@ -1,4 +1,4 @@
-include "fs.dfy"
+include "inode_fs.dfy"
 include "ind_block.dfy"
 include "pos.dfy"
 
@@ -10,7 +10,7 @@ module IndFs
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
-  import opened Fs
+  import opened InodeFs
   import opened Marshal
   import C = Collections
 
@@ -37,7 +37,7 @@ module IndFs
   class IndFilesys
   {
     // filesys contains a mapping from allocated Blkno's to poss
-    const fs: Filesys<Pos>
+    const fs: InodeFilesys<Pos>
     // this is a complete map; every position in every inode has a value, but
     // it might be a zero block encoded efficiently via 0's.
     ghost var to_blkno: imap<Pos, Blkno>
@@ -199,7 +199,7 @@ module IndFs
       ensures data == imap pos: Pos {:trigger pos.idx.data?()} | pos.idx.data?() :: block0
       ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
     {
-      this.fs := new Filesys.Init(d);
+      this.fs := new InodeFilesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data?() :: block0;
       this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType);

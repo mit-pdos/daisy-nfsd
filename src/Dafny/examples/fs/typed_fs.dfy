@@ -64,8 +64,8 @@ module TypedFs {
     predicate ValidDomains()
       reads this
     {
-      && Fs.ino_dom(data)
-      && Fs.ino_dom(types)
+      && InodeFs.ino_dom(data)
+      && InodeFs.ino_dom(types)
     }
 
     predicate {:opaque} ValidInvalid()

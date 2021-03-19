@@ -4,7 +4,7 @@ include "../../jrnl/jrnl.s.dfy"
 include "kinds.dfy"
 include "mem_inode.dfy"
 
-module Fs {
+module InodeFs {
   import Arith
   import opened Std
   import C = Collections
@@ -39,7 +39,7 @@ module Fs {
     forall ino: Ino :: ino in m
   }
 
-  class Filesys<AllocState(!new)>
+  class InodeFilesys<AllocState(!new)>
   {
 
     // inodes, block_used, and data_block are basically just the data in the

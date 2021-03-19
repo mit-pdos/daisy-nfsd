@@ -7,7 +7,7 @@ module DirFs
   import opened Std
   import opened Machine
   import opened ByteSlice
-  import opened Fs
+  import opened InodeFs
   import opened FsKinds
   import opened JrnlTypes
   import opened JrnlSpec
