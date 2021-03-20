@@ -1,5 +1,5 @@
-include "../../jrnl/jrnl.s.dfy"
-include "../../nonlin/roundup.dfy"
+include "../jrnl/jrnl.s.dfy"
+include "../nonlin/roundup.dfy"
 
 module FsKinds {
   import Arith

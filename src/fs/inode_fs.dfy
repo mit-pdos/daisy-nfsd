@@ -1,6 +1,6 @@
-include "../../util/std.dfy"
-include "../../util/marshal.i.dfy"
-include "../../jrnl/jrnl.s.dfy"
+include "../util/std.dfy"
+include "../util/marshal.i.dfy"
+include "../jrnl/jrnl.s.dfy"
 include "super.dfy"
 include "inode/mem_inode.dfy"
 

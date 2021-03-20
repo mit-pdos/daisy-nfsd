@@ -1,4 +1,4 @@
-include "../../machine/machine.s.dfy"
+include "../machine/machine.s.dfy"
 
 module Nfs {
   import opened Machine

@@ -1,5 +1,5 @@
-include "../../../util/marshal.i.dfy"
-include "../../../nonlin/roundup.dfy"
+include "../../util/marshal.i.dfy"
+include "../../nonlin/roundup.dfy"
 
 // NOTE: this module, unlike the others in this development, is not intended to
 // be opened

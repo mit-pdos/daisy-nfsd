@@ -1,6 +1,6 @@
-include "../../../machine/machine.s.dfy"
-include "../../../util/std.dfy"
-include "../../../util/marshal.i.dfy"
+include "../../machine/machine.s.dfy"
+include "../../util/std.dfy"
+include "../../util/marshal.i.dfy"
 include "../super.dfy"
 
 module DirEntries

@@ -1,5 +1,5 @@
 include "block_fs.dfy"
-include "../../util/min_max.dfy"
+include "../util/min_max.dfy"
 
 module ByteFs {
   import opened Std
