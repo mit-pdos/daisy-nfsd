@@ -3,15 +3,15 @@ package nfsd
 import (
 	"fmt"
 
-	direntries "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
-	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
-	inode "github.com/mit-pdos/dafny-jrnl/dafnygen/Inode_Compile"
-	memdirents "github.com/mit-pdos/dafny-jrnl/dafnygen/MemDirEnts_Compile"
-	dafny_nfs "github.com/mit-pdos/dafny-jrnl/dafnygen/Nfs_Compile"
-	dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
+	direntries "github.com/mit-pdos/dafny-nfsd/dafnygen/DirEntries_Compile"
+	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
+	inode "github.com/mit-pdos/dafny-nfsd/dafnygen/Inode_Compile"
+	memdirents "github.com/mit-pdos/dafny-nfsd/dafnygen/MemDirEnts_Compile"
+	dafny_nfs "github.com/mit-pdos/dafny-nfsd/dafnygen/Nfs_Compile"
+	dafny "github.com/mit-pdos/dafny-nfsd/dafnygen/dafny"
 
-	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
-	"github.com/mit-pdos/dafny-jrnl/dafny_go/jrnl"
+	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
+	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"

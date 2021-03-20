@@ -3,11 +3,11 @@ package compile_test
 import (
 	"testing"
 
-	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
-	dirents "github.com/mit-pdos/dafny-jrnl/dafnygen/DirEntries_Compile"
-	dirfs "github.com/mit-pdos/dafny-jrnl/dafnygen/DirFs_Compile"
-	std "github.com/mit-pdos/dafny-jrnl/dafnygen/Std_Compile"
-	_dafny "github.com/mit-pdos/dafny-jrnl/dafnygen/dafny"
+	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
+	dirents "github.com/mit-pdos/dafny-nfsd/dafnygen/DirEntries_Compile"
+	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
+	std "github.com/mit-pdos/dafny-nfsd/dafnygen/Std_Compile"
+	_dafny "github.com/mit-pdos/dafny-nfsd/dafnygen/dafny"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tchajed/goose/machine/disk"

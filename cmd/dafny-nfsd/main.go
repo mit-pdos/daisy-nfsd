@@ -15,7 +15,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 
-	"github.com/mit-pdos/dafny-jrnl/nfsd"
+	"github.com/mit-pdos/dafny-nfsd/nfsd"
 
 	"github.com/tchajed/goose/machine/disk"
 )

@@ -1,4 +1,4 @@
-module github.com/mit-pdos/dafny-jrnl
+module github.com/mit-pdos/dafny-nfsd
 
 go 1.16
 

@@ -1,10 +1,10 @@
 package compile_test
 
 import (
-	fs "github.com/mit-pdos/dafny-jrnl/dafnygen/ByteFs_Compile"
+	fs "github.com/mit-pdos/dafny-nfsd/dafnygen/ByteFs_Compile"
 	"testing"
 
-	"github.com/mit-pdos/dafny-jrnl/dafny_go/bytes"
+	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

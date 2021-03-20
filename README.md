@@ -1,11 +1,11 @@
-# dafny-jrnl
+# dafny-nfsd
 
-[![CI](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-jrnl/actions/workflows/main.yml)
+[![CI](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml)
 
-Verifying crash-safe, concurrent code with sequential proofs. The goal is to
+Verifying a crash-safe, concurrent file-system with sequential proofs. The goal is to
 connect goose-nfsd's verified journal with sequential verification in Dafny: the
 idea is that the journal should make reasoning sequential, in which case we can
-prove applications correct using only sequential reasoning in a productive proof
+prove a file system correct using only sequential reasoning in a productive proof
 system like Dafny while carrying out the complicated concurrency and
 crash-safety reasoning in Perennial.
 
