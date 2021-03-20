@@ -27,7 +27,7 @@ ifeq ($(filter clean,$(MAKECMDGOALS)),)
 endif
 
 # allow non-linear reasoning for nonlin directory specifically
-src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
+src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"
@@ -40,7 +40,7 @@ src/Dafny/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 #
 # We then run gofmt to simplify the code for readability and goimports to clean
 # up unused imports emitted by Dafny.
-dafnygen/dafnygen.go: src/Dafny/compile.dfy $(DFY_FILES)
+dafnygen/dafnygen.go: src/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
 	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out dafnygen $<
 	$(Q)rm -rf dafnygen
