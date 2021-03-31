@@ -54,9 +54,10 @@ port to run on, and the NFS client utilities to mount the file system. On Arch
 Linux these are available using `pacman -S rpcbind nfs-utils` and on Ubuntu you
 can use `apt-get install rpcbind nfs-common`.
 
-You might need to start the rpcbind service with `systemctl start rpcbind`. The
-`rpcinfo -p` command is useful for verifying that an `rpcbind` service is
-running on port 111.
+You might need to start the rpcbind service with `systemctl start rpcbind`. It
+seems to help if you also run `systemctl start rpc-statd` (it should be
+auto-launched when eeded, though). The `rpcinfo -p` command is useful for
+verifying that an `portmapper` service is running on port 111.
 
 Now run `go run ./cmd/dafny-nfsd` to start the server and `sudo mount localhost:/ /mnt/x` to mount it using the Linux NFS client.
 
