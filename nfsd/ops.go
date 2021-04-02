@@ -8,6 +8,7 @@ import (
 	inode "github.com/mit-pdos/dafny-nfsd/dafnygen/Inode_Compile"
 	memdirents "github.com/mit-pdos/dafny-nfsd/dafnygen/MemDirEnts_Compile"
 	dafny_nfs "github.com/mit-pdos/dafny-nfsd/dafnygen/Nfs_Compile"
+	typed_fs "github.com/mit-pdos/dafny-nfsd/dafnygen/TypedFs_Compile"
 	dafny "github.com/mit-pdos/dafny-nfsd/dafnygen/dafny"
 
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
@@ -399,8 +400,10 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Rtmax = nfstypes.Uint32(4096)
 	reply.Resok.Rtpref = reply.Resok.Rtmax
-	reply.Resok.Wtmax = nfstypes.Uint32(6 * 4096)
+	reply.Resok.Rtmult = 4096
+	reply.Resok.Wtmax = nfstypes.Uint32(typed_fs.Companion_Default___.WT__MAX())
 	reply.Resok.Wtpref = reply.Resok.Wtmax
+	reply.Resok.Wtmult = 4096
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.Companion_Default___.MAX__SZ__u64())
 	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)
 	return reply

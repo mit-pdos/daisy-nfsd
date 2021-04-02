@@ -20,6 +20,8 @@ module TypedFs {
     && (eof <==> off + |bs| >= |data|)
   }
 
+  const WT_MAX: uint64 := 16*4096
+
   class TypedFilesys
   {
     ghost var data: map<Ino, seq<byte>>
@@ -331,13 +333,18 @@ module TypedFs {
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
       requires bs !in i.Repr
       requires has_jrnl(txn)
-      requires 0 < |bs.data| <= 6*4096
+      requires |bs.data| <= WT_MAX as nat
       requires off as nat <= |data[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
       && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
+      if bs.Len() == 0 {
+        assert bs.data == [];
+        assert write_data(data[ino], off as nat, []) == data[ino];
+        return true;
+      }
       reveal ValidFields();
       ghost var data0 := bs.data;
       ghost var original_bs := bs;
@@ -349,7 +356,7 @@ module TypedFs {
       while bs.Len() > 4096
         decreases |bs.data|
         invariant fresh({bs} - {original_bs})
-        invariant 0 < |bs.data| <= |data0| <= 6*4096
+        invariant 0 < |bs.data| <= |data0| <= WT_MAX as nat
         invariant ValidIno(ino, i)
         invariant written as nat <= |data0|
         invariant bs.data == data0[written..]

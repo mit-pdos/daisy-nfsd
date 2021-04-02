@@ -936,7 +936,7 @@ module DirFs
       // nothing to say in error case (need to abort)
       ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      requires 0 < |bs.data| <= 6*4096
+      requires |bs.data| <= WT_MAX as nat
       ensures r.ErrBadHandle? ==> ino !in old(data)
       ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
@@ -987,7 +987,7 @@ module DirFs
       modifies Repr, bs
       requires Valid()
       requires fs.has_jrnl(txn)
-      requires 0 < |bs.data| <= 6*4096
+      requires |bs.data| <= WT_MAX as nat
       // nothing to say in error case (need to abort)
       ensures r.Ok? ==> Valid()
     {
