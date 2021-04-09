@@ -45,15 +45,9 @@ func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
 	return &bytes.Bytes{Data: buf}
 }
 
-func is_bit_set(b byte, off uint64) bool {
-	return b&(1<<off) != 0
-}
-
 func (txn *Txn) ReadBit(a Addr) bool {
 	a_ := dafnyAddrToAddr(a)
-	buf := txn.btxn.ReadBuf(a_, 1)
-	data := buf[0]
-	return is_bit_set(data, a.Off%8)
+	return txn.btxn.ReadBufBit(a_)
 }
 
 func (txn *Txn) Write(a Addr, bs *bytes.Bytes) {
@@ -63,13 +57,7 @@ func (txn *Txn) Write(a Addr, bs *bytes.Bytes) {
 
 func (txn *Txn) WriteBit(a Addr, b bool) {
 	a_ := dafnyAddrToAddr(a)
-	var data byte
-	if b {
-		data = 0xFF
-	} else {
-		data = 0
-	}
-	txn.btxn.OverWrite(a_, 1, []byte{data})
+	txn.btxn.OverWriteBit(a_, b)
 }
 
 func (txn *Txn) Commit() bool {
