@@ -219,9 +219,7 @@ module InodeFs {
       // not allowed to modify jrnl so can't break any invariants
       modifies {}
       requires fs.ValidQ()
-      requires jrnl_.data == fs.jrnl.data
-      requires jrnl_.kinds == fs.jrnl.kinds
-      requires Valid_basics(jrnl_)
+      requires same_jrnl(jrnl_, fs.jrnl)
       ensures this.inodes == fs.inodes
       ensures this.cur_inode == fs.cur_inode
       ensures this.block_used == fs.block_used
@@ -230,6 +228,7 @@ module InodeFs {
       ensures ValidQ()
       ensures this.jrnl == jrnl_
     {
+      same_jrnl_valid();
       var txn := jrnl_.Begin();
       super_block_inbounds(jrnl_);
       var sb_bs := txn.Read(SuperBlkAddr, 4096*8);

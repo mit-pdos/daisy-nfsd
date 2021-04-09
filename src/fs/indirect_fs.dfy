@@ -213,6 +213,31 @@ module IndFs
       reveal ValidData();
     }
 
+    constructor Recover(jrnl_: Jrnl, ghost fs: IndFilesys)
+      modifies {}
+      requires fs.ValidQ()
+      requires same_jrnl(jrnl_, fs.fs.jrnl)
+      ensures this.to_blkno == fs.to_blkno
+      ensures this.data == fs.data
+      ensures this.metadata == fs.metadata
+      ensures this.fs.jrnl == jrnl_
+      ensures ValidQ()
+    {
+      this.fs := new InodeFilesys.Recover(jrnl_, fs.fs);
+
+      this.to_blkno := fs.to_blkno;
+      this.data := fs.data;
+      this.metadata := fs.metadata;
+
+      new;
+      assert ValidBasics() by { reveal fsValid(); }
+      assert ValidPos() by { reveal ValidPos(); }
+      reveal ValidInodes();
+      reveal ValidIndirect();
+      reveal ValidMetadata();
+      reveal ValidData();
+    }
+
     // private read
     method read_(txn: Txn, pos: Pos, i: MemInode) returns (b: Bytes)
       decreases pos.ilevel

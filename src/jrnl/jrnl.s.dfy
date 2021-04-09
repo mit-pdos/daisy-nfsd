@@ -207,6 +207,24 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"} JrnlSpec
         }
     }
 
+    predicate same_jrnl(jrnl1: Jrnl, jrnl2: Jrnl)
+        reads jrnl1, jrnl2
+    {
+        && jrnl1.data == jrnl2.data
+        && jrnl1.kinds == jrnl2.kinds
+    }
+
+    lemma same_jrnl_valid()
+        ensures forall jrnl1: Jrnl, jrnl2: Jrnl | jrnl2.Valid() && same_jrnl(jrnl1, jrnl2) ::
+        jrnl1.Valid()
+    {
+        forall jrnl1: Jrnl, jrnl2: Jrnl | jrnl2.Valid() && same_jrnl(jrnl1, jrnl2)
+            ensures jrnl1.Valid()
+        {
+            reveal jrnl1.Valid();
+        }
+    }
+
     class {:extern} Txn
     {
 
