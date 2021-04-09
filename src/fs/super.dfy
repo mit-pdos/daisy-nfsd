@@ -1,5 +1,8 @@
 include "../jrnl/jrnl.s.dfy"
 include "../nonlin/roundup.dfy"
+include "../machine/int_encoding.s.dfy"
+include "../machine/bytes.s.dfy"
+include "../util/marshal.i.dfy"
 
 module FsKinds {
   import Arith
@@ -7,7 +10,10 @@ module FsKinds {
   import opened JrnlTypes
   import opened JrnlSpec
   import opened Kinds
+  import opened ByteSlice
+  import IntEncoding
   import Round
+  import Marshal
 
   datatype Super = Super(inode_blocks: nat, data_bitmaps: nat)
   {
@@ -50,6 +56,55 @@ module FsKinds {
   lemma super_valid()
     ensures super.Valid()
   {}
+
+  datatype SuperBlock = SuperBlock(info: Super, disk_size: uint64)
+  {
+    // a random number
+    static const magic: uint64 := 0x5211cc92a57dd76b;
+
+    predicate Valid()
+    {
+      info.Valid()
+    }
+
+    function enc(): seq<byte>
+      requires Valid()
+    {
+      IntEncoding.le_enc64(magic) +
+        IntEncoding.le_enc64(info.inode_blocks as uint64) +
+        IntEncoding.le_enc64(info.data_bitmaps as uint64) +
+        IntEncoding.le_enc64(disk_size) +
+        C.repeat(0 as byte, 4096-(8*4))
+    }
+
+    method encode() returns (b: Bytes)
+      requires Valid()
+      ensures is_block(b.data)
+      ensures b.data == enc()
+    {
+      b := NewBytes(4096);
+      IntEncoding.UInt64Put(magic, 0, b);
+      IntEncoding.UInt64Put(info.inode_blocks as uint64, 8, b);
+      IntEncoding.UInt64Put(info.data_bitmaps as uint64, 16, b);
+      IntEncoding.UInt64Put(disk_size as uint64, 24, b);
+    }
+
+    static method decode(b: Bytes, ghost sb0: SuperBlock) returns (sb: SuperBlock)
+      requires sb0.Valid()
+      requires b.data == sb0.enc()
+      ensures sb == sb0
+    {
+      var m := Marshal.UInt64Decode(b, 0, magic);
+      if m != magic {
+        assert false;
+        return SuperBlock(Super(0, 0), 0);
+      }
+      var inode_blocks := Marshal.UInt64Decode(b, 8, sb0.info.inode_blocks as uint64);
+      var data_bitmaps := Marshal.UInt64Decode(b, 16, sb0.info.data_bitmaps as uint64);
+      var disk_size := Marshal.UInt64Decode(b, 24, sb0.disk_size);
+      return SuperBlock(Super(inode_blocks as nat, data_bitmaps as nat), disk_size);
+    }
+  }
 
   // we need these to be a real constants because accessing any const in super
   // computes a big int every time it's referenced, which shows up in the CPU

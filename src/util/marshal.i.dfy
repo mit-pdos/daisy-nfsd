@@ -9,6 +9,16 @@ import opened IntEncoding
 import opened ByteSlice
 import opened Collections
 
+method UInt64Decode(bs: Bytes, off: uint64, ghost x: uint64) returns (x': uint64)
+    requires off as nat + 8 <= |bs.data|
+    requires bs.Valid()
+    requires bs.data[off as nat..off as nat + 8] == IntEncoding.le_enc64(x)
+    ensures x' == x
+{
+    IntEncoding.lemma_le_enc_dec64(x);
+    x' := IntEncoding.UInt64Get(bs, off);
+}
+
 datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncBytes(bs: seq<byte>)
 
 function EncByte(b: byte): Encodable { EncBytes([b]) }
