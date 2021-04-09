@@ -23,7 +23,8 @@ module FsKinds {
       && disk_size < U64.MAX
     }
 
-    // NOTE(tej): hack because otherwise non-linear arithmetic in num_data_blocks confuses Dafny and it doesn't know the sum is still a nat
+    // NOTE(tej): hack because otherwise non-linear arithmetic in
+    // disk_size confuses Dafny and it doesn't know the sum is still a nat
     static function method add_nats(n1: nat, n2: nat): nat
     {
       n1 + n2
@@ -37,7 +38,8 @@ module FsKinds {
     // inode_bitmaps are allocators for inodes
     //
     // these are followed by num_data_blocks data blocks
-    const data_bitmap_start: nat := 513 + inode_blocks
+    static const block_addr: uint64 := 513
+    const data_bitmap_start: nat := 513 + 1 + inode_blocks
     const data_start: nat := data_bitmap_start + data_bitmaps
 
     const disk_size: nat := add_nats(data_start, num_data_blocks)
@@ -53,8 +55,8 @@ module FsKinds {
   // computes a big int every time it's referenced, which shows up in the CPU
   // profile...
   const super_num_data_blocks: uint64 := 6*(4096*8)
-  const super_data_bitmap_start: uint64 := 513 + 10;
-  const super_data_start: uint64 := 513 + 10 + 6;
+  const super_data_bitmap_start: uint64 := 513 + 1 + 10;
+  const super_data_start: uint64 := 513 + 1 + 10 + 6;
   lemma super_consts_ok()
     ensures super_num_data_blocks as nat == super.num_data_blocks
     ensures super_data_bitmap_start as nat == super.data_bitmap_start
@@ -82,19 +84,19 @@ module FsKinds {
     ensures InodeBlk?(bn')
   {
     reveal ino_ok();
-    513 + ino / 32
+    513 + 1 + ino / 32
   }
 
   predicate InodeBlk?(bn: Blkno)
   {
-    513 <= bn as nat < 513 + super.inode_blocks
+    513 + 1 <= bn as nat < 513 + 1 + super.inode_blocks
   }
 
   lemma InodeBlk?_correct(bn: Blkno)
     ensures InodeBlk?(bn) <==> exists ino':Ino :: InodeBlk(ino') == bn
   {
     if InodeBlk?(bn) {
-      var ino: Ino := (bn - 513) * 32;
+      var ino: Ino := (bn - 513 - 1) * 32;
       assert InodeBlk(ino) == bn;
     }
   }
@@ -119,7 +121,7 @@ module FsKinds {
     ensures DataAllocBlk?(bn) <==> exists bn' :: blkno_ok(bn') && DataAllocBlk(bn') == bn
   {
     if DataAllocBlk?(bn) {
-      var bn' := (bn - (513 + super.inode_blocks) as uint64) * (4096*8);
+      var bn' := (bn - (513 + 1 + super.inode_blocks) as uint64) * (4096*8);
       assert blkno_ok(bn');
       assert DataAllocBlk(bn') == bn;
     }
@@ -202,7 +204,9 @@ module FsKinds {
   ghost const fs_kinds: map<Blkno, Kind> :=
     map blkno: Blkno |
       513 <= blkno as nat < super.disk_size
-      :: (if InodeBlk?(blkno)
+      :: (if blkno == Super.block_addr
+          then KindBlock
+        else if InodeBlk?(blkno)
           then KindInode
         else if DataAllocBlk?(blkno)
           then KindBit

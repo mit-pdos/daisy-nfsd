@@ -297,7 +297,9 @@ module IndirectPos
         }
         if n < 2*512 {
           assert from_flat(n0).k == 11;
-          assert config.total_to(11) == 10+512;
+          assert config.total_to(11) == 10+512 by {
+            config_totals_after_10(11);
+          }
           return;
         }
         assert from_flat(n0).k == 12;
