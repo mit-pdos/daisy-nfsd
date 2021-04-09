@@ -196,14 +196,23 @@ module InodeFs {
     }
 
     // Recovery is needed for the file-system to recover its in-memory allocator
-    // state. Due to the use of translation validation (that is, we don't prove
-    // the allocator has the right free elements but check the on-disk value) we
-    // don't have to re-establish any invariant here, but without this code on
-    // recovery the allocator will give out used addresses and fail in practice.
-    constructor Recover(jrnl_: Jrnl)
+    // state. Due to the use of translation validation we don't have to prove
+    // anything about how the used bits are recovered, but in practice they need
+    // to be correct for the system to allocate any new blocks.
+    constructor Recover(jrnl_: Jrnl, ghost fs: InodeFilesys<AllocState>)
       // not allowed to modify jrnl so can't break any invariants
       modifies {}
+      requires fs.ValidQ()
+      requires jrnl_.data == fs.jrnl.data
+      requires jrnl_.kinds == fs.jrnl.kinds
       requires Valid_basics(jrnl_)
+      ensures this.inodes == fs.inodes
+      ensures this.cur_inode == fs.cur_inode
+      ensures this.block_used == fs.block_used
+      ensures this.data_block == fs.data_block;
+      ensures ValidQ()
+      // TODO: should save this on disk in a superblock
+      // ensures this.ballocActualMax == fs.ballocActualMax
       ensures this.jrnl == jrnl_
     {
       var balloc := NewAllocator(ballocMax);
@@ -226,6 +235,23 @@ module InodeFs {
 
       this.jrnl := jrnl_;
       this.balloc := balloc;
+      this.ballocActualMax := ballocMax;
+
+      // copy all ghost state
+      inodes := fs.inodes;
+      cur_inode := fs.cur_inode;
+      block_used := fs.block_used;
+      data_block := fs.data_block;
+
+      new;
+      reveal jrnl.Valid();
+      reveal addrsForKinds();
+
+      reveal Valid_jrnl_to_block_used();
+      reveal Valid_jrnl_to_data_block();
+      reveal Valid_jrnl_to_inodes();
+      reveal DataBlk();
+      reveal InodeAddr();
     }
 
     static predicate is_alloc_bn(bn: Blkno)
