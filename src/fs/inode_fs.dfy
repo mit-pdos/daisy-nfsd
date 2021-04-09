@@ -226,6 +226,7 @@ module InodeFs {
       ensures this.data_block == fs.data_block;
       ensures this.ballocActualMax == fs.ballocActualMax
       ensures ValidQ()
+      ensures fresh(Repr - {jrnl_})
       ensures this.jrnl == jrnl_
     {
       same_jrnl_valid();

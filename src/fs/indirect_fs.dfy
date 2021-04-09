@@ -222,6 +222,7 @@ module IndFs
       ensures this.metadata == fs.metadata
       ensures this.fs.jrnl == jrnl_
       ensures ValidQ()
+      ensures fresh(Repr - {jrnl_})
     {
       this.fs := new InodeFilesys.Recover(jrnl_, fs.fs);
 

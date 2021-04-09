@@ -131,6 +131,49 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
+    constructor Recover(jrnl_: Jrnl, ghost fs: TypedFilesys)
+      requires fs.Valid()
+      requires same_jrnl(jrnl_, fs.fs.fs.fs.jrnl)
+      ensures Valid()
+      ensures fresh(Repr - {jrnl_})
+      ensures this.data == fs.data
+      ensures this.types == fs.types
+      ensures this.fs.fs.fs.jrnl == jrnl_
+    {
+      reveal fs.bytefsValid();
+      same_jrnl_valid();
+      var byte_fs := new ByteFilesys.Recover(jrnl_, fs.fs);
+      this.fs := byte_fs;
+      data := fs.data;
+      types := fs.types;
+      var ialloc := NewAllocator(iallocMax);
+      // the root inode
+      ialloc.MarkUsed(1);
+
+      var txn := jrnl_.Begin();
+      var ino: uint64 := 1;
+      while ino < iallocMax
+        modifies {}
+        invariant txn.jrnl == byte_fs.fs.fs.jrnl
+        invariant byte_fs.Valid()
+        invariant ialloc.Valid()
+        invariant 1 <= ino as nat <= iallocMax as nat
+      {
+        var i := byte_fs.fs.fs.getInode(txn, ino);
+        var used := i.ty != Inode.InvalidType;
+        if used {
+          ialloc.MarkUsed(ino);
+        }
+        ino := ino + 1;
+      }
+      txn.Abort();
+
+      this.ialloc := ialloc;
+      new;
+      reveal ValidFields();
+      reveal ValidInvalid();
+    }
+
     twostate predicate types_unchanged()
       reads this
     {

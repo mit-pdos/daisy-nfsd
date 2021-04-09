@@ -174,6 +174,20 @@ module ByteFs {
       reveal inode_types();
     }
 
+    constructor Recover(jrnl_: Jrnl, ghost fs: ByteFilesys)
+      requires same_jrnl(jrnl_, fs.fs.fs.jrnl)
+      requires fs.Valid()
+      ensures Valid()
+      ensures fresh(Repr - {jrnl_})
+      ensures data() == fs.data()
+      ensures inode_types() == fs.inode_types()
+      ensures this.fs.fs.jrnl == jrnl_
+    {
+      this.fs := new IndFilesys.Recover(jrnl_, fs.fs);
+      new;
+      reveal inode_types();
+    }
+
     lemma raw_inode_index_one(d: InodeData, off: uint64)
       requires off % 4096 == 0
       requires off as nat + 4096 <= Inode.MAX_SZ
