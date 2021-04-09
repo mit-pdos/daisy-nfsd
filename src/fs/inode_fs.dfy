@@ -72,6 +72,14 @@ module InodeFs {
       && ino_dom(inodes)
     }
 
+    predicate {:opaque} Valid_jrnl_super_block(actual_blocks: uint64)
+      reads jrnl
+      requires Valid_basics(jrnl)
+    {
+      super_block_inbounds(jrnl);
+      jrnl.data[SuperBlkAddr] == ObjData(SuperBlock(super, actual_blocks).enc())
+    }
+
     predicate {:opaque} Valid_jrnl_to_block_used(block_used: map<Blkno, Option<AllocState>>)
       reads jrnl
       requires blkno_dom(block_used)
@@ -131,6 +139,7 @@ module InodeFs {
     {
       && Valid_basics(jrnl)
       && Valid_domains()
+      && Valid_jrnl_super_block(ballocActualMax)
       && Valid_jrnl_to_block_used(block_used)
       && Valid_jrnl_to_data_block(data_block)
       && Valid_jrnl_to_inodes(inodes)
@@ -175,6 +184,12 @@ module InodeFs {
         actual_max := Round.roundup64(num_blks - super_data_start - 8, 8);
         assert super_data_start + actual_max < num_blks;
       }
+      var sb := SuperBlock(super, actual_max);
+      var sb_bs := sb.encode();
+      var txn := jrnl.Begin();
+      super_block_inbounds(jrnl);
+      txn.Write(SuperBlkAddr, sb_bs);
+      var _ := txn.Commit();
       var balloc := NewAllocator(actual_max);
       this.balloc := balloc;
       this.ballocActualMax := actual_max;
@@ -188,6 +203,7 @@ module InodeFs {
       reveal jrnl.Valid();
       reveal addrsForKinds();
 
+      reveal Valid_jrnl_super_block();
       reveal Valid_jrnl_to_block_used();
       reveal Valid_jrnl_to_data_block();
       reveal Valid_jrnl_to_inodes();
@@ -210,21 +226,24 @@ module InodeFs {
       ensures this.cur_inode == fs.cur_inode
       ensures this.block_used == fs.block_used
       ensures this.data_block == fs.data_block;
+      ensures this.ballocActualMax == fs.ballocActualMax
       ensures ValidQ()
-      // TODO: should save this on disk in a superblock
-      // ensures this.ballocActualMax == fs.ballocActualMax
       ensures this.jrnl == jrnl_
     {
-      var balloc := NewAllocator(ballocMax);
-
       var txn := jrnl_.Begin();
+      super_block_inbounds(jrnl_);
+      var sb_bs := txn.Read(SuperBlkAddr, 4096*8);
+      reveal fs.Valid_jrnl_super_block();
+      var sb := SuperBlock.decode(sb_bs, SuperBlock(super, fs.ballocActualMax));
+      var balloc := NewAllocator(sb.actual_blocks);
+
       blkno_bit_inbounds(jrnl_);
       var bn: Blkno := 1;
-      while bn < ballocMax
+      while bn < sb.actual_blocks
         invariant txn.jrnl == jrnl_
         invariant Valid_basics(jrnl_)
         invariant balloc.Valid()
-        invariant 1 <= bn as nat <= ballocMax as nat
+        invariant 1 <= bn as nat <= sb.actual_blocks as nat
       {
         var used := txn.ReadBit(DataBitAddr(bn));
         if used {
@@ -232,10 +251,11 @@ module InodeFs {
         }
         bn := bn + 1;
       }
+      txn.Abort();
 
       this.jrnl := jrnl_;
       this.balloc := balloc;
-      this.ballocActualMax := ballocMax;
+      this.ballocActualMax := sb.actual_blocks;
 
       // copy all ghost state
       inodes := fs.inodes;
@@ -247,6 +267,7 @@ module InodeFs {
       reveal jrnl.Valid();
       reveal addrsForKinds();
 
+      reveal Valid_jrnl_super_block();
       reveal Valid_jrnl_to_block_used();
       reveal Valid_jrnl_to_data_block();
       reveal Valid_jrnl_to_inodes();
@@ -321,6 +342,7 @@ module InodeFs {
       data_block := data_block[bn := blk.data];
 
       assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_inodes();
@@ -395,6 +417,7 @@ module InodeFs {
         // }
       }
       assert Valid() by {
+        reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_block_used();
       }
@@ -454,9 +477,10 @@ module InodeFs {
       inodes := inodes[ino:=i'.val()];
 
       assert Valid_jrnl_to_all() by {
-        reveal_Valid_jrnl_to_block_used();
-        reveal_Valid_jrnl_to_data_block();
-        reveal_Valid_jrnl_to_inodes();
+        reveal Valid_jrnl_super_block();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inodes();
       }
     }
 
@@ -484,6 +508,7 @@ module InodeFs {
       txn.WriteBit(DataBitAddr(bn), true);
 
       assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_inodes();
@@ -512,6 +537,7 @@ module InodeFs {
       }
 
       assert Valid_jrnl_to_all() by {
+        reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_inodes();

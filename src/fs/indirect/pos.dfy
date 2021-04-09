@@ -285,7 +285,10 @@ module IndirectPos
       ensures from_flat(n).flat() == n
     {
       config_totals();
-      if n < 10 { return; }
+      if n < 10 {
+        assert from_flat(n) == Idx(n, IndOff.direct);
+        return;
+      }
       assert n >= 10;
       var n0: uint64 := n;
       var n: uint64 := n-10;
