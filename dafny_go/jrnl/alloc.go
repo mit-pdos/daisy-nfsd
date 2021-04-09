@@ -7,12 +7,7 @@ type Allocator struct {
 }
 
 func NewAllocator(max uint64) *Allocator {
-	if !(0 < max && max%8 == 0) {
-		panic("invalid max, must be at least 0 and divisible by 8")
-	}
-	num_bytes := max / 8
-	a := alloc.MkAlloc(make([]byte, num_bytes))
-	a.MarkUsed(0)
+	a := alloc.MkMaxAlloc(max)
 	return &Allocator{alloc: *a}
 }
 

@@ -3,9 +3,7 @@ package jrnl
 import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
 	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/twophase"
-	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -29,19 +27,16 @@ func dafnyAddrToAddr(a Addr) addr.Addr {
 }
 
 type Jrnl struct {
-	txn   *txn.Txn
-	locks *lockmap.LockMap
+	tpp *twophase.TwoPhasePre
 }
 
 func NewJrnl(d *Disk) *Jrnl {
-	return &Jrnl{
-		txn:   txn.MkTxn(*d),
-		locks: lockmap.MkLockMap(),
-	}
+	tpp := twophase.Init(*d)
+	return &Jrnl{tpp}
 }
 
 func (jrnl *Jrnl) Begin() *Txn {
-	return &Txn{btxn: twophase.Begin(jrnl.txn, jrnl.locks)}
+	return &Txn{btxn: twophase.Begin(jrnl.tpp)}
 }
 
 func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
