@@ -334,6 +334,29 @@ module DirFs
       return Some(dir_fs);
     }
 
+    constructor Recover(jrnl_: Jrnl, ghost fs: DirFilesys)
+      requires fs.Valid()
+      requires same_jrnl(jrnl_, fs.fs.fs.fs.fs.jrnl)
+      ensures this.fs.fs.fs.fs.jrnl == jrnl_
+      ensures this.data == fs.data
+      ensures Valid()
+    {
+      this.fs := new TypedFilesys.Recover(jrnl_, fs.fs);
+      this.dirents := fs.dirents;
+      this.data := fs.data;
+
+      new;
+      forall ino: Ino
+        ensures Valid_data_at(ino, this.fs.data)
+      {
+        fs.get_data_at(ino);
+        reveal Valid_data_at();
+      }
+      assert ValidData();
+      assert ValidRoot() by { reveal ValidRoot(); }
+      assert ValidTypes() by { reveal is_of_type(); }
+    }
+
     method Begin() returns (txn: Txn)
       requires Valid()
       ensures fs.has_jrnl(txn)
