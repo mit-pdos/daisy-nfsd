@@ -90,13 +90,13 @@ module Inode {
     }
   }
 
-  datatype Attrs = Attrs(mode: uint32, atime: NfsTime, mtime: NfsTime)
+  datatype Attrs = Attrs(mode: uint32, ctime: NfsTime, mtime: NfsTime)
   {
     static const zero: Attrs := Attrs(0, NfsTime.zero, NfsTime.zero)
 
     function enc(): seq<byte>
     {
-      IntEncoding.le_enc32(mode) + atime.enc() + mtime.enc()
+      IntEncoding.le_enc32(mode) + ctime.enc() + mtime.enc()
     }
 
     lemma enc_len()
@@ -129,9 +129,9 @@ module Inode {
       assert bs.data[off + 4 .. off + 12] == attrs.enc()[4..12] by {
         C.double_subslice_auto(bs.data);
       }
-      var atime := NfsTime.decode(bs, off + 4, attrs.atime);
+      var ctime := NfsTime.decode(bs, off + 4, attrs.ctime);
       var mtime := NfsTime.decode(bs, off + 4 + 8, attrs.mtime);
-      return Attrs(mode, atime, mtime);
+      return Attrs(mode, ctime, mtime);
     }
 
     method put(off: uint64, bs: Bytes)
@@ -141,7 +141,7 @@ module Inode {
       ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
     {
       IntEncoding.UInt32Put(mode, off, bs);
-      atime.put(off + 4, bs);
+      ctime.put(off + 4, bs);
       mtime.put(off + 4 + 8, bs);
     }
   }
