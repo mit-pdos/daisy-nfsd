@@ -19,20 +19,22 @@ module DirFs
   import opened TypedFs
   import opened FileCursor
   import opened MemInodes
+  import Inode
 
   import opened Nfs
 
   import C = Collections
 
   datatype File =
-    | ByteFile(data: seq<byte>)
-    | DirFile(dir: Directory)
+    | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
+    | DirFile(dir: Directory, attrs: Inode.Attrs)
   {
-    static const empty := ByteFile([])
-    static const emptyDir := DirFile(map[])
+    static const empty: File := ByteFile([], Inode.Attrs.zero)
+    static const emptyDir: File := DirFile(map[], Inode.Attrs.zero)
   }
 
   type FsData = map<Ino, seq<byte>>
+  type FsAttrs = map<Ino, Inode.Attrs>
   type Data = map<Ino, File>
 
   method HandleResult<T>(r: Result<T>, txn: Txn) returns (r':Result<T>)
@@ -163,17 +165,18 @@ module DirFs
       ino in dirents ==> |fsdata[ino]| % 4096 == 0 && fsdata[ino] == dirents[ino].enc()
     }
 
-    predicate Valid_file_at(ino: Ino, fsdata: FsData)
+    predicate Valid_file_at(ino: Ino, fsdata: FsData, types: FsAttrs)
       reads this
-      requires ino_dom(fsdata)
+      requires ino_dom(fsdata) && ino_dom(types)
     {
-      is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino])
+      is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino], types[ino])
     }
 
-    predicate Valid_dir_at(ino: Ino)
+    predicate Valid_dir_at(ino: Ino, attrs: FsAttrs)
       reads this
+      requires ino_dom(attrs)
     {
-      is_dir(ino) ==> this.data[ino] == DirFile(dirents[ino].dir)
+      is_dir(ino) ==> this.data[ino] == DirFile(dirents[ino].dir, attrs[ino])
     }
 
     predicate Valid_invalid_at(ino: Ino, fsdata: FsData)
@@ -183,13 +186,13 @@ module DirFs
       is_invalid(ino) ==> fsdata[ino] == []
     }
 
-    predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData)
+    predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData, fsattrs: FsAttrs)
       requires ino_dom(fsdata)
       reads this
     {
         && Valid_dirent_at(ino, fsdata)
-        && Valid_file_at(ino, fsdata)
-        && Valid_dir_at(ino)
+        && Valid_file_at(ino, fsdata, fsattrs)
+        && Valid_dir_at(ino, fsattrs)
         && Valid_invalid_at(ino, fsdata)
     }
 
@@ -197,27 +200,26 @@ module DirFs
       requires fs.ValidDomains()
       reads this, fs
     {
-      forall ino: Ino :: Valid_data_at(ino, fs.data)
+      forall ino: Ino :: Valid_data_at(ino, fs.data, fs.types)
     }
 
     lemma get_data_at(ino: Ino)
       requires fs.ValidDomains() && ValidData()
       ensures Valid_dirent_at(ino, fs.data)
-      ensures Valid_file_at(ino, fs.data)
-      ensures Valid_dir_at(ino)
+      ensures Valid_file_at(ino, fs.data, fs.types)
+      ensures Valid_dir_at(ino, fs.types)
       ensures Valid_invalid_at(ino, fs.data)
     {
       reveal Valid_data_at();
-      assert Valid_data_at(ino, fs.data);
     }
 
     lemma mk_data_at(ino: Ino)
       requires fs.ValidDomains()
       requires Valid_dirent_at(ino, fs.data)
-      requires Valid_file_at(ino, fs.data)
-      requires Valid_dir_at(ino)
+      requires Valid_file_at(ino, fs.data, fs.types)
+      requires Valid_dir_at(ino, fs.types)
       requires Valid_invalid_at(ino, fs.data)
-      ensures Valid_data_at(ino, fs.data)
+      ensures Valid_data_at(ino, fs.data, fs.types)
     {
       reveal Valid_data_at();
     }
@@ -225,7 +227,7 @@ module DirFs
     twostate lemma ValidData_change_one(ino: Ino)
       requires old(fs.ValidDomains()) && old(ValidData()) && old(ValidTypes())
       requires fs.ValidDomains()
-      requires Valid_data_at(ino, fs.data)
+      requires Valid_data_at(ino, fs.data, fs.types)
       requires is_of_type(ino, fs.types[ino].ty)
       requires (forall ino': Ino | ino' != ino ::
       && fs.data[ino'] == old(fs.data[ino'])
@@ -244,10 +246,10 @@ module DirFs
       var fsdata0 := old(fs.data);
       var fsdata := fs.data;
       forall ino: Ino | ino != ino0
-        ensures Valid_data_at(ino, fsdata)
+        ensures Valid_data_at(ino, fsdata, fs.types)
       {
         reveal Valid_data_at();
-        assert old(Valid_data_at(ino, fsdata0));
+        assert old(Valid_data_at(ino, fsdata0, fs.types));
         assert ino in dirents ==> ino in old(dirents);
         assert is_file(ino) ==> old(is_file(ino));
       }
@@ -276,18 +278,24 @@ module DirFs
       && ValidDirFs()
     }
 
-    constructor Init(fs: TypedFilesys)
+    constructor Init(fs: TypedFilesys, ghost attrs0: Inode.Attrs)
       requires fs.Valid()
-      requires fs.data == map ino: Ino {:trigger} :: if ino == rootIno then Dirents.zero.enc() else []
-      requires fs.types == map ino: Ino {:trigger} :: if ino == rootIno then Inode.Attrs.zero.(ty := Inode.DirType) else Inode.Attrs.zero
+      requires attrs0.ty == Inode.DirType
+      requires fs.data == map ino: Ino {:trigger} ::
+                            if ino == rootIno
+                            then Dirents.zero.enc() else []
+      requires fs.types == map ino: Ino {:trigger} ::
+                            if ino == rootIno
+                            then attrs0
+                            else Inode.Attrs.zero
       ensures Valid()
       ensures this.rootIno == rootIno
-      ensures data == map[rootIno := File.emptyDir]
+      ensures data == map[rootIno := DirFile(map[], attrs0)]
     {
       this.fs := fs;
       var dirents0 : map<Ino, Dirents> := map[rootIno := Dirents.zero];
       this.dirents := dirents0;
-      this.data := map[rootIno := File.emptyDir];
+      this.data := map[rootIno := DirFile(map[], attrs0)];
       new;
       Dirents.zero_dir();
       assert ValidData() by {
@@ -313,7 +321,7 @@ module DirFs
 
     static method New(d: Disk) returns (fs: Option<DirFilesys>)
       ensures fs.Some? ==> fresh(fs.x) && fs.x.Valid()
-      ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[])]
+      ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[], Inode.Attrs.zero)]
     {
       var fs_ := new TypedFilesys.Init(d);
 
@@ -330,7 +338,7 @@ module DirFs
       }
       assert fs_.Valid();
 
-      var dir_fs := new DirFilesys.Init(fs_);
+      var dir_fs := new DirFilesys.Init(fs_, Inode.Attrs.zero);
       return Some(dir_fs);
     }
 
@@ -347,7 +355,7 @@ module DirFs
 
       new;
       forall ino: Ino
-        ensures Valid_data_at(ino, this.fs.data)
+        ensures Valid_data_at(ino, this.fs.data, this.fs.types)
       {
         fs.get_data_at(ino);
         reveal Valid_data_at();
@@ -621,7 +629,7 @@ module DirFs
     {
       assert Repr !! dents.Repr();
       invert_dir(d_ino);
-      assert Valid_dir_at(d_ino) by {
+      assert Valid_dir_at(d_ino, fs.types) by {
         get_data_at(d_ino);
       }
 
@@ -671,15 +679,15 @@ module DirFs
       requires e'.used() && dents.val.findName(e'.path()) >= |dents.val.s|
       ensures ok ==>
       && data == old(
-      var d0 := data[d_ino].dir;
-      var d' := DirFile(d0[e'.path() := e'.ino]);
+      var d0 := data[d_ino];
+      var d' := DirFile(d0.dir[e'.path() := e'.ino], d0.attrs);
       data[d_ino := d'])
     {
-      assert data[d_ino] == DirFile(dents.val.dir) by {
+      assert data[d_ino] == DirFile(dents.val.dir, fs.types[d_ino]) by {
         get_data_at(d_ino);
       }
 
-      assert data[d_ino] == DirFile(dents.val.dir) by {
+      assert data[d_ino] == DirFile(dents.val.dir, fs.types[d_ino]) by {
         get_data_at(d_ino);
       }
       invert_dir(d_ino);
@@ -702,7 +710,7 @@ module DirFs
       ghost var new_val := dents.val;
       ghost var d' := dents.val.dir;
       assert d' == d[path := ino];
-      data := data[d_ino := DirFile(d')];
+      data := data[d_ino := DirFile(d', fs.types[d_ino])];
       assert is_dir(d_ino);
       assert fs.types[d_ino].ty == Inode.DirType;
       assert is_of_type(d_ino, fs.types[d_ino].ty) by { reveal is_of_type(); }
