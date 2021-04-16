@@ -90,21 +90,24 @@ module Inode {
     }
   }
 
-  datatype Attrs = Attrs(mode: uint32, ctime: NfsTime, mtime: NfsTime)
+  datatype Attrs = Attrs(ty: InodeType, mode: uint32, ctime: NfsTime, mtime: NfsTime)
   {
-    static const zero: Attrs := Attrs(0, NfsTime.zero, NfsTime.zero)
+    static const zero: Attrs := Attrs(InvalidType, 0, NfsTime.zero, NfsTime.zero)
 
     function enc(): seq<byte>
     {
-      IntEncoding.le_enc32(mode) + ctime.enc() + mtime.enc()
+      IntEncoding.le_enc32(ty.to_u32()) +
+        IntEncoding.le_enc32(mode) +
+        ctime.enc() +
+        mtime.enc()
     }
 
     lemma enc_len()
-      ensures |enc()| == 20 // 4+8+8
+      ensures |enc()| == 24 // 4+4+8+8
     {}
 
     static lemma enc_zero()
-      ensures C.repeat(0 as byte, 20) == zero.enc()
+      ensures C.repeat(0 as byte, 24) == zero.enc()
     {
       IntEncoding.lemma_enc_32_0();
       NfsTime.enc_zero();
@@ -113,50 +116,52 @@ module Inode {
     static method decode(bs: Bytes, off: uint64, ghost attrs: Attrs)
       returns (attrs': Attrs)
       requires bs.Valid()
-      requires off as nat + 20 <= |bs.data|
-      requires bs.data[off .. off + 20] == attrs.enc()
+      requires off as nat + 24 <= |bs.data|
+      requires bs.data[off .. off + 24] == attrs.enc()
       ensures attrs' == attrs
     {
-      var mode := IntEncoding.UInt32Get(bs, off);
-      assert mode == attrs.mode by {
-        calc {
-          bs.data[off .. off + 4];
-          attrs.enc()[..4];
-          IntEncoding.le_enc32(attrs.mode);
-        }
-        IntEncoding.lemma_le_enc_dec32(attrs.mode);
-      }
-      assert bs.data[off + 4 .. off + 12] == attrs.enc()[4..12] by {
+      assert bs.data[off..off+4] == attrs.enc()[..4] by {
         C.double_subslice_auto(bs.data);
       }
-      var ctime := NfsTime.decode(bs, off + 4, attrs.ctime);
-      var mtime := NfsTime.decode(bs, off + 4 + 8, attrs.mtime);
-      return Attrs(mode, ctime, mtime);
+      var ty_u32 := Marshal.UInt32Decode(bs, off, attrs.ty.to_u32());
+      var ty := InodeType.from_u32(ty_u32);
+      assert bs.data[off+4..off+8] == attrs.enc()[4..8] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var mode := Marshal.UInt32Decode(bs, off + 4, attrs.mode);
+      assert bs.data[off + 4+4 .. off + 4+4+8] == attrs.enc()[8..16] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var ctime := NfsTime.decode(bs, off + 4+4, attrs.ctime);
+      var mtime := NfsTime.decode(bs, off + 4+4+8, attrs.mtime);
+      return Attrs(ty, mode, ctime, mtime);
     }
 
     method put(off: uint64, bs: Bytes)
       modifies bs
       requires bs.Valid()
-      requires off as nat + 20 <= |bs.data|
+      requires off as nat + 24 <= |bs.data|
       ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
     {
-      IntEncoding.UInt32Put(mode, off, bs);
-      ctime.put(off + 4, bs);
-      mtime.put(off + 4 + 8, bs);
+      IntEncoding.UInt32Put(ty.to_u32(), off, bs);
+      IntEncoding.UInt32Put(mode, off + 4, bs);
+      ctime.put(off + 4 + 4, bs);
+      mtime.put(off + 4 + 4 + 8, bs);
     }
   }
 
-  datatype Meta = Meta(sz: uint64, ty: InodeType, attrs: Attrs)
+  datatype Meta = Meta(sz: uint64, attrs: Attrs)
   {
-    static const zero: Meta := Meta(0, InvalidType, Attrs.zero)
+    const ty := attrs.ty;
+    static const zero: Meta := Meta(0, Attrs.zero)
 
     function enc(): seq<byte>
     {
-      (IntEncoding.le_enc64(sz) + ty.enc()) + attrs.enc()
+      IntEncoding.le_enc64(sz) + attrs.enc()
     }
 
     lemma enc_len()
-      ensures |enc()| == 32 // 8 + 4 + 20
+      ensures |enc()| == 32 // 8 + 24
     {}
 
     method put(off: uint64, bs: Bytes)
@@ -166,8 +171,7 @@ module Inode {
       ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
     {
       IntEncoding.UInt64Put(sz, off, bs);
-      IntEncoding.UInt32Put(ty.to_u32(), off + 8, bs);
-      attrs.put(off + 8 + 4, bs);
+      attrs.put(off + 8, bs);
     }
   }
 
@@ -176,7 +180,7 @@ module Inode {
     const sz: uint64 := meta.sz
     const ty: InodeType := meta.ty
 
-    static const preZero: preInode := Mk(Meta(0, InvalidType, Attrs.zero), C.repeat(0 as uint64, 12))
+    static const preZero: preInode := Mk(Meta(0, Attrs.zero), C.repeat(0 as uint64, 12))
 
     predicate Valid()
     {
@@ -212,7 +216,7 @@ module Inode {
 
   lemma enc_app(i: Inode)
     ensures enc(i) ==
-    (IntEncoding.le_enc64(i.meta.sz) + i.meta.ty.enc() + i.meta.attrs.enc()) +
+    IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
     seq_enc_uint64(i.blks)
   {
     reveal enc();
@@ -225,27 +229,11 @@ module Inode {
     requires bs.data[off .. off as nat + 32] == m.enc()
     ensures m' == m
   {
-    C.double_subslice_auto(bs.data);
-    var sz := IntEncoding.UInt64Get(bs, off);
-    assert sz == m.sz by {
-      calc {
-        bs.data[off .. off + 8];
-        m.enc()[..8];
-        IntEncoding.le_enc64(m.sz);
-      }
-      IntEncoding.lemma_le_enc_dec64(m.sz);
+    assert bs.data[off..off + 8] == m.enc()[..8] by {
+      C.double_subslice_auto(bs.data);
     }
-    var ty_u32 := IntEncoding.UInt32Get(bs, off + 8);
-    var ty := InodeType.from_u32(ty_u32);
-    assert ty == m.ty by {
-      calc {
-        bs.data[off + 8 .. off + 8 + 4];
-        m.enc()[8..12];
-        m.ty.enc();
-      }
-      m.ty.enc_dec();
-    }
-    var attrs := Attrs.decode(bs, off + 12, m.attrs);
-    return Meta(sz, ty, attrs);
+    var sz := Marshal.UInt64Decode(bs, off, m.sz);
+    var attrs := Attrs.decode(bs, off + 8, m.attrs);
+    return Meta(sz, attrs);
   }
 }

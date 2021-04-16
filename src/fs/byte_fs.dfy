@@ -133,12 +133,12 @@ module ByteFs {
     }
 
     // TODO: probably shove attributes into the codomain here
-    function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
+    function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
       reads fs
       requires InodeFs.ino_dom(fs.metadata)
       ensures InodeFs.ino_dom(m)
     {
-      map ino: Ino :: fs.metadata[ino].ty
+      map ino: Ino :: fs.metadata[ino].attrs
     }
 
     twostate predicate types_unchanged()
@@ -167,7 +167,7 @@ module ByteFs {
       ensures Valid()
       ensures fresh(Repr)
       ensures data() == map ino: Ino {:trigger} :: []
-      ensures inode_types() == map ino: Ino {:trigger} :: Inode.InvalidType
+      ensures inode_types() == map ino: Ino {:trigger} :: Inode.Attrs.zero
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
@@ -932,10 +932,13 @@ module ByteFs {
       modifies Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       ensures data() == old(data())
-      ensures inode_types() == old(inode_types()[ino := ty'])
+      ensures inode_types() == old(inode_types()[ino := inode_types()[ino].(ty := ty')])
     {
       fs.inode_metadata(ino, i);
-      fs.writeInodeMeta(ino, i, i.meta().(ty := ty'));
+      // TODO: this might be slightly inefficient (we could just write the
+      // attributes field; even better would be if the type were a separate
+      // mutable field)
+      fs.writeInodeMeta(ino, i, i.meta().(attrs := i.meta().attrs.(ty := ty')));
       assert block_data(fs.data) == old(block_data(fs.data));
       assert data() == old(data()) by {
         reveal raw_inode_data();
@@ -962,7 +965,7 @@ module ByteFs {
 
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires fs.ValidIno(ino, i)
-      ensures i.ty == inode_types()[ino]
+      ensures i.attrs == inode_types()[ino]
       ensures i.sz as nat == |data()[ino]|
     {
       fs.inode_metadata(ino, i);

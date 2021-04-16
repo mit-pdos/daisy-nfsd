@@ -19,6 +19,16 @@ method UInt64Decode(bs: Bytes, off: uint64, ghost x: uint64) returns (x': uint64
     x' := IntEncoding.UInt64Get(bs, off);
 }
 
+method UInt32Decode(bs: Bytes, off: uint64, ghost x: uint32) returns (x': uint32)
+    requires off as nat + 4 <= |bs.data|
+    requires bs.Valid()
+    requires bs.data[off as nat..off as nat + 4] == IntEncoding.le_enc32(x)
+    ensures x' == x
+{
+    IntEncoding.lemma_le_enc_dec32(x);
+    x' := IntEncoding.UInt32Get(bs, off);
+}
+
 datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncBytes(bs: seq<byte>)
 
 function EncByte(b: byte): Encodable { EncBytes([b]) }

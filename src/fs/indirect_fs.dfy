@@ -506,7 +506,7 @@ module IndFs
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires ValidIno(ino, i)
       ensures i.sz == metadata[ino].sz
-      ensures i.ty == metadata[ino].ty
+      ensures i.attrs == metadata[ino].attrs
     {
       reveal ValidMetadata();
       assert i.val().meta == metadata[ino];
@@ -633,7 +633,6 @@ module IndFs
       ensures metadata == old(metadata[ino := meta])
     {
       reveal fsValid();
-      i.set_ty(meta.ty);
       i.set_sz(meta.sz);
       i.set_attrs(meta.attrs);
       fs.writeInode(ino, i);

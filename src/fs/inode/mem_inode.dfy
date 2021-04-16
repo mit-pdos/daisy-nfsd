@@ -11,7 +11,6 @@ module MemInodes {
   class MemInode
   {
     var sz: uint64
-    var ty: Inode.InodeType
     var attrs: Inode.Attrs
     ghost var blks: seq<uint64>
 
@@ -25,7 +24,13 @@ module MemInodes {
       requires Valid()
     {
       reveal Valid();
-      Inode.Mk(Inode.Meta(sz, ty, attrs), blks)
+      Inode.Mk(Inode.Meta(sz, attrs), blks)
+    }
+
+    function method ty(): Inode.InodeType
+      reads this
+    {
+      attrs.ty
     }
 
     predicate {:opaque} Valid()
@@ -40,7 +45,7 @@ module MemInodes {
     function method meta(): Inode.Meta
       reads this
     {
-      Inode.Meta(sz, ty, attrs)
+      Inode.Meta(sz, attrs)
     }
 
     constructor(bs: Bytes, ghost i: Inode.Inode)
@@ -58,7 +63,6 @@ module MemInodes {
       var m := Inode.decode_meta(bs, 0, i.meta);
 
       this.sz := m.sz;
-      this.ty := m.ty;
       this.attrs := m.attrs;
 
       new;
@@ -74,8 +78,7 @@ module MemInodes {
     {
       reveal Valid();
       IntEncoding.UInt64Put(sz, 0, this.bs);
-      IntEncoding.UInt32Put(ty.to_u32(), 8, this.bs);
-      attrs.put(12, this.bs);
+      attrs.put(8, this.bs);
       bs := this.bs;
       assert bs.data[32..] == old(bs.data[32..]);
       Inode.enc_app(val());
@@ -101,7 +104,6 @@ module MemInodes {
       ensures |old(blks)| == 12
       ensures blks == old(blks[k as nat := bn])
       ensures sz == old(sz)
-      ensures ty == old(ty)
       ensures attrs == old(attrs)
     {
       reveal Valid();
@@ -117,10 +119,9 @@ module MemInodes {
       requires Valid() ensures Valid()
       ensures blks == old(blks)
       ensures sz == old(sz)
-      ensures this.ty == ty
-      ensures attrs == old(attrs)
+      ensures attrs == old(attrs.(ty := ty))
     {
-      this.ty := ty;
+      this.attrs := this.attrs.(ty := ty);
       reveal Valid();
     }
 
@@ -130,7 +131,6 @@ module MemInodes {
       requires Valid() ensures Valid()
       ensures blks == old(blks)
       ensures this.sz == sz
-      ensures ty == old(ty)
       ensures attrs == old(attrs)
     {
       this.sz := sz;
@@ -142,7 +142,6 @@ module MemInodes {
       requires Valid() ensures Valid()
       ensures blks == old(blks)
       ensures sz == old(sz)
-      ensures ty == old(ty)
       ensures this.attrs == attrs
     {
       this.attrs := attrs;
