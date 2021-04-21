@@ -1593,6 +1593,12 @@ module DirFs
       if !dst_name_ok {
         return Err(NameTooLong);
       }
+      // to avoid deadlock, ensure that inodes are acquired in order (smaller to
+      // large)
+      if dst_d_ino < src_d_ino {
+        fs.reveal_valids();
+        fs.fs.fs.fs.lockInode(txn, dst_d_ino);
+      }
       var _ :- renamePaths(txn, src_d_ino, src_name, dst_d_ino, dst_name);
       return Ok(());
     }

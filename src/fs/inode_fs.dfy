@@ -447,6 +447,16 @@ module InodeFs {
       }
     }
 
+    method lockInode(txn: Txn, ino: Ino)
+      modifies {}
+      requires Valid()
+      requires txn.jrnl == jrnl
+    {
+      reveal_Valid_jrnl_to_inodes();
+      inode_inbounds(jrnl, ino);
+      var _ := txn.Read(InodeAddr(ino), 128*8);
+    }
+
     // public
     method getInode(txn: Txn, ino: Ino) returns (i: MemInode)
       modifies {}
