@@ -11,7 +11,18 @@ type Nfs struct {
 	filesys *dirfs.DirFilesys
 }
 
+func zeroDisk(d disk.Disk) {
+	zeroblock := make([]byte, 4096)
+	sz := d.Size()
+	for i := uint64(0); i < sz; i++ {
+		d.Write(i, zeroblock)
+	}
+	d.Barrier()
+}
+
 func MakeNfs(d disk.Disk) *Nfs {
+	// only runs initialization, recovery isn't set up yet
+	zeroDisk(d)
 	dfsopt := dirfs.Companion_DirFilesys_.New(&d)
 	if dfsopt.Is_None() {
 		panic("no dirfs")
