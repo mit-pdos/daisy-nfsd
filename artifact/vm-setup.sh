@@ -56,8 +56,9 @@ DAFNY_VERSION=3.1.0
 wget -O /tmp/dafny.zip https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip
 cd
 unzip /tmp/dafny.zip
+mv dafny .dafny-bin
 rm /tmp/dafny.zip
-echo "export PATH=\$HOME/dafny:\$PATH" >> ~/.profile
+echo "export PATH=\$HOME/.dafny-bin:\$PATH" >> ~/.profile
 
 # Set up NFS client and server
 
