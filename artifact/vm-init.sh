@@ -19,9 +19,5 @@ multipass exec "$VM" -- sh install.sh --unattended
 multipass exec "$VM" -- rm install.sh
 multipass exec "$VM" -- sudo chsh -s /usr/bin/zsh ubuntu
 multipass exec "$VM" -- git clone https://github.com/mit-pdos/dafny-nfsd
-multipass stop "$VM"
-sleep 3
-multipass start "$VM"
-sleep 3
-sudo VBoxManage snapshot "$VM" take "Install"
+multipass exec "$VM" -- git config --global pull.ff only
 multipass stop "$VM"
