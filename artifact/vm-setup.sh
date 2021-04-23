@@ -45,6 +45,11 @@ echo "source ~/.profile" >> ~/.zshrc
 
 # Install Dafny
 
+## install dotnet with snap
+sudo apt-get install -y snap
+sudo snap install dotnet-sdk --classic --channel=5.0
+sudo snap alias dotnet-sdk.dotnet dotnet
+
 DAFNY_VERSION=3.1.0
 wget -O /tmp/dafny.zip https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip
 cd
@@ -95,6 +100,7 @@ sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
 export PATH=/usr/local/go/bin:$PATH
+go install golang.org/x/tools/cmd/goimports@latest
 
 go install github.com/tchajed/goose/cmd/goose@latest
 # these are required in $GOPATH for goose to compile goose-nfsd
