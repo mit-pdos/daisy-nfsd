@@ -8,7 +8,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
 cd $DIR/..
 
-disk_file=/dev/shm/goose.img
+disk_file=/dev/shm/nfs.img
 cpu_list=""
 while true; do
     case "$1" in
