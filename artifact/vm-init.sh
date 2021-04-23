@@ -18,8 +18,6 @@ multipass exec "$VM" -- wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/m
 multipass exec "$VM" -- sh install.sh --unattended
 multipass exec "$VM" -- rm install.sh
 multipass exec "$VM" -- sudo chsh -s /usr/bin/zsh ubuntu
-multipass exec "$VM" -- sudo passwd -d ubuntu
-multipass exec "$VM" -- sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
 multipass exec "$VM" -- git clone https://github.com/mit-pdos/dafny-nfsd
 multipass stop dafny-vm
 sudo VBoxManage snapshot "$VM" take "Install"

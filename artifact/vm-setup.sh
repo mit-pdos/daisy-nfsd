@@ -13,6 +13,12 @@ cd
 sudo apt-get update
 sudo apt-get install -y git python3-pip wget unzip
 
+# SSH with empty password
+sudo passwd -d ubuntu
+sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
+sudo sed -e 's/PasswordAuthentication no/PasswordAuthentication yes/' -i /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
 # Get source code
 
 ## assumes https://github.com/mit-pdos/dafny-nfsd has already been cloned to
