@@ -23,7 +23,7 @@ sudo systemctl restart sshd
 
 ## assumes https://github.com/mit-pdos/dafny-nfsd has already been cloned to
 ## ~/dafny-nfsd (since this is the easiest way to run this script)
-ln -s ~/dafny-nfsd/artifact ~/artifact
+ln -s ~/dafny-nfsd/eval ~/artifact
 
 git clone \
     --recurse-submodules \
@@ -34,6 +34,7 @@ cd ~/code
 git clone https://github.com/mit-pdos/goose-nfsd
 git clone https://github.com/mit-pdos/xv6-public
 git clone --depth=1 https://github.com/linux-test-project/ltp
+git clone --depth=1 https://github.com/pimlie/ubuntu-mainline-kernel.sh
 cd
 
 cat >> ~/.profile <<EOF
@@ -129,6 +130,8 @@ opam init --auto-setup --bare
 #opam switch create 4.11.0+flambda
 #eval $(opam env)
 #opam install -y -j4 coq.8.13.1
+
+sudo ~/code/ubuntu-mainline-kernel.sh/ubuntu-mainline-kernel.sh --yes -i v5.11.16
 
 sudo apt clean
 opam clean

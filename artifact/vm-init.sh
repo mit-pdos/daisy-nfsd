@@ -9,7 +9,7 @@ fi
 
 # cache password
 sudo true
-multipass launch --name "$VM" --disk 20G --mem 6G --cpus 4 lts
+multipass launch --name "$VM" --disk 20G --mem 6G --cpus 4 groovy
 sudo VBoxManage controlvm "$VM" natpf1 "host-ssh,tcp,,10422,,22"
 multipass exec "$VM" -- sudo apt-get -y update
 multipass exec "$VM" -- sudo apt-get -y upgrade
