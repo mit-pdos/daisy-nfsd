@@ -359,7 +359,13 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	seq := r.(dafny.Seq)
 
 	seqlen := seq.LenInt()
-	var ents *nfstypes.Entry3
+	// TODO: produce this . from Dafny, or add it to every directory
+	ents := &nfstypes.Entry3{
+		Fileid:    nfstypes.Fileid3(inum),
+		Name:      nfstypes.Filename3("."),
+		Cookie:    1,
+		Nextentry: nil,
+	}
 	for i := 0; i < seqlen; i++ {
 		dirent := seq.IndexInt(i).(memdirents.MemDirEnt)
 		dirent2 := dirent.Get().(memdirents.MemDirEnt_MemDirEnt)
@@ -370,7 +376,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 		ents = &nfstypes.Entry3{
 			Fileid:    nfstypes.Fileid3(de_ino),
 			Name:      nfstypes.Filename3(de_name),
-			Cookie:    nfstypes.Cookie3(i + 1),
+			Cookie:    nfstypes.Cookie3(i + 2),
 			Nextentry: ents,
 		}
 	}
