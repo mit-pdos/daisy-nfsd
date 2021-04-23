@@ -34,7 +34,7 @@ info "DafnyNFS"
 echo "fs=dnfs"
 ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start=10 -threads=10
 ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
-./bench/run-dafny-nfs.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 cd "$GOOSE_NFSD_PATH"
 
@@ -43,11 +43,11 @@ info "GoNFS"
 echo "fs=gonfs"
 ./bench/run-goose-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start=10 -threads=10
 ./bench/run-goose-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
-./bench/run-goose-nfs.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-goose-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 echo 1>&2
 info "Linux ext3 over NFS"
 echo "fs=linux"
 ./bench/run-linux.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start=10 -threads=10
 ./bench/run-linux.sh "$GOOSE_NFSD_PATH"/fs-largefile
-./bench/run-linux.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-linux.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
