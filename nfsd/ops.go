@@ -405,6 +405,10 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Resok.Wtpref = reply.Resok.Wtmax
 	reply.Resok.Wtmult = 4096
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.Companion_Default___.MAX__SZ__u64())
+	// bitmask of supported features - does not include FSF3_LINK (hard link
+	// support), FSF3_SYMLINK (symbolic links), or FSF3_CANSETTIME (SETATTR will
+	// set times). FSF3_HOMOGENEOUS indicates that the PATHCONF information is
+	// static.
 	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)
 	return reply
 }
