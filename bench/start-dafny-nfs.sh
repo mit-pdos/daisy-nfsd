@@ -13,7 +13,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR/..
 
 # make sure code is compiled in case it takes longer than 2s to build
-make compile
+make --quiet compile
 go build ./cmd/dafny-nfsd && rm -f dafny-nfsd
 go run ./cmd/dafny-nfsd/ -debug=1 -disk /dev/shm/nfs.img "$@" > nfs.out 2>&1 &
 sleep 2
