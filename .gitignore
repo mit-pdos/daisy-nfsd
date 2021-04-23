@@ -6,3 +6,5 @@
 *.prof
 # from go build
 /dafny-nfsd
+# from eval scripts
+/nfs.out
