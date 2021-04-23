@@ -297,6 +297,7 @@ module InodeFs {
       blkno_bit_inbounds(jrnl);
       var used := txn.ReadBit(DataBitAddr(bn));
       if used {
+        print "block allocator returned used block ", bn, "\n";
         ok := false;
         balloc.Free(bn);
         return;
