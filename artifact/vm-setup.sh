@@ -33,8 +33,6 @@ mkdir ~/code
 cd ~/code
 git clone https://github.com/mit-pdos/goose-nfsd
 git clone https://github.com/mit-pdos/xv6-public
-git clone https://github.com/tchajed/marshal
-git clone https://github.com/tchajed/goose
 git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
@@ -42,9 +40,7 @@ cat >> ~/.profile <<EOF
 export DAFNY_NFSD_PATH=$HOME/dafny-nfsd
 export GOOSE_NFSD_PATH=$HOME/code/goose-nfsd
 export PERENNIAL_PATH=$HOME/perennial
-export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
-export GOOSE_PATH=$HOME/code/goose
 export LTP_PATH=$HOME/code/ltp
 EOF
 echo "source ~/.profile" >> ~/.zshrc
@@ -107,13 +103,6 @@ rm $GO_FILE
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
 export PATH=/usr/local/go/bin:$PATH
 go install golang.org/x/tools/cmd/goimports@latest
-
-go install github.com/tchajed/goose/cmd/goose@latest
-# these are required in $GOPATH for goose to compile goose-nfsd
-export GOPATH=$HOME/go
-export GO111MODULE=off
-go get github.com/tchajed/goose/...
-go get github.com/mit-pdos/goose-nfsd/...
 
 cd ~/code/goose-nfsd
 # fetch dependencies
