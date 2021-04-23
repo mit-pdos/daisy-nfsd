@@ -11,7 +11,7 @@ cd
 # Install really basic dependencies
 
 sudo apt-get update
-sudo apt-get install -y git python3-pip wget
+sudo apt-get install -y git python3-pip wget unzip
 
 # Get source code
 
@@ -41,6 +41,16 @@ export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
 export LTP_PATH=$HOME/code/ltp
 EOF
+echo "source ~/.profile" >> ~/.zshrc
+
+# Install Dafny
+
+DAFNY_VERSION=3.1.0
+wget -O /tmp/dafny.zip https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip
+cd
+unzip /tmp/dafny.zip
+rm /tmp/dafny.zip
+echo "export PATH=\$HOME/dafny:\$PATH" >> ~/.profile
 
 # Set up NFS client and server
 
@@ -79,7 +89,7 @@ sudo apt-get install -y gnuplot-nox
 
 # Install Go and Go dependencies
 
-GO_FILE=go1.16.2.linux-amd64.tar.gz
+GO_FILE=go1.16.3.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
@@ -93,7 +103,7 @@ export GO111MODULE=off
 go get github.com/tchajed/goose/...
 go get github.com/mit-pdos/goose-nfsd/...
 
-cd ~/goose-nfsd
+cd ~/code/goose-nfsd
 # fetch dependencies
 go build ./cmd/goose-nfsd && rm goose-nfsd
 cd

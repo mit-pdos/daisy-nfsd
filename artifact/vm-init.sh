@@ -21,6 +21,5 @@ multipass exec "$VM" -- sudo chsh -s /usr/bin/zsh ubuntu
 multipass exec "$VM" -- sudo passwd -d ubuntu
 multipass exec "$VM" -- sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
 multipass exec "$VM" -- git clone https://github.com/mit-pdos/dafny-nfsd
-multipass exec "$VM" --
 multipass stop dafny-vm
 sudo VBoxManage snapshot "$VM" take "Install"
