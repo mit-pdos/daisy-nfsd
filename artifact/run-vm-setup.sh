@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-set -e
+set -eu
 
 VM="dafny-vm"
+if [ $# -ge 1 ]; then
+  VM="$1"
+fi
 
-sudo VBoxManage snapshot "$VM" restore "Install"
+multipass start "$VM"
 sleep 3
-sudo VBoxManage startvm "$VM" --type headless
-sleep 10
 multipass exec "$VM" -- git -C dafny-nfsd pull
-multipass exec "$VM" -- git -C dafny-nfsd gc
 multipass exec "$VM" -- git -C dafny-nfsd gc
 multipass exec "$VM" -- ./dafny-nfsd/artifact/vm-setup.sh
 multipass stop "$VM"

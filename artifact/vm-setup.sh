@@ -3,6 +3,8 @@
 # Set up an Ubuntu VM with dependencies to run the evaluation.
 #
 # Run this in the VM. Requires no setup after installing Ubuntu.
+#
+# Make sure to _reboot_ after running, since this script installs a new kernel.
 
 set -eu
 
@@ -48,13 +50,8 @@ echo "source ~/.profile" >> ~/.zshrc
 
 # Install Dafny
 
-## install dotnet with snap
-sudo apt-get install -y snap
-sudo snap install dotnet-sdk --classic --channel=5.0
-sudo snap alias dotnet-sdk.dotnet dotnet
-
 DAFNY_VERSION=3.1.0
-wget -O /tmp/dafny.zip https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip
+wget -O /tmp/dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip"
 cd
 unzip /tmp/dafny.zip
 mv dafny .dafny-bin
@@ -65,9 +62,9 @@ echo "export PATH=\$HOME/.dafny-bin:\$PATH" >> ~/.profile
 
 sudo apt-get install -y rpcbind nfs-common nfs-server
 sudo mkdir -p /srv/nfs/bench
-sudo chown $USER:$USER /srv/nfs/bench
+sudo chown "$USER:$USER" /srv/nfs/bench
 sudo mkdir -p /mnt/nfs
-sudo chown $USER:$USER /mnt/nfs
+sudo chown "$USER:$USER" /mnt/nfs
 echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check)" | sudo tee -a /etc/exports
 
 ## for simplicity we enable these services so they are automatically started,
@@ -82,10 +79,10 @@ sudo systemctl stop nfs-server
 
 sudo apt-get install -y autoconf m4 automake pkg-config
 cd ~/code/ltp
-make autotools
+make -j4 autotools
 ./configure
-make -C testcases/kernel/fs/fsstress
-make -C testcases/kernel/fs/fsx-linux
+make -j4 -C testcases/kernel/fs/fsstress
+make -j4 -C testcases/kernel/fs/fsx-linux
 cd
 
 # Install Python dependencies
@@ -102,6 +99,7 @@ GO_FILE=go1.16.3.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
+# shellcheck disable=SC2016
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
 export PATH=/usr/local/go/bin:$PATH
 go install golang.org/x/tools/cmd/goimports@latest
@@ -131,7 +129,11 @@ opam init --auto-setup --bare
 #eval $(opam env)
 #opam install -y -j4 coq.8.13.1
 
+# Upgrade to Linux 5.11 to get fix for NFS client bug:
+# https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/fs/nfs?id=3b2a09f127e025674945e82c1ec0c88d6740280e
 sudo ~/code/ubuntu-mainline-kernel.sh/ubuntu-mainline-kernel.sh --yes -i v5.11.16
+# remove old kernel to save space
+sudo apt-get remove linux-image-5.8.0-50-generic linux-modules-5.8.0-50-generic linux-headers-5.8.0-50
 
 sudo apt clean
 opam clean
