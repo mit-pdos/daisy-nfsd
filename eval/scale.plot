@@ -1,11 +1,11 @@
-set terminal png noenhanced size 1050,600
-set output "fig/scale.png"
+set terminal pdf dashed noenhanced size 3.5in,2.0in
+set output "fig/scale.pdf"
 
 set auto x
 set yrange [0:*]
 set xtics 1
 set ylabel "files / sec"
-set format y '%.0s%c'
+set format y '%.1s%c'
 set xlabel "\# clients"
 set key top left
 
@@ -23,5 +23,5 @@ set style line 4 lt rgb "#F25900" lw 2 pt 9
 
 plot \
   "data/dnfs.data" using 1:($2) with linespoints ls 1 title 'DafnyNFS', \
-  "data/gnfs.data" using 1:($2) with linespoints ls 1 title 'GoNFS', \
-  "data/linux-nfs.data" using 1:($2) with linespoints ls 2 title 'Linux NFS'
+  "data/gnfs.data" using 1:($2) with linespoints ls 2 title 'GoNFS', \
+  "data/linux-nfs.data" using 1:($2) with linespoints ls 3 title 'Linux NFS'
