@@ -133,7 +133,10 @@ opam init --auto-setup --bare
 # https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/fs/nfs?id=3b2a09f127e025674945e82c1ec0c88d6740280e
 sudo ~/code/ubuntu-mainline-kernel.sh/ubuntu-mainline-kernel.sh --yes -i v5.11.16
 # remove old kernel to save space
-sudo apt-get remove linux-image-5.8.0-50-generic linux-modules-5.8.0-50-generic linux-headers-5.8.0-50
+#
+# TODO: this requires approval because it removes the current kernel, until the
+# system is rebooted
+# sudo apt-get -y remove linux-image-5.8.0-50-generic linux-modules-5.8.0-50-generic linux-headers-5.8.0-50
 
 sudo apt clean
 opam clean
