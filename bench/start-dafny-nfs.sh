@@ -18,4 +18,4 @@ go build ./cmd/dafny-nfsd && rm -f dafny-nfsd
 go run ./cmd/dafny-nfsd/ -debug=1 -disk /dev/shm/nfs.img "$@" > nfs.out 2>&1 &
 sleep 2
 killall -0 dafny-nfsd # make sure server is running
-sudo mount -t nfs -o vers=3 localhost:/ /mnt/nfs
+sudo mount -t nfs -o vers=3,nordirplus localhost:/ /mnt/nfs
