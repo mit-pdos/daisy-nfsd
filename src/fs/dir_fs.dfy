@@ -1275,10 +1275,11 @@ module DirFs
     {
       ghost var path := name.data;
       invert_dir(d_ino);
-      assert dents.dir() == data[d_ino].dir by {
+      ghost var attrs0 := old(data[d_ino].attrs);
+      assert dents.dir() == data[d_ino].dir &&
+             fs.types[d_ino] == attrs0 by {
         get_data_at(d_ino);
       }
-      ghost var attrs0 := old(data[d_ino].attrs);
       ghost var d0: Directory := old(data[d_ino].dir);
 
       assert ino_ok: path in d0 && ino == d0[path] by {
@@ -1301,6 +1302,10 @@ module DirFs
 
       assert is_dir(d_ino);
       assert is_of_type(d_ino, fs.types[d_ino].ty) by { reveal is_of_type(); }
+      // not necessary but helps the proof a bit
+      assert Valid_dir_at(d_ino, fs.types) by {
+        assert data[d_ino].attrs == fs.types[d_ino] == attrs0;
+      }
       mk_data_at(d_ino);
       ValidData_change_one(d_ino);
       assert Valid() by {

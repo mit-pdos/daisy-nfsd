@@ -598,7 +598,7 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    method {:timeLimitMultiplier 3} updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires bs !in i.Repr
@@ -630,7 +630,9 @@ module ByteFs {
         return;
       }
       fs.inode_metadata(ino, i);
-      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data);
+      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data) by {
+        C.double_splice_auto(old(raw_data(ino)));
+      }
       calc {
         data()[ino];
         raw_data(ino)[..i.sz];
