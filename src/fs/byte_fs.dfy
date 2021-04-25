@@ -132,7 +132,6 @@ module ByteFs {
         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
 
-    // TODO: probably shove attributes into the codomain here
     function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
       reads fs
       requires InodeFs.ino_dom(fs.metadata)
@@ -938,7 +937,18 @@ module ByteFs {
       // TODO: this might be slightly inefficient (we could just write the
       // attributes field; even better would be if the type were a separate
       // mutable field)
-      fs.writeInodeMeta(ino, i, i.meta().(attrs := i.meta().attrs.(ty := ty')));
+      setAttrs(ino, i, i.meta().attrs.(ty := ty'));
+      reveal inode_types();
+    }
+
+    method setAttrs(ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
+      modifies Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      ensures data() == old(data())
+      ensures inode_types() == old(inode_types()[ino :=  attrs'])
+    {
+      fs.inode_metadata(ino, i);
+      fs.writeInodeMeta(ino, i, i.meta().(attrs := attrs'));
       assert block_data(fs.data) == old(block_data(fs.data));
       assert data() == old(data()) by {
         reveal raw_inode_data();
