@@ -11,7 +11,7 @@ module MemInodes {
   class MemInode
   {
     var sz: uint64
-    var ty: Inode.InodeType
+    var attrs: Inode.Attrs
     ghost var blks: seq<uint64>
 
     const bs: Bytes
@@ -24,23 +24,28 @@ module MemInodes {
       requires Valid()
     {
       reveal Valid();
-      Inode.Mk(Inode.Meta(sz, ty), blks)
+      Inode.Mk(Inode.Meta(sz, attrs), blks)
     }
 
-    predicate has(i: Inode.Inode)
-      reads Repr
+    function method ty(): Inode.InodeType
+      reads this
     {
-      && Valid()
-      && val() == i
+      attrs.ty
     }
 
     predicate {:opaque} Valid()
       reads Repr
     {
-      && |blks| == 14
+      && |blks| == 12
       && sz as nat <= Inode.MAX_SZ
       && |bs.data| == 128
-      && Marshal.decode_uint64_seq(bs.data[16..]) == blks
+      && Marshal.decode_uint64_seq(bs.data[32..]) == blks
+    }
+
+    function method meta(): Inode.Meta
+      reads this
+    {
+      Inode.Meta(sz, attrs)
     }
 
     constructor(bs: Bytes, ghost i: Inode.Inode)
@@ -55,19 +60,10 @@ module MemInodes {
       this.blks := i.blks;
 
       Inode.enc_app(i);
-      var sz := IntEncoding.UInt64Get(bs, 0);
-      assert sz == i.meta.sz by {
-        assert bs.data[..8] == IntEncoding.le_enc64(i.meta.sz);
-        IntEncoding.lemma_le_enc_dec64(i.meta.sz);
-      }
-      var ty_u64 := IntEncoding.UInt64Get(bs, 8);
-      var ty := Inode.InodeType.from_u64(ty_u64);
-      assert ty == i.meta.ty by {
-        i.meta.ty.enc_dec();
-      }
+      var m := Inode.decode_meta(bs, 0, i.meta);
 
-      this.sz := sz;
-      this.ty := ty;
+      this.sz := m.sz;
+      this.attrs := m.attrs;
 
       new;
       reveal Valid();
@@ -82,39 +78,39 @@ module MemInodes {
     {
       reveal Valid();
       IntEncoding.UInt64Put(sz, 0, this.bs);
-      IntEncoding.UInt64Put(ty.to_u64(), 8, this.bs);
+      attrs.put(8, this.bs);
       bs := this.bs;
-      assert bs.data[16..] == old(bs.data[16..]);
+      assert bs.data[32..] == old(bs.data[32..]);
       Inode.enc_app(val());
     }
 
     method get_blk(k: uint64) returns (bn: uint64)
       requires Valid()
-      requires k < 14
-      ensures |blks| == 14
+      requires k < 12
+      ensures |blks| == 12
       ensures bn == blks[k]
     {
       reveal Valid();
-      bn := IntEncoding.UInt64Get(this.bs, 16 + 8 * k);
-      assert bs.data[16 + 8*k .. 16 + 8*k + 8] ==
-        bs.data[16..][8*k .. 8*k + 8];
-      Marshal.decode_uint64_seq_one_spec(bs.data[16..], k as nat);
+      bn := IntEncoding.UInt64Get(this.bs, 32 + 8 * k);
+      assert bs.data[32 + 8*k .. 32 + 8*k + 8] ==
+        bs.data[32..][8*k .. 8*k + 8];
+      Marshal.decode_uint64_seq_one_spec(bs.data[32..], k as nat);
     }
 
     method set_blk(k: uint64, bn: uint64)
       modifies Repr
       requires Valid() ensures Valid()
-      requires k < 14
-      ensures |old(blks)| == 14
+      requires k < 12
+      ensures |old(blks)| == 12
       ensures blks == old(blks[k as nat := bn])
       ensures sz == old(sz)
-      ensures ty == old(ty)
+      ensures attrs == old(attrs)
     {
       reveal Valid();
-      Marshal.decode_uint64_seq_modify_one(bs.data[16..], k as nat, bn);
-      IntEncoding.UInt64Put(bn, 16 + k*8, this.bs);
-      assert bs.data[16..] ==
-        old(C.splice(bs.data[16..], k as nat*8, IntEncoding.le_enc64(bn)));
+      Marshal.decode_uint64_seq_modify_one(bs.data[32..], k as nat, bn);
+      IntEncoding.UInt64Put(bn, 32 + k*8, this.bs);
+      assert bs.data[32..] ==
+        old(C.splice(bs.data[32..], k as nat*8, IntEncoding.le_enc64(bn)));
       blks := blks[k as nat := bn];
     }
 
@@ -123,9 +119,9 @@ module MemInodes {
       requires Valid() ensures Valid()
       ensures blks == old(blks)
       ensures sz == old(sz)
-      ensures this.ty == ty
+      ensures attrs == old(attrs.(ty := ty))
     {
-      this.ty := ty;
+      this.attrs := this.attrs.(ty := ty);
       reveal Valid();
     }
 
@@ -135,9 +131,20 @@ module MemInodes {
       requires Valid() ensures Valid()
       ensures blks == old(blks)
       ensures this.sz == sz
-      ensures ty == old(ty)
+      ensures attrs == old(attrs)
     {
       this.sz := sz;
+      reveal Valid();
+    }
+
+    method set_attrs(attrs: Inode.Attrs)
+      modifies this
+      requires Valid() ensures Valid()
+      ensures blks == old(blks)
+      ensures sz == old(sz)
+      ensures this.attrs == attrs
+    {
+      this.attrs := attrs;
       reveal Valid();
     }
   }

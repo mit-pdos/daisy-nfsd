@@ -122,10 +122,10 @@ module IndFs
     }
 
     static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
-      requires |blks| == 14
+      requires |blks| == 12
       requires pos_dom(to_blkno)
     {
-      forall k: uint64 | k < 14 ::
+      forall k: uint64 | k < 12 ::
         var bn := blks[k];
         && blkno_ok(bn)
         && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
@@ -196,13 +196,13 @@ module IndFs
     constructor Init(d: Disk)
       ensures ValidQ()
       ensures fresh(Repr)
-      ensures data == imap pos: Pos {:trigger pos.idx.data?()} | pos.idx.data?() :: block0
-      ensures metadata == map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType)
+      ensures data == imap pos: Pos {:trigger pos.idx.data?()} | pos.idx.data? ():: block0
+      ensures metadata == map ino: Ino {:trigger} :: Inode.Meta.zero
     {
       this.fs := new InodeFilesys.Init(d);
       this.to_blkno := imap pos: Pos {:trigger} :: 0 as Blkno;
       this.data := imap pos: Pos | pos.idx.data?() :: block0;
-      this.metadata := map ino: Ino {:trigger} :: Inode.Meta(0, Inode.InvalidType);
+      this.metadata := map ino: Ino {:trigger} :: Inode.Meta.zero;
       new;
       assert ValidBasics() by { reveal fsValid(); }
       IndBlocks.to_blknos_zero();
@@ -506,7 +506,7 @@ module IndFs
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires ValidIno(ino, i)
       ensures i.sz == metadata[ino].sz
-      ensures i.ty == metadata[ino].ty
+      ensures i.attrs == metadata[ino].attrs
     {
       reveal ValidMetadata();
       assert i.val().meta == metadata[ino];
@@ -568,7 +568,7 @@ module IndFs
       // blocks are also not too bad, but eventually we'll run the risk of
       // overflowing a transaction and it'll be necessary to split, which is
       // complicated)
-      requires off < 10
+      requires off < 8
       ensures data == old(data[Pos.from_flat(ino, off) := block0])
       ensures metadata == old(metadata)
     {
@@ -633,8 +633,8 @@ module IndFs
       ensures metadata == old(metadata[ino := meta])
     {
       reveal fsValid();
-      i.set_ty(meta.ty);
       i.set_sz(meta.sz);
+      i.set_attrs(meta.attrs);
       fs.writeInode(ino, i);
       metadata := metadata[ino := meta];
       assert ValidBasics();

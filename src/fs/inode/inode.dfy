@@ -12,12 +12,12 @@ module Inode {
   import opened Marshal
   import C = Collections
 
-  const MAX_SZ_u64: uint64 := 4096 * (10 + 3*512 + 512*512*512);
+  const MAX_SZ_u64: uint64 := 4096 * (8 + 3*512 + 512*512*512);
   const MAX_SZ: nat := MAX_SZ_u64 as nat;
 
   datatype InodeType = InvalidType | FileType | DirType
   {
-    function method to_u64(): uint64
+    function method to_u32(): uint32
     {
       match this {
         case InvalidType => 0
@@ -26,43 +26,154 @@ module Inode {
       }
     }
 
-    static function method from_u64(x: uint64): InodeType
+    static function method from_u32(x: uint32): InodeType
     {
       if x == 0 then InvalidType else if x == 1 then FileType else DirType
     }
 
-    lemma from_to_u64()
-      ensures from_u64(to_u64()) == this
+    lemma from_to_u32()
+      ensures from_u32(to_u32()) == this
     {}
 
     function enc(): seq<byte>
     {
-      IntEncoding.le_enc64(to_u64())
+      IntEncoding.le_enc32(to_u32())
     }
 
     lemma enc_dec()
-      ensures from_u64(IntEncoding.le_dec64(this.enc())) == this
+      ensures from_u32(IntEncoding.le_dec32(this.enc())) == this
     {
-      IntEncoding.lemma_le_enc_dec64(to_u64());
-      from_to_u64();
+      IntEncoding.lemma_le_enc_dec32(to_u32());
+      from_to_u32();
     }
   }
 
   datatype NfsTime = NfsTime(sec: uint32, nsec: uint32)
   {
     static const zero: NfsTime := NfsTime(0, 0)
-  }
 
-  datatype Attrs = Attrs(mode: uint32, atime: NfsTime, mtime: NfsTime)
-  {
-    static const zero: Attrs := Attrs(0, NfsTime.zero, NfsTime.zero)
-  }
-
-  datatype Meta = Meta(sz: uint64, ty: InodeType)
-  {
     function enc(): seq<byte>
     {
-      IntEncoding.le_enc64(sz) + ty.enc()
+      IntEncoding.le_enc32(sec) + IntEncoding.le_enc32(nsec)
+    }
+
+    static lemma enc_zero()
+      ensures C.repeat(0 as byte, 8) == zero.enc()
+    {
+      IntEncoding.lemma_enc_32_0();
+    }
+
+    static method decode(bs: Bytes, off: uint64, ghost t: NfsTime)
+      returns (t': NfsTime)
+      requires bs.Valid()
+      requires off as nat + 8 <= |bs.data|
+      requires bs.data[off .. off + 8] == t.enc()
+      ensures t' == t
+    {
+      var sec := IntEncoding.UInt32Get(bs, off);
+      var nsec := IntEncoding.UInt32Get(bs, off + 4);
+      assert bs.data[off..off+4] == t.enc()[..4];
+      assert bs.data[off+4..off+8] == t.enc()[4..];
+      IntEncoding.lemma_le_enc_dec32(t.sec);
+      IntEncoding.lemma_le_enc_dec32(t.nsec);
+      return NfsTime(sec, nsec);
+    }
+
+    method put(off: uint64, bs: Bytes)
+      modifies bs
+      requires bs.Valid()
+      requires off as nat + 8 <= |bs.data|
+      ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
+    {
+      IntEncoding.UInt32Put(sec, off, bs);
+      IntEncoding.UInt32Put(nsec, off + 4, bs);
+    }
+  }
+
+  datatype Attrs = Attrs(ty: InodeType, mode: uint32, ctime: NfsTime, mtime: NfsTime)
+  {
+    static const zero: Attrs := Attrs(InvalidType, 0, NfsTime.zero, NfsTime.zero)
+    static const zero_file: Attrs := Attrs(FileType, 0, NfsTime.zero, NfsTime.zero)
+    static const zero_dir: Attrs := Attrs(DirType, 0, NfsTime.zero, NfsTime.zero)
+
+    function enc(): seq<byte>
+    {
+      IntEncoding.le_enc32(ty.to_u32()) +
+        IntEncoding.le_enc32(mode) +
+        ctime.enc() +
+        mtime.enc()
+    }
+
+    lemma enc_len()
+      ensures |enc()| == 24 // 4+4+8+8
+    {}
+
+    static lemma enc_zero()
+      ensures C.repeat(0 as byte, 24) == zero.enc()
+    {
+      IntEncoding.lemma_enc_32_0();
+      NfsTime.enc_zero();
+    }
+
+    static method decode(bs: Bytes, off: uint64, ghost attrs: Attrs)
+      returns (attrs': Attrs)
+      requires bs.Valid()
+      requires off as nat + 24 <= |bs.data|
+      requires bs.data[off .. off + 24] == attrs.enc()
+      ensures attrs' == attrs
+    {
+      assert bs.data[off..off+4] == attrs.enc()[..4] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var ty_u32 := Marshal.UInt32Decode(bs, off, attrs.ty.to_u32());
+      var ty := InodeType.from_u32(ty_u32);
+      assert bs.data[off+4..off+8] == attrs.enc()[4..8] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var mode := Marshal.UInt32Decode(bs, off + 4, attrs.mode);
+      assert bs.data[off + 4+4 .. off + 4+4+8] == attrs.enc()[8..16] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var ctime := NfsTime.decode(bs, off + 4+4, attrs.ctime);
+      var mtime := NfsTime.decode(bs, off + 4+4+8, attrs.mtime);
+      return Attrs(ty, mode, ctime, mtime);
+    }
+
+    method put(off: uint64, bs: Bytes)
+      modifies bs
+      requires bs.Valid()
+      requires off as nat + 24 <= |bs.data|
+      ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
+    {
+      IntEncoding.UInt32Put(ty.to_u32(), off, bs);
+      IntEncoding.UInt32Put(mode, off + 4, bs);
+      ctime.put(off + 4 + 4, bs);
+      mtime.put(off + 4 + 4 + 8, bs);
+    }
+  }
+
+  datatype Meta = Meta(sz: uint64, attrs: Attrs)
+  {
+    const ty := attrs.ty;
+    static const zero: Meta := Meta(0, Attrs.zero)
+
+    function enc(): seq<byte>
+    {
+      IntEncoding.le_enc64(sz) + attrs.enc()
+    }
+
+    lemma enc_len()
+      ensures |enc()| == 32 // 8 + 24
+    {}
+
+    method put(off: uint64, bs: Bytes)
+      modifies bs
+      requires bs.Valid()
+      requires off as nat + 32 <= |bs.data|
+      ensures bs.data == old(C.splice(bs.data, off as nat, enc()))
+    {
+      IntEncoding.UInt64Put(sz, off, bs);
+      attrs.put(off + 8, bs);
     }
   }
 
@@ -71,11 +182,11 @@ module Inode {
     const sz: uint64 := meta.sz
     const ty: InodeType := meta.ty
 
-    static const preZero: preInode := Mk(Meta(0, InvalidType), C.repeat(0 as uint64, 14))
+    static const preZero: preInode := Mk(Meta(0, Attrs.zero), C.repeat(0 as uint64, 12))
 
     predicate Valid()
     {
-      && |blks| == 14
+      && |blks| == 12
       && sz as nat <= MAX_SZ
     }
   }
@@ -91,7 +202,8 @@ module Inode {
     ensures C.repeat(0 as byte, 128) == enc(zero)
   {
     IntEncoding.lemma_enc_0();
-    zero_encode_seq_uint64(14);
+    IntEncoding.lemma_enc_32_0();
+    zero_encode_seq_uint64(12);
     reveal enc();
   }
 
@@ -106,9 +218,24 @@ module Inode {
 
   lemma enc_app(i: Inode)
     ensures enc(i) ==
-    (IntEncoding.le_enc64(i.meta.sz) + i.meta.ty.enc()) +
+    IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
     seq_enc_uint64(i.blks)
   {
     reveal enc();
+  }
+
+  method decode_meta(bs: Bytes, off: uint64, ghost m: Meta)
+    returns (m': Meta)
+    requires bs.Valid()
+    requires off as nat + 32 <= |bs.data|
+    requires bs.data[off .. off as nat + 32] == m.enc()
+    ensures m' == m
+  {
+    assert bs.data[off..off + 8] == m.enc()[..8] by {
+      C.double_subslice_auto(bs.data);
+    }
+    var sz := Marshal.UInt64Decode(bs, off, m.sz);
+    var attrs := Attrs.decode(bs, off + 8, m.attrs);
+    return Meta(sz, attrs);
   }
 }

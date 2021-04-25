@@ -25,7 +25,7 @@ module TypedFs {
   class TypedFilesys
   {
     ghost var data: map<Ino, seq<byte>>
-    ghost var types: map<Ino, Inode.InodeType>
+    ghost var types: map<Ino, Inode.Attrs>
     const fs: ByteFilesys
     const ialloc: Allocator
 
@@ -74,7 +74,7 @@ module TypedFs {
       reads this
       requires ValidDomains()
     {
-      forall ino: Ino :: types[ino].InvalidType? ==> data[ino] == []
+      forall ino: Ino :: types[ino].ty.InvalidType? ==> data[ino] == []
     }
 
     predicate ValidAlloc()
@@ -108,14 +108,14 @@ module TypedFs {
       reveal bytefsValid();
       && fsValidIno(ino, i)
       && ValidThis()
-      && !types[ino].InvalidType?
+      && !types[ino].ty.InvalidType?
     }
 
     constructor Init(d: Disk)
       ensures Valid()
       ensures fresh(Repr)
       ensures data == map ino:Ino {:trigger false} :: []
-      ensures types == map ino:Ino {:trigger false} :: Inode.InvalidType
+      ensures types == map ino:Ino {:trigger false} :: Inode.Attrs.zero
     {
       var fs_ := new ByteFilesys.Init(d);
       this.fs := fs_;
@@ -160,7 +160,7 @@ module TypedFs {
         invariant 1 <= ino as nat <= iallocMax as nat
       {
         var i := byte_fs.fs.fs.getInode(txn, ino);
-        var used := i.ty != Inode.InvalidType;
+        var used := i.ty() != Inode.InvalidType;
         if used {
           ialloc.MarkUsed(ino);
         }
@@ -200,13 +200,13 @@ module TypedFs {
       requires has_jrnl(txn)
       ensures ok ==> inode_unchanged(ino, i'.val())
       ensures fresh(i'.Repr)
-      ensures ok ==> i'.ty == types[ino]
-      ensures !ok ==> old(types[ino].InvalidType?)
+      ensures ok ==> i'.attrs == types[ino]
+      ensures !ok ==> old(types[ino].ty.InvalidType?)
     {
       reveal_valids();
       i' := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i');
-      if i'.ty.InvalidType? {
+      if i'.ty().InvalidType? {
         ok := false;
         fs.finishInodeReadonly(ino, i');
         reveal ValidFields();
@@ -240,7 +240,7 @@ module TypedFs {
 
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires ValidIno(ino, i)
-      ensures i.ty == types[ino]
+      ensures i.attrs == types[ino]
       ensures i.sz as nat == |data[ino]|
     {
       fs.inode_metadata(ino, i);
@@ -254,7 +254,8 @@ module TypedFs {
       requires !ty.InvalidType?
       ensures ok ==> i != null && fresh(i.Repr)
       ensures ok ==>
-      && old(types[ino].InvalidType?) && types == old(types[ino := ty])
+      && old(types[ino].ty.InvalidType?)
+      && types == old(types[ino := types[ino].(ty := ty)])
       && data == old(data)
       && data[ino] == []
       && ValidIno(ino, i)
@@ -268,7 +269,7 @@ module TypedFs {
       }
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
-      if !i.ty.InvalidType? {
+      if !i.ty().InvalidType? {
         ok := false;
         return;
       }
@@ -284,10 +285,10 @@ module TypedFs {
       requires Valid() ensures ValidIno(ino, i')
       requires has_jrnl(txn)
       requires !ty.InvalidType?
-      requires types[ino] == Inode.InvalidType
+      requires types[ino].ty == Inode.InvalidType
       ensures data == old(data)
       ensures data[ino] == []
-      ensures types == old(types[ino := ty])
+      ensures types == old(types[ino := types[ino].(ty := ty)])
       ensures fresh(i'.Repr)
     {
       reveal_valids();
@@ -314,7 +315,7 @@ module TypedFs {
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures Valid()
       ensures data == old(data[ino := []])
-      ensures types == old(types[ino := Inode.InvalidType])
+      ensures types == old(types[ino := types[ino].(ty := Inode.InvalidType)])
     {
       reveal_valids();
       fs.setType(ino, i, Inode.InvalidType);
@@ -525,6 +526,19 @@ module TypedFs {
     {
       junk := fs.setSize(txn, ino, i, sz');
       data := fs.data();
+      reveal ValidFields();
+      reveal ValidInvalid();
+    }
+
+    method setAttrs(ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
+      modifies Repr, i.Repr
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires attrs'.ty == types[ino].ty
+      ensures data == old(data)
+      ensures types == old(types[ino := attrs'])
+    {
+      fs.setAttrs(ino, i, attrs');
+      types := types[ino := attrs'];
       reveal ValidFields();
       reveal ValidInvalid();
     }

@@ -697,7 +697,7 @@ module MemDirEntries
       assert file.fs.data[file.ino] == val.enc() by {
         C.double_splice(old(file.contents()),
           dir_blk(k as nat), dir_blk(k as nat) + 4096,
-          k as nat % 64, IntEncoding.le_enc64(0 as uint64));
+          (k as nat % 64)*dirent_sz + path_len, IntEncoding.le_enc64(0 as uint64));
       }
       assert Valid() by {
         assert ValidCore();

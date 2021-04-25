@@ -132,12 +132,12 @@ module ByteFs {
         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
 
-    function {:opaque} inode_types(): (m:map<Ino, Inode.InodeType>)
+    function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
       reads fs
       requires InodeFs.ino_dom(fs.metadata)
       ensures InodeFs.ino_dom(m)
     {
-      map ino: Ino :: fs.metadata[ino].ty
+      map ino: Ino :: fs.metadata[ino].attrs
     }
 
     twostate predicate types_unchanged()
@@ -166,7 +166,7 @@ module ByteFs {
       ensures Valid()
       ensures fresh(Repr)
       ensures data() == map ino: Ino {:trigger} :: []
-      ensures inode_types() == map ino: Ino {:trigger} :: Inode.InvalidType
+      ensures inode_types() == map ino: Ino {:trigger} :: Inode.Attrs.zero
     {
       var the_fs := BlockFs.New(d);
       this.fs := the_fs;
@@ -451,7 +451,7 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       ghost var sz := i.sz;
       var sz' := i.sz + delta;
-      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.writeInodeMeta(ino, i, i.meta().(sz := sz'));
       fs.inode_metadata(ino, i);
       assert raw_data(ino) == old(raw_data(ino));
       junk := raw_data(ino)[sz..sz'];
@@ -477,7 +477,7 @@ module ByteFs {
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
-      if off + len <= 10 * 4096 {
+      if off + len <= 8 * 4096 {
         ok := true;
         var startblk: uint64 := off / 4096;
         var count: uint64 := len / 4096;
@@ -515,7 +515,7 @@ module ByteFs {
       ok := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
 
       fs.inode_metadata(ino, i);
-      fs.writeInodeMeta(ino, i, Inode.Meta(sz', i.ty));
+      fs.writeInodeMeta(ino, i, i.meta().(sz := sz'));
       fs.inode_metadata(ino, i);
       assert data()[ino] == old(data()[ino][..sz' as nat]) by {
         calc {
@@ -598,7 +598,7 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    method {:timeLimitMultiplier 3} updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires bs !in i.Repr
@@ -630,7 +630,9 @@ module ByteFs {
         return;
       }
       fs.inode_metadata(ino, i);
-      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data);
+      assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data) by {
+        C.double_splice_auto(old(raw_data(ino)));
+      }
       calc {
         data()[ino];
         raw_data(ino)[..i.sz];
@@ -931,10 +933,24 @@ module ByteFs {
       modifies Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       ensures data() == old(data())
-      ensures inode_types() == old(inode_types()[ino := ty'])
+      ensures inode_types() == old(inode_types()[ino := inode_types()[ino].(ty := ty')])
     {
       fs.inode_metadata(ino, i);
-      fs.writeInodeMeta(ino, i, Inode.Meta(i.sz, ty'));
+      // TODO: this might be slightly inefficient (we could just write the
+      // attributes field; even better would be if the type were a separate
+      // mutable field)
+      setAttrs(ino, i, i.meta().attrs.(ty := ty'));
+      reveal inode_types();
+    }
+
+    method setAttrs(ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
+      modifies Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      ensures data() == old(data())
+      ensures inode_types() == old(inode_types()[ino :=  attrs'])
+    {
+      fs.inode_metadata(ino, i);
+      fs.writeInodeMeta(ino, i, i.meta().(attrs := attrs'));
       assert block_data(fs.data) == old(block_data(fs.data));
       assert data() == old(data()) by {
         reveal raw_inode_data();
@@ -961,7 +977,7 @@ module ByteFs {
 
     lemma inode_metadata(ino: Ino, i: MemInode)
       requires fs.ValidIno(ino, i)
-      ensures i.ty == inode_types()[ino]
+      ensures i.attrs == inode_types()[ino]
       ensures i.sz as nat == |data()[ino]|
     {
       fs.inode_metadata(ino, i);
