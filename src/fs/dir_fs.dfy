@@ -165,11 +165,11 @@ module DirFs
       ino in dirents ==> |fsdata[ino]| % 4096 == 0 && fsdata[ino] == dirents[ino].enc()
     }
 
-    predicate Valid_file_at(ino: Ino, fsdata: FsData, types: FsAttrs)
+    predicate Valid_file_at(ino: Ino, fsdata: FsData, attrs: FsAttrs)
       reads this
-      requires ino_dom(fsdata) && ino_dom(types)
+      requires ino_dom(fsdata) && ino_dom(attrs)
     {
-      is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino], types[ino])
+      is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino], attrs[ino])
     }
 
     predicate Valid_dir_at(ino: Ino, attrs: FsAttrs)
@@ -188,6 +188,7 @@ module DirFs
 
     predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData, fsattrs: FsAttrs)
       requires ino_dom(fsdata)
+      requires ino_dom(fsattrs)
       reads this
     {
         && Valid_dirent_at(ino, fsdata)
@@ -211,6 +212,7 @@ module DirFs
       ensures Valid_invalid_at(ino, fs.data)
     {
       reveal Valid_data_at();
+      assert Valid_data_at(ino, fs.data, fs.types);
     }
 
     lemma mk_data_at(ino: Ino)
@@ -568,7 +570,7 @@ module DirFs
     //
     // creates a directory disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+    method {:timeLimitMultiplier 2} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
@@ -951,8 +953,12 @@ module DirFs
       assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
         reveal is_of_type();
       }
+      assert old(Valid_file_at(ino, fs.data, fs.types)) by {
+        reveal Valid_data_at();
+        // BUG: surely this shouldn't be necessary
+        assert old(Valid_data_at(ino, fs.data, fs.types));
+      }
       assert is_of_type(ino, fs.types[ino].ty) by {
-        assert is_file(ino);
         reveal is_of_type();
       }
       mk_data_at(ino);
