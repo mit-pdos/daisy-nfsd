@@ -733,8 +733,8 @@ module DirFs
       requires e'.used() && dents.val.findName(e'.path()) >= |dents.val.s|
       ensures ok ==>
       && data == old(
-      var d0 := data[d_ino].dir;
-      var d' := DirFile(d0[e'.path() := e'.ino]);
+      var d0 := data[d_ino];
+      var d' := DirFile(d0.dir[e'.path() := e'.ino], d0.attrs);
       data[d_ino := d'])
     {
       var sz := dents.dirSize();
@@ -762,9 +762,9 @@ module DirFs
       && old(is_invalid(ino))
       && |junk| == sz as nat
       && data == old(
-        var d := data[d_ino].dir;
-        var d' := DirFile(d[name.data := ino]);
-        data[ino := ByteFile(junk)][d_ino := d'])
+        var d0 := data[d_ino];
+        var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
+        data[ino := ByteFile(junk, Inode.Attrs.zero)][d_ino := d'])
       )
     {
       if sz > Inode.MAX_SZ_u64 {
@@ -869,10 +869,10 @@ module DirFs
       ensures r.ErrIsDir? ==> is_dir(ino)
       ensures r.Ok? ==>
       && old(is_file(ino))
-      && (var d0 := old(data[ino].data);
-        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
-        && (sz as nat > |d0| ==> |junk| == sz as nat - |d0|)
-        && data == old(data[ino := ByteFile(d')]))
+      && (var d0 := old(data[ino]);
+        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0.data, sz as nat, junk);
+        && (sz as nat > |d0.data| ==> |junk| == sz as nat - |d0.data|)
+        && data == old(data[ino := ByteFile(d', d0.attrs)]))
     {
       junk := [];
       if sz > Inode.MAX_SZ_u64 {
@@ -882,6 +882,7 @@ module DirFs
       var i :- openFile(txn, ino);
       assert dirents == old(dirents);
       invert_file(ino);
+      ghost var attrs0 := data[ino].attrs;
       ghost var d0: seq<byte> := old(fs.data[ino]);
       assert d0 == old(data[ino].data) by {
         get_data_at(ino);
@@ -894,7 +895,7 @@ module DirFs
       fs.finishInode(txn, ino, i);
 
       ghost var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
-      data := data[ino := ByteFile(d')];
+      data := data[ino := ByteFile(d', attrs0)];
 
       assert Valid() by {
         file_change_valid(ino, d');
@@ -944,7 +945,7 @@ module DirFs
       requires fs.data == old(fs.data[ino := d'])
       requires fs.types_unchanged()
       requires dirents == old(dirents)
-      requires data == old(data[ino := ByteFile(d')])
+      requires data == old(data[ino := ByteFile(d', data[ino].attrs)])
       ensures Valid()
     {
       assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
@@ -974,15 +975,16 @@ module DirFs
       && ino in old(data) && old(data[ino].ByteFile?)
       && off as nat <= old(|data[ino].data|)
       && data == old(
-      var d := data[ino].data;
-      var d' := ByteFs.write_data(d, off as nat, bs.data);
-      data[ino := ByteFile(d')])
+      var d0 := data[ino];
+      var d' := ByteFs.write_data(d0.data, off as nat, bs.data);
+      data[ino := ByteFile(d', d0.attrs)])
     {
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
       assert dirents == old(dirents);
       invert_file(ino);
       assert ValidIno(ino, i);
+      ghost var attrs0 := old(data[ino].attrs);
       ghost var d0: seq<byte> := old(fs.data[ino]);
       assert d0 == old(data[ino].data) by {
         get_data_at(ino);
@@ -1004,7 +1006,7 @@ module DirFs
 
       fs.finishInode(txn, ino, i);
 
-      ghost var f' := ByteFile(fs.data[ino]);
+      ghost var f' := ByteFile(fs.data[ino], attrs0);
       data := data[ino := f'];
 
       assert Valid() by {
@@ -1027,6 +1029,7 @@ module DirFs
       assert dirents == old(dirents);
       invert_file(ino);
       assert ValidIno(ino, i);
+      ghost var attrs0 := old(data[ino].attrs);
       ghost var d0: seq<byte> := old(fs.data[ino]);
       assert d0 == old(data[ino].data) by {
         get_data_at(ino);
@@ -1052,7 +1055,7 @@ module DirFs
 
       fs.finishInode(txn, ino, i);
 
-      ghost var f' := ByteFile(fs.data[ino]);
+      ghost var f' := ByteFile(fs.data[ino], attrs0);
       data := data[ino := f'];
 
       assert Valid() by {
@@ -1115,8 +1118,8 @@ module DirFs
       && old(is_invalid(ino))
       && old(is_pathc(name.data))
       && data == old(
-        var d := data[d_ino].dir;
-        var d' := DirFile(d[name.data := ino]);
+        var d0 := data[d_ino];
+        var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
         data[ino := File.emptyDir][d_ino := d'])
       )
     {
@@ -1179,7 +1182,7 @@ module DirFs
         return Err(NameTooLong);
       }
       var dents :- readDirents(txn, d_ino);
-      assert DirFile(dents.dir()) == data[d_ino] by {
+      assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
       }
       assert name != dents.file.bs by {
@@ -1254,15 +1257,16 @@ module DirFs
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
       && data ==
-        (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, old(name.data));
-        old(data)[d_ino := DirFile(d')])
+        (var d0 := old(data[d_ino]);
+        var d' := map_delete(d0.dir, old(name.data));
+        old(data)[d_ino := DirFile(d', d0.attrs)])
     {
       ghost var path := name.data;
       invert_dir(d_ino);
-      assert DirFile(dents.dir()) == data[d_ino] by {
+      assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
       }
+      ghost var attrs0 := old(data[d_ino].attrs);
       ghost var d0: Directory := old(data[d_ino].dir);
 
       assert ino_ok: path in d0 && ino == d0[path] by {
@@ -1281,7 +1285,7 @@ module DirFs
       dirents := dirents[d_ino := dents.val];
       ghost var d': Directory := dents.val.dir;
       assert d' == map_delete(d0, path);
-      data := data[d_ino := DirFile(d')];
+      data := data[d_ino := DirFile(d', attrs0)];
 
       assert is_dir(d_ino);
       assert is_of_type(d_ino, fs.types[d_ino].ty) by { reveal is_of_type(); }
@@ -1307,14 +1311,14 @@ module DirFs
       && old(name.data in data[d_ino].dir)
       && r.v == old(data[d_ino].dir[name.data])
       && data ==
-        (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, old(name.data));
-        old(data)[d_ino := DirFile(d')])
+        (var d0 := old(data[d_ino]);
+        var d' := map_delete(d0.dir, old(name.data));
+        old(data)[d_ino := DirFile(d', d0.attrs)])
     {
       ghost var path := name.data;
       assert dents.Repr() !! Repr;
 
-      assert DirFile(dents.dir()) == data[d_ino] by {
+      assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
       }
       var name_opt := dents.findName(txn, name);
@@ -1344,9 +1348,9 @@ module DirFs
       && name.data in old(data[d_ino].dir)
       && r.v == old(data[d_ino].dir[name.data])
       && data ==
-        (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, old(name.data));
-        old(data)[d_ino := DirFile(d')])
+        (var d0 := old(data[d_ino]);
+        var d' := map_delete(d0.dir, old(name.data));
+        old(data)[d_ino := DirFile(d', d0.attrs)])
     {
       ghost var path := name.data;
       var dents :- readDirents(txn, d_ino);
@@ -1380,9 +1384,9 @@ module DirFs
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       && data ==
-        (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, old(name.data));
-        map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
+        (var d0 := old(data[d_ino]);
+        var d' := map_delete(d0.dir, old(name.data));
+        map_delete(old(data)[d_ino := DirFile(d', d0.attrs)], d0.dir[old(name.data)]))
     {
       var path_ok := Pathc?(name);
       if !path_ok {
@@ -1455,9 +1459,9 @@ module DirFs
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       && data ==
-        (var d0 := old(data[d_ino].dir);
-        var d' := map_delete(d0, old(name.data));
-        map_delete(old(data)[d_ino := DirFile(d')], d0[old(name.data)]))
+        (var d0 := old(data[d_ino]);
+        var d' := map_delete(d0.dir, old(name.data));
+        map_delete(old(data)[d_ino := DirFile(d', d0.attrs)], d0.dir[old(name.data)]))
     {
       var path_ok := Pathc?(name);
       if !path_ok {
@@ -1507,7 +1511,7 @@ module DirFs
       )
     {
       var dents :- readDirents(txn, d_ino);
-      assert DirFile(dents.dir()) == data[d_ino] by {
+      assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
       }
       assert fresh(dents.file) by {
