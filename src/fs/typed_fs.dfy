@@ -532,8 +532,8 @@ module TypedFs {
 
     method setAttrs(txn: Txn, ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
       modifies Repr, i.Repr
-      requires attrs'.ty == i.ty() && !i.ty().InvalidType?
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires attrs'.ty == types[ino].ty
       requires has_jrnl(txn)
       ensures data == old(data)
       ensures types == old(types[ino := attrs'])

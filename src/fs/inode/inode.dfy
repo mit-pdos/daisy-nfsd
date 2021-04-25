@@ -93,6 +93,8 @@ module Inode {
   datatype Attrs = Attrs(ty: InodeType, mode: uint32, ctime: NfsTime, mtime: NfsTime)
   {
     static const zero: Attrs := Attrs(InvalidType, 0, NfsTime.zero, NfsTime.zero)
+    static const zero_file: Attrs := Attrs(FileType, 0, NfsTime.zero, NfsTime.zero)
+    static const zero_dir: Attrs := Attrs(DirType, 0, NfsTime.zero, NfsTime.zero)
 
     function enc(): seq<byte>
     {

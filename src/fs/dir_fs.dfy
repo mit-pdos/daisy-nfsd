@@ -29,8 +29,8 @@ module DirFs
     | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
     | DirFile(dir: Directory, attrs: Inode.Attrs)
   {
-    static const empty: File := ByteFile([], Inode.Attrs.zero)
-    static const emptyDir: File := DirFile(map[], Inode.Attrs.zero)
+    static const empty: File := ByteFile([], Inode.Attrs.zero_file)
+    static const emptyDir: File := DirFile(map[], Inode.Attrs.zero_dir)
   }
 
   type FsData = map<Ino, seq<byte>>
@@ -340,7 +340,7 @@ module DirFs
       }
       assert fs_.Valid();
 
-      var dir_fs := new DirFilesys.Init(fs_, Inode.Attrs.zero);
+      var dir_fs := new DirFilesys.Init(fs_, Inode.Attrs.zero_dir);
       return Some(dir_fs);
     }
 
@@ -510,16 +510,17 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocFile(txn: Txn)
+    method allocFile(txn: Txn, attrs0: Inode.Attrs)
       returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
+      requires attrs0.ty.FileType?
       ensures dirents == old(dirents)
       ensures ok ==>
       && old(is_invalid(ino))
       && ino != 0
-      && data == old(data[ino := File.empty])
+      && data == old(data[ino := ByteFile([], attrs0)])
       ensures !ok ==> data == old(data)
     {
       var i;
@@ -527,6 +528,7 @@ module DirFs
       if !ok {
         return;
       }
+      fs.setAttrs(txn, ino, i, attrs0);
       assert this !in fs.Repr;
       fs.finishInode(txn, ino, i);
       assert old(is_invalid(ino)) by {
@@ -766,14 +768,14 @@ module DirFs
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
-        data[ino := ByteFile(junk, Inode.Attrs.zero)][d_ino := d'])
+        data[ino := ByteFile(junk, Inode.Attrs.zero_file)][d_ino := d'])
       )
     {
       if sz > Inode.MAX_SZ_u64 {
         r := Err(NoSpc);
         return;
       }
-      var ok, ino := allocFile(txn);
+      var ok, ino := allocFile(txn, Inode.Attrs.zero_file);
       if !ok {
         r := Err(NoSpc);
         return;
