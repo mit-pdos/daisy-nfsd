@@ -323,7 +323,7 @@ module DirFs
 
     static method New(d: Disk) returns (fs: Option<DirFilesys>)
       ensures fs.Some? ==> fresh(fs.x) && fs.x.Valid()
-      ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[], Inode.Attrs.zero)]
+      ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[], Inode.Attrs.zero_dir)]
     {
       var fs_ := new TypedFilesys.Init(d);
 
@@ -528,14 +528,14 @@ module DirFs
       if !ok {
         return;
       }
-      fs.setAttrs(txn, ino, i, attrs0);
+      fs.setAttrs(ino, i, attrs0);
       assert this !in fs.Repr;
       fs.finishInode(txn, ino, i);
       assert old(is_invalid(ino)) by {
         assert old(is_of_type(ino, fs.types[ino].ty));
         reveal is_of_type();
       }
-      data := data[ino := File.empty];
+      data := data[ino := ByteFile([], attrs0)];
 
       // NOTE(tej): this assertion takes far longer than I expected
       assert is_file(ino);
@@ -572,14 +572,16 @@ module DirFs
     //
     // creates a directory disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method {:timeLimitMultiplier 2} allocDir(txn: Txn) returns (ok: bool, ino: Ino)
+    method {:timeLimitMultiplier 2} allocDir(txn: Txn, attrs0: Inode.Attrs)
+      returns (ok: bool, ino: Ino)
       modifies Repr
       requires Valid() ensures ok ==> Valid()
+      requires attrs0.ty.DirType?
       requires fs.has_jrnl(txn)
       ensures ok ==>
       && old(is_invalid(ino))
       && ino != 0
-      && data == old(data[ino := File.emptyDir])
+      && data == old(data[ino := DirFile(map[], attrs0)])
       && dirents == old(dirents[ino := Dirents.zero])
       && is_dir(ino)
     {
@@ -588,6 +590,7 @@ module DirFs
       if !ok {
         return;
       }
+      fs.setAttrs(ino, i, attrs0);
       assert old(is_invalid(ino)) by {
         assert old(is_of_type(ino, fs.types[ino].ty));
         reveal is_of_type();
@@ -600,7 +603,7 @@ module DirFs
       }
 
       dirents := dirents[ino := Dirents.zero];
-      data := data[ino := File.emptyDir];
+      data := data[ino := DirFile(map[], attrs0)];
       assert Valid_dirent_at(ino, fs.data) by {
         Dirents.zero_enc();
       }
@@ -1136,7 +1139,8 @@ module DirFs
         // could also have 0s in it but whatever
         return Err(NameTooLong);
       }
-      var ok, ino := allocDir(txn);
+      // TODO: use attributes from RPC
+      var ok, ino := allocDir(txn, Inode.Attrs.zero.(ty := Inode.DirType));
       if !ok {
         return Err(NoSpc);
       }

@@ -530,11 +530,10 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
-    method setAttrs(txn: Txn, ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
+    method setAttrs(ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
       modifies Repr, i.Repr
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       requires attrs'.ty == types[ino].ty
-      requires has_jrnl(txn)
       ensures data == old(data)
       ensures types == old(types[ino := attrs'])
     {
