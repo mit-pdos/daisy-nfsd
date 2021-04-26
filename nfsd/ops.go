@@ -59,10 +59,10 @@ func encodeSetTime(how nfstypes.Time_how, time nfstypes.Nfstime3) nfs_spec.SetTi
 }
 
 func encodeSattr3(attrs nfstypes.Sattr3) nfs_spec.Sattr3 {
-	mode := optionFromBool(attrs.Mode.Set_it, attrs.Mode.Mode)
-	uid := optionFromBool(attrs.Uid.Set_it, attrs.Uid.Uid)
-	gid := optionFromBool(attrs.Gid.Set_it, attrs.Gid.Gid)
-	size := optionFromBool(attrs.Size.Set_it, attrs.Size.Size)
+	mode := optionFromBool(attrs.Mode.Set_it, uint32(attrs.Mode.Mode))
+	uid := optionFromBool(attrs.Uid.Set_it, uint32(attrs.Uid.Uid))
+	gid := optionFromBool(attrs.Gid.Set_it, uint32(attrs.Gid.Gid))
+	size := optionFromBool(attrs.Size.Set_it, uint64(attrs.Size.Size))
 	atime := encodeSetTime(attrs.Atime.Set_it, attrs.Atime.Atime)
 	mtime := encodeSetTime(attrs.Mtime.Set_it, attrs.Mtime.Mtime)
 	return nfs_spec.Companion_Sattr3_.Create_Sattr3_(
