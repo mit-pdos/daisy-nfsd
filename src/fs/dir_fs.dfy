@@ -276,7 +276,7 @@ module DirFs
       && ValidDirFs()
     }
 
-    constructor Init(fs: TypedFilesys, ghost attrs0: Inode.Attrs)
+    constructor {:timeLimitMultiplier 2} Init(fs: TypedFilesys, ghost attrs0: Inode.Attrs)
       requires fs.Valid()
       requires attrs0.ty == Inode.DirType
       requires fs.data == map ino: Ino {:trigger} ::
