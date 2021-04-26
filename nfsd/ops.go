@@ -87,6 +87,14 @@ func encodeCreateHow(how nfstypes.Createhow3) nfs_spec.CreateHow3 {
 	panic("unexpected create mode")
 }
 
+func decodeAttrs(attrs inode.Attrs, fattr *nfstypes.Fattr3) {
+	fattr.Mode = nfstypes.Mode3(attrs.Dtor_mode())
+	fattr.Uid = nfstypes.Uid3(attrs.Dtor_uid())
+	fattr.Gid = nfstypes.Gid3(attrs.Dtor_gid())
+	fattr.Mtime = decodeTime(attrs.Dtor_mtime())
+	fattr.Ctime = decodeTime(attrs.Dtor_mtime())
+}
+
 func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
@@ -138,11 +146,10 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	} else {
 		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
 	}
-	reply.Resok.Obj_attributes.Mode = nfstypes.Mode3(attrs.Attrs.Dtor_mode())
+	decodeAttrs(attrs.Attrs, &reply.Resok.Obj_attributes)
 	reply.Resok.Obj_attributes.Nlink = 1
 	reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
 	reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
-	reply.Resok.Obj_attributes.Mtime = decodeTime(attrs.Attrs.Dtor_mtime())
 
 	return reply
 }
