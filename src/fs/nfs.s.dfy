@@ -1,7 +1,14 @@
 include "../machine/machine.s.dfy"
+include "../machine/bytes.s.dfy"
+include "../util/std.dfy"
+include "inode/inode.dfy"
 
 module Nfs {
+  import opened Std
   import opened Machine
+  import opened ByteSlice
+  import Inode
+  import C = Collections
 
   datatype Error =
     | Noent
@@ -85,4 +92,58 @@ module Nfs {
       }
     }
   }
+
+  type createverf3 = s:seq<byte> | |s| == 8 ghost witness C.repeat(0 as byte, 8)
+
+  datatype SetTime = DontChange | SetToServerTime | SetToClientTime(time: Inode.NfsTime)
+
+  datatype Sattr3 =
+    Sattr3(
+    mode: Option<uint32>,
+    uid: Option<uint32>,
+    gid: Option<uint32>,
+    size: Option<uint64>,
+    atime: SetTime,
+    mtime: SetTime
+    )
+  {
+    const setNone := Sattr3(None, None, None, None, DontChange, DontChange)
+  }
+
+  datatype CreateHow3 =
+    | Unchecked(obj_attributes: Sattr3)
+    | Guarded(obj_attributes: Sattr3)
+    // for simplicity we get the wrapper code to directly give an NFS time
+    // (rather than 8 bytes)
+    | Exclusive(verf: Inode.NfsTime)
+  {
+    function method size(): uint64
+    {
+      if Exclusive? then 0
+      else obj_attributes.size.get_default(0)
+    }
+  }
+
+  predicate has_create_attrs(attrs: Inode.Attrs, how: CreateHow3)
+  {
+    && attrs.ty.FileType?
+    && (!how.Exclusive? ==>
+      (var how_attrs := how.obj_attributes;
+      && (how_attrs.mode.Some? ==> attrs.mode == how_attrs.mode.x)
+      && (how_attrs.mtime.SetToClientTime? ==> attrs.mtime == how_attrs.mtime.time)
+      ))
+  }
+
+  datatype Attributes = Attributes(is_dir: bool, size: uint64, attrs: Inode.Attrs)
+
+  datatype ReadResult = ReadResult(data: Bytes, eof: bool)
+
+  predicate is_read_data(data: seq<byte>, off: nat, len: nat,
+    bs: seq<byte>, eof: bool)
+  {
+    && |bs| <= len
+    && (off + |bs| <= |data| ==> bs == data[off..off + |bs|])
+    && (eof <==> off + |bs| >= |data|)
+  }
+
 }

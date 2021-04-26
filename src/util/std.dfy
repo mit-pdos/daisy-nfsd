@@ -1,6 +1,12 @@
 module Std
 {
   datatype Option<T> = Some(x:T) | None
+  {
+    function method get_default(def: T): T
+    {
+      if Some? then x else def
+    }
+  }
 
   function map_delete<K, V>(m: map<K, V>, k0: K): map<K, V>
   {

@@ -8,6 +8,8 @@ import (
 	inode "github.com/mit-pdos/dafny-nfsd/dafnygen/Inode_Compile"
 	memdirents "github.com/mit-pdos/dafny-nfsd/dafnygen/MemDirEnts_Compile"
 	dafny_nfs "github.com/mit-pdos/dafny-nfsd/dafnygen/Nfs_Compile"
+	nfs_spec "github.com/mit-pdos/dafny-nfsd/dafnygen/Nfs_Compile"
+	std "github.com/mit-pdos/dafny-nfsd/dafnygen/Std_Compile"
 	typed_fs "github.com/mit-pdos/dafny-nfsd/dafnygen/TypedFs_Compile"
 	dafny "github.com/mit-pdos/dafny-nfsd/dafnygen/dafny"
 
@@ -23,6 +25,66 @@ var _ = fmt.Printf
 func fh2ino(fh3 nfstypes.Nfs_fh3) uint64 {
 	fh := MakeFh(fh3)
 	return fh.Ino
+}
+
+func optionFromBool(set_it bool, x interface{}) std.Option {
+	if set_it {
+		return std.Companion_Option_.Create_Some_(x)
+	}
+	return std.Companion_Option_.Create_None_()
+}
+
+func encodeTime(time nfstypes.Nfstime3) inode.NfsTime {
+	return inode.Companion_NfsTime_.Create_NfsTime_(uint32(time.Seconds), uint32(time.Nseconds))
+}
+
+func decodeTime(time inode.NfsTime) nfstypes.Nfstime3 {
+	return nfstypes.Nfstime3{
+		Seconds:  nfstypes.Uint32(time.Dtor_sec()),
+		Nseconds: nfstypes.Uint32(time.Dtor_nsec()),
+	}
+}
+
+func encodeSetTime(how nfstypes.Time_how, time nfstypes.Nfstime3) nfs_spec.SetTime {
+	if how == nfstypes.DONT_CHANGE {
+		return nfs_spec.Companion_SetTime_.Create_DontChange_()
+	}
+	if how == nfstypes.SET_TO_SERVER_TIME {
+		return nfs_spec.Companion_SetTime_.Create_SetToServerTime_()
+	}
+	if how == nfstypes.SET_TO_CLIENT_TIME {
+		return nfs_spec.Companion_SetTime_.Create_SetToClientTime_(encodeTime(time))
+	}
+	panic("unexpectd time_how")
+}
+
+func encodeSattr3(attrs nfstypes.Sattr3) nfs_spec.Sattr3 {
+	mode := optionFromBool(attrs.Mode.Set_it, attrs.Mode.Mode)
+	uid := optionFromBool(attrs.Uid.Set_it, attrs.Uid.Uid)
+	gid := optionFromBool(attrs.Gid.Set_it, attrs.Gid.Gid)
+	size := optionFromBool(attrs.Size.Set_it, attrs.Size.Size)
+	atime := encodeSetTime(attrs.Atime.Set_it, attrs.Atime.Atime)
+	mtime := encodeSetTime(attrs.Mtime.Set_it, attrs.Mtime.Mtime)
+	return nfs_spec.Companion_Sattr3_.Create_Sattr3_(
+		mode,
+		uid, gid,
+		size,
+		atime, mtime,
+	)
+}
+
+func encodeCreateHow(how nfstypes.Createhow3) nfs_spec.CreateHow3 {
+	if how.Mode == nfstypes.UNCHECKED {
+		return nfs_spec.Companion_CreateHow3_.Create_Unchecked_(encodeSattr3(how.Obj_attributes))
+	}
+	if how.Mode == nfstypes.GUARDED {
+		return nfs_spec.Companion_CreateHow3_.Create_Guarded_(encodeSattr3(how.Obj_attributes))
+	}
+	if how.Mode == nfstypes.EXCLUSIVE {
+		t := inode.Companion_NfsTime_.Decode(&bytes.Bytes{Data: how.Verf[:]}, 0)
+		return nfs_spec.Companion_CreateHow3_.Create_Exclusive_(t)
+	}
+	panic("unexpected create mode")
 }
 
 func (nfs *Nfs) NFSPROC3_NULL() {
@@ -70,16 +132,17 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 
-	attrs := stat.(dirfs.Attributes).Get().(dirfs.Attributes_Attributes)
+	attrs := stat.(nfs_spec.Attributes).Get().(nfs_spec.Attributes_Attributes)
 	if attrs.Is__dir {
 		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3DIR
 	} else {
 		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
 	}
-	reply.Resok.Obj_attributes.Mode = 0777
+	reply.Resok.Obj_attributes.Mode = nfstypes.Mode3(attrs.Attrs.Dtor_mode())
 	reply.Resok.Obj_attributes.Nlink = 1
 	reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
 	reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
+	reply.Resok.Obj_attributes.Mtime = decodeTime(attrs.Attrs.Dtor_mtime())
 
 	return reply
 }
@@ -166,7 +229,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 		util.DPrintf(1, "NFS Read error %v", status)
 		return reply
 	}
-	rr := r.(dirfs.ReadResult)
+	rr := r.(nfs_spec.ReadResult)
 	bs := rr.Dtor_data()
 	eof := rr.Dtor_eof()
 
@@ -212,14 +275,11 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
 
 	inum := fh2ino(args.Where.Dir)
-	size := uint64(0)
-	if args.How.Obj_attributes.Size.Set_it {
-		size = uint64(args.How.Obj_attributes.Size.Size)
-	}
-
 	nameseq := filenameToBytes(args.Where.Name)
+	how := encodeCreateHow(args.How)
+
 	r, status := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.CREATE(txn, inum, nameseq, size)
+		return nfs.filesys.CREATE(txn, inum, nameseq, how)
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {

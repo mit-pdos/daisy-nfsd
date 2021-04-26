@@ -52,10 +52,6 @@ module DirFs
     return r;
   }
 
-  datatype Attributes = Attributes(is_dir: bool, size: uint64)
-
-  datatype ReadResult = ReadResult(data: Bytes, eof: bool)
-
   class DirFilesys
   {
     // external abstract state
@@ -756,8 +752,30 @@ module DirFs
       ok := linkInodeAtFree(txn, d_ino, dents, e', i);
     }
 
-    method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, sz: uint64)
-      returns (r: Result<Ino>, ghost junk: seq<byte>)
+    method CreateAttributes(how: CreateHow3)
+      returns (attrs:Inode.Attrs)
+      ensures has_create_attrs(attrs, how)
+    {
+      if how.Exclusive? {
+        return Inode.Attrs.zero_file;
+      }
+      var how_attrs := how.obj_attributes;
+      var mode := how_attrs.mode.get_default(0644);
+      var atime := Inode.NfsTime(0, 0);
+      var mtime := Inode.NfsTime(0, 0);
+      if how_attrs.mtime.SetToClientTime? {
+        mtime := how_attrs.mtime.time;
+      } else if how_attrs.mtime.SetToServerTime? {
+        // current time as of writing
+        //
+        // TODO: get time through an extern method
+        mtime := Inode.NfsTime(1619444711, 0);
+      }
+      return Inode.Attrs(Inode.FileType, mode, atime, mtime);
+    }
+
+    method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
+      returns (r: Result<Ino>, ghost junk: seq<byte>, ghost attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -767,18 +785,22 @@ module DirFs
       && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
-      && |junk| == sz as nat
+      && |junk| == how.size() as nat
+      && has_create_attrs(attrs, how)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
-        data[ino := ByteFile(junk, Inode.Attrs.zero_file)][d_ino := d'])
+        data[ino := ByteFile(junk, attrs)][d_ino := d'])
       )
     {
+      var sz := how.size();
       if sz > Inode.MAX_SZ_u64 {
         r := Err(NoSpc);
         return;
       }
-      var ok, ino := allocFile(txn, Inode.Attrs.zero_file);
+      var attrs0 := CreateAttributes(how);
+      attrs := attrs0;
+      var ok, ino := allocFile(txn, attrs0);
       if !ok {
         r := Err(NoSpc);
         return;
@@ -797,9 +819,13 @@ module DirFs
       assert ino_ok: ino !in old(data);
       var name_opt := dents.findName(txn, name);
       if name_opt.Some? {
-        // TODO: support creating a file and overwriting existing (rather than
-        // failing here)
-        r := Err(Exist);
+        if how.Unchecked? {
+          // TODO: support creating a file and overwriting existing (rather than
+          // failing here)
+          r := Err(Exist);
+        } else {
+          r := Err(Exist);
+        }
         return;
       }
       // TODO: somehow this block of assertions speeds up the proof, even though
@@ -843,6 +869,7 @@ module DirFs
           && attrs.is_dir == data[ino].DirFile?
           && data[ino].ByteFile? ==> attrs.size as nat == |data[ino].data|
           && data[ino].DirFile? ==> attrs.size as nat == 4096
+          && data[ino].attrs == attrs.attrs
           )
     {
       var ok, i := fs.startInode(txn, ino);
@@ -856,14 +883,14 @@ module DirFs
         fs.finishInodeReadonly(ino, i);
         // NOTE: not sure what the size of a directory is supposed to be, so
         // just return its encoded size in bytes
-        var attrs := Attributes(true, 4096);
+        var attrs := Attributes(true, 4096, i.attrs);
         return Ok(attrs);
       }
       // is a file
       assert i.ty().FileType?;
       assert is_file(ino) by { reveal is_of_type(); }
       fs.finishInodeReadonly(ino, i);
-      var attrs := Attributes(false, i.sz);
+      var attrs := Attributes(false, i.sz, i.attrs);
       return Ok(attrs);
     }
 

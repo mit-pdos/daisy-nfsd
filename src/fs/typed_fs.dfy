@@ -1,4 +1,5 @@
 include "byte_fs.dfy"
+include "nfs.s.dfy"
 
 module TypedFs {
   import opened Std
@@ -10,15 +11,8 @@ module TypedFs {
   import opened Machine
   import opened ByteSlice
   import Inode
+  import Nfs
   import opened MemInodes
-
-  predicate is_read_data(data: seq<byte>, off: nat, len: nat,
-    bs: seq<byte>, eof: bool)
-  {
-    && |bs| <= len
-    && (off + |bs| <= |data| ==> bs == data[off..off + |bs|])
-    && (eof <==> off + |bs| >= |data|)
-  }
 
   const WT_MAX: uint64 := 16*4096
 
@@ -484,7 +478,7 @@ module TypedFs {
       requires inode_unchanged(ino, i.val())
       requires len <= 4096
       ensures fresh(bs)
-      ensures ok ==> is_read_data(data[ino], off as nat, len as nat, bs.data, eof)
+      ensures ok ==> Nfs.is_read_data(data[ino], off as nat, len as nat, bs.data, eof)
     {
       if sum_overflows(off, len) {
         bs := NewBytes(0);

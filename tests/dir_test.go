@@ -6,6 +6,7 @@ import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
 	dirents "github.com/mit-pdos/dafny-nfsd/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
+	nfs_spec "github.com/mit-pdos/dafny-nfsd/dafnygen/Nfs_Compile"
 	std "github.com/mit-pdos/dafny-nfsd/dafnygen/Std_Compile"
 	_dafny "github.com/mit-pdos/dafny-nfsd/dafnygen/dafny"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,9 @@ var rootIno = dirfs.Companion_DirFilesys_.RootIno()
 func TestDirFsLookup(t *testing.T) {
 	fs := NewFs()
 	txn := fs.Begin()
-	r := fs.CREATE(txn, rootIno, stringToBytes("foo"), 0)
+	r := fs.CREATE(txn, rootIno, stringToBytes("foo"),
+		nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
+			nfs_spec.Companion_Sattr3_.Default().SetNone()))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
 	ino := r.Dtor_v().(uint64)
