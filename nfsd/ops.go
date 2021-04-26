@@ -279,11 +279,11 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
 
 	inum := fh2ino(args.Where.Dir)
-
 	name := filenameToBytes(args.Where.Name)
+	sattr := encodeSattr3(args.Attributes)
 
 	r, status := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.MKDIR(txn, inum, name)
+		return nfs.filesys.MKDIR(txn, inum, name, sattr)
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {

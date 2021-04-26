@@ -1196,8 +1196,9 @@ module DirFs
       return Ok(ReadResult(bs, eof));
     }
 
-    method {:timeLimitMultiplier 2} MKDIR(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<Ino>)
+    method {:timeLimitMultiplier 2} MKDIR(txn: Txn,
+      d_ino: Ino, name: Bytes, sattr: Sattr3)
+      returns (r: Result<Ino>, ghost attrs': Inode.Attrs)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1211,27 +1212,32 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && old(is_pathc(name.data))
+      && has_set_attrs(Inode.Attrs.zero_dir, attrs', sattr)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
-        data[ino := File.emptyDir][d_ino := d'])
+        data[ino := DirFile(map[], attrs')][d_ino := d'])
       )
     {
       var is_path := Pathc?(name);
       if !is_path {
         // could also have 0s in it but whatever
-        return Err(NameTooLong);
+        r := Err(NameTooLong);
+        return;
       }
-      // TODO: use attributes from RPC
-      var ok, ino := allocDir(txn, Inode.Attrs.zero.(ty := Inode.DirType));
+      var attrs'_val := SetattrAttributes(sattr, Inode.Attrs.zero_dir);
+      attrs' := attrs'_val;
+      var ok, ino := allocDir(txn, attrs'_val);
       if !ok {
-        return Err(NoSpc);
+        r := Err(NoSpc);
+        return;
       }
       // we allocate before reading d_ino because readDirents keeps the
       // directory open; if the caller guesses the newly-allocated directory, we
       // should fail
       if d_ino == ino {
-        return Err(Inval);
+        r := Err(Inval);
+        return;
       }
 
       var dents :- readDirents(txn, d_ino);
@@ -1243,7 +1249,8 @@ module DirFs
       var name_opt := dents.findName(txn, name);
       if name_opt.Some? {
         dents.val.findName_found(name.data);
-        return Err(Exist);
+        r := Err(Exist);
+        return;
       }
       dents.val.findName_not_found(name.data);
 
@@ -1252,9 +1259,11 @@ module DirFs
       assert dents.Valid() && e'.Valid() && e'.used();
       ok := linkInode(txn, d_ino, dents, e');
       if !ok {
-        return Err(NoSpc);
+        r := Err(NoSpc);
+        return;
       }
-      return Ok(ino);
+      r := Ok(ino);
+      return;
     }
 
     method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
