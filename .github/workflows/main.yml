@@ -39,6 +39,7 @@ jobs:
   test-compiled:
     name: Compile and test
     runs-on: ubuntu-20.04
+    timeout-minutes: 10
     steps:
       - name: Install Dafny
         uses: tchajed/setup-dafny-action@v1
