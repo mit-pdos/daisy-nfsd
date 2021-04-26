@@ -1,6 +1,7 @@
 include "typed_fs.dfy"
 include "dir/mem_dirent.dfy"
 include "nfs.s.dfy"
+include "../machine/time.s.dfy"
 
 module DirFs
 {
@@ -19,6 +20,7 @@ module DirFs
   import opened TypedFs
   import opened FileCursor
   import opened MemInodes
+  import Time
   import Inode
 
   import opened Nfs
@@ -50,6 +52,14 @@ module DirFs
       return Err(ServerFault);
     }
     return r;
+  }
+
+  method serverTime() returns (t:Inode.NfsTime)
+  {
+    var unix_nano := Time.TimeUnixNano();
+    var sec := unix_nano / 1_000_000_000;
+    var nsec := unix_nano % 1_000_000_000;
+    return Inode.NfsTime((sec % 0x1_0000_0000) as uint32, nsec as uint32);
   }
 
   class DirFilesys
@@ -766,10 +776,7 @@ module DirFs
       if how_attrs.mtime.SetToClientTime? {
         mtime := how_attrs.mtime.time;
       } else if how_attrs.mtime.SetToServerTime? {
-        // current time as of writing
-        //
-        // TODO: get time through an extern method
-        mtime := Inode.NfsTime(1619444711, 0);
+        mtime := serverTime();
       }
       return Inode.Attrs(Inode.FileType, mode, atime, mtime);
     }
@@ -907,10 +914,7 @@ module DirFs
       if sattr.mtime.SetToClientTime? {
         mtime := sattr.mtime.time;
       } else if sattr.mtime.SetToServerTime? {
-        // current time as of writing
-        //
-        // TODO: get time through an extern method
-        mtime := Inode.NfsTime(1619455622, 0);
+        mtime := serverTime();
       }
       return Inode.Attrs(attrs0.ty, mode, attrs0.ctime, mtime);
     }
