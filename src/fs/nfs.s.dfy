@@ -130,6 +130,8 @@ module Nfs {
     && (!how.Exclusive? ==>
       (var how_attrs := how.obj_attributes;
       && (how_attrs.mode.Some? ==> attrs.mode == how_attrs.mode.x)
+      && (how_attrs.uid.Some? ==> attrs.uid == how_attrs.uid.x)
+      && (how_attrs.gid.Some? ==> attrs.gid == how_attrs.gid.x)
       && (how_attrs.mtime.SetToClientTime? ==> attrs.mtime == how_attrs.mtime.time)
       ))
   }
@@ -149,9 +151,9 @@ module Nfs {
   predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
   {
     && attrs.ty == attrs0.ty
-    && (if sattr.mode.Some?
-      then attrs.mode == sattr.mode.x
-      else attrs.mode == attrs0.mode)
+    && attrs.mode == sattr.mode.get_default(attrs0.mode)
+    && attrs.uid == sattr.uid.get_default(attrs0.uid)
+    && attrs.gid == sattr.gid.get_default(attrs0.gid)
     && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }

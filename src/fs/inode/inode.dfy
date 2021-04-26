@@ -90,22 +90,23 @@ module Inode {
     }
   }
 
-  datatype Attrs = Attrs(ty: InodeType, mode: uint32, ctime: NfsTime, mtime: NfsTime)
+  datatype Attrs = Attrs(ty: InodeType, mode: uint32, uid: uint32, gid: uint32, mtime: NfsTime)
   {
-    static const zero: Attrs := Attrs(InvalidType, 0, NfsTime.zero, NfsTime.zero)
-    static const zero_file: Attrs := Attrs(FileType, 0, NfsTime.zero, NfsTime.zero)
-    static const zero_dir: Attrs := Attrs(DirType, 0, NfsTime.zero, NfsTime.zero)
+    static const zero: Attrs := Attrs(InvalidType, 0, 0, 0, NfsTime.zero)
+    static const zero_file: Attrs := Attrs(FileType, 0, 0, 0, NfsTime.zero)
+    static const zero_dir: Attrs := Attrs(DirType, 0, 0, 0, NfsTime.zero)
 
     function enc(): seq<byte>
     {
       IntEncoding.le_enc32(ty.to_u32()) +
         IntEncoding.le_enc32(mode) +
-        ctime.enc() +
+        IntEncoding.le_enc32(uid) +
+        IntEncoding.le_enc32(gid) +
         mtime.enc()
     }
 
     lemma enc_len()
-      ensures |enc()| == 24 // 4+4+8+8
+      ensures |enc()| == 24 // 4+4 + 4+4 + 8
     {}
 
     static lemma enc_zero()
@@ -131,12 +132,21 @@ module Inode {
         C.double_subslice_auto(bs.data);
       }
       var mode := Marshal.UInt32Decode(bs, off + 4, attrs.mode);
-      assert bs.data[off + 4+4 .. off + 4+4+8] == attrs.enc()[8..16] by {
+
+      assert bs.data[off + 8 .. off + 8+4] == attrs.enc()[8..12] by {
         C.double_subslice_auto(bs.data);
       }
-      var ctime := NfsTime.decode(bs, off + 4+4, attrs.ctime);
+      var uid := Marshal.UInt32Decode(bs, off + 8, attrs.uid);
+
+      assert bs.data[off + 12 .. off + 12+4] == attrs.enc()[12..16] by {
+        C.double_subslice_auto(bs.data);
+      }
+      var gid := Marshal.UInt32Decode(bs, off + 12, attrs.gid);
+      assert bs.data[off + 16 .. off + 16+8] == attrs.enc()[16..24] by {
+        C.double_subslice_auto(bs.data);
+      }
       var mtime := NfsTime.decode(bs, off + 4+4+8, attrs.mtime);
-      return Attrs(ty, mode, ctime, mtime);
+      return Attrs(ty, mode, uid, gid, mtime);
     }
 
     method put(off: uint64, bs: Bytes)
@@ -147,7 +157,8 @@ module Inode {
     {
       IntEncoding.UInt32Put(ty.to_u32(), off, bs);
       IntEncoding.UInt32Put(mode, off + 4, bs);
-      ctime.put(off + 4 + 4, bs);
+      IntEncoding.UInt32Put(uid, off + 4 + 4, bs);
+      IntEncoding.UInt32Put(gid, off + 4 + 4 + 4, bs);
       mtime.put(off + 4 + 4 + 8, bs);
     }
   }

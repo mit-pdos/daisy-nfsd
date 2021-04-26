@@ -771,14 +771,15 @@ module DirFs
       }
       var how_attrs := how.obj_attributes;
       var mode := how_attrs.mode.get_default(0644);
-      var atime := Inode.NfsTime(0, 0);
+      var uid := how_attrs.uid.get_default(0);
+      var gid := how_attrs.gid.get_default(0);
       var mtime := Inode.NfsTime(0, 0);
       if how_attrs.mtime.SetToClientTime? {
         mtime := how_attrs.mtime.time;
       } else if how_attrs.mtime.SetToServerTime? {
         mtime := serverTime();
       }
-      return Inode.Attrs(Inode.FileType, mode, atime, mtime);
+      return Inode.Attrs(Inode.FileType, mode, uid, gid, mtime);
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
@@ -906,17 +907,19 @@ module DirFs
       returns (attrs: Inode.Attrs)
       ensures has_set_attrs(attrs0, attrs, sattr)
     {
-      var mode := attrs0.mode;
+      var mode := sattr.mode.get_default(attrs0.mode);
+
+      var uid := sattr.uid.get_default(attrs0.uid);
+      var gid := sattr.gid.get_default(attrs0.gid);
+
       var mtime := attrs0.mtime;
-      if sattr.mode.Some? {
-        mode := sattr.mode.x;
-      }
       if sattr.mtime.SetToClientTime? {
         mtime := sattr.mtime.time;
       } else if sattr.mtime.SetToServerTime? {
         mtime := serverTime();
       }
-      return Inode.Attrs(attrs0.ty, mode, attrs0.ctime, mtime);
+
+      return Inode.Attrs(attrs0.ty, mode, uid, gid, mtime);
     }
 
     method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
