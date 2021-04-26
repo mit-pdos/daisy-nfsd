@@ -107,7 +107,7 @@ module Nfs {
     mtime: SetTime
     )
   {
-    const setNone := Sattr3(None, None, None, None, DontChange, DontChange)
+    static const setNone := Sattr3(None, None, None, None, DontChange, DontChange)
   }
 
   datatype CreateHow3 =
@@ -144,6 +144,16 @@ module Nfs {
     && |bs| <= len
     && (off + |bs| <= |data| ==> bs == data[off..off + |bs|])
     && (eof <==> off + |bs| >= |data|)
+  }
+
+  predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
+  {
+    && attrs.ty == attrs0.ty
+    && (if sattr.mode.Some?
+      then attrs.mode == sattr.mode.x
+      else attrs.mode == attrs0.mode)
+    && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
+    && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
 }

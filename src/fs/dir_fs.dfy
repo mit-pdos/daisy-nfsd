@@ -848,7 +848,8 @@ module DirFs
       junk := [];
       if sz > 0 {
         var unused_r;
-        unused_r, junk :- SETATTRsize(txn, ino, sz);
+        ghost var unused_attrs;
+        unused_r, junk, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
         assert ByteFs.ByteFilesys.setSize_with_junk([], sz as nat, junk) == junk;
       }
       // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
@@ -894,8 +895,28 @@ module DirFs
       return Ok(attrs);
     }
 
-    method SETATTRsize(txn: Txn, ino: Ino, sz: uint64)
-      returns (r:Result<()>, ghost junk: seq<byte>)
+    method SetattrAttributes(sattr: Sattr3, attrs0: Inode.Attrs)
+      returns (attrs: Inode.Attrs)
+      ensures has_set_attrs(attrs0, attrs, sattr)
+    {
+      var mode := attrs0.mode;
+      var mtime := attrs0.mtime;
+      if sattr.mode.Some? {
+        mode := sattr.mode.x;
+      }
+      if sattr.mtime.SetToClientTime? {
+        mtime := sattr.mtime.time;
+      } else if sattr.mtime.SetToServerTime? {
+        // current time as of writing
+        //
+        // TODO: get time through an extern method
+        mtime := Inode.NfsTime(1619455622, 0);
+      }
+      return Inode.Attrs(attrs0.ty, mode, attrs0.ctime, mtime);
+    }
+
+    method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
+      returns (r:Result<()>, ghost junk: seq<byte>, ghost attrs': Inode.Attrs)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -903,17 +924,20 @@ module DirFs
       ensures r.ErrIsDir? ==> is_dir(ino)
       ensures r.Ok? ==>
       && old(is_file(ino))
+      && has_set_attrs(old(data[ino].attrs), attrs', attrs)
       && (var d0 := old(data[ino]);
-        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0.data, sz as nat, junk);
-        && (sz as nat > |d0.data| ==> |junk| == sz as nat - |d0.data|)
-        && data == old(data[ino := ByteFile(d', d0.attrs)]))
+        var sz := if attrs.size.Some? then attrs.size.x as nat else |d0.data|;
+        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0.data, sz, junk);
+        && (sz > |d0.data| ==> |junk| == sz - |d0.data|)
+        && data == old(data[ino := ByteFile(d', attrs')]))
     {
       junk := [];
-      if sz > Inode.MAX_SZ_u64 {
+      if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
         r := Err(FBig);
         return;
       }
       var i :- openFile(txn, ino);
+      var sz: uint64 := attrs.size.get_default(i.sz);
       assert dirents == old(dirents);
       invert_file(ino);
       ghost var attrs0 := data[ino].attrs;
@@ -924,15 +948,21 @@ module DirFs
 
       fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
+      assert i.attrs == attrs0 by {
+        get_data_at(ino);
+      }
 
+      var attrs'_val := SetattrAttributes(attrs, i.attrs);
+      attrs' := attrs'_val;
+      fs.setAttrs(ino, i, attrs'_val);
       junk := fs.setSize(txn, ino, i, sz);
       fs.finishInode(txn, ino, i);
 
       ghost var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
-      data := data[ino := ByteFile(d', attrs0)];
+      data := data[ino := ByteFile(d', attrs')];
 
       assert Valid() by {
-        file_change_valid(ino, d');
+        file_change_with_attrs_valid(ino, d', attrs');
       }
 
       r := Ok(());
@@ -980,6 +1010,32 @@ module DirFs
       requires fs.types_unchanged()
       requires dirents == old(dirents)
       requires data == old(data[ino := ByteFile(d', data[ino].attrs)])
+      ensures Valid()
+    {
+      assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
+        reveal is_of_type();
+      }
+      assert old(Valid_file_at(ino, fs.data, fs.types)) by {
+        reveal Valid_data_at();
+        // BUG: surely this shouldn't be necessary
+        assert old(Valid_data_at(ino, fs.data, fs.types));
+      }
+      assert is_of_type(ino, fs.types[ino].ty) by {
+        reveal is_of_type();
+      }
+      mk_data_at(ino);
+      ValidData_change_one(ino);
+      assert ValidRoot() by { reveal ValidRoot(); }
+    }
+
+    twostate lemma file_change_with_attrs_valid(ino: Ino, d': seq<byte>, new attrs': Inode.Attrs)
+      requires old(Valid()) && fs.Valid()
+      requires old(is_file(ino))
+      requires attrs'.ty == old(fs.types[ino].ty)
+      requires fs.data == old(fs.data[ino := d'])
+      requires fs.types == old(fs.types[ino := attrs'])
+      requires dirents == old(dirents)
+      requires data == old(data[ino := ByteFile(d', attrs')])
       ensures Valid()
     {
       assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
