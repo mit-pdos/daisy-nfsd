@@ -158,4 +158,14 @@ module Nfs {
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
+  datatype Fsstat3 = Fsstat3(
+    // bytes in file system / free bytes
+    tbytes: uint64, fbytes: uint64,
+    // files (inodes) in file system / free files
+    tfiles: uint64, ffiles: uint64
+    )
+  {
+    static const zero := Fsstat3(0,0,0,0);
+  }
+
 }

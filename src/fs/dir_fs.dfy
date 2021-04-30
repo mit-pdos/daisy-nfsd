@@ -1731,5 +1731,18 @@ module DirFs
       return Ok(());
     }
 
+    method FSSTAT() returns (r: Fsstat3)
+      requires Valid()
+    {
+      fs.reveal_valids();
+      var tbytes := fs.fs.fs.fs.TotalBytes();
+      var fbytes := fs.fs.fs.fs.FreeBytes();
+      var tfiles := fs.TotalFiles();
+      var ffiles := fs.FreeFiles();
+      r := Fsstat3.zero;
+      r := r.(tbytes := tbytes).(fbytes := fbytes);
+      r := r.(tfiles := tfiles).(ffiles := ffiles);
+      return;
+    }
   }
 }

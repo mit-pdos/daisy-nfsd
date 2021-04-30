@@ -22,3 +22,7 @@ func (a *Allocator) Alloc() uint64 {
 func (a *Allocator) Free(x uint64) {
 	a.alloc.FreeNum(x)
 }
+
+func (a *Allocator) NumFree() uint64 {
+	return a.alloc.NumFree()
+}

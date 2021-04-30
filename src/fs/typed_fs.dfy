@@ -537,5 +537,16 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
+    method TotalFiles() returns (num: uint64)
+    {
+      return super.num_inodes as uint64;
+    }
+
+    method FreeFiles() returns (num: uint64)
+      requires ValidAlloc()
+    {
+      num := ialloc.NumFree();
+    }
+
   }
 }

@@ -95,6 +95,15 @@ func decodeAttrs(attrs inode.Attrs, fattr *nfstypes.Fattr3) {
 	fattr.Ctime = decodeTime(attrs.Dtor_mtime())
 }
 
+func decodeFsstat3(stats nfs_spec.Fsstat3, fsstat *nfstypes.FSSTAT3res) {
+	fsstat.Resok.Tbytes = nfstypes.Size3(stats.Dtor_tbytes())
+	fsstat.Resok.Fbytes = nfstypes.Size3(stats.Dtor_fbytes())
+	fsstat.Resok.Abytes = nfstypes.Size3(stats.Dtor_fbytes())
+	fsstat.Resok.Tfiles = nfstypes.Size3(stats.Dtor_tfiles())
+	fsstat.Resok.Ffiles = nfstypes.Size3(stats.Dtor_ffiles())
+	fsstat.Resok.Afiles = nfstypes.Size3(stats.Dtor_ffiles())
+}
+
 func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
@@ -442,8 +451,13 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 func (nfs *Nfs) NFSPROC3_FSSTAT(args nfstypes.FSSTAT3args) nfstypes.FSSTAT3res {
 	util.DPrintf(1, "NFS Fsstat %v\n", args)
 	var reply nfstypes.FSSTAT3res
+
+	stats := nfs.filesys.FSSTAT()
+	decodeFsstat3(stats, &reply)
+
 	reply.Status = nfstypes.NFS3_OK
-	reply.Resok.Obj_attributes.Attributes_follow = false
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Invarsec = 0
 	return reply
 }
 

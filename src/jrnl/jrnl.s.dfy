@@ -111,6 +111,14 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"} JrnlSpec
             requires x < max
         {
         }
+
+        method {:extern} NumFree() returns (num: uint64)
+            requires Valid()
+            ensures num <= max
+        {
+            num := 0;
+        }
+
     }
 
     method {:extern} NewAllocator(max: uint64) returns (a:Allocator)

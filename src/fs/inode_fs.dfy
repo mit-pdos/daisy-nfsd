@@ -567,5 +567,18 @@ module InodeFs {
       sz := i.sz;
       var _ := txn.Commit();
     }
+
+    method TotalBytes() returns (sz: uint64)
+      requires Valid()
+    {
+      return ballocActualMax*4096;
+    }
+
+    method FreeBytes() returns (sz: uint64)
+      requires Valid()
+    {
+      var num_blocks := balloc.NumFree();
+      return num_blocks * 4096;
+    }
   }
 }
