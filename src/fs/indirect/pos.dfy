@@ -161,8 +161,8 @@ module IndirectPos
     ensures config.Valid()
     ensures |config.ilevels| == 12
     ensures config.total == 8 + 3*512 + 512*512*512
-    // these inodes can hold at least 8GB
-    ensures config.total * 4 / 1024 /* MB */ > 8_000
+    // these inodes can hold about 500GB
+    ensures config.total * 4 / 1024 / 1024 /* GB */ == 512
   {}
 
   lemma config_total_to(k: uint64)
