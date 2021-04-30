@@ -365,7 +365,7 @@ module TypedFs {
       }
     }
 
-    method {:timeLimitMultiplier 3} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
@@ -396,6 +396,7 @@ module TypedFs {
         invariant fresh({bs} - {original_bs})
         invariant 0 < |bs.data| <= |data0| <= WT_MAX as nat
         invariant ValidIno(ino, i)
+        invariant has_jrnl(txn)
         invariant written as nat <= |data0|
         invariant bs.data == data0[written..]
         invariant data == old(data[ino := write_data(data[ino], off as nat, data0[..written])])
@@ -425,17 +426,21 @@ module TypedFs {
       }
 
       ok := writeOne_(txn, ino, i, off + written, bs);
+
       if !ok {
         return;
       }
+
       assert data[ino] == old(write_data(data[ino], off as nat, data0)) by {
-        write_data_app(old(data[ino]), off as nat,
-          data0[..written], data0[written..]);
+        assert data[ino] == write_data(old(data[ino]), off as nat, data0[..written] + data0[written..]) by {
+          write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..]);
+          // NOTE(tej): this is really necessary to line up write_data_app with
+          // the postcondition of writeOne_ (without this the proof time blows up)
+          assert (off + written) as nat == off as nat + |data0[..written]|;
+        }
         assert data0 == data0[..written] + data0[written..];
-        // NOTE(tej): this is really necessary to line up write_data_app with
-        // the postcondition of writeOne_ (without this the proof time blows up)
-        assert (off + written) as nat == off as nat + |data0[..written]|;
       }
+
     }
 
     method writeBlockFile(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
