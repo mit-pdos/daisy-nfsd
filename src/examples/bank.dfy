@@ -71,10 +71,8 @@ class Bank
     ensures bs.Valid()
     ensures seq_encode([EncUInt64(x)]) == bs.data
     {
-        var enc := new Encoder(8);
-        enc.PutInt(x);
-        enc.is_complete();
-        bs := enc.Finish();
+        bs := NewBytes(8);
+        IntEncoding.UInt64Put(x, 0, bs);
     }
 
     static method decode_acct(bs:Bytes, ghost x: nat) returns (x': uint64)
@@ -83,8 +81,7 @@ class Bank
     requires seq_encode([EncUInt64(x as uint64)]) == bs.data
     ensures x' as nat == x
     {
-        var dec := new Decoder.Init(bs, [EncUInt64(x as uint64)]);
-        x' := dec.GetInt(x as uint64);
+        x' := UInt64Decode(bs, 0, x as uint64);
     }
 
     constructor Init(d: Disk, init_bal: uint64)
