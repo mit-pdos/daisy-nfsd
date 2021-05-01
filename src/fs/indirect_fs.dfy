@@ -139,6 +139,13 @@ module IndFs
       forall ino:Ino :: inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
+    lemma inode_pos_at(ino: Ino, i: MemInode)
+      requires ValidIno(ino, i)
+      ensures inode_pos_match(ino, i.blks, to_blkno)
+    {
+      reveal ValidInodes();
+    }
+
     predicate valid_parent(pos: Pos)
       reads Repr
       requires pos.ilevel > 0
@@ -333,6 +340,7 @@ module IndFs
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
+      ensures !ok ==> bn == 0 && to_blkno[pos] == 0
       ensures state_unchanged()
     {
       var idx := pos.idx;
@@ -342,6 +350,7 @@ module IndFs
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
         Valid_unchanged();
+        bn := 0;
         return;
       }
 
@@ -376,6 +385,7 @@ module IndFs
       requires ibn != 0
       requires pblock.data == zero_lookup(fs.data_block, ibn)
       ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures !ok ==> bn == 0 && to_blkno[pos] == 0
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures fs.inodes == old(fs.inodes)
       ensures state_unchanged()
@@ -385,6 +395,7 @@ module IndFs
       }
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
+        bn := 0;
         Valid_unchanged();
         return;
       }
@@ -444,7 +455,8 @@ module IndFs
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
-      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures bn == to_blkno[pos]
+      ensures ok == (bn != 0)
       ensures state_unchanged()
     {
       reveal ValidInodes();
@@ -467,7 +479,12 @@ module IndFs
       var child: IndOff := pos.child();
       var ibn;
       ok, ibn := this.resolveMetadata(txn, parent, i);
-      if !ok { return; }
+      if !ok {
+        bn := 0;
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
+        return;
+      }
       // now we have somewhere to store the reference to this block, but might
       // need to allocate into the parent
       var pblock := fs.getDataBlock(txn, ibn);
@@ -484,6 +501,8 @@ module IndFs
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
       assert ValidIno(pos.ino, i);
       if !ok {
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
         return;
       }
     }
@@ -572,26 +591,23 @@ module IndFs
       ensures data == old(data[Pos.from_flat(ino, off) := block0])
       ensures metadata == old(metadata)
     {
-      var i': MemInode := i;
       ghost var pos := Pos.from_flat(ino, off);
       assert pos.idx.off == IndOff.direct;
       assert pos.data?;
-      var bn: Blkno := i'.get_blk(off);
+      var bn: Blkno := i.get_blk(off);
       if bn == 0 {
         // already done, need to reveal some stuff to prove that
         reveal ValidInodes();
         reveal ValidData();
         return;
       }
-      assert inode_pos_match(ino, i.blks, to_blkno) by {
-        reveal ValidInodes();
-      }
+      inode_pos_at(ino, i);
       assert blkno_pos(bn).Some? by {
         reveal ValidPos();
       }
       fs.free(txn, bn);
-      i'.set_blk(off, 0);
-      fs.writeInode(ino, i');
+      i.set_blk(off, 0);
+      fs.writeInode(ino, i);
       data := old(data[pos := block0]);
       to_blkno := to_blkno[pos := 0 as Blkno];
       assert ValidMetadata() by { reveal ValidMetadata(); }
@@ -601,7 +617,7 @@ module IndFs
         reveal ValidPos();
         reveal ValidInodes();
       }
-      ValidInodes_change_one(pos, i', 0 as Blkno);
+      ValidInodes_change_one(pos, i, 0 as Blkno);
       assert ValidData() by {
         reveal ValidData();
       }
