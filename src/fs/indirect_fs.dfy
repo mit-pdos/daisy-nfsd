@@ -705,6 +705,7 @@ module IndFs
       assert ValidPos() by {
         ValidPos_dealloc_one@pre_state(child_bn, pos);
       }
+      // up to here proof takes 8s
       assert ValidData() by {
         reveal ValidPos();
         reveal ValidData();
@@ -714,6 +715,7 @@ module IndFs
       }
       assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidInodes() by { reveal ValidInodes(); }
+      // up to here 12s
       assert ValidIndirect() by {
         reveal ValidIndirect();
         var pos0 := pos;
@@ -723,7 +725,6 @@ module IndFs
           if pos == pos0  {}
           else {
             if pos.parent() == pos0 {
-              IndBlocks.to_blknos_zero();
               reveal ValidPos();
             } else {
               reveal ValidPos();
@@ -731,6 +732,7 @@ module IndFs
           }
         }
       }
+      // up to here is 26s, about same with postcondition
     }
 
     // public
