@@ -654,21 +654,19 @@ module IndFs
       }
     }
 
-    method zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
-      returns (ok: bool)
+    // TODO: this proof is very slow, but it does work!
+    method {:timeLimitMultiplier 2} zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ino == pos.ino
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
-      ensures !ok ==> data == old(data)
-      ensures ok ==> data == old(data[pos := block0])
+      ensures data == old(data[pos := block0])
       ensures metadata == old(metadata)
     {
       var _, ibn := resolveMetadata(txn, pos.parent(), i);
       if ibn == 0 {
-        ok := true;
         parent_zero(pos);
         data_zero(pos);
         return;
@@ -680,7 +678,6 @@ module IndFs
       assert ib.data == zero_lookup(fs.data_block, ibn);
       var child_bn := IndBlocks.decode_one(ib, child.j);
       if child_bn == 0 {
-        ok := true;
         data_zero(pos);
         return;
       }
@@ -703,10 +700,23 @@ module IndFs
         IndBlocks.to_blknos_zero();
       }
       assert ValidMetadata() by { reveal ValidMetadata(); }
-      assume false;
+      assert ValidInodes() by { reveal ValidInodes(); }
       assert ValidIndirect() by {
         reveal ValidIndirect();
-        IndBlocks.to_blknos_zero();
+        var pos0 := pos;
+        forall pos: Pos | pos.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            if pos.parent() == pos0 {
+              IndBlocks.to_blknos_zero();
+              reveal ValidPos();
+            } else {
+              reveal ValidPos();
+            }
+          }
+        }
       }
     }
 
