@@ -650,6 +650,34 @@ module IndFs
       }
     }
 
+    method zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
+      returns (ok: bool)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ino == pos.ino
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires pos.ilevel > 0 // indirect
+      requires pos.data?      // last level
+      ensures !ok ==> data == old(data)
+      ensures ok ==> data == old(data[pos := block0])
+      ensures metadata == old(metadata)
+    {
+      var _, parent_bn := resolveMetadata(txn, pos.parent(), i);
+      if parent_bn == 0 {
+        ok := true;
+        parent_zero(pos);
+        data_zero(pos);
+        return;
+      }
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var ib: Bytes := this.read_(txn, parent, i);
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      reveal ValidIndirect();
+      // fs.free(txn, child_bn);
+      assume false;
+    }
+
     // public
     method startInode(txn: Txn, ino: Ino)
       returns (i: MemInode)
