@@ -702,11 +702,10 @@ module IndFs
     }
 
     method zeroOutIndirectWithParent(txn: Txn,
-      pos: Pos, ibn: Blkno, ib: Bytes, ghost ino: Ino, i: MemInode)
+      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
-      requires ino == pos.ino
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
       requires ibn != 0
@@ -764,11 +763,10 @@ module IndFs
       }
     }
 
-    method zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
+    method zeroOutIndirect(txn: Txn, pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ino == pos.ino
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
       ensures data == old(data[pos := block0])
@@ -783,7 +781,7 @@ module IndFs
       valid_parent_at(pos);
       var parent: Pos := pos.parent();
       var ib: Bytes := fs.getDataBlock(txn, ibn);
-      zeroOutIndirectWithParent(txn, pos, ibn, ib, ino, i);
+      zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
     }
 
     method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
@@ -797,7 +795,7 @@ module IndFs
       if off < 8 {
         zeroOutDirect(txn, off, ino, i);
       } else {
-        zeroOutIndirect(txn, Pos.from_flat(ino, off), ino, i);
+        zeroOutIndirect(txn, Pos.from_flat(ino, off), i);
       }
     }
 
@@ -815,11 +813,10 @@ module IndFs
     // is another block (and not the inode) and this block only has pointers so
     // changing it to a zero doesn't affect the data
     method zeroOutIntermediateIndirectWithParent(txn: Txn,
-      pos: Pos, ibn: Blkno, ib: Bytes, ghost ino: Ino, i: MemInode)
+      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
-      requires ino == pos.ino
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires 0 < pos.ilevel < 3 && pos.idx.k == 11
       requires children_zero(pos, to_blkno)
       requires ibn != 0
@@ -885,11 +882,10 @@ module IndFs
     //
     // only applies to blocks that are stored in the inode
     method zeroOutIndirectFromInode(txn: Txn,
-      pos: Pos, ghost ino: Ino, i: MemInode)
+      pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ino == pos.ino
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires pos.ilevel == 0 && !pos.data?
       requires children_zero(pos, to_blkno)
       ensures data == old(data)
@@ -899,16 +895,16 @@ module IndFs
       var off := pos.idx.k;
       var bn: Blkno := i.get_blk(off);
       if bn == 0 {
-        inode_pos_at(ino, i);
+        inode_pos_at(pos.ino, i);
         return;
       }
-      inode_pos_at(ino, i);
+      inode_pos_at(pos.ino, i);
       assert blkno_pos(bn).Some? by {
         reveal ValidPos();
       }
       fs.free(txn, bn);
       i.set_blk(off, 0);
-      fs.writeInode(ino, i);
+      fs.writeInode(pos.ino, i);
       to_blkno := to_blkno[pos := 0 as Blkno];
       assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidIndirect() by {
@@ -927,11 +923,10 @@ module IndFs
     }
 
     method zeroOutIndirectPointer(txn: Txn,
-      pos: Pos, ghost ino: Ino, i: MemInode)
+      pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
-      requires ino == pos.ino
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires !pos.data?
       requires children_zero(pos, to_blkno)
       ensures data == old(data)
@@ -939,7 +934,7 @@ module IndFs
       ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
     {
       if pos.ilevel == 0 {
-        zeroOutIndirectFromInode(txn, pos, ino, i);
+        zeroOutIndirectFromInode(txn, pos, i);
       } else {
         var ibn := resolveBlkno(txn, pos.parent(), i);
         if ibn == 0 {
@@ -950,7 +945,7 @@ module IndFs
         valid_parent_at(pos);
         var parent: Pos := pos.parent();
         var ib: Bytes := fs.getDataBlock(txn, ibn);
-        zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, ino, i);
+        zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, i);
       }
     }
 
