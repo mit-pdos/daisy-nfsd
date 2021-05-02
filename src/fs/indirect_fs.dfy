@@ -622,7 +622,7 @@ module IndFs
       }
     }
 
-    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    method zeroOutDirect(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
@@ -666,33 +666,30 @@ module IndFs
       }
     }
 
-    // TODO: this proof is very slow, but it does work!
-    method {:timeLimitMultiplier 2} zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
-      modifies Repr, i.Repr
+    method zeroOutIndirectWithParent(txn: Txn,
+      pos: Pos, ibn: Blkno, ib: Bytes, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
       requires ino == pos.ino
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
+      requires ibn != 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ib.data == fs.data_block[ibn]
       ensures data == old(data[pos := block0])
       ensures metadata == old(metadata)
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ib.data == fs.data_block[ibn]
     {
-      var _, ibn := resolveMetadata(txn, pos.parent(), i);
-      if ibn == 0 {
-        parent_zero(pos);
-        data_zero(pos);
-        return;
-      }
       valid_parent_at(pos);
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
-      var ib: Bytes := fs.getDataBlock(txn, ibn);
       var child_bn := IndBlocks.decode_one(ib, child.j);
       if child_bn == 0 {
         data_zero(pos);
         return;
       }
-      label pre_state:
       assert blkno_pos(child_bn).Some? by {
         reveal ValidPos();
       }
@@ -703,9 +700,8 @@ module IndFs
       to_blkno := to_blkno[pos := 0 as Blkno];
       assert ValidBasics();
       assert ValidPos() by {
-        ValidPos_dealloc_one@pre_state(child_bn, pos);
+        ValidPos_dealloc_one(child_bn, pos);
       }
-      // up to here proof takes 8s
       assert ValidData() by {
         reveal ValidPos();
         reveal ValidData();
@@ -715,7 +711,6 @@ module IndFs
       }
       assert ValidMetadata() by { reveal ValidMetadata(); }
       assert ValidInodes() by { reveal ValidInodes(); }
-      // up to here 12s
       assert ValidIndirect() by {
         reveal ValidIndirect();
         var pos0 := pos;
@@ -732,7 +727,48 @@ module IndFs
           }
         }
       }
-      // up to here is 26s, about same with postcondition
+    }
+
+    method zeroOutIndirect(txn: Txn, pos: Pos, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ino == pos.ino
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires pos.ilevel > 0 // indirect
+      requires pos.data?      // last level
+      ensures data == old(data[pos := block0])
+      ensures metadata == old(metadata)
+    {
+      // NOTE: this proof was slow because of resolveMetadata, which modifies
+      // the internal state but not the abstract state. Splitting it into this
+      // preamble and the remainder in zeroOutIndirectWithParent (where the pre
+      // state is still Valid) made the whole proof extremely fast (from 30s
+      // down to 5s + 0.7s for this method).
+      var _, ibn := resolveMetadata(txn, pos.parent(), i);
+      if ibn == 0 {
+        parent_zero(pos);
+        data_zero(pos);
+        return;
+      }
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      var ib: Bytes := fs.getDataBlock(txn, ibn);
+      zeroOutIndirectWithParent(txn, pos, ibn, ib, ino, i);
+    }
+
+    method zeroOut(txn: Txn, off: uint64, ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures data == old(data[Pos.from_flat(ino, off) := block0])
+      ensures metadata == old(metadata)
+    {
+      if off < 8 {
+        zeroOutDirect(txn, off, ino, i);
+      } else {
+        zeroOutIndirect(txn, Pos.from_flat(ino, off), ino, i);
+      }
     }
 
     // public
