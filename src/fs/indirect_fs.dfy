@@ -771,6 +771,75 @@ module IndFs
       }
     }
 
+    method zeroOutIntermediateIndirectWithParent(txn: Txn,
+      pos: Pos, ibn: Blkno, ib: Bytes, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr, ib
+      requires has_jrnl(txn)
+      requires ino == pos.ino
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires 0 < pos.ilevel < 3 && pos.idx.k == 11
+      requires (forall pos':Pos | pos'.ilevel > 0 && pos'.parent() == pos ::
+                to_blkno[pos'] == 0)
+      requires ibn != 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ib.data == fs.data_block[ibn]
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ib.data == fs.data_block[ibn]
+    {
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      if child_bn == 0 {
+        reveal ValidIndirect();
+        reveal ValidData();
+        IndBlocks.to_blknos_zero();
+        assert to_blkno[pos] == 0;
+        return;
+      }
+      assert blkno_pos(child_bn).Some? by {
+        reveal ValidPos();
+      }
+      fs.free(txn, child_bn);
+      IndBlocks.modify_one(ib, child.j, 0);
+      fs.writeDataBlock(txn, ibn, ib);
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidBasics();
+      assert ValidPos() by {
+        ValidPos_dealloc_one(child_bn, pos);
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert valid_parent(pos) by {
+        IndBlocks.to_blknos_zero();
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidInodes() by { reveal ValidInodes(); }
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        var pos0 := pos;
+        forall pos: Pos | pos.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            if pos.parent() == pos0 {
+              IndBlocks.to_blknos_zero();
+              reveal ValidPos();
+            } else {
+              reveal ValidPos();
+            }
+          }
+        }
+      }
+    }
+
+
     // public
     method startInode(txn: Txn, ino: Ino)
       returns (i: MemInode)
