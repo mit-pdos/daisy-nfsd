@@ -763,6 +763,28 @@ module IndFs
       }
     }
 
+    method readParent(txn: Txn, pos: Pos, i: MemInode)
+      returns (ibn: Blkno, ib: Bytes)
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i)
+      requires pos.ilevel > 0
+      ensures ibn != 0 ==> fresh(ib)
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ibn == 0 ==> to_blkno[pos] == 0
+      ensures ibn != 0 ==> ib.data == fs.data_block[ibn]
+    {
+      ibn := resolveBlkno(txn, pos.parent(), i);
+      if ibn == 0 {
+        parent_zero(pos);
+        IndBlocks.to_blknos_zero();
+        ib := NewBytes(0);
+        return;
+      }
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      ib := fs.getDataBlock(txn, ibn);
+    }
+
     method zeroOutIndirect(txn: Txn, pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -772,15 +794,11 @@ module IndFs
       ensures data == old(data[pos := block0])
       ensures metadata == old(metadata)
     {
-      var ibn := resolveBlkno(txn, pos.parent(), i);
+      var ibn, ib := readParent(txn, pos, i);
       if ibn == 0 {
-        parent_zero(pos);
         data_zero(pos);
         return;
       }
-      valid_parent_at(pos);
-      var parent: Pos := pos.parent();
-      var ib: Bytes := fs.getDataBlock(txn, ibn);
       zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
     }
 
@@ -936,15 +954,10 @@ module IndFs
       if pos.ilevel == 0 {
         zeroOutIndirectFromInode(txn, pos, i);
       } else {
-        var ibn := resolveBlkno(txn, pos.parent(), i);
+        var ibn, ib := readParent(txn, pos, i);
         if ibn == 0 {
-          parent_zero(pos);
-          IndBlocks.to_blknos_zero();
           return;
         }
-        valid_parent_at(pos);
-        var parent: Pos := pos.parent();
-        var ib: Bytes := fs.getDataBlock(txn, ibn);
         zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, i);
       }
     }
