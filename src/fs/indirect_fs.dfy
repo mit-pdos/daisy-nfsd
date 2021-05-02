@@ -402,17 +402,21 @@ module IndFs
       }
     }
 
-    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
+    // Allocate an indirect block for an intermediate position in place of a
+    // zero block. Does not affect the user state but makes it possible to
+    // allocate data blocks and store them underneath this indirect block.
+    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn,
+      pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
       modifies Repr, pblock
       requires has_jrnl(txn)
       requires Valid() ensures Valid()
-      requires pos.ilevel > 0 &&  to_blkno[pos] == 0
+      requires pos.ilevel > 0 && to_blkno[pos] == 0
       requires ibn == to_blkno[pos.parent()]
       requires ibn != 0
       requires pblock.data == zero_lookup(fs.data_block, ibn)
-      ensures ok ==> bn != 0 && bn == to_blkno[pos]
-      ensures !ok ==> bn == 0 && to_blkno[pos] == 0
+      ensures to_blkno[pos] == bn
+      ensures ok == (bn != 0)
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures fs.inodes == old(fs.inodes)
       ensures state_unchanged()
