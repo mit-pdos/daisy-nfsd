@@ -69,19 +69,18 @@ module IndBlocks
     decode_uint64_seq_one_spec(bs.data, k as nat);
   }
 
-  method modify_one(bs: Bytes, k: uint64, bn: Blkno) returns (bs': Bytes)
+  method modify_one(bs: Bytes, k: uint64, bn: Blkno)
     modifies bs
     requires is_block(bs.data)
     requires k < 512
-    ensures is_block(bs'.data)
+    ensures is_block(bs.data)
     ensures (
-    var blknos' := to_blknos(bs'.data);
+    var blknos' := to_blknos(bs.data);
     var blknos := old(to_blknos(bs.data));
     blknos' == blknos.(s:=blknos.s[k := bn]))
   {
     decode_uint64_seq_modify_one(bs.data, k as nat, bn);
     IntEncoding.UInt64Put(bn, k*8, bs);
-    bs' := bs;
   }
 
 }

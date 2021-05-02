@@ -436,8 +436,8 @@ module IndFs
       fs.writeDataBlock(txn, bn, zeroblock);
 
       var child := pos.child();
-      var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
-      fs.writeDataBlock(txn, ibn, pblock');
+      IndBlocks.modify_one(pblock, child.j, bn);
+      fs.writeDataBlock(txn, ibn, pblock);
       assert valid_parent(pos);
 
       assert ValidPos() by {
