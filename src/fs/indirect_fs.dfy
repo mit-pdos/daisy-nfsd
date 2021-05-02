@@ -666,20 +666,48 @@ module IndFs
       ensures ok ==> data == old(data[pos := block0])
       ensures metadata == old(metadata)
     {
-      var _, parent_bn := resolveMetadata(txn, pos.parent(), i);
-      if parent_bn == 0 {
+      var _, ibn := resolveMetadata(txn, pos.parent(), i);
+      if ibn == 0 {
         ok := true;
         parent_zero(pos);
         data_zero(pos);
         return;
       }
+      valid_parent_at(pos);
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
-      var ib: Bytes := this.read_(txn, parent, i);
+      var ib: Bytes := fs.getDataBlock(txn, ibn);
+      assert ib.data == zero_lookup(fs.data_block, ibn);
       var child_bn := IndBlocks.decode_one(ib, child.j);
-      reveal ValidIndirect();
-      // fs.free(txn, child_bn);
+      if child_bn == 0 {
+        ok := true;
+        data_zero(pos);
+        return;
+      }
+      assert blkno_pos(child_bn).Some? by {
+        reveal ValidPos();
+      }
+      fs.free(txn, child_bn);
+      IndBlocks.modify_one(ib, child.j, 0);
+      fs.writeDataBlock(txn, ibn, ib);
+      data := data[pos := block0];
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidPos() by {
+        reveal ValidPos();
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert valid_parent(pos) by {
+        IndBlocks.to_blknos_zero();
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
       assume false;
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        IndBlocks.to_blknos_zero();
+      }
     }
 
     // public
