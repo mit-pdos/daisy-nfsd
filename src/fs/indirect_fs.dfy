@@ -318,6 +318,18 @@ module IndFs
       reveal ValidPos();
     }
 
+    twostate lemma ValidPos_dealloc_one(bn: Blkno, pos: Pos)
+      requires old(ValidBasics()) && ValidBasics()
+      requires blkno_ok(bn)
+      requires old(blkno_pos(bn).Some?) && old(to_blkno[pos] == bn)
+      requires fs.block_used == old(fs.block_used[bn:=None])
+      requires to_blkno == old(to_blkno[pos:=0 as Blkno])
+      requires old(ValidPos())
+      ensures ValidPos()
+    {
+      reveal ValidPos();
+    }
+
     twostate lemma ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
       requires pos.ilevel == 0
@@ -675,12 +687,12 @@ module IndFs
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
       var ib: Bytes := fs.getDataBlock(txn, ibn);
-      assert ib.data == zero_lookup(fs.data_block, ibn);
       var child_bn := IndBlocks.decode_one(ib, child.j);
       if child_bn == 0 {
         data_zero(pos);
         return;
       }
+      label pre_state:
       assert blkno_pos(child_bn).Some? by {
         reveal ValidPos();
       }
@@ -689,8 +701,9 @@ module IndFs
       fs.writeDataBlock(txn, ibn, ib);
       data := data[pos := block0];
       to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidBasics();
       assert ValidPos() by {
-        reveal ValidPos();
+        ValidPos_dealloc_one@pre_state(child_bn, pos);
       }
       assert ValidData() by {
         reveal ValidPos();
