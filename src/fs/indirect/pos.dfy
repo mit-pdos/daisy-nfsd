@@ -332,12 +332,12 @@ module IndirectPos
   // offset within that block. Indirect blocks have an inode and top-level block
   // as well as an indirection level which might be higher than the bottom where
   // the data lives.
-  datatype Pos = Pos(ino: Ino, idx: Idx)
+  datatype Pos = Pos(ghost ino: Ino, idx: Idx)
   {
     const ilevel: uint64 := idx.off.ilevel;
     const data?: bool := idx.data?()
 
-    static function method from_flat(ino: Ino, n: uint64): Pos
+    static function method from_flat(ghost ino: Ino, n: uint64): Pos
       requires n as nat < config.total
     {
       Pos(ino, Idx.from_flat(n))

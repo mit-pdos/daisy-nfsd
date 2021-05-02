@@ -756,7 +756,7 @@ module IndFs
       zeroOutIndirectWithParent(txn, pos, ibn, ib, ino, i);
     }
 
-    method zeroOut(txn: Txn, off: uint64, ino: Ino, i: MemInode)
+    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
