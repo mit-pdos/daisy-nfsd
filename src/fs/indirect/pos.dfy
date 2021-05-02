@@ -1,9 +1,11 @@
 include "../super.dfy"
 
 // Define Pos, an abstract position for a block in the file system. A Pos is a
-// multidimensional index that includes an inode and a location in its metadata
-// hierarchy; intermediate locations are metadata while leaves are considered
-// data (as described by the data? const in Idx and Pos).
+// multidimensional index Pos(ino, Idx(k, IndOff(level, j))) that includes an
+// inode and a location in its metadata hierarchy; intermediate locations are
+// metadata while leaves are considered data (as described by the data? const in
+// Idx and Pos). k is an offset into the inode itself while j is an index within
+// all of the blocks at this indirect level.
 //
 // Every type defined here is a subset type that builds-in some Validity
 // predicate which restricts all the indices to be in-bounds. To make this work

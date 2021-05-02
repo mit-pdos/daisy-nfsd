@@ -165,12 +165,39 @@ module IndFs
       forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
     }
 
+    lemma valid_parent_at(pos: Pos)
+      requires pos.ilevel > 0
+      requires ValidBasics() && ValidIndirect()
+      ensures valid_parent(pos)
+    {
+      reveal ValidIndirect();
+    }
+
+    lemma parent_zero(pos: Pos)
+      requires pos.ilevel > 0
+      requires ValidBasics() && ValidIndirect()
+      requires to_blkno[pos.parent()] == 0
+      ensures to_blkno[pos] == 0
+    {
+      valid_parent_at(pos);
+      IndBlocks.to_blknos_zero();
+    }
+
     predicate {:opaque} ValidData()
       reads Repr
       requires ValidBasics()
     {
       forall pos:Pos | pos.data? ::
         data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
+    }
+
+    lemma data_zero(pos: Pos)
+      requires ValidBasics() && ValidData()
+      requires to_blkno[pos] == 0
+      requires pos.data?
+      ensures data[pos] == block0
+    {
+      reveal ValidData();
     }
 
     predicate Valid()
@@ -291,7 +318,7 @@ module IndFs
       reveal ValidPos();
     }
 
-    twostate lemma {:timeLimitMultiplier 2} ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
+    twostate lemma ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
       requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
@@ -333,7 +360,7 @@ module IndFs
     }
 
     // private
-    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: MemInode)
+    method allocateRootMetadata(txn: Txn, pos: Pos, i: MemInode)
       returns (ok: bool, bn: Blkno)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -538,7 +565,7 @@ module IndFs
       reveal ValidMetadata();
     }
 
-    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
+    method write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -579,7 +606,7 @@ module IndFs
       }
     }
 
-    method {:timeLimitMultiplier 2} zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
@@ -596,9 +623,9 @@ module IndFs
       assert pos.data?;
       var bn: Blkno := i.get_blk(off);
       if bn == 0 {
-        // already done, need to reveal some stuff to prove that
-        reveal ValidInodes();
-        reveal ValidData();
+        // already done
+        inode_pos_at(ino, i);
+        data_zero(pos);
         return;
       }
       inode_pos_at(ino, i);
