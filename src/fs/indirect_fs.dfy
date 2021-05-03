@@ -1045,6 +1045,72 @@ module IndFs
       zeroOutIndirectPointer(txn, pos0.parent(), i);
     }
 
+    // check how much of ino is zero starting at off
+    method checkZeroAt(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      returns (end: uint64)
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures off as nat <= end as nat <= config.total
+      ensures forall i:uint64 | off <= i < end ::
+        data[Pos.from_flat(ino, i)] == block0
+    {
+      // nothing zero (signals failure)
+      end := off;
+      var pos0 := Pos.from_flat(ino, off);
+      if pos0.idx.off.j % 512 == 0 && pos0.ilevel > 0 {
+        // TODO: would be cool if we could also check a double-indirect block
+        // all at once here (if pos0.parent() is still not last-level)
+        //
+        // this might be necessary for sufficient performance
+        var pbn := resolveBlkno(txn, pos0.parent(), i);
+        if pbn == 0 {
+          parent_zero(pos0);
+          end := off + 512;
+          forall i:uint64 | off <= i < end
+            ensures data[Pos.from_flat(ino, i)] == block0
+          {
+            var pos := Pos.from_flat(ino, i);
+            assert pos.parent() == pos0.parent();
+            parent_zero(pos);
+            data_zero(pos);
+          }
+          return;
+        }
+      }
+      var bn: Blkno := resolveBlkno(txn, pos0, i);
+      if bn == 0 {
+        data_zero(pos0);
+        end := off + 1;
+        return;
+      }
+    }
+
+    // check that ino is already zero starting at off
+    method checkZero(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      returns (ok: bool)
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures ok ==> forall off': uint64 | off as nat <= off' as nat < config.total ::
+       data[Pos.from_flat(ino, off')] == block0
+    {
+      var end := off;
+      while end < config.total_u64()
+        decreases config.total - end as nat
+        invariant off as nat <= end as nat <= config.total
+        invariant forall off': uint64 | off <= off' < end ::
+          data[Pos.from_flat(ino, off')] == block0
+      {
+        var newEnd := checkZeroAt(txn, end, ino, i);
+        if newEnd == end {
+          return false;
+        }
+        end := newEnd;
+      }
+      return true;
+    }
+
     // public
     method startInode(txn: Txn, ino: Ino)
       returns (i: MemInode)
