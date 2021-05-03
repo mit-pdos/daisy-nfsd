@@ -783,7 +783,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
-      returns (r: Result<Ino>, ghost junk: seq<byte>, ghost attrs: Inode.Attrs)
+      returns (r: Result<Ino>, ghost attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -793,12 +793,11 @@ module DirFs
       && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
-      && |junk| == how.size() as nat
       && has_create_attrs(attrs, how)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
-        data[ino := ByteFile(junk, attrs)][d_ino := d'])
+        data[ino := ByteFile(C.repeat(0 as byte, how.size() as nat), attrs)][d_ino := d'])
       )
     {
       var sz := how.size();
@@ -853,12 +852,11 @@ module DirFs
         r := Err(NoSpc);
         return;
       }
-      junk := [];
       if sz > 0 {
         var unused_r;
         ghost var unused_attrs;
-        unused_r, junk, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
-        assert ByteFs.ByteFilesys.setSize_with_junk([], sz as nat, junk) == junk;
+        unused_r, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
+        assert ByteFs.ByteFilesys.setSize_with_zeros([], sz as nat) == C.repeat(0 as byte, sz as nat);
       }
       // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
       reveal ino_ok;
@@ -923,7 +921,7 @@ module DirFs
     }
 
     method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
-      returns (r:Result<()>, ghost junk: seq<byte>, ghost attrs': Inode.Attrs)
+      returns (r:Result<()>, ghost attrs': Inode.Attrs)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -934,11 +932,9 @@ module DirFs
       && has_set_attrs(old(data[ino].attrs), attrs', attrs)
       && (var d0 := old(data[ino]);
         var sz := if attrs.size.Some? then attrs.size.x as nat else |d0.data|;
-        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0.data, sz, junk);
-        && (sz > |d0.data| ==> |junk| == sz - |d0.data|)
+        var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0.data, sz);
         && data == old(data[ino := ByteFile(d', attrs')]))
     {
-      junk := [];
       if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
         r := Err(FBig);
         return;
@@ -962,10 +958,14 @@ module DirFs
       var attrs'_val := SetattrAttributes(attrs, i.attrs);
       attrs' := attrs'_val;
       fs.setAttrs(ino, i, attrs'_val);
-      junk := fs.setSize(txn, ino, i, sz);
+      var ok := fs.setSize(txn, ino, i, sz);
+      if !ok {
+        r := Err(NoSpc);
+        return;
+      }
       fs.finishInode(txn, ino, i);
 
-      ghost var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
+      ghost var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz as nat);
       data := data[ino := ByteFile(d', attrs')];
 
       assert Valid() by {
@@ -1142,8 +1142,11 @@ module DirFs
       }
       if off > i.sz {
         fs.inode_metadata(ino, i);
-        // unverified (because we should set this to zeros)
-        ghost var junk := fs.setSize(txn, ino, i, off);
+        var ok := fs.setSize(txn, ino, i, off);
+        if !ok {
+          // TODO: wrong, need better signal from setSize
+          return Err(NoSpc);
+        }
         assert |fs.data[ino]| == off as nat;
       }
       fs.inode_metadata(ino, i);

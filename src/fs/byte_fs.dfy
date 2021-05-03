@@ -198,7 +198,7 @@ module ByteFs {
       reveal raw_inode_data();
     }
 
-    method alignedRead(txn: Txn, ino: Ino, i: MemInode, off: uint64)
+    method alignedRead(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -353,7 +353,7 @@ module ByteFs {
     }
 
     // private
-    method alignedRawWrite(txn: Txn, ino: Ino, i: MemInode, bs: Bytes, off: uint64)
+    method alignedRawWrite(txn: Txn, ghost ino: Ino, i: MemInode, bs: Bytes, off: uint64)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
@@ -397,7 +397,7 @@ module ByteFs {
     }
 
     // private
-    method alignedWrite(txn: Txn, ino: Ino, i: MemInode, bs: Bytes, off: uint64)
+    method alignedWrite(txn: Txn, ghost ino: Ino, i: MemInode, bs: Bytes, off: uint64)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
@@ -454,6 +454,28 @@ module ByteFs {
         reveal raw_inode_data();
         ghost var blks := block_data(fs.data)[ino].blks;
         C.concat_homogeneous_spec_alt(blks, 4096);
+      }
+    }
+
+    method checkZero(txn: Txn, ghost ino: Ino, i: MemInode,
+      off: uint64, len: uint64)
+      returns (ok: bool)
+      requires fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      requires off % 4096 == 0 && len % 4096 == 0
+      requires off as nat <= |data()[ino]|
+      requires off as nat + len as nat <= Inode.MAX_SZ
+      requires (off + len) as nat >= |data()[ino]|
+      ensures ok ==> data()[ino][off..] == C.repeat(0 as byte, |data()[ino]| - off as nat)
+    {
+      ok := rawCheckZero(txn, ino, i, off, len);
+      fs.inode_metadata(ino, i);
+      ghost var sz := |data()[ino]|;
+      calc {
+        data()[ino][off..];
+        raw_data(ino)[..sz][off..];
+        raw_data(ino)[off..sz];
+        raw_data(ino)[off..off + len][..sz - off as nat];
       }
     }
 
@@ -612,32 +634,79 @@ module ByteFs {
       this.shrinkTo(txn, ino, i, 0);
     }
 
-    static function setSize_with_junk(data: seq<byte>, sz: nat, junk: seq<byte>): seq<byte>
+    static function setSize_with_zeros(data: seq<byte>, sz: nat): seq<byte>
     {
-      if sz <= |data| then data[..sz] else data + junk
+      if sz <= |data| then data[..sz] else data + C.repeat(0 as byte, sz - |data|)
     }
 
     method setSize(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
-      returns (ghost junk: seq<byte>)
+      returns (ok: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      (var d0 := old(data()[ino]);
-      var d' := setSize_with_junk(d0, sz' as nat, junk);
+      ok ==> (var d0 := old(data()[ino]);
+      var d' := setSize_with_zeros(d0, sz' as nat);
       && data() == old(data()[ino := d']))
-      ensures
-      (var d0 := old(data()[ino]);
-      sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
       assert i.sz as nat == |data()[ino]|;
       if sz' <= i.sz {
-         this.shrinkTo(txn, ino, i, sz');
-      } else {
-        junk := this.growBy(ino, i, sz' - i.sz);
+        ok := true;
+        this.shrinkTo(txn, ino, i, sz');
+        return;
+      }
+
+      var sz0 := i.sz;
+      ghost var junk := this.growBy(ino, i, sz' - i.sz);
+      assert |data()[ino]| == sz' as nat;
+      var freeStart := Round.roundup64(sz0, 4096);
+      var newEnd := Round.roundup64(sz', 4096);
+      Round.roundup_incr(sz0 as nat, sz' as nat, 4096);
+      if freeStart <= sz' {
+        ok := checkZero(txn, ino, i, freeStart, newEnd - freeStart);
+        if !ok {
+          return;
+        }
+        assert data()[ino] ==
+          old(data()[ino]) +
+          junk[..freeStart - sz0] +
+          C.repeat(0 as byte, sz' as nat - freeStart as nat) by {
+          assert junk[freeStart - sz0..] ==
+            C.repeat(0 as byte, sz' as nat - freeStart as nat);
+        }
+      }
+      if sz0 < freeStart {
+        var zeroLen := freeStart - sz0;
+        if sz' <= freeStart {
+          zeroLen := sz' - sz0;
+        }
+        var bs := NewBytes(zeroLen);
+        ok := updateInPlace(txn, ino, i, sz0, bs);
+        if !ok {
+          return;
+        }
+        if sz' <= freeStart {
+          calc {
+            data()[ino];
+            C.splice(old(data()[ino]) + junk, sz0 as nat, bs.data);
+            old(data()[ino]) + bs.data;
+            old(data()[ino]) + C.repeat(0 as byte, (sz' - sz0) as nat);
+          }
+        } else {
+          assert zeroLen == freeStart - sz0;
+          calc {
+            data()[ino];
+            C.splice(old(data()[ino]) + junk[..zeroLen]
+              + C.repeat(0 as byte, sz' as nat - freeStart as nat),
+              sz0 as nat, C.repeat(0 as byte, zeroLen as nat));
+            old(data()[ino]) + C.repeat(0 as byte, zeroLen as nat)
+              + C.repeat(0 as byte, sz' as nat - freeStart as nat);
+            old(data()[ino]) + C.repeat(0 as byte, sz' as nat - sz0 as nat);
+          }
+        }
       }
     }
 
@@ -668,7 +737,7 @@ module ByteFs {
       assert data1 == C.splice(data0, off, bs);
     }
 
-    method updateInPlace(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method updateInPlace(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires bs !in i.Repr

@@ -59,7 +59,7 @@ module BlockFs
   }
 
   // public
-  method Read(fs: IndFilesys, txn: Txn, ino: Ino, i: MemInode, n: uint64)
+  method Read(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, n: uint64)
     returns (bs: Bytes)
     requires fs.ValidIno(ino, i)
     requires fs.has_jrnl(txn)
@@ -115,7 +115,7 @@ module BlockFs
   }
 
   // public
-  method block_write(fs: IndFilesys, txn: Txn, ino: Ino, i: MemInode, n: uint64, blk: Bytes)
+  method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, n: uint64, blk: Bytes)
     returns (ok: bool)
     modifies fs.Repr, i.Repr
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
