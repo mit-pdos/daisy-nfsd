@@ -25,6 +25,8 @@ module ByteFs {
     C.concat(d.blks)
   }
 
+  datatype SetSizeRes = SetSizeOk | SetSizeNotZero | SetSizeNoSpc
+
   lemma splice_zero_raw_inode_data(blks: seq<Block>, off: nat, count: nat)
     requires off + count <= |blks|
     ensures |C.concat(blks)| == |blks|*4096
@@ -640,13 +642,13 @@ module ByteFs {
     }
 
     method setSize(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
-      returns (ok: bool)
+      returns (r: SetSizeRes)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      ok ==> (var d0 := old(data()[ino]);
+      r.SetSizeOk? ==> (var d0 := old(data()[ino]);
       var d' := setSize_with_zeros(d0, sz' as nat);
       && data() == old(data()[ino := d']))
       ensures types_unchanged()
@@ -654,11 +656,12 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       assert i.sz as nat == |data()[ino]|;
       if sz' <= i.sz {
-        ok := true;
+        r := SetSizeOk;
         this.shrinkTo(txn, ino, i, sz');
         return;
       }
 
+      r := SetSizeOk;
       var sz0 := i.sz;
       ghost var junk := this.growBy(ino, i, sz' - i.sz);
       assert |data()[ino]| == sz' as nat;
@@ -666,9 +669,9 @@ module ByteFs {
       var newEnd := Round.roundup64(sz', 4096);
       Round.roundup_incr(sz0 as nat, sz' as nat, 4096);
       if freeStart <= sz' {
-        ok := checkZero(txn, ino, i, freeStart, newEnd - freeStart);
+        var ok := checkZero(txn, ino, i, freeStart, newEnd - freeStart);
         if !ok {
-          return;
+          return SetSizeNotZero;
         }
         assert data()[ino] ==
           old(data()[ino]) +
@@ -684,9 +687,9 @@ module ByteFs {
           zeroLen := sz' - sz0;
         }
         var bs := NewBytes(zeroLen);
-        ok := updateInPlace(txn, ino, i, sz0, bs);
+        var ok := updateInPlace(txn, ino, i, sz0, bs);
         if !ok {
-          return;
+          return SetSizeNoSpc;
         }
         if sz' <= freeStart {
           calc {

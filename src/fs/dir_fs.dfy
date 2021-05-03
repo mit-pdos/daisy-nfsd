@@ -958,8 +958,12 @@ module DirFs
       var attrs'_val := SetattrAttributes(attrs, i.attrs);
       attrs' := attrs'_val;
       fs.setAttrs(ino, i, attrs'_val);
-      var ok := fs.setSize(txn, ino, i, sz);
-      if !ok {
+      var setsize_r := fs.setSize(txn, ino, i, sz);
+      if setsize_r.SetSizeNotZero? {
+        r := Err(JukeBox);
+        return;
+      }
+      if setsize_r.SetSizeNoSpc? {
         r := Err(NoSpc);
         return;
       }
@@ -1142,9 +1146,11 @@ module DirFs
       }
       if off > i.sz {
         fs.inode_metadata(ino, i);
-        var ok := fs.setSize(txn, ino, i, off);
-        if !ok {
-          // TODO: wrong, need better signal from setSize
+        var r := fs.setSize(txn, ino, i, off);
+        if r.SetSizeNotZero? {
+          return Err(JukeBox);
+        }
+        if r.SetSizeNoSpc? {
           return Err(NoSpc);
         }
         assert |fs.data[ino]| == off as nat;

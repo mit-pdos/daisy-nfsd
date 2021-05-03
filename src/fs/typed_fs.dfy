@@ -509,18 +509,18 @@ module TypedFs {
     }
 
     method setSize(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
-      returns (ok: bool)
+      returns (r: SetSizeRes)
       modifies Repr, i.Repr
-      requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
+      requires ValidIno(ino, i) ensures r.SetSizeOk? ==> ValidIno(ino, i)
       requires has_jrnl(txn)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      ok ==> (var d0 := old(data[ino]);
+      r.SetSizeOk? ==> (var d0 := old(data[ino]);
       var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
       && data == old(data[ino := d']))
       ensures types_unchanged()
     {
-      ok := fs.setSize(txn, ino, i, sz');
+      r := fs.setSize(txn, ino, i, sz');
       data := fs.data();
       reveal ValidFields();
       reveal ValidInvalid();
