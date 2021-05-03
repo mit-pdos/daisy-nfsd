@@ -51,7 +51,7 @@ module IndFs
     ghost var metadata: map<Ino, Inode.Meta>
 
     function blkno_pos(bn: Blkno): Option<Pos>
-      reads fs.Repr
+      reads fs
       requires blkno_ok(bn)
       requires fs.Valid_domains()
     {
@@ -74,9 +74,9 @@ module IndFs
     }
 
     predicate ValidBasics()
-      reads Repr
+      reads this, fs
     {
-      && fs.Valid()
+      && fs.Valid_domains()
       && ino_dom(metadata)
       && data_dom(data)
       && ValidBlknos()
@@ -84,7 +84,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidPos()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
@@ -104,7 +104,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidMetadata()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall ino: Ino ::
@@ -124,7 +124,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidInodes()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall ino:Ino :: inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
@@ -138,7 +138,7 @@ module IndFs
     }
 
     predicate valid_parent(pos: Pos)
-      reads Repr
+      reads this, fs
       requires pos.ilevel > 0
       requires ValidBasics()
     {
@@ -150,7 +150,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidIndirect()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
@@ -175,7 +175,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidData()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall pos:Pos | pos.data? ::
@@ -191,8 +191,8 @@ module IndFs
       reveal ValidData();
     }
 
-    predicate Valid()
-      reads this.Repr
+    predicate ValidThis()
+      reads this, fs
     {
       && ValidBasics()
       && ValidBlknos()
@@ -203,10 +203,26 @@ module IndFs
       && ValidData()
     }
 
+    predicate Valid()
+      reads this.Repr
+    {
+      && fs.Valid()
+      && ValidThis()
+    }
+
     predicate ValidIno(ino: Ino, i: MemInode)
       reads this.Repr, i.Repr
     {
       && Valid()
+      && i.Valid()
+      && fs.is_cur_inode(ino, i.val())
+    }
+
+    predicate ValidInoExcept(ino: Ino, i: MemInode, bn: Blkno)
+      reads this.Repr, i.Repr
+    {
+      && fs.ValidExcept(bn)
+      && ValidThis()
       && i.Valid()
       && fs.is_cur_inode(ino, i.val())
     }
@@ -695,7 +711,7 @@ module IndFs
       pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
-      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires ValidInoExcept(pos.ino, i, ibn) ensures ValidInoExcept(pos.ino, i, ibn)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
       requires ibn != 0
@@ -717,9 +733,9 @@ module IndFs
       assert blkno_pos(child_bn).Some? by {
         reveal ValidPos();
       }
-      fs.free(txn, child_bn);
+      fs.freeWithException(txn, child_bn, ibn);
       IndBlocks.modify_one(ib, child.j, 0);
-      fs.writeDataBlock(txn, ibn, ib);
+      fs.fakeWriteDataBlock(ibn, ib.data);
       data := data[pos := block0];
       to_blkno := to_blkno[pos := 0 as Blkno];
       assert ValidBasics();
@@ -789,7 +805,9 @@ module IndFs
         data_zero(pos);
         return;
       }
+      fs.addException(ibn);
       zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
+      fs.finishWriteDataBlock(txn, ibn, ib);
     }
 
     method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)

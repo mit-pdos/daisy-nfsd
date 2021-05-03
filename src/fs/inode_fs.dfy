@@ -348,6 +348,7 @@ module InodeFs {
       && block_used == old(block_used)
       && data_block == old(data_block)[bn := blk.data]
     {
+      addException(bn);
       fakeWriteDataBlock(bn, blk.data);
       finishWriteDataBlock(txn, bn, blk);
     }
@@ -355,7 +356,7 @@ module InodeFs {
     // public
     ghost method fakeWriteDataBlock(bn: Blkno, blk: Block)
       modifies this
-      requires Valid() ensures ValidExcept(bn)
+      requires ValidExcept(bn) ensures ValidExcept(bn)
       requires bn != 0 && blkno_ok(bn)
       ensures
       && inodes == old(inodes)
@@ -373,12 +374,23 @@ module InodeFs {
       }
     }
 
+    ghost method addException(bn: Blkno)
+      requires blkno_ok(bn)
+      requires Valid() ensures ValidExcept(bn)
+    {
+        reveal Valid_jrnl_super_block();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_data_block_except();
+        reveal Valid_jrnl_to_inodes();
+    }
+
     method finishWriteDataBlock(txn: Txn, bn: Blkno, blk: Bytes)
-      modifies this, jrnl
+      modifies jrnl
       requires txn.jrnl == jrnl
-      requires ValidExcept(bn)
+      requires ValidExcept(bn) ensures Valid()
       requires blk.data == data_block[bn]
-      ensures Valid()
+      ensures
       && inodes == old(inodes)
       && cur_inode == old(cur_inode)
       && block_used == old(block_used)
@@ -596,6 +608,34 @@ module InodeFs {
         reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_inodes();
+        DataBitAddr_disjoint(bn);
+      }
+    }
+
+    method freeWithException(txn: Txn, bn: Blkno, ghost bn0: Blkno)
+      modifies Repr
+      requires ValidExcept(bn0) ensures ValidExcept(bn0)
+      requires txn.jrnl == jrnl
+      requires blkno_ok(bn)
+      requires block_used[bn].Some?
+      ensures inodes == old(inodes)
+      ensures block_used == old(block_used[bn:=None])
+      ensures cur_inode == old(cur_inode)
+      ensures data_block == old(data_block)
+    {
+      blkno_bit_inbounds(jrnl);
+      block_used := block_used[bn:=None];
+      txn.WriteBit(DataBitAddr(bn), false);
+      if 0 < bn < ballocActualMax {
+        balloc.Free(bn);
+      }
+
+      assert ValidExcept(bn0) by {
+        reveal Valid_jrnl_super_block();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_data_block_except();
         reveal Valid_jrnl_to_inodes();
         DataBitAddr_disjoint(bn);
       }
