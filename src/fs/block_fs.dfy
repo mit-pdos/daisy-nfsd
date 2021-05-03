@@ -211,4 +211,21 @@ module BlockFs
         k := k + 1;
       }
     }
+
+    method block_zero_free(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, start: uint64)
+      modifies fs.Repr, i.Repr
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      //requires start + len <= config.total
+      requires start as nat < config.total
+      ensures forall ino':Ino | ino != ino' :: block_data(fs.data)[ino'] == old(block_data(fs.data)[ino'])
+      ensures forall off:uint64 | off < start ::
+        block_data(fs.data)[ino].blks[off] ==
+        old(block_data(fs.data)[ino].blks[off])
+      ensures fs.metadata == old(fs.metadata)
+    {
+      fs.zeroFrom(txn, start, ino, i);
+      reveal inode_blocks();
+      reveal block_data();
+    }
 }

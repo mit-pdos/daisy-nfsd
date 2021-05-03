@@ -1071,6 +1071,19 @@ module IndFs
       zeroOutIndirectPointer(txn, pos0.parent(), i);
     }
 
+    method zeroFrom(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures forall off': uint64 | off' < off ::
+      data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+      ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
+      ensures metadata == old(metadata)
+    {
+      // TODO: implement
+    }
+
     // check how much of ino is zero starting at off
     method checkZeroAt(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       returns (end: uint64)

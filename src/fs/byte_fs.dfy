@@ -496,6 +496,56 @@ module ByteFs {
       return;
     }
 
+    method zeroFromRaw(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64)
+      modifies Repr, i.Repr
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      requires off % 4096 == 0 && off as nat < Inode.MAX_SZ
+      ensures var ino0 := ino;
+        forall ino:Ino | ino != ino0 ::
+          data()[ino] == old(data()[ino])
+      ensures var off0 := off;
+        forall off:uint64 | off < off0 ::
+          raw_data(ino)[off] == old(raw_data(ino)[off])
+      ensures fs.metadata == old(fs.metadata)
+      ensures types_unchanged()
+    {
+      block_zero_free(fs, txn, ino, i, off / 4096);
+      reveal raw_inode_data();
+      inode_types_metadata_unchanged();
+      ghost var off0 := off;
+      forall off:uint64 | off < off0
+        ensures raw_data(ino)[off] == old(raw_data(ino)[off])
+      {
+        ghost var blks := old(block_data(fs.data)[ino].blks);
+        ghost var blks' := block_data(fs.data)[ino].blks;
+        C.concat_homogeneous_spec_alt(blks, 4096);
+        C.concat_homogeneous_spec_alt(blks', 4096);
+        // assert old(raw_data(ino)[off]) == blks[off / 4096][off % 4096];
+        // assert raw_data(ino)[off] == blks'[off / 4096][off % 4096];
+      }
+    }
+
+    method zeroFreeSpace(txn: Txn, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+      ensures data() == old(data())
+      ensures fs.metadata == old(fs.metadata)
+      ensures types_unchanged()
+    {
+      var sz := i.sz;
+      fs.inode_metadata(ino, i);
+      assert sz == fs.metadata[ino].sz;
+      var unusedStart := Round.roundup64(sz, 4096);
+      if unusedStart < Inode.MAX_SZ_u64 {
+        zeroFromRaw(txn, ino, i, unusedStart);
+        assert raw_data(ino)[..unusedStart] == old(raw_data(ino)[..unusedStart]);
+        assert data()[ino] == raw_data(ino)[..unusedStart][..sz];
+        assert old(data()[ino]) == old(raw_data(ino)[..unusedStart][..sz]);
+      }
+    }
+
     method {:timeLimitMultiplier 2} shrinkTo(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
