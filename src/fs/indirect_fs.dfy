@@ -12,6 +12,7 @@ module IndFs
   import opened JrnlSpec
   import opened InodeFs
   import opened Marshal
+  import Pow
   import C = Collections
 
   import IndBlocks
@@ -718,6 +719,7 @@ module IndFs
       requires ibn == to_blkno[pos.parent()]
       requires ib.data == fs.data_block[ibn]
       ensures data == old(data[pos := block0])
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
       ensures metadata == old(metadata)
       ensures ibn == to_blkno[pos.parent()]
       ensures ib.data == fs.data_block[ibn]
@@ -830,6 +832,18 @@ module IndFs
     {
       forall pos':Pos | pos'.ilevel > 0 && pos'.parent() == pos ::
         to_blkno[pos'] == 0
+    }
+
+    static lemma pos_children_characterization(pos: Pos)
+      requires pos.idx.off.j % 512 == 0
+      requires pos.ilevel > 0
+      ensures forall pos': Pos | pos'.ilevel > 0 ::
+      pos'.parent() == pos.parent() <==>
+      (&& pos'.ino == pos.ino
+      && pos'.idx.k == pos.idx.k
+      && pos'.ilevel == pos.ilevel
+      && pos.idx.off.j <= pos'.idx.off.j < pos.idx.off.j + 512)
+    {
     }
 
     // zero an intermediate metadata block where children are already zero
@@ -968,6 +982,67 @@ module IndFs
         }
         zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, i);
       }
+    }
+
+    // zero everything under an indirect block, given a starting data position
+    //
+    // spec allows any changes beyond the starting point for simplicity
+    method zeroIndirectBlockRange(txn: Txn, pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.data? && pos.ilevel > 0
+      // must be the start of an indirect block since we also zero the parent
+      requires pos.idx.off.j % 512 == 0
+      ensures forall pos':Pos |
+      pos'.data? &&
+      (pos'.ino != pos.ino ||
+      pos'.idx.flat() < pos.idx.flat()) ::
+      data[pos'] == old(data[pos'])
+      ensures metadata == old(metadata)
+    {
+      var idx0 := pos.idx;
+      var pos0 := pos;
+      var pos := pos;
+      var k := idx0.k;
+      var ilevel := pos0.ilevel;
+
+      var ibn, ib := readParent(txn, pos, i);
+      if ibn == 0 {
+        return;
+      }
+
+      fs.addException(ibn);
+      var j := 0;
+      while j < 512
+        decreases 512-j
+        modifies Repr, i.Repr, ib
+        invariant 0 <= j <= 512
+        invariant ValidInoExcept(pos0.ino, i, ibn)
+        invariant forall pos:Pos | pos.data? ::
+          if && pos.ino == pos0.ino
+             && pos.idx.k == idx0.k
+             && idx0.off.j <= pos.idx.off.j < idx0.off.j + j
+          then data[pos] == block0
+          else data[pos] == old(data[pos])
+        invariant forall pos:Pos | pos.data? ::
+          (&& pos.ino == pos0.ino
+           && pos.idx.k == pos0.idx.k
+           && idx0.off.j <= pos.idx.off.j < idx0.off.j + j) ==>
+          to_blkno[pos] == 0
+        invariant metadata == old(metadata)
+        invariant ibn == to_blkno[pos0.parent()]
+        invariant ib.data == fs.data_block[ibn]
+      {
+        var idx: Idx := Idx(k, IndOff(ilevel, idx0.off.j + j));
+        pos := Pos(pos0.ino, idx);
+        assert pos.idx.off.parent() == idx0.off.parent();
+        assert pos.parent() == pos0.parent();
+        zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
+        j := j + 1;
+      }
+      fs.finishWriteDataBlock(txn, ibn, ib);
+      zeroOutIndirectPointer(txn, pos0.parent(), i);
     }
 
     // public
