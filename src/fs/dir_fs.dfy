@@ -1744,5 +1744,21 @@ module DirFs
       r := r.(tfiles := tfiles).(ffiles := ffiles);
       return;
     }
+
+    method ZeroFreeSpace(txn: Txn, ino: Ino)
+      returns (r: Result<()>)
+      modifies Repr
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures r.Ok? ==> Valid()
+      ensures data == old(data)
+    {
+      var ok, i := fs.startInode(txn, ino);
+      if !ok {
+        return;
+      }
+      fs.zeroFreeSpace(txn, ino, i);
+      fs.finishInode(txn, ino, i);
+      return Ok(());
+    }
   }
 }

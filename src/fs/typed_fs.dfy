@@ -542,6 +542,17 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
+    method zeroFreeSpace(txn: Txn, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      ensures data == old(data)
+      ensures types == old(types)
+    {
+      fs.zeroFreeSpace(txn, ino, i);
+      reveal ValidFields();
+    }
+
     method TotalFiles() returns (num: uint64)
     {
       return super.num_inodes as uint64;
