@@ -435,6 +435,28 @@ module ByteFs {
       map_update_eq(old(data()), ino, inode_data(sz, d), data());
     }
 
+    method rawCheckZero(txn: Txn, ghost ino: Ino, i: MemInode,
+      off: uint64, len: uint64)
+      returns (ok: bool)
+      requires fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      requires off % 4096 == 0 && len % 4096 == 0
+      requires off as nat + len as nat <= Inode.MAX_SZ
+      ensures ok ==> raw_data(ino)[off..off + len] == C.repeat(0 as byte, len as nat)
+    {
+      ok := block_checkZero(fs, txn, ino, i, off/4096, len/4096);
+      if !ok {
+        return;
+      }
+      forall off':uint64 | off <= off' < off + len
+        ensures raw_data(ino)[off'] == 0 as byte
+      {
+        reveal raw_inode_data();
+        ghost var blks := block_data(fs.data)[ino].blks;
+        C.concat_homogeneous_spec_alt(blks, 4096);
+      }
+    }
+
     // private
     //
     // grow an inode with junk so that it can be filled with in-bounds writes

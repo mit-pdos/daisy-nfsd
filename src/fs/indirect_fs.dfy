@@ -1125,18 +1125,18 @@ module IndFs
       }
     }
 
-    // check that ino is already zero starting at off
-    method checkZero(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    // check that ino is already zero starting at off, through off + len
+    method checkZero(txn: Txn, off: uint64, len: uint64,
+      ghost ino: Ino, i: MemInode)
       returns (ok: bool)
       requires has_jrnl(txn)
       requires ValidIno(ino, i)
-      requires off as nat < config.total
-      ensures ok ==> forall off': uint64 | off as nat <= off' as nat < config.total ::
+      requires off as nat + len as nat <= config.total
+      ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
        data[Pos.from_flat(ino, off')] == block0
     {
       var end := off;
-      while end < config.total_u64()
-        decreases config.total - end as nat
+      while end < off + len
         invariant off as nat <= end as nat <= config.total
         invariant forall off': uint64 | off <= off' < end ::
           data[Pos.from_flat(ino, off')] == block0

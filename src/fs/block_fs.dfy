@@ -228,4 +228,18 @@ module BlockFs
       reveal inode_blocks();
       reveal block_data();
     }
+
+    method block_checkZero(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode,
+      off: uint64, len: uint64)
+      returns (ok: bool)
+      requires fs.has_jrnl(txn)
+      requires fs.ValidIno(ino, i);
+      requires off as nat + len as nat <= config.total
+      ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
+        block_data(fs.data)[ino].blks[off'] == block0
+    {
+      ok := fs.checkZero(txn, off, len, ino, i);
+      reveal inode_blocks();
+      reveal block_data();
+    }
 }
