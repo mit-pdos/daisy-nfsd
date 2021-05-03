@@ -1749,16 +1749,13 @@ module DirFs
       returns (r: Result<()>)
       modifies Repr
       requires fs.has_jrnl(txn)
-      requires Valid() ensures r.Ok? ==> Valid()
+      requires Valid() ensures Valid()
+      ensures r.Ok? // only return a Result to use runTxn in Go
       ensures data == old(data)
     {
-      var ok, i := fs.startInode(txn, ino);
-      if !ok {
-        return;
-      }
-      fs.zeroFreeSpace(txn, ino, i);
-      fs.finishInode(txn, ino, i);
-      return Ok(());
+      r := Ok(());
+      fs.zeroFreeSpace(txn, ino);
+      return;
     }
   }
 }
