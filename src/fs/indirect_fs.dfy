@@ -53,9 +53,8 @@ module IndFs
     function blkno_pos(bn: Blkno): Option<Pos>
       reads fs.Repr
       requires blkno_ok(bn)
-      requires fsValid()
+      requires fs.Valid_domains()
     {
-      reveal fsValid();
       fs.block_used[bn]
     }
 
@@ -74,17 +73,10 @@ module IndFs
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate {:opaque} fsValid()
-      reads fs.Repr
-    {
-      fs.Valid()
-    }
-
     predicate ValidBasics()
       reads Repr
     {
-      reveal fsValid();
-      && fsValid()
+      && fs.Valid()
       && ino_dom(metadata)
       && data_dom(data)
       && ValidBlknos()
@@ -95,7 +87,6 @@ module IndFs
       reads Repr
       requires ValidBasics()
     {
-      reveal fsValid();
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
           blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
       && (forall pos:Pos ::
@@ -238,7 +229,7 @@ module IndFs
       this.data := imap pos: Pos | pos.idx.data?() :: block0;
       this.metadata := map ino: Ino {:trigger} :: Inode.Meta.zero;
       new;
-      assert ValidBasics() by { reveal fsValid(); }
+      assert ValidBasics();
       IndBlocks.to_blknos_zero();
       assert ValidPos() by { reveal ValidPos(); }
       reveal ValidInodes();
@@ -265,7 +256,6 @@ module IndFs
       this.metadata := fs.metadata;
 
       new;
-      assert ValidBasics() by { reveal fsValid(); }
       assert ValidPos() by { reveal ValidPos(); }
       reveal ValidInodes();
       reveal ValidIndirect();
@@ -987,7 +977,6 @@ module IndFs
       ensures data == old(data)
       ensures metadata == old(metadata[ino := meta])
     {
-      reveal fsValid();
       i.set_sz(meta.sz);
       i.set_attrs(meta.attrs);
       fs.writeInode(ino, i);
