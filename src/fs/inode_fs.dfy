@@ -100,6 +100,16 @@ module InodeFs {
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
+    predicate {:opaque} Valid_jrnl_to_data_block_except(data_block: map<Blkno, Block>, bn0: Blkno)
+      reads jrnl
+      requires blkno_dom(data_block)
+      requires Valid_basics(jrnl)
+    {
+      && (forall bn | blkno_ok(bn) && bn != 0 && bn != bn0 ::
+        datablk_inbounds(jrnl, bn);
+        && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
+    }
+
     predicate {:opaque} Valid_jrnl_to_inodes(inodes: map<Ino, Inode.Inode>)
       reads this, jrnl
       requires ino_dom(inodes)
@@ -134,8 +144,10 @@ module InodeFs {
       && this.balloc.Valid()
     }
 
-    predicate Valid_jrnl_to_all()
-      reads this, jrnl
+    ghost const Repr: set<object> := {this, jrnl}
+
+    predicate Valid()
+      reads Repr
     {
       && Valid_basics(jrnl)
       && Valid_domains()
@@ -143,22 +155,20 @@ module InodeFs {
       && Valid_jrnl_to_block_used(block_used)
       && Valid_jrnl_to_data_block(data_block)
       && Valid_jrnl_to_inodes(inodes)
+      && Valid_balloc()
     }
 
-    ghost const Repr: set<object> := {this, jrnl}
-
-    static predicate Valid_data_block(data_block: map<Blkno, Block>)
-    {
-      forall bn | bn in data_block :: is_block(data_block[bn])
-    }
-
-    predicate Valid()
+    predicate ValidExcept(bn: Blkno)
       reads Repr
     {
-      && Valid_data_block(data_block)
-      && Valid_jrnl_to_all()
-
-      && this.Valid_balloc()
+      && Valid_basics(jrnl)
+      && Valid_domains()
+      && Valid_jrnl_super_block(ballocActualMax)
+      && Valid_jrnl_to_block_used(block_used)
+      && Valid_jrnl_to_data_block_except(data_block, bn)
+      && Valid_jrnl_to_inodes(inodes)
+      && Valid_balloc()
+      && blkno_ok(bn)
     }
 
     predicate ValidQ()
@@ -338,14 +348,49 @@ module InodeFs {
       && block_used == old(block_used)
       && data_block == old(data_block)[bn := blk.data]
     {
-      datablk_inbounds(jrnl, bn);
-      txn.Write(DataBlk(bn), blk);
-      data_block := data_block[bn := blk.data];
+      fakeWriteDataBlock(bn, blk.data);
+      finishWriteDataBlock(txn, bn, blk);
+    }
 
-      assert Valid_jrnl_to_all() by {
+    // public
+    ghost method fakeWriteDataBlock(bn: Blkno, blk: Block)
+      modifies this
+      requires Valid() ensures ValidExcept(bn)
+      requires bn != 0 && blkno_ok(bn)
+      ensures
+      && inodes == old(inodes)
+      && cur_inode == old(cur_inode)
+      && block_used == old(block_used)
+      && data_block == old(data_block)[bn := blk]
+    {
+      data_block := data_block[bn := blk];
+      assert ValidExcept(bn) by {
         reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_data_block_except();
+        reveal Valid_jrnl_to_inodes();
+      }
+    }
+
+    method finishWriteDataBlock(txn: Txn, bn: Blkno, blk: Bytes)
+      modifies this, jrnl
+      requires txn.jrnl == jrnl
+      requires ValidExcept(bn)
+      requires blk.data == data_block[bn]
+      ensures Valid()
+      && inodes == old(inodes)
+      && cur_inode == old(cur_inode)
+      && block_used == old(block_used)
+      && data_block == old(data_block)
+    {
+      datablk_inbounds(jrnl, bn);
+      txn.Write(DataBlk(bn), blk);
+      assert Valid() by {
+        reveal Valid_jrnl_super_block();
+        reveal Valid_jrnl_to_block_used();
+        reveal Valid_jrnl_to_data_block();
+        reveal Valid_jrnl_to_data_block_except();
         reveal Valid_jrnl_to_inodes();
         FsKinds.DataBlk_disjoint(bn);
         reveal_DataBlk();
@@ -487,7 +532,7 @@ module InodeFs {
     {
       inodes := inodes[ino:=i'.val()];
 
-      assert Valid_jrnl_to_all() by {
+      assert Valid() by {
         reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
@@ -518,7 +563,7 @@ module InodeFs {
       block_used := block_used[bn:=Some(state)];
       txn.WriteBit(DataBitAddr(bn), true);
 
-      assert Valid_jrnl_to_all() by {
+      assert Valid() by {
         reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
@@ -547,7 +592,7 @@ module InodeFs {
         balloc.Free(bn);
       }
 
-      assert Valid_jrnl_to_all() by {
+      assert Valid() by {
         reveal Valid_jrnl_super_block();
         reveal Valid_jrnl_to_block_used();
         reveal Valid_jrnl_to_data_block();
