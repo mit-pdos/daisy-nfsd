@@ -1,3 +1,4 @@
+include "../util/bytes.dfy"
 include "inode_fs.dfy"
 include "indirect/ind_block.dfy"
 include "indirect/pos.dfy"
@@ -13,6 +14,7 @@ module IndFs
   import opened InodeFs
   import opened Marshal
   import Pow
+  import ByteHelpers
   import C = Collections
 
   import IndBlocks
@@ -982,6 +984,30 @@ module IndFs
         }
         zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, i);
       }
+    }
+
+    method zeroIndirectIfPossible(txn: Txn,
+      pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires !pos.data?
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+    {
+      var bn := resolveBlkno(txn, pos, i);
+      if bn == 0 {
+        return;
+      }
+      var bs := fs.getDataBlock(txn, bn);
+      var is_zero := ByteHelpers.isZero(bs);
+      if is_zero {
+        assert fs.data_block[bn] == block0;
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
+        zeroOutIndirectPointer(txn, pos, i);
+      }
+      // nothing to do, some children still need to be zero'd
     }
 
     // zero everything under an indirect block, given a starting data position
