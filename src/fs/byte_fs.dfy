@@ -372,8 +372,7 @@ module ByteFs {
       ensures !ok ==> data() == old(data())
     {
       var blkoff: uint64 := off / 4096;
-      var wh := new BlockFs.WriteHelper(fs);
-      ok := wh.Do(txn, ino, i, blkoff, bs);
+      ok := block_write(fs, txn, ino, i, blkoff, bs);
       assert types_unchanged() by {
         reveal inode_types();
       }
@@ -481,8 +480,7 @@ module ByteFs {
         ok := true;
         var startblk: uint64 := off / 4096;
         var count: uint64 := len / 4096;
-        var h := new BlockFs.ZeroHelper(fs);
-        h.Do(txn, ino, i, startblk, count);
+        block_zero(fs, txn, ino, i, startblk, count);
         inode_types_metadata_unchanged();
         assert raw_data(ino) ==
           old(C.splice(raw_data(ino), off as nat,

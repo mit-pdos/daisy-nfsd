@@ -114,19 +114,8 @@ module BlockFs
     reveal inode_blocks();
   }
 
-  // workaround for https://github.com/dafny-lang/dafny/issues/1130
-  // TODO: no longer needed, we don't have a type parameter
-  class WriteHelper
-  {
-  const fs: IndFilesys
-  constructor(fs: IndFilesys)
-    ensures this.fs == fs
-  {
-    this.fs := fs;
-  }
-
   // public
-  method Do(txn: Txn, ino: Ino, i: MemInode, n: uint64, blk: Bytes)
+  method block_write(fs: IndFilesys, txn: Txn, ino: Ino, i: MemInode, n: uint64, blk: Bytes)
     returns (ok: bool)
     modifies fs.Repr, i.Repr
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -162,24 +151,14 @@ module BlockFs
       block_data_update_other(old(fs.data), ino0, ino, n, blk.data);
     }
   }
-  }
 
-  class ZeroHelper
-  {
-    const fs: IndFilesys
-    constructor(fs: IndFilesys)
-      ensures this.fs == fs
-    {
-      this.fs := fs;
-    }
+  lemma splice_repeat_one_more<T>(s: seq<T>, start: nat, count: nat, x: T)
+    requires start + count < |s|
+    ensures C.splice(s, start, C.repeat(x, count+1)) ==
+            C.splice(s, start, C.repeat(x, count))[start + count := x]
+  {}
 
-    static lemma splice_repeat_one_more<T>(s: seq<T>, start: nat, count: nat, x: T)
-      requires start + count < |s|
-      ensures C.splice(s, start, C.repeat(x, count+1)) ==
-              C.splice(s, start, C.repeat(x, count))[start + count := x]
-    {}
-
-    method Do(txn: Txn, ghost ino: Ino, i: MemInode, start: uint64, len: uint64)
+    method block_zero(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, start: uint64, len: uint64)
       modifies fs.Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -232,5 +211,4 @@ module BlockFs
         k := k + 1;
       }
     }
-  }
 }
