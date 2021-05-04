@@ -1115,7 +1115,7 @@ module IndFs
       done := false;
       var off0 := off;
       var off := off;
-      while off < config.total_u64()
+      while off < config_total
         invariant off0 as nat <= off as nat <= config.total
         invariant ValidIno(ino, i)
         invariant forall off': uint64 | off' < off0 ::

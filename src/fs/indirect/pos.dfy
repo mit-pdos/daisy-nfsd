@@ -81,7 +81,7 @@ module IndirectPos
       sums(ilevels)
     }
 
-    function method total_u64(): (t:uint64)
+    function total_u64(): (t:uint64)
       requires Valid()
       ensures t as nat == total
     {
@@ -159,12 +159,15 @@ module IndirectPos
 
   const config: Config := Config([0,0,0,0,0,0,0,0,1,1,1,3])
 
+  const config_total: uint64 := 8 + 3*512 + 512*512*512
+
   lemma config_properties()
     ensures config.Valid()
     ensures |config.ilevels| == 12
     ensures config.total == 8 + 3*512 + 512*512*512
     // these inodes can hold about 500GB
     ensures config.total * 4 / 1024 / 1024 /* GB */ == 512
+    ensures config.total == config_total as nat
   {}
 
   lemma config_total_to(k: uint64)
