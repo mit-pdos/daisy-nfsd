@@ -68,3 +68,7 @@ func (txn *Txn) Commit() bool {
 func (txn *Txn) Abort() {
 	txn.btxn.ReleaseAll()
 }
+
+func (txn *Txn) NDirty() uint64 {
+	return txn.btxn.NDirty()
+}

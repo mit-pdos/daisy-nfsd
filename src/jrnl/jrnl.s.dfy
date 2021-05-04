@@ -307,6 +307,13 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"} JrnlSpec
         method {:extern} Abort()
             requires Valid()
         {}
+
+        method {:extern} NDirty()
+            returns (num: uint64)
+            requires Valid()
+        {
+            num := 0;
+        }
     }
 
     // NOTE: we can't provide a model for this because we need kinds to be ghost
