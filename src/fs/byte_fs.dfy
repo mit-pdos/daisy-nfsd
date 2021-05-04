@@ -216,6 +216,7 @@ module ByteFs {
       raw_inode_index_one(d, off);
     }
 
+    // TODO: wrap this in a loop to support larger reads
     method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
       returns (bs: Bytes)
       requires fs.ValidIno(ino, i)

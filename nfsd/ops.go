@@ -485,6 +485,8 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	util.DPrintf(1, "NFS Fsinfo %v\n", args)
 	var reply nfstypes.FSINFO3res
 	reply.Status = nfstypes.NFS3_OK
+	// TODO: need to bump this up to support larger directory reads
+	// (currently reads above 4096 will always fail, though)
 	reply.Resok.Rtmax = nfstypes.Uint32(4096)
 	reply.Resok.Rtpref = reply.Resok.Rtmax
 	reply.Resok.Rtmult = 4096
@@ -497,6 +499,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	// set times). FSF3_HOMOGENEOUS indicates that the PATHCONF information is
 	// static.
 	reply.Resok.Properties = nfstypes.Uint32(nfstypes.FSF3_HOMOGENEOUS)
+	reply.Resok.Dtpref = 65536
 	return reply
 }
 
