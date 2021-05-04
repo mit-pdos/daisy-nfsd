@@ -1013,7 +1013,7 @@ module IndFs
     // zero everything under an indirect block, given a starting data position
     //
     // spec allows any changes beyond the starting point for simplicity
-    method zeroIndirectBlockRange(txn: Txn, pos: Pos, i: MemInode)
+    method zeroIndirectBlockRange'(txn: Txn, pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
@@ -1071,6 +1071,36 @@ module IndFs
       zeroOutIndirectPointer(txn, pos0.parent(), i);
     }
 
+    method zeroIndirectBlockRange(txn: Txn, pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.data? && pos.ilevel > 0
+      requires pos.idx.off.j % 512 == 0
+      ensures forall pos':Pos | pos'.data? && pos'.ino != pos.ino ::
+        data[pos'] == old(data[pos'])
+      ensures forall off:uint64 |
+        off as nat < pos.idx.flat() as nat < config.total ::
+          data[Pos.from_flat(pos.ino, off)] ==
+          old(data[Pos.from_flat(pos.ino, off)])
+      ensures forall pos':Pos |
+      pos'.data? &&
+      (pos'.ino != pos.ino ||
+      pos'.idx.flat() < pos.idx.flat()) ::
+      data[pos'] == old(data[pos'])
+      ensures metadata == old(metadata)
+    {
+      zeroIndirectBlockRange'(txn, pos, i);
+      forall off:uint64 |
+        off as nat < pos.idx.flat() as nat < config.total
+        ensures
+          data[Pos.from_flat(pos.ino, off)] ==
+          old(data[Pos.from_flat(pos.ino, off)])
+      {
+        Idx.from_to_flat_id(off);
+      }
+    }
+
     method zeroFrom(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -1081,7 +1111,31 @@ module IndFs
       ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
       ensures metadata == old(metadata)
     {
-      // TODO: implement
+      var off0 := off;
+      var off := off;
+      while off < config.total_u64()
+        invariant off0 as nat <= off as nat <= config.total
+        invariant ValidIno(ino, i)
+        invariant forall off': uint64 | off' < off0 ::
+          data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+        invariant forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
+        invariant metadata == old(metadata)
+      {
+        var newEnd := checkZeroAt(txn, off, ino, i);
+        if newEnd == off {
+          var pos := Pos.from_flat(ino, off);
+          if pos.ilevel > 0 && pos.idx.off.j % 512 == 0 {
+            Idx.from_to_flat_id(off);
+            zeroIndirectBlockRange(txn, pos, i);
+            off := off + 512;
+          } else {
+            zeroOut(txn, off, ino, i);
+            off := off + 1;
+          }
+        } else {
+          off := newEnd;
+        }
+      }
     }
 
     // check how much of ino is zero starting at off
