@@ -508,40 +508,6 @@ module ByteFs {
       }
     }
 
-    method freeRangeRaw(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64, len: uint64)
-      returns (ok: bool)
-      modifies Repr, i.Repr
-      requires fs.has_jrnl(txn)
-      requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
-      requires off % 4096 == 0 && len % 4096 == 0 && off as nat + len as nat <= Inode.MAX_SZ
-      ensures (var ino0 := ino;
-        forall ino:Ino | ino != ino0 ::
-          data()[ino] == old(data()[ino]))
-      ensures ok ==> raw_data(ino) == old(C.splice(raw_data(ino), off as nat, C.repeat(0 as byte, len as nat)))
-      ensures !ok ==> data() == old(data()) && raw_data(ino) == old(raw_data(ino))
-      ensures fs.metadata == old(fs.metadata)
-      ensures types_unchanged()
-    {
-      if off + len <= 8 * 4096 {
-        ok := true;
-        var startblk: uint64 := off / 4096;
-        var count: uint64 := len / 4096;
-        block_zero(fs, txn, ino, i, startblk, count);
-        inode_types_metadata_unchanged();
-        assert raw_data(ino) ==
-          old(C.splice(raw_data(ino), off as nat,
-              C.repeat(0 as byte, len as nat))) by {
-          reveal raw_inode_data();
-          splice_zero_raw_inode_data(old(block_data(fs.data)[ino].blks), startblk as nat, count as nat);
-          assert startblk*4096 == off;
-          assert count*4096 == len;
-        }
-        return;
-      }
-      ok := false;
-      return;
-    }
-
     method zeroFromRaw(txn: Txn, ghost ino: Ino, i: MemInode,
       off: uint64, sz_hint: uint64)
       returns (done: bool)
@@ -615,28 +581,17 @@ module ByteFs {
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
-      var unusedStart := Round.roundup64(sz', 4096);
-      var unusedEnd := Round.roundup64(i.sz, 4096);
-      Round.roundup_incr(sz' as nat, i.sz as nat, 4096);
-      var ok;
-      ok := this.freeRangeRaw(txn, ino, i, unusedStart, unusedEnd - unusedStart);
-
-      fs.inode_metadata(ino, i);
+      var old_sz := i.sz;
       fs.writeInodeMeta(ino, i, i.meta().(sz := sz'));
-      fs.inode_metadata(ino, i);
-      assert data()[ino] == old(data()[ino][..sz' as nat]) by {
-        calc {
-          data()[ino];
-          raw_data(ino)[..i.sz as nat];
-          old(data()[ino][..sz' as nat]);
-          old(raw_data(ino)[..i.sz as nat][..sz' as nat]);
-          { C.double_prefix(raw_data(ino), i.sz as nat, sz' as nat); }
-          old(raw_data(ino)[..sz' as nat]);
-        }
-      }
+      assert data()[ino] == old(data()[ino][..sz' as nat]);
       assert types_unchanged() by {
         reveal inode_types();
       }
+
+      // zero a small amount of free space right away, within the same
+      // transaction
+      var toZero := min_u64(old_sz, 4096*(8+3*512));
+      var _ := zeroFreeSpace(txn, ino, i, toZero);
     }
 
     method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: MemInode)
