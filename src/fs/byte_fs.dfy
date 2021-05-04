@@ -591,8 +591,9 @@ module ByteFs {
 
       // zero a small amount of free space right away, within the same
       // transaction
-      var toZero := min_u64(old_sz, 4096*(8+3*512));
-      var _ := zeroFreeSpace(txn, ino, i, toZero);
+      //
+      // XXX: this works but the background freeing does not, for some reason
+      var _ := zeroFreeSpace(txn, ino, i, old_sz);
     }
 
     method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: MemInode)
