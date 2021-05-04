@@ -49,6 +49,7 @@ module DirFs
     }
     var ok := txn.Commit();
     if !ok {
+      print "failed to commit\n";
       return Err(ServerFault);
     }
     return r;
