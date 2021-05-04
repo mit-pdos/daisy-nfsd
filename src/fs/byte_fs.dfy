@@ -543,6 +543,7 @@ module ByteFs {
     }
 
     method zeroFromRaw(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64)
+      returns (done: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -556,7 +557,7 @@ module ByteFs {
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
-      block_zero_free(fs, txn, ino, i, off / 4096);
+      done := block_zero_free(fs, txn, ino, i, off / 4096);
       reveal raw_inode_data();
       inode_types_metadata_unchanged();
       ghost var off0 := off;
@@ -573,6 +574,7 @@ module ByteFs {
     }
 
     method zeroFreeSpace(txn: Txn, ghost ino: Ino, i: MemInode)
+      returns (done: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -585,7 +587,7 @@ module ByteFs {
       assert sz == fs.metadata[ino].sz;
       var unusedStart := Round.roundup64(sz, 4096);
       if unusedStart < Inode.MAX_SZ_u64 {
-        zeroFromRaw(txn, ino, i, unusedStart);
+        done := zeroFromRaw(txn, ino, i, unusedStart);
         assert raw_data(ino)[..unusedStart] == old(raw_data(ino)[..unusedStart]);
         assert data()[ino] == raw_data(ino)[..unusedStart][..sz];
         assert old(data()[ino]) == old(raw_data(ino)[..unusedStart][..sz]);

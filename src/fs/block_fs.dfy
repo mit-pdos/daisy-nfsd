@@ -213,6 +213,7 @@ module BlockFs
     }
 
     method block_zero_free(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, start: uint64)
+      returns (done: bool)
       modifies fs.Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -224,7 +225,7 @@ module BlockFs
         old(block_data(fs.data)[ino].blks[off])
       ensures fs.metadata == old(fs.metadata)
     {
-      fs.zeroFrom(txn, start, ino, i);
+      done := fs.zeroFrom(txn, start, ino, i);
       reveal inode_blocks();
       reveal block_data();
     }

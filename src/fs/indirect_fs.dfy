@@ -1102,6 +1102,7 @@ module IndFs
     }
 
     method zeroFrom(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      returns (done: bool)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
@@ -1111,6 +1112,7 @@ module IndFs
       ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
       ensures metadata == old(metadata)
     {
+      done := false;
       var off0 := off;
       var off := off;
       while off < config.total_u64()
@@ -1136,6 +1138,7 @@ module IndFs
           off := newEnd;
         }
       }
+      done := true;
     }
 
     // check how much of ino is zero starting at off

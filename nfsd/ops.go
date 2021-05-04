@@ -122,6 +122,18 @@ func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.N
 	return
 }
 
+func (nfs *Nfs) ZeroFreeSpace(inum uint64) {
+	for {
+		v, _ := nfs.runTxn(func(txn Txn) Result {
+			return nfs.filesys.ZeroFreeSpace(txn, inum)
+		})
+		done := v.(bool)
+		if done {
+			return
+		}
+	}
+}
+
 func filenameToBytes(name nfstypes.Filename3) *bytes.Bytes {
 	return &bytes.Bytes{Data: []byte(name)}
 }
@@ -176,6 +188,9 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.SETATTR(txn, inum, sattr)
 	})
+	if status == nfstypes.NFS3ERR_JUKEBOX {
+		go nfs.ZeroFreeSpace(inum)
+	}
 	reply.Status = status
 
 	return reply
@@ -248,6 +263,9 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.WRITE(txn, inum, off, bs)
 	})
+	if status == nfstypes.NFS3ERR_JUKEBOX {
+		go nfs.ZeroFreeSpace(inum)
+	}
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Write error %d", status)
@@ -337,6 +355,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	_, status := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.REMOVE(txn, inum, name)
 	})
+	go nfs.ZeroFreeSpace(inum)
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Remove error %v", status)

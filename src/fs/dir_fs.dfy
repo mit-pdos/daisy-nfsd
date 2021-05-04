@@ -1715,16 +1715,15 @@ module DirFs
     }
 
     method ZeroFreeSpace(txn: Txn, ino: Ino)
-      returns (r: Result<()>)
+      returns (r: Result<bool>)
       modifies Repr
       requires fs.has_jrnl(txn)
       requires Valid() ensures Valid()
       ensures r.Ok? // only return a Result to use runTxn in Go
       ensures data == old(data)
     {
-      r := Ok(());
-      fs.zeroFreeSpace(txn, ino);
-      return;
+      var done := fs.zeroFreeSpace(txn, ino);
+      return Ok(done);
     }
   }
 }
