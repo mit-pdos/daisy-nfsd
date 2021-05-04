@@ -127,8 +127,8 @@ func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.N
 }
 
 func (nfs *Nfs) ZeroFreeSpace(inum uint64, szHint uint64) {
+	util.DPrintf(1, "ZeroFreeSpace: freeing %v up to %v\n", inum, szHint)
 	for {
-		util.DPrintf(1, "ZeroFreeSpace: freeing %v up to %v\n", inum, szHint)
 		v, _, _ := nfs.runTxn(func(txn Txn) Result {
 			return nfs.filesys.ZeroFreeSpace(txn, inum, szHint)
 		})
