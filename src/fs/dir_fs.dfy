@@ -49,6 +49,7 @@ module DirFs
     }
     var ok := txn.Commit();
     if !ok {
+      print "failed to commit\n";
       return Err(ServerFault);
     }
     return r;
@@ -450,68 +451,6 @@ module DirFs
       return Ok(dents);
     }
 
-    /*
-    static method writeDirentsToFs(fs: TypedFilesys, txn: Txn, d_ino: Ino, dents: MemDirents)
-      returns (ok:bool)
-      modifies fs.Repr
-      requires fs.Valid() ensures ok ==> fs.Valid()
-      requires dents.Valid()
-      requires fs.has_jrnl(txn)
-      requires |fs.data[d_ino]| == 4096
-      ensures fs.types_unchanged()
-      ensures ok ==> fs.data == old(fs.data[d_ino := dents.val.enc()])
-      ensures dents.val == old(dents.val)
-    {
-      assert dents.Repr() !! fs.Repr;
-      var i;
-      ok, i := fs.startInode(txn, d_ino);
-      if !ok {
-        return;
-      }
-      var bs := dents.encode();
-      C.splice_all(fs.data[d_ino], bs.data);
-      ok := fs.writeBlockFile(txn, d_ino, i, bs);
-      if !ok {
-        return;
-      }
-      fs.finishInode(txn, d_ino, i);
-      assert fs.data[d_ino] == dents.val.enc();
-    }
-
-    method writeDirents(txn: Txn, d_ino: Ino, dents: MemDirents)
-      returns (ok:bool)
-      modifies Repr
-      requires fs.has_jrnl(txn)
-      requires Valid() ensures ok ==> Valid()
-      requires dents.Valid()
-      requires is_dir(d_ino)
-      ensures ok ==>
-           && dirents == old(dirents[d_ino := dents.val])
-           && data == old(data[d_ino := DirFile(dents.dir())])
-    {
-      assert |fs.data[d_ino]| == 4096 by {
-        get_data_at(d_ino);
-      }
-      assert fs.types[d_ino] == Inode.DirType by {
-        invert_dir(d_ino);
-      }
-      ghost var dents_val := dents.val;
-      ok := writeDirentsToFs(fs, txn, d_ino, dents);
-      if !ok {
-        return;
-      }
-
-      dirents := dirents[d_ino := dents_val];
-      data := data[d_ino := DirFile(dents_val.dir)];
-
-      assert is_dir(d_ino);
-      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
-      mk_data_at(d_ino);
-      ValidData_change_one(d_ino);
-      assert ValidRoot() by { reveal ValidRoot(); }
-    }
-    */
-
     // private
     //
     // creates a file disconnected from the file system (which is perfectly
@@ -783,7 +722,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
-      returns (r: Result<Ino>, ghost junk: seq<byte>, ghost attrs: Inode.Attrs)
+      returns (r: Result<Ino>, ghost attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -793,12 +732,11 @@ module DirFs
       && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
-      && |junk| == how.size() as nat
       && has_create_attrs(attrs, how)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
-        data[ino := ByteFile(junk, attrs)][d_ino := d'])
+        data[ino := ByteFile(C.repeat(0 as byte, how.size() as nat), attrs)][d_ino := d'])
       )
     {
       var sz := how.size();
@@ -853,12 +791,11 @@ module DirFs
         r := Err(NoSpc);
         return;
       }
-      junk := [];
       if sz > 0 {
         var unused_r;
         ghost var unused_attrs;
-        unused_r, junk, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
-        assert ByteFs.ByteFilesys.setSize_with_junk([], sz as nat, junk) == junk;
+        unused_r, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
+        assert ByteFs.ByteFilesys.setSize_with_zeros([], sz as nat) == C.repeat(0 as byte, sz as nat);
       }
       // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
       reveal ino_ok;
@@ -923,7 +860,7 @@ module DirFs
     }
 
     method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
-      returns (r:Result<()>, ghost junk: seq<byte>, ghost attrs': Inode.Attrs)
+      returns (r:Result<()>, ghost attrs': Inode.Attrs)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -934,11 +871,9 @@ module DirFs
       && has_set_attrs(old(data[ino].attrs), attrs', attrs)
       && (var d0 := old(data[ino]);
         var sz := if attrs.size.Some? then attrs.size.x as nat else |d0.data|;
-        var d' := ByteFs.ByteFilesys.setSize_with_junk(d0.data, sz, junk);
-        && (sz > |d0.data| ==> |junk| == sz - |d0.data|)
+        var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0.data, sz);
         && data == old(data[ino := ByteFile(d', attrs')]))
     {
-      junk := [];
       if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
         r := Err(FBig);
         return;
@@ -962,10 +897,18 @@ module DirFs
       var attrs'_val := SetattrAttributes(attrs, i.attrs);
       attrs' := attrs'_val;
       fs.setAttrs(ino, i, attrs'_val);
-      junk := fs.setSize(txn, ino, i, sz);
+      var setsize_r := fs.setSize(txn, ino, i, sz);
+      if setsize_r.SetSizeNotZero? {
+        r := Err(JukeBox(sz));
+        return;
+      }
+      if setsize_r.SetSizeNoSpc? {
+        r := Err(NoSpc);
+        return;
+      }
       fs.finishInode(txn, ino, i);
 
-      ghost var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz as nat, junk);
+      ghost var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz as nat);
       data := data[ino := ByteFile(d', attrs')];
 
       assert Valid() by {
@@ -1061,24 +1004,30 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    // TODO: add support for writes to arbitrary offsets
-    method WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
-      returns (r: Result<()>)
+    method ModifyAttrs(attrs: Inode.Attrs) returns (attrs': Inode.Attrs)
+      ensures has_modify_attrs(attrs, attrs')
+    {
+      var mtime := serverTime();
+      return attrs.(mtime := mtime);
+    }
+
+    method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
+      returns (r: Result<()>, ghost attrs: Inode.Attrs)
       modifies Repr, bs
       requires Valid()
-      // nothing to say in error case (need to abort)
-      ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       requires |bs.data| <= WT_MAX as nat
+      // nothing to say in error case (need to abort)
+      ensures r.Ok? ==> Valid()
       ensures r.ErrBadHandle? ==> ino !in old(data)
       ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
       && ino in old(data) && old(data[ino].ByteFile?)
-      && off as nat <= old(|data[ino].data|)
+      && has_modify_attrs(old(data[ino].attrs), attrs)
       && data == old(
       var d0 := data[ino];
-      var d' := ByteFs.write_data(d0.data, off as nat, bs.data);
-      data[ino := ByteFile(d', d0.attrs)])
+      var d' := ByteFs.write_data_holes(d0.data, off as nat, bs.data);
+      data[ino := ByteFile(d', attrs)])
     {
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
@@ -1087,82 +1036,66 @@ module DirFs
       assert ValidIno(ino, i);
       ghost var attrs0 := old(data[ino].attrs);
       ghost var d0: seq<byte> := old(fs.data[ino]);
-      assert d0 == old(data[ino].data) by {
+      assert d0 == old(data[ino].data) && i.attrs == attrs0 by {
+        fs.inode_metadata(ino, i);
         get_data_at(ino);
       }
-      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        return Err(FBig);
-      }
-      if off > i.sz {
-        // unsupported: creates a hole
-        return Err(ServerFault);
-      }
+
+      // update mtime
+      //
+      // we do this first because it's annoying to prove that the attributes
+      // aren't affected by the setSize and write later
       fs.inode_metadata(ino, i);
-      assert this !in fs.Repr;
-      var ok;
-      ok := fs.write(txn, ino, i, off, bs);
-      if !ok {
-        return Err(NoSpc);
-      }
+      var new_attrs := ModifyAttrs(i.attrs);
+      attrs := new_attrs;
+      fs.setAttrs(ino, i, new_attrs);
 
-      fs.finishInode(txn, ino, i);
-
-      ghost var f' := ByteFile(fs.data[ino], attrs0);
-      data := data[ino := f'];
-
-      assert Valid() by {
-        file_change_valid(ino, f'.data);
-      }
-      return Ok(());
-    }
-
-    method {:timeLimitMultiplier 2} WRITEgeneral(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
-      returns (r: Result<()>)
-      modifies Repr, bs
-      requires Valid()
-      requires fs.has_jrnl(txn)
-      requires |bs.data| <= WT_MAX as nat
-      // nothing to say in error case (need to abort)
-      ensures r.Ok? ==> Valid()
-    {
-      var i_r := openFile(txn, ino);
-      var i :- i_r.IsDirToInval();
-      assert dirents == old(dirents);
-      invert_file(ino);
-      assert ValidIno(ino, i);
-      ghost var attrs0 := old(data[ino].attrs);
-      ghost var d0: seq<byte> := old(fs.data[ino]);
-      assert d0 == old(data[ino].data) by {
-        get_data_at(ino);
-      }
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 ||
         sum_overflows(off, bs.Len()) ||
         off + bs.Len() > Inode.MAX_SZ_u64 {
-        return Err(FBig);
+        r := Err(FBig);
+        return;
       }
-      if off > i.sz {
+      var createHole := off > i.sz;
+      if createHole {
         fs.inode_metadata(ino, i);
-        // unverified (because we should set this to zeros)
-        ghost var junk := fs.setSize(txn, ino, i, off);
+        var setsize_r := fs.setSize(txn, ino, i, off);
+        if setsize_r.SetSizeNotZero? {
+          r := Err(JukeBox(off));
+          return;
+        }
+        if setsize_r.SetSizeNoSpc? {
+          r := Err(NoSpc);
+          return;
+        }
         assert |fs.data[ino]| == off as nat;
       }
       fs.inode_metadata(ino, i);
+
       assert this !in fs.Repr;
       var ok;
       ok := fs.write(txn, ino, i, off, bs);
       if !ok {
-        return Err(NoSpc);
+        r := Err(NoSpc);
+        return;
+      }
+      if createHole {
+        assert fs.data[ino] ==
+          old(fs.data[ino]) +
+          C.repeat(0 as byte, off as nat - old(|fs.data[ino]|)) +
+          old(bs.data);
       }
 
       fs.finishInode(txn, ino, i);
 
-      ghost var f' := ByteFile(fs.data[ino], attrs0);
+      ghost var f' := ByteFile(fs.data[ino], attrs);
       data := data[ino := f'];
 
       assert Valid() by {
-        file_change_valid(ino, f'.data);
+        file_change_with_attrs_valid(ino, f'.data, attrs);
       }
-      return Ok(());
+      r := Ok(());
+      return;
     }
 
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
@@ -1312,7 +1245,8 @@ module DirFs
     // this is a low-level function that deletes an inode (currently restricted
     // to files) from the tree
     method removeInode(txn: Txn, ino: Ino)
-      returns (r: Result<()>)
+      // returns the size of the inode (as a hint for freeing space)
+      returns (r: Result<uint64>)
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
@@ -1336,6 +1270,7 @@ module DirFs
         return Err(IsDir);
       }
       assert is_file(ino) by { reveal is_of_type(); }
+      var sz := i.sz;
       fs.freeInode(txn, ino, i);
       //map_delete_not_in(data, ino);
       data := map_delete(data, ino);
@@ -1345,7 +1280,7 @@ module DirFs
       mk_data_at(ino);
       ValidData_change_one(ino);
       assert ValidRoot() by { reveal ValidRoot(); }
-      return Ok(());
+      return Ok(sz);
     }
 
     method unlinkInodeAt(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes,
@@ -1478,7 +1413,8 @@ module DirFs
     }
 
     method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<()>)
+      // returns a size hint
+      returns (r: Result<uint64>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1513,7 +1449,7 @@ module DirFs
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
-        return Ok(());
+        return Ok(0);
       }
 
       if remove_r.Err? {
@@ -1521,7 +1457,8 @@ module DirFs
         return Err(IsDir);
       }
 
-      return Ok(());
+      var sz_hint := remove_r.v;
+      return Ok(sz_hint);
     }
 
     // TODO: would be nice to combine this with removeInode; best way might be
@@ -1743,6 +1680,18 @@ module DirFs
       r := r.(tbytes := tbytes).(fbytes := fbytes);
       r := r.(tfiles := tfiles).(ffiles := ffiles);
       return;
+    }
+
+    method ZeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
+      returns (r: Result<bool>)
+      modifies Repr
+      requires fs.has_jrnl(txn)
+      requires Valid() ensures Valid()
+      ensures r.Ok? // only return a Result to use runTxn in Go
+      ensures data == old(data)
+    {
+      var done := fs.zeroFreeSpace(txn, ino, sz_hint);
+      return Ok(done);
     }
   }
 }

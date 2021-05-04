@@ -509,21 +509,18 @@ module TypedFs {
     }
 
     method setSize(txn: Txn, ghost ino: Ino, i: MemInode, sz': uint64)
-      returns (ghost junk: seq<byte>)
+      returns (r: SetSizeRes)
       modifies Repr, i.Repr
-      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires ValidIno(ino, i) ensures r.SetSizeOk? ==> ValidIno(ino, i)
       requires has_jrnl(txn)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      (var d0 := old(data[ino]);
-      var d' := ByteFs.ByteFilesys.setSize_with_junk(d0, sz' as nat, junk);
+      r.SetSizeOk? ==> (var d0 := old(data[ino]);
+      var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
       && data == old(data[ino := d']))
-      ensures
-      (var d0 := old(data[ino]);
-      && sz' as nat > |d0| ==> |junk| == sz' as nat - |d0|)
       ensures types_unchanged()
     {
-      junk := fs.setSize(txn, ino, i, sz');
+      r := fs.setSize(txn, ino, i, sz');
       data := fs.data();
       reveal ValidFields();
       reveal ValidInvalid();
@@ -540,6 +537,20 @@ module TypedFs {
       types := types[ino := attrs'];
       reveal ValidFields();
       reveal ValidInvalid();
+    }
+
+    method zeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
+      returns (done: bool)
+      modifies Repr
+      requires has_jrnl(txn)
+      requires Valid() ensures Valid()
+      ensures data == old(data)
+      ensures types == old(types)
+    {
+      reveal ValidFields();
+      var i := fs.startInode(txn, ino);
+      done := fs.zeroFreeSpace(txn, ino, i, sz_hint);
+      fs.finishInode(txn, ino, i);
     }
 
     method TotalFiles() returns (num: uint64)

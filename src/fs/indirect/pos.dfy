@@ -1,9 +1,11 @@
 include "../super.dfy"
 
 // Define Pos, an abstract position for a block in the file system. A Pos is a
-// multidimensional index that includes an inode and a location in its metadata
-// hierarchy; intermediate locations are metadata while leaves are considered
-// data (as described by the data? const in Idx and Pos).
+// multidimensional index Pos(ino, Idx(k, IndOff(level, j))) that includes an
+// inode and a location in its metadata hierarchy; intermediate locations are
+// metadata while leaves are considered data (as described by the data? const in
+// Idx and Pos). k is an offset into the inode itself while j is an index within
+// all of the blocks at this indirect level.
 //
 // Every type defined here is a subset type that builds-in some Validity
 // predicate which restricts all the indices to be in-bounds. To make this work
@@ -79,7 +81,7 @@ module IndirectPos
       sums(ilevels)
     }
 
-    function method total_u64(): (t:uint64)
+    function total_u64(): (t:uint64)
       requires Valid()
       ensures t as nat == total
     {
@@ -157,12 +159,15 @@ module IndirectPos
 
   const config: Config := Config([0,0,0,0,0,0,0,0,1,1,1,3])
 
+  const config_total: uint64 := 8 + 3*512 + 512*512*512
+
   lemma config_properties()
     ensures config.Valid()
     ensures |config.ilevels| == 12
     ensures config.total == 8 + 3*512 + 512*512*512
     // these inodes can hold about 500GB
     ensures config.total * 4 / 1024 / 1024 /* GB */ == 512
+    ensures config.total == config_total as nat
   {}
 
   lemma config_total_to(k: uint64)
@@ -330,12 +335,12 @@ module IndirectPos
   // offset within that block. Indirect blocks have an inode and top-level block
   // as well as an indirection level which might be higher than the bottom where
   // the data lives.
-  datatype Pos = Pos(ino: Ino, idx: Idx)
+  datatype Pos = Pos(ghost ino: Ino, idx: Idx)
   {
     const ilevel: uint64 := idx.off.ilevel;
     const data?: bool := idx.data?()
 
-    static function method from_flat(ino: Ino, n: uint64): Pos
+    static function method from_flat(ghost ino: Ino, n: uint64): Pos
       requires n as nat < config.total
     {
       Pos(ino, Idx.from_flat(n))

@@ -22,6 +22,7 @@ module Nfs {
     | NotEmpty
     | BadHandle
     | ServerFault
+    | JukeBox(sz_hint: uint64)
   {
     function method nfs3_code(): uint32
     {
@@ -37,6 +38,7 @@ module Nfs {
         case NotEmpty => 66
         case BadHandle => 10001
         case ServerFault => 10006
+        case JukeBox(_) => 10008
       }
     }
   }
@@ -156,6 +158,15 @@ module Nfs {
     && attrs.gid == sattr.gid.get_default(attrs0.gid)
     && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
+  }
+
+  predicate has_modify_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs)
+  {
+    && attrs.ty == attrs0.ty
+    && attrs.mode == attrs0.mode
+    && attrs.uid == attrs0.uid
+    && attrs.gid == attrs0.gid
+    // mtime can change
   }
 
   datatype Fsstat3 = Fsstat3(

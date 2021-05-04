@@ -1,3 +1,4 @@
+include "../util/bytes.dfy"
 include "inode_fs.dfy"
 include "indirect/ind_block.dfy"
 include "indirect/pos.dfy"
@@ -12,6 +13,8 @@ module IndFs
   import opened JrnlSpec
   import opened InodeFs
   import opened Marshal
+  import Pow
+  import ByteHelpers
   import C = Collections
 
   import IndBlocks
@@ -51,11 +54,10 @@ module IndFs
     ghost var metadata: map<Ino, Inode.Meta>
 
     function blkno_pos(bn: Blkno): Option<Pos>
-      reads fs.Repr
+      reads fs
       requires blkno_ok(bn)
-      requires fsValid()
+      requires fs.Valid_domains()
     {
-      reveal fsValid();
       fs.block_used[bn]
     }
 
@@ -74,17 +76,10 @@ module IndFs
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate {:opaque} fsValid()
-      reads fs.Repr
-    {
-      fs.Valid()
-    }
-
     predicate ValidBasics()
-      reads Repr
+      reads this, fs
     {
-      reveal fsValid();
-      && fsValid()
+      && fs.Valid_domains()
       && ino_dom(metadata)
       && data_dom(data)
       && ValidBlknos()
@@ -92,10 +87,9 @@ module IndFs
     }
 
     predicate {:opaque} ValidPos()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
-      reveal fsValid();
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
           blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
       && (forall pos:Pos ::
@@ -113,7 +107,7 @@ module IndFs
     }
 
     predicate {:opaque} ValidMetadata()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall ino: Ino ::
@@ -133,14 +127,21 @@ module IndFs
     }
 
     predicate {:opaque} ValidInodes()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall ino:Ino :: inode_pos_match(ino, fs.inodes[ino].blks, to_blkno)
     }
 
+    lemma inode_pos_at(ino: Ino, i: MemInode)
+      requires ValidIno(ino, i)
+      ensures inode_pos_match(ino, i.blks, to_blkno)
+    {
+      reveal ValidInodes();
+    }
+
     predicate valid_parent(pos: Pos)
-      reads Repr
+      reads this, fs
       requires pos.ilevel > 0
       requires ValidBasics()
     {
@@ -152,22 +153,49 @@ module IndFs
     }
 
     predicate {:opaque} ValidIndirect()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall pos: Pos | pos.ilevel > 0 :: valid_parent(pos)
     }
 
+    lemma valid_parent_at(pos: Pos)
+      requires pos.ilevel > 0
+      requires ValidBasics() && ValidIndirect()
+      ensures valid_parent(pos)
+    {
+      reveal ValidIndirect();
+    }
+
+    lemma parent_zero(pos: Pos)
+      requires pos.ilevel > 0
+      requires ValidBasics() && ValidIndirect()
+      requires to_blkno[pos.parent()] == 0
+      ensures to_blkno[pos] == 0
+    {
+      valid_parent_at(pos);
+      IndBlocks.to_blknos_zero();
+    }
+
     predicate {:opaque} ValidData()
-      reads Repr
+      reads this, fs
       requires ValidBasics()
     {
       forall pos:Pos | pos.data? ::
         data[pos] == zero_lookup(fs.data_block, to_blkno[pos])
     }
 
-    predicate Valid()
-      reads this.Repr
+    lemma data_zero(pos: Pos)
+      requires ValidBasics() && ValidData()
+      requires to_blkno[pos] == 0
+      requires pos.data?
+      ensures data[pos] == block0
+    {
+      reveal ValidData();
+    }
+
+    predicate ValidThis()
+      reads this, fs
     {
       && ValidBasics()
       && ValidBlknos()
@@ -178,10 +206,26 @@ module IndFs
       && ValidData()
     }
 
+    predicate Valid()
+      reads this.Repr
+    {
+      && fs.Valid()
+      && ValidThis()
+    }
+
     predicate ValidIno(ino: Ino, i: MemInode)
       reads this.Repr, i.Repr
     {
       && Valid()
+      && i.Valid()
+      && fs.is_cur_inode(ino, i.val())
+    }
+
+    predicate ValidInoExcept(ino: Ino, i: MemInode, bn: Blkno)
+      reads this.Repr, i.Repr
+    {
+      && fs.ValidExcept(bn)
+      && ValidThis()
       && i.Valid()
       && fs.is_cur_inode(ino, i.val())
     }
@@ -204,7 +248,7 @@ module IndFs
       this.data := imap pos: Pos | pos.idx.data?() :: block0;
       this.metadata := map ino: Ino {:trigger} :: Inode.Meta.zero;
       new;
-      assert ValidBasics() by { reveal fsValid(); }
+      assert ValidBasics();
       IndBlocks.to_blknos_zero();
       assert ValidPos() by { reveal ValidPos(); }
       reveal ValidInodes();
@@ -231,7 +275,6 @@ module IndFs
       this.metadata := fs.metadata;
 
       new;
-      assert ValidBasics() by { reveal fsValid(); }
       assert ValidPos() by { reveal ValidPos(); }
       reveal ValidInodes();
       reveal ValidIndirect();
@@ -284,7 +327,19 @@ module IndFs
       reveal ValidPos();
     }
 
-    twostate lemma {:timeLimitMultiplier 2} ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
+    twostate lemma ValidPos_dealloc_one(bn: Blkno, pos: Pos)
+      requires old(ValidBasics()) && ValidBasics()
+      requires blkno_ok(bn)
+      requires old(blkno_pos(bn).Some?) && old(to_blkno[pos] == bn)
+      requires fs.block_used == old(fs.block_used[bn:=None])
+      requires to_blkno == old(to_blkno[pos:=0 as Blkno])
+      requires old(ValidPos())
+      ensures ValidPos()
+    {
+      reveal ValidPos();
+    }
+
+    twostate lemma ValidInodes_change_one(pos: Pos, i': MemInode, bn:Blkno)
       requires old(ValidBasics()) && ValidBasics()
       requires pos.ilevel == 0
       requires to_blkno == old(to_blkno[pos:=bn])
@@ -326,13 +381,14 @@ module IndFs
     }
 
     // private
-    method {:timeLimitMultiplier 2} allocateRootMetadata(txn: Txn, pos: Pos, i: MemInode)
+    method allocateRootMetadata(txn: Txn, pos: Pos, i: MemInode)
       returns (ok: bool, bn: Blkno)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires  pos.ilevel == 0 && i.blks[pos.idx.k] == 0
       ensures ok ==> bn != 0 && blkno_ok(bn) && bn == to_blkno[pos]
+      ensures !ok ==> bn == 0 && to_blkno[pos] == 0
       ensures state_unchanged()
     {
       var idx := pos.idx;
@@ -342,6 +398,7 @@ module IndFs
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
         Valid_unchanged();
+        bn := 0;
         return;
       }
 
@@ -366,16 +423,21 @@ module IndFs
       }
     }
 
-    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn, pos: Pos, ibn: Blkno, pblock: Bytes)
+    // Allocate an indirect block for an intermediate position in place of a
+    // zero block. Does not affect the user state but makes it possible to
+    // allocate data blocks and store them underneath this indirect block.
+    method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn,
+      pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
       modifies Repr, pblock
       requires has_jrnl(txn)
       requires Valid() ensures Valid()
-      requires pos.ilevel > 0 &&  to_blkno[pos] == 0
+      requires pos.ilevel > 0 && to_blkno[pos] == 0
       requires ibn == to_blkno[pos.parent()]
       requires ibn != 0
       requires pblock.data == zero_lookup(fs.data_block, ibn)
-      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures to_blkno[pos] == bn
+      ensures ok == (bn != 0)
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures fs.inodes == old(fs.inodes)
       ensures state_unchanged()
@@ -385,6 +447,7 @@ module IndFs
       }
       ok, bn := fs.allocateTo(txn, pos);
       if !ok {
+        bn := 0;
         Valid_unchanged();
         return;
       }
@@ -398,8 +461,8 @@ module IndFs
       fs.writeDataBlock(txn, bn, zeroblock);
 
       var child := pos.child();
-      var pblock' := IndBlocks.modify_one(pblock, child.j, bn);
-      fs.writeDataBlock(txn, ibn, pblock');
+      IndBlocks.modify_one(pblock, child.j, bn);
+      fs.writeDataBlock(txn, ibn, pblock);
       assert valid_parent(pos);
 
       assert ValidPos() by {
@@ -438,13 +501,49 @@ module IndFs
       }
     }
 
+    // resolveBlkno gets the bn storing pos. Like resolveMetadata but does not
+    // allocate along the way, since this is intended only for freeing.
+    method resolveBlkno(txn: Txn, pos: Pos, i: MemInode)
+      returns (bn: Blkno)
+      decreases pos.ilevel
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      ensures bn == to_blkno[pos]
+    {
+      reveal ValidInodes();
+      var idx := pos.idx;
+      if pos.ilevel == 0 {
+        bn := i.get_blk(idx.k);
+        return;
+      }
+      // recurse
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var ibn;
+      ibn := this.resolveBlkno(txn, parent, i);
+      if ibn == 0 {
+        bn := 0;
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
+        return;
+      }
+      // now we have somewhere to store the reference to this block, but might
+      // need to allocate into the parent
+      var pblock := fs.getDataBlock(txn, ibn);
+      bn := IndBlocks.decode_one(pblock, child.j);
+      assert bn == to_blkno[pos] by {
+        reveal ValidIndirect();
+      }
+    }
+
     // private
     method resolveMetadata(txn: Txn, pos: Pos, i: MemInode) returns (ok: bool, bn: Blkno)
       decreases pos.ilevel
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
-      ensures ok ==> bn != 0 && bn == to_blkno[pos]
+      ensures bn == to_blkno[pos]
+      ensures ok == (bn != 0)
       ensures state_unchanged()
     {
       reveal ValidInodes();
@@ -467,7 +566,12 @@ module IndFs
       var child: IndOff := pos.child();
       var ibn;
       ok, ibn := this.resolveMetadata(txn, parent, i);
-      if !ok { return; }
+      if !ok {
+        bn := 0;
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
+        return;
+      }
       // now we have somewhere to store the reference to this block, but might
       // need to allocate into the parent
       var pblock := fs.getDataBlock(txn, ibn);
@@ -484,6 +588,8 @@ module IndFs
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
       assert ValidIno(pos.ino, i);
       if !ok {
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
         return;
       }
     }
@@ -519,7 +625,7 @@ module IndFs
       reveal ValidMetadata();
     }
 
-    method {:timeLimitMultiplier 2} write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
+    method write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
       returns (ok: bool)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
@@ -560,7 +666,7 @@ module IndFs
       }
     }
 
-    method {:timeLimitMultiplier 2} zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    method zeroOutDirect(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
@@ -572,26 +678,23 @@ module IndFs
       ensures data == old(data[Pos.from_flat(ino, off) := block0])
       ensures metadata == old(metadata)
     {
-      var i': MemInode := i;
       ghost var pos := Pos.from_flat(ino, off);
       assert pos.idx.off == IndOff.direct;
       assert pos.data?;
-      var bn: Blkno := i'.get_blk(off);
+      var bn: Blkno := i.get_blk(off);
       if bn == 0 {
-        // already done, need to reveal some stuff to prove that
-        reveal ValidInodes();
-        reveal ValidData();
+        // already done
+        inode_pos_at(ino, i);
+        data_zero(pos);
         return;
       }
-      assert inode_pos_match(ino, i.blks, to_blkno) by {
-        reveal ValidInodes();
-      }
+      inode_pos_at(ino, i);
       assert blkno_pos(bn).Some? by {
         reveal ValidPos();
       }
       fs.free(txn, bn);
-      i'.set_blk(off, 0);
-      fs.writeInode(ino, i');
+      i.set_blk(off, 0);
+      fs.writeInode(ino, i);
       data := old(data[pos := block0]);
       to_blkno := to_blkno[pos := 0 as Blkno];
       assert ValidMetadata() by { reveal ValidMetadata(); }
@@ -601,10 +704,507 @@ module IndFs
         reveal ValidPos();
         reveal ValidInodes();
       }
-      ValidInodes_change_one(pos, i', 0 as Blkno);
+      ValidInodes_change_one(pos, i, 0 as Blkno);
       assert ValidData() by {
         reveal ValidData();
       }
+    }
+
+    method zeroOutIndirectWithParent(txn: Txn,
+      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
+      modifies Repr, i.Repr, ib
+      requires has_jrnl(txn)
+      requires ValidInoExcept(pos.ino, i, ibn) ensures ValidInoExcept(pos.ino, i, ibn)
+      requires pos.ilevel > 0 // indirect
+      requires pos.data?      // last level
+      requires ibn != 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ib.data == fs.data_block[ibn]
+      ensures data == old(data[pos := block0])
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
+      ensures metadata == old(metadata)
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ib.data == fs.data_block[ibn]
+    {
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      if child_bn == 0 {
+        data_zero(pos);
+        return;
+      }
+      assert blkno_pos(child_bn).Some? by {
+        reveal ValidPos();
+      }
+      fs.freeWithException(txn, child_bn, ibn);
+      IndBlocks.modify_one(ib, child.j, 0);
+      fs.fakeWriteDataBlock(ibn, ib.data);
+      data := data[pos := block0];
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidBasics();
+      assert ValidPos() by {
+        ValidPos_dealloc_one(child_bn, pos);
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert valid_parent(pos) by {
+        IndBlocks.to_blknos_zero();
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidInodes() by { reveal ValidInodes(); }
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        var pos0 := pos;
+        forall pos: Pos | pos.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            if pos.parent() == pos0 {
+              reveal ValidPos();
+            } else {
+              reveal ValidPos();
+            }
+          }
+        }
+      }
+    }
+
+    method readParent(txn: Txn, pos: Pos, i: MemInode)
+      returns (ibn: Blkno, ib: Bytes)
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i)
+      requires pos.ilevel > 0
+      ensures ibn != 0 ==> fresh(ib)
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ibn == 0 ==> to_blkno[pos] == 0
+      ensures ibn != 0 ==> ib.data == fs.data_block[ibn]
+    {
+      ibn := resolveBlkno(txn, pos.parent(), i);
+      if ibn == 0 {
+        parent_zero(pos);
+        IndBlocks.to_blknos_zero();
+        ib := NewBytes(0);
+        return;
+      }
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      ib := fs.getDataBlock(txn, ibn);
+    }
+
+    method zeroOutIndirect(txn: Txn, pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.ilevel > 0 // indirect
+      requires pos.data?      // last level
+      ensures data == old(data[pos := block0])
+      ensures metadata == old(metadata)
+    {
+      var ibn, ib := readParent(txn, pos, i);
+      if ibn == 0 {
+        data_zero(pos);
+        return;
+      }
+      fs.addException(ibn);
+      zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
+      fs.finishWriteDataBlock(txn, ibn, ib);
+    }
+
+    method zeroOut(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures data == old(data[Pos.from_flat(ino, off) := block0])
+      ensures metadata == old(metadata)
+    {
+      if off < 8 {
+        zeroOutDirect(txn, off, ino, i);
+      } else {
+        zeroOutIndirect(txn, Pos.from_flat(ino, off), i);
+      }
+    }
+
+    static predicate children_zero(pos: Pos, to_blkno: imap<Pos, Blkno>)
+      requires pos_dom(to_blkno)
+    {
+      forall pos':Pos | pos'.ilevel > 0 && pos'.parent() == pos ::
+        to_blkno[pos'] == 0
+    }
+
+    static lemma pos_children_characterization(pos: Pos)
+      requires pos.idx.off.j % 512 == 0
+      requires pos.ilevel > 0
+      ensures forall pos': Pos | pos'.ilevel > 0 ::
+      pos'.parent() == pos.parent() <==>
+      (&& pos'.ino == pos.ino
+      && pos'.idx.k == pos.idx.k
+      && pos'.ilevel == pos.ilevel
+      && pos.idx.off.j <= pos'.idx.off.j < pos.idx.off.j + 512)
+    {
+    }
+
+    // zero an intermediate metadata block where children are already zero
+    //
+    // intermediate means this method only handles the single- and
+    // double-indirect blocks under the triple indirect block, where the parent
+    // is another block (and not the inode) and this block only has pointers so
+    // changing it to a zero doesn't affect the data
+    method zeroOutIntermediateIndirectWithParent(txn: Txn,
+      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
+      modifies Repr, i.Repr, ib
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires 0 < pos.ilevel < 3 && pos.idx.k == 11
+      requires children_zero(pos, to_blkno)
+      requires ibn != 0
+      requires ibn == to_blkno[pos.parent()]
+      requires ib.data == fs.data_block[ibn]
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
+      ensures ibn == to_blkno[pos.parent()]
+      ensures ib.data == fs.data_block[ibn]
+    {
+      valid_parent_at(pos);
+      var parent: Pos := pos.parent();
+      var child: IndOff := pos.child();
+      var child_bn := IndBlocks.decode_one(ib, child.j);
+      if child_bn == 0 {
+        reveal ValidIndirect();
+        reveal ValidData();
+        IndBlocks.to_blknos_zero();
+        assert to_blkno[pos] == 0;
+        return;
+      }
+      assert blkno_pos(child_bn).Some? by {
+        reveal ValidPos();
+      }
+      fs.free(txn, child_bn);
+      IndBlocks.modify_one(ib, child.j, 0);
+      fs.writeDataBlock(txn, ibn, ib);
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidBasics();
+      assert ValidPos() by {
+        ValidPos_dealloc_one(child_bn, pos);
+      }
+      assert ValidData() by {
+        reveal ValidPos();
+        reveal ValidData();
+      }
+      assert valid_parent(pos) by {
+        IndBlocks.to_blknos_zero();
+      }
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidInodes() by { reveal ValidInodes(); }
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        var pos0 := pos;
+        forall pos: Pos | pos.ilevel > 0
+          ensures valid_parent(pos)
+        {
+          if pos == pos0  {}
+          else {
+            if pos.parent() == pos0 {
+              IndBlocks.to_blknos_zero();
+              reveal ValidPos();
+            } else {
+              reveal ValidPos();
+            }
+          }
+        }
+      }
+    }
+
+    // zero an indirect block where the children are already zero
+    //
+    // only applies to blocks that are stored in the inode
+    method zeroOutIndirectFromInode(txn: Txn,
+      pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.ilevel == 0 && !pos.data?
+      requires children_zero(pos, to_blkno)
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
+    {
+      var off := pos.idx.k;
+      var bn: Blkno := i.get_blk(off);
+      if bn == 0 {
+        inode_pos_at(pos.ino, i);
+        return;
+      }
+      inode_pos_at(pos.ino, i);
+      assert blkno_pos(bn).Some? by {
+        reveal ValidPos();
+      }
+      fs.free(txn, bn);
+      i.set_blk(off, 0);
+      fs.writeInode(pos.ino, i);
+      to_blkno := to_blkno[pos := 0 as Blkno];
+      assert ValidMetadata() by { reveal ValidMetadata(); }
+      assert ValidIndirect() by {
+        reveal ValidIndirect();
+        IndBlocks.to_blknos_zero();
+      }
+
+      assert ValidPos() by {
+        reveal ValidPos();
+        reveal ValidInodes();
+      }
+      ValidInodes_change_one(pos, i, 0 as Blkno);
+      assert ValidData() by {
+        reveal ValidData();
+      }
+    }
+
+    method zeroOutIndirectPointer(txn: Txn,
+      pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires !pos.data?
+      requires children_zero(pos, to_blkno)
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+      ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
+    {
+      if pos.ilevel == 0 {
+        zeroOutIndirectFromInode(txn, pos, i);
+      } else {
+        var ibn, ib := readParent(txn, pos, i);
+        if ibn == 0 {
+          return;
+        }
+        zeroOutIntermediateIndirectWithParent(txn, pos, ibn, ib, i);
+      }
+    }
+
+    method zeroIndirectIfPossible(txn: Txn,
+      pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires !pos.data?
+      ensures data == old(data)
+      ensures metadata == old(metadata)
+    {
+      var bn := resolveBlkno(txn, pos, i);
+      if bn == 0 {
+        return;
+      }
+      var bs := fs.getDataBlock(txn, bn);
+      var is_zero := ByteHelpers.isZero(bs);
+      if is_zero {
+        assert fs.data_block[bn] == block0;
+        IndBlocks.to_blknos_zero();
+        reveal ValidIndirect();
+        zeroOutIndirectPointer(txn, pos, i);
+      }
+      // nothing to do, some children still need to be zero'd
+    }
+
+    // zero everything under an indirect block, given a starting data position
+    //
+    // spec allows any changes beyond the starting point for simplicity
+    method zeroIndirectBlockRange'(txn: Txn, pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.data? && pos.ilevel > 0
+      // must be the start of an indirect block since we also zero the parent
+      requires pos.idx.off.j % 512 == 0
+      ensures forall pos':Pos |
+      pos'.data? &&
+      (pos'.ino != pos.ino ||
+      pos'.idx.flat() < pos.idx.flat()) ::
+      data[pos'] == old(data[pos'])
+      ensures metadata == old(metadata)
+    {
+      var idx0 := pos.idx;
+      var pos0 := pos;
+      var pos := pos;
+      var k := idx0.k;
+      var ilevel := pos0.ilevel;
+
+      var ibn, ib := readParent(txn, pos, i);
+      if ibn == 0 {
+        return;
+      }
+
+      fs.addException(ibn);
+      var j := 0;
+      while j < 512
+        decreases 512-j
+        modifies Repr, i.Repr, ib
+        invariant 0 <= j <= 512
+        invariant ValidInoExcept(pos0.ino, i, ibn)
+        invariant forall pos:Pos | pos.data? ::
+          if && pos.ino == pos0.ino
+             && pos.idx.k == idx0.k
+             && idx0.off.j <= pos.idx.off.j < idx0.off.j + j
+          then data[pos] == block0
+          else data[pos] == old(data[pos])
+        invariant forall pos:Pos | pos.data? ::
+          (&& pos.ino == pos0.ino
+           && pos.idx.k == pos0.idx.k
+           && idx0.off.j <= pos.idx.off.j < idx0.off.j + j) ==>
+          to_blkno[pos] == 0
+        invariant metadata == old(metadata)
+        invariant ibn == to_blkno[pos0.parent()]
+        invariant ib.data == fs.data_block[ibn]
+      {
+        var idx: Idx := Idx(k, IndOff(ilevel, idx0.off.j + j));
+        pos := Pos(pos0.ino, idx);
+        assert pos.idx.off.parent() == idx0.off.parent();
+        assert pos.parent() == pos0.parent();
+        zeroOutIndirectWithParent(txn, pos, ibn, ib, i);
+        j := j + 1;
+      }
+      fs.finishWriteDataBlock(txn, ibn, ib);
+      zeroOutIndirectPointer(txn, pos0.parent(), i);
+    }
+
+    method zeroIndirectBlockRange(txn: Txn, pos: Pos, i: MemInode)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires pos.data? && pos.ilevel > 0
+      requires pos.idx.off.j % 512 == 0
+      ensures forall pos':Pos | pos'.data? && pos'.ino != pos.ino ::
+        data[pos'] == old(data[pos'])
+      ensures forall off:uint64 |
+        off as nat < pos.idx.flat() as nat < config.total ::
+          data[Pos.from_flat(pos.ino, off)] ==
+          old(data[Pos.from_flat(pos.ino, off)])
+      ensures forall pos':Pos |
+      pos'.data? &&
+      (pos'.ino != pos.ino ||
+      pos'.idx.flat() < pos.idx.flat()) ::
+      data[pos'] == old(data[pos'])
+      ensures metadata == old(metadata)
+    {
+      zeroIndirectBlockRange'(txn, pos, i);
+      forall off:uint64 |
+        off as nat < pos.idx.flat() as nat < config.total
+        ensures
+          data[Pos.from_flat(pos.ino, off)] ==
+          old(data[Pos.from_flat(pos.ino, off)])
+      {
+        Idx.from_to_flat_id(off);
+      }
+    }
+
+    method zeroFrom(txn: Txn, off: uint64, len: uint64, ghost ino: Ino, i: MemInode)
+      returns (done: bool)
+      modifies Repr, i.Repr
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i) ensures ValidIno(ino, i)
+      requires off as nat + len as nat <= config.total
+      ensures forall off': uint64 | off' < off ::
+      data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+      ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
+      ensures metadata == old(metadata)
+    {
+      done := false;
+      var off0 := off;
+      var off := off;
+      while off < off0 + len
+        invariant off0 as nat <= off as nat <= config.total
+        invariant ValidIno(ino, i)
+        invariant forall off': uint64 | off' < off0 ::
+          data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+        invariant forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
+        invariant metadata == old(metadata)
+      {
+        var newEnd := checkZeroAt(txn, off, ino, i);
+        if newEnd == off {
+          var pos := Pos.from_flat(ino, off);
+          if pos.ilevel > 0 && pos.idx.off.j % 512 == 0 {
+            Idx.from_to_flat_id(off);
+            zeroIndirectBlockRange(txn, pos, i);
+            off := off + 512;
+          } else {
+            zeroOut(txn, off, ino, i);
+            off := off + 1;
+          }
+        } else {
+          off := newEnd;
+        }
+      }
+      done := true;
+    }
+
+    // check how much of ino is zero starting at off
+    method checkZeroAt(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+      returns (end: uint64)
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i)
+      requires off as nat < config.total
+      ensures off as nat <= end as nat <= config.total
+      ensures forall i:uint64 | off <= i < end ::
+        data[Pos.from_flat(ino, i)] == block0
+    {
+      // nothing zero (signals failure)
+      end := off;
+      var pos0 := Pos.from_flat(ino, off);
+      if pos0.idx.off.j % 512 == 0 && pos0.ilevel > 0 {
+        // TODO: would be cool if we could also check a double-indirect block
+        // all at once here (if pos0.parent() is still not last-level)
+        //
+        // this might be necessary for sufficient performance
+        var pbn := resolveBlkno(txn, pos0.parent(), i);
+        if pbn == 0 {
+          parent_zero(pos0);
+          end := off + 512;
+          forall i:uint64 | off <= i < end
+            ensures data[Pos.from_flat(ino, i)] == block0
+          {
+            var pos := Pos.from_flat(ino, i);
+            assert pos.parent() == pos0.parent();
+            parent_zero(pos);
+            data_zero(pos);
+          }
+          return;
+        }
+      }
+      var bn: Blkno := resolveBlkno(txn, pos0, i);
+      if bn == 0 {
+        data_zero(pos0);
+        end := off + 1;
+        return;
+      }
+    }
+
+    // check that ino is already zero starting at off, through off + len
+    method checkZero(txn: Txn, off: uint64, len: uint64,
+      ghost ino: Ino, i: MemInode)
+      returns (ok: bool)
+      requires has_jrnl(txn)
+      requires ValidIno(ino, i)
+      requires off as nat + len as nat <= config.total
+      ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
+       data[Pos.from_flat(ino, off')] == block0
+    {
+      var end := off;
+      while end < off + len
+        invariant off as nat <= end as nat <= config.total
+        invariant forall off': uint64 | off <= off' < end ::
+          data[Pos.from_flat(ino, off')] == block0
+      {
+        var newEnd := checkZeroAt(txn, end, ino, i);
+        if newEnd == end {
+          return false;
+        }
+        end := newEnd;
+      }
+      return true;
     }
 
     // public
@@ -632,7 +1232,6 @@ module IndFs
       ensures data == old(data)
       ensures metadata == old(metadata[ino := meta])
     {
-      reveal fsValid();
       i.set_sz(meta.sz);
       i.set_attrs(meta.attrs);
       fs.writeInode(ino, i);
