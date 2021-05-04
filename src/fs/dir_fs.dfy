@@ -960,7 +960,7 @@ module DirFs
       fs.setAttrs(ino, i, attrs'_val);
       var setsize_r := fs.setSize(txn, ino, i, sz);
       if setsize_r.SetSizeNotZero? {
-        r := Err(JukeBox);
+        r := Err(JukeBox(sz));
         return;
       }
       if setsize_r.SetSizeNoSpc? {
@@ -1102,7 +1102,7 @@ module DirFs
         fs.inode_metadata(ino, i);
         var r := fs.setSize(txn, ino, i, off);
         if r.SetSizeNotZero? {
-          return Err(JukeBox);
+          return Err(JukeBox(off));
         }
         if r.SetSizeNoSpc? {
           return Err(NoSpc);
@@ -1281,7 +1281,8 @@ module DirFs
     // this is a low-level function that deletes an inode (currently restricted
     // to files) from the tree
     method removeInode(txn: Txn, ino: Ino)
-      returns (r: Result<()>)
+      // returns the size of the inode (as a hint for freeing space)
+      returns (r: Result<uint64>)
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
@@ -1305,6 +1306,7 @@ module DirFs
         return Err(IsDir);
       }
       assert is_file(ino) by { reveal is_of_type(); }
+      var sz := i.sz;
       fs.freeInode(txn, ino, i);
       //map_delete_not_in(data, ino);
       data := map_delete(data, ino);
@@ -1314,7 +1316,7 @@ module DirFs
       mk_data_at(ino);
       ValidData_change_one(ino);
       assert ValidRoot() by { reveal ValidRoot(); }
-      return Ok(());
+      return Ok(sz);
     }
 
     method unlinkInodeAt(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes,
@@ -1447,7 +1449,8 @@ module DirFs
     }
 
     method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<()>)
+      // returns a size hint
+      returns (r: Result<uint64>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1482,7 +1485,7 @@ module DirFs
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
-        return Ok(());
+        return Ok(0);
       }
 
       if remove_r.Err? {
@@ -1490,7 +1493,8 @@ module DirFs
         return Err(IsDir);
       }
 
-      return Ok(());
+      var sz_hint := remove_r.v;
+      return Ok(sz_hint);
     }
 
     // TODO: would be nice to combine this with removeInode; best way might be
@@ -1714,7 +1718,7 @@ module DirFs
       return;
     }
 
-    method ZeroFreeSpace(txn: Txn, ino: Ino)
+    method ZeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
       returns (r: Result<bool>)
       modifies Repr
       requires fs.has_jrnl(txn)
@@ -1722,7 +1726,7 @@ module DirFs
       ensures r.Ok? // only return a Result to use runTxn in Go
       ensures data == old(data)
     {
-      var done := fs.zeroFreeSpace(txn, ino);
+      var done := fs.zeroFreeSpace(txn, ino, sz_hint);
       return Ok(done);
     }
   }

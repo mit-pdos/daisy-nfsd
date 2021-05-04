@@ -1101,12 +1101,12 @@ module IndFs
       }
     }
 
-    method zeroFrom(txn: Txn, off: uint64, ghost ino: Ino, i: MemInode)
+    method zeroFrom(txn: Txn, off: uint64, len: uint64, ghost ino: Ino, i: MemInode)
       returns (done: bool)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
-      requires off as nat < config.total
+      requires off as nat + len as nat <= config.total
       ensures forall off': uint64 | off' < off ::
       data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
       ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
@@ -1115,7 +1115,7 @@ module IndFs
       done := false;
       var off0 := off;
       var off := off;
-      while off < config_total
+      while off < off0 + len
         invariant off0 as nat <= off as nat <= config.total
         invariant ValidIno(ino, i)
         invariant forall off': uint64 | off' < off0 ::

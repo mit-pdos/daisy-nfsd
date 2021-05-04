@@ -111,21 +111,23 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 type Txn = *jrnl.Txn
 type Result = dafny_nfs.Result
 
-func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3) {
+func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64) {
 	txn := nfs.filesys.Begin()
 	r := f(txn)
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	if r.Is_Ok() {
 		v = r.Dtor_v()
+	} else {
+		hint = r.Dtor_err().Dtor_sz__hint()
 	}
 	status = nfstypes.Nfsstat3(r.Err__code())
 	return
 }
 
-func (nfs *Nfs) ZeroFreeSpace(inum uint64) {
+func (nfs *Nfs) ZeroFreeSpace(inum uint64, szHint uint64) {
 	for {
-		v, _ := nfs.runTxn(func(txn Txn) Result {
-			return nfs.filesys.ZeroFreeSpace(txn, inum)
+		v, _, _ := nfs.runTxn(func(txn Txn) Result {
+			return nfs.filesys.ZeroFreeSpace(txn, inum, szHint)
 		})
 		done := v.(bool)
 		if done {
@@ -153,7 +155,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 
 	inum := fh2ino(args.Object)
 
-	stat, status := nfs.runTxn(func(txn Txn) Result {
+	stat, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.GETATTR(txn, inum)
 	})
 	reply.Status = status
@@ -185,11 +187,11 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	inum := fh2ino(args.Object)
 	sattr := encodeSattr3(args.New_attributes)
 
-	_, status := nfs.runTxn(func(txn Txn) Result {
+	_, status, hint := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.SETATTR(txn, inum, sattr)
 	})
 	if status == nfstypes.NFS3ERR_JUKEBOX {
-		go nfs.ZeroFreeSpace(inum)
+		go nfs.ZeroFreeSpace(inum, hint)
 	}
 	reply.Status = status
 
@@ -204,7 +206,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
 
-	f_ino, status := nfs.runTxn(func(txn Txn) Result {
+	f_ino, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.LOOKUP(txn, inum, name)
 	})
 	reply.Status = status
@@ -232,7 +234,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	off := uint64(args.Offset)
 	count := uint64(args.Count)
 
-	r, status := nfs.runTxn(func(txn Txn) Result {
+	r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.READ(txn, inum, off, count)
 	})
 	reply.Status = status
@@ -260,11 +262,11 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	cnt := uint64(args.Count)
 
 	bs := bytes.Data(args.Data[:cnt])
-	_, status := nfs.runTxn(func(txn Txn) Result {
+	_, status, hint := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.WRITE(txn, inum, off, bs)
 	})
 	if status == nfstypes.NFS3ERR_JUKEBOX {
-		go nfs.ZeroFreeSpace(inum)
+		go nfs.ZeroFreeSpace(inum, hint)
 	}
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
@@ -285,9 +287,12 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	nameseq := filenameToBytes(args.Where.Name)
 	how := encodeCreateHow(args.How)
 
-	r, status := nfs.runTxn(func(txn Txn) Result {
+	r, status, hint := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.CREATE(txn, inum, nameseq, how)
 	})
+	if status == nfstypes.NFS3ERR_JUKEBOX {
+		go nfs.ZeroFreeSpace(inum, hint)
+	}
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Create error %v", status)
@@ -309,7 +314,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	name := filenameToBytes(args.Where.Name)
 	sattr := encodeSattr3(args.Attributes)
 
-	r, status := nfs.runTxn(func(txn Txn) Result {
+	r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.MKDIR(txn, inum, name, sattr)
 	})
 	reply.Status = status
@@ -352,10 +357,11 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
 
-	_, status := nfs.runTxn(func(txn Txn) Result {
+	hint_r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.REMOVE(txn, inum, name)
 	})
-	go nfs.ZeroFreeSpace(inum)
+	hint := hint_r.(uint64)
+	go nfs.ZeroFreeSpace(inum, hint)
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Remove error %v", status)
@@ -372,7 +378,7 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
 
-	_, status := nfs.runTxn(func(txn Txn) Result {
+	_, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.RMDIR(txn, inum, name)
 	})
 	reply.Status = status
@@ -392,7 +398,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	dst_inum := fh2ino(args.To.Dir)
 	dst_name := filenameToBytes(args.To.Name)
 
-	_, status := nfs.runTxn(func(txn Txn) Result {
+	_, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.RENAME(txn, src_inum, src_name, dst_inum, dst_name)
 	})
 	reply.Status = status
@@ -416,7 +422,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 
 	inum := fh2ino(args.Dir)
 
-	r, status := nfs.runTxn(func(txn Txn) Result {
+	r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.READDIR(txn, inum)
 	})
 	reply.Status = status

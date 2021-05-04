@@ -22,7 +22,7 @@ module Nfs {
     | NotEmpty
     | BadHandle
     | ServerFault
-    | JukeBox
+    | JukeBox(sz_hint: uint64)
   {
     function method nfs3_code(): uint32
     {
@@ -38,7 +38,7 @@ module Nfs {
         case NotEmpty => 66
         case BadHandle => 10001
         case ServerFault => 10006
-        case JukeBox => 10008
+        case JukeBox(_) => 10008
       }
     }
   }

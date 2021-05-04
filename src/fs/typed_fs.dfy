@@ -539,7 +539,7 @@ module TypedFs {
       reveal ValidInvalid();
     }
 
-    method zeroFreeSpace(txn: Txn, ino: Ino)
+    method zeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
       returns (done: bool)
       modifies Repr
       requires has_jrnl(txn)
@@ -549,7 +549,7 @@ module TypedFs {
     {
       reveal ValidFields();
       var i := fs.startInode(txn, ino);
-      done := fs.zeroFreeSpace(txn, ino, i);
+      done := fs.zeroFreeSpace(txn, ino, i, sz_hint);
       fs.finishInode(txn, ino, i);
     }
 
