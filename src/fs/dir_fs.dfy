@@ -35,6 +35,8 @@ module DirFs
     static const emptyDir: File := DirFile(map[], Inode.Attrs.zero_dir)
   }
 
+  datatype RemoveHint = RemoveHint(ino: Ino, sz: uint64)
+
   type FsData = map<Ino, seq<byte>>
   type FsAttrs = map<Ino, Inode.Attrs>
   type Data = map<Ino, File>
@@ -1413,8 +1415,8 @@ module DirFs
     }
 
     method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
-      // returns a size hint
-      returns (r: Result<uint64>)
+      // returns a hint for what free space to erase
+      returns (r: Result<RemoveHint>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1449,7 +1451,7 @@ module DirFs
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
-        return Ok(0);
+        return Ok(RemoveHint(ino, 0));
       }
 
       if remove_r.Err? {
@@ -1458,7 +1460,7 @@ module DirFs
       }
 
       var sz_hint := remove_r.v;
-      return Ok(sz_hint);
+      return Ok(RemoveHint(ino, sz_hint));
     }
 
     // TODO: would be nice to combine this with removeInode; best way might be

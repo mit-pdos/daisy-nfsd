@@ -589,11 +589,13 @@ module ByteFs {
         reveal inode_types();
       }
 
-      // zero a small amount of free space right away, within the same
+      // zero a limited amount of free space right away, within the same
       // transaction
-      //
-      // XXX: this works but the background freeing does not, for some reason
-      var _ := zeroFreeSpace(txn, ino, i, old_sz);
+      var size_to_zero := old_sz;
+      if size_to_zero - sz' > 4096*(8 + 3*512) {
+        size_to_zero := sz' + 4096*(8 + 3*512);
+      }
+      var _ := zeroFreeSpace(txn, ino, i, size_to_zero);
     }
 
     method shrinkToEmpty(txn: Txn, ghost ino: Ino, i: MemInode)
