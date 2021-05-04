@@ -160,6 +160,15 @@ module Nfs {
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
+  predicate has_modify_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs)
+  {
+    && attrs.ty == attrs0.ty
+    && attrs.mode == attrs0.mode
+    && attrs.uid == attrs0.uid
+    && attrs.gid == attrs0.gid
+    // mtime can change
+  }
+
   datatype Fsstat3 = Fsstat3(
     // bytes in file system / free bytes
     tbytes: uint64, fbytes: uint64,
