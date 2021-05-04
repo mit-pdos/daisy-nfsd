@@ -451,68 +451,6 @@ module DirFs
       return Ok(dents);
     }
 
-    /*
-    static method writeDirentsToFs(fs: TypedFilesys, txn: Txn, d_ino: Ino, dents: MemDirents)
-      returns (ok:bool)
-      modifies fs.Repr
-      requires fs.Valid() ensures ok ==> fs.Valid()
-      requires dents.Valid()
-      requires fs.has_jrnl(txn)
-      requires |fs.data[d_ino]| == 4096
-      ensures fs.types_unchanged()
-      ensures ok ==> fs.data == old(fs.data[d_ino := dents.val.enc()])
-      ensures dents.val == old(dents.val)
-    {
-      assert dents.Repr() !! fs.Repr;
-      var i;
-      ok, i := fs.startInode(txn, d_ino);
-      if !ok {
-        return;
-      }
-      var bs := dents.encode();
-      C.splice_all(fs.data[d_ino], bs.data);
-      ok := fs.writeBlockFile(txn, d_ino, i, bs);
-      if !ok {
-        return;
-      }
-      fs.finishInode(txn, d_ino, i);
-      assert fs.data[d_ino] == dents.val.enc();
-    }
-
-    method writeDirents(txn: Txn, d_ino: Ino, dents: MemDirents)
-      returns (ok:bool)
-      modifies Repr
-      requires fs.has_jrnl(txn)
-      requires Valid() ensures ok ==> Valid()
-      requires dents.Valid()
-      requires is_dir(d_ino)
-      ensures ok ==>
-           && dirents == old(dirents[d_ino := dents.val])
-           && data == old(data[d_ino := DirFile(dents.dir())])
-    {
-      assert |fs.data[d_ino]| == 4096 by {
-        get_data_at(d_ino);
-      }
-      assert fs.types[d_ino] == Inode.DirType by {
-        invert_dir(d_ino);
-      }
-      ghost var dents_val := dents.val;
-      ok := writeDirentsToFs(fs, txn, d_ino, dents);
-      if !ok {
-        return;
-      }
-
-      dirents := dirents[d_ino := dents_val];
-      data := data[d_ino := DirFile(dents_val.dir)];
-
-      assert is_dir(d_ino);
-      assert is_of_type(d_ino, fs.types[d_ino]) by { reveal is_of_type(); }
-      mk_data_at(d_ino);
-      ValidData_change_one(d_ino);
-      assert ValidRoot() by { reveal ValidRoot(); }
-    }
-    */
-
     // private
     //
     // creates a file disconnected from the file system (which is perfectly
