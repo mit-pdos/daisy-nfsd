@@ -1065,69 +1065,22 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    // TODO: add support for writes to arbitrary offsets
-    method WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
       returns (r: Result<()>)
       modifies Repr, bs
       requires Valid()
-      // nothing to say in error case (need to abort)
-      ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       requires |bs.data| <= WT_MAX as nat
+      // nothing to say in error case (need to abort)
+      ensures r.Ok? ==> Valid()
       ensures r.ErrBadHandle? ==> ino !in old(data)
       ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
       && ino in old(data) && old(data[ino].ByteFile?)
-      && off as nat <= old(|data[ino].data|)
       && data == old(
       var d0 := data[ino];
-      var d' := ByteFs.write_data(d0.data, off as nat, bs.data);
+      var d' := ByteFs.write_data_holes(d0.data, off as nat, bs.data);
       data[ino := ByteFile(d', d0.attrs)])
-    {
-      var i_r := openFile(txn, ino);
-      var i :- i_r.IsDirToInval();
-      assert dirents == old(dirents);
-      invert_file(ino);
-      assert ValidIno(ino, i);
-      ghost var attrs0 := old(data[ino].attrs);
-      ghost var d0: seq<byte> := old(fs.data[ino]);
-      assert d0 == old(data[ino].data) by {
-        get_data_at(ino);
-      }
-      if i.sz + bs.Len() > Inode.MAX_SZ_u64 {
-        return Err(FBig);
-      }
-      if off > i.sz {
-        // unsupported: creates a hole
-        return Err(ServerFault);
-      }
-      fs.inode_metadata(ino, i);
-      assert this !in fs.Repr;
-      var ok;
-      ok := fs.write(txn, ino, i, off, bs);
-      if !ok {
-        return Err(NoSpc);
-      }
-
-      fs.finishInode(txn, ino, i);
-
-      ghost var f' := ByteFile(fs.data[ino], attrs0);
-      data := data[ino := f'];
-
-      assert Valid() by {
-        file_change_valid(ino, f'.data);
-      }
-      return Ok(());
-    }
-
-    method {:timeLimitMultiplier 2} WRITEgeneral(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
-      returns (r: Result<()>)
-      modifies Repr, bs
-      requires Valid()
-      requires fs.has_jrnl(txn)
-      requires |bs.data| <= WT_MAX as nat
-      // nothing to say in error case (need to abort)
-      ensures r.Ok? ==> Valid()
     {
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
@@ -1144,7 +1097,8 @@ module DirFs
         off + bs.Len() > Inode.MAX_SZ_u64 {
         return Err(FBig);
       }
-      if off > i.sz {
+      var createHole := off > i.sz;
+      if createHole {
         fs.inode_metadata(ino, i);
         var r := fs.setSize(txn, ino, i, off);
         if r.SetSizeNotZero? {
@@ -1161,6 +1115,12 @@ module DirFs
       ok := fs.write(txn, ino, i, off, bs);
       if !ok {
         return Err(NoSpc);
+      }
+      if createHole {
+        assert fs.data[ino] ==
+          old(fs.data[ino]) +
+          C.repeat(0 as byte, off as nat - old(|fs.data[ino]|)) +
+          old(bs.data);
       }
 
       fs.finishInode(txn, ino, i);
