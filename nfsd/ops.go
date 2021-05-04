@@ -118,7 +118,9 @@ func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.N
 	if r.Is_Ok() {
 		v = r.Dtor_v()
 	} else {
-		hint = r.Dtor_err().Dtor_sz__hint()
+		if r.Dtor_err().Is_JukeBox() {
+			hint = r.Dtor_err().Dtor_sz__hint()
+		}
 	}
 	status = nfstypes.Nfsstat3(r.Err__code())
 	return
