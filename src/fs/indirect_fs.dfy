@@ -37,18 +37,6 @@ module IndFs
     config_properties();
   }
 
-  method remainingSpace(txn: Txn)
-    returns (n: uint64)
-    requires txn.Valid()
-    ensures n <= 511
-  {
-    var dirty := txn.NDirty();
-    if dirty >= 511 {
-      return 0;
-    }
-    return 511-dirty;
-  }
-
   class IndFilesys
   {
     // filesys contains a mapping from allocated Blkno's to poss
@@ -1128,7 +1116,11 @@ module IndFs
       done := false;
       var off0 := off;
       var off := off;
-      var remainingLowerBound := remainingSpace(txn);
+      // TODO: we stop at an essentially arbitrary time; it would be best to
+      // manually track (for this transaction) how many block numbers we've
+      // written to as a precise measure of how much we've written so far at
+      // least
+      var spaceRemaining := 1000;
       while off < off0 + len
         invariant off0 as nat <= off as nat <= config.total
         invariant ValidIno(ino, i)
@@ -1137,13 +1129,8 @@ module IndFs
         invariant forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
         invariant metadata == old(metadata)
       {
-        // leave some headroom because this whole thing is approcimate
-        if remainingLowerBound <= 10 {
-          remainingLowerBound := remainingSpace(txn);
-          if remainingLowerBound <= 10 {
-            // need to stop early
-            return;
-          }
+        if spaceRemaining == 0 {
+          return;
         }
         var newEnd := checkZeroAt(txn, off, ino, i);
         if newEnd == off {
@@ -1153,13 +1140,15 @@ module IndFs
             zeroIndirectBlockRange(txn, pos, i);
             off := off + 512;
             // conservatively assume a bunch of addresses were used
-            remainingLowerBound := 0;
+            if spaceRemaining >= 100 {
+              spaceRemaining := spaceRemaining - 100;
+            } else {
+              spaceRemaining := 0;
+            }
           } else {
             zeroOut(txn, off, ino, i);
             off := off + 1;
-            // usually zeroing should consume one address, but be slightly
-            // conservative
-            remainingLowerBound := remainingLowerBound - 2;
+            spaceRemaining := spaceRemaining - 1;
           }
         } else {
           off := newEnd;
