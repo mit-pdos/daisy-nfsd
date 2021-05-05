@@ -16,7 +16,7 @@ $""",
 
 def get_includes(fname: str) -> List[str]:
     """Parse Dafny file `fname` for include directives."""
-    includes: List[str] = []
+    includes = []
     with open(fname, "r") as f:
         for line in f:
             m = INCLUDE_RE.search(line)
