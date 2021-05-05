@@ -481,7 +481,7 @@ module TypedFs {
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       ensures fs.fs.fs.cur_inode == old(fs.fs.fs.cur_inode)
       requires inode_unchanged(ino, i.val())
-      requires len <= 4096
+      requires len <= 32*4096
       ensures fresh(bs)
       ensures ok ==> Nfs.is_read_data(data[ino], off as nat, len as nat, bs.data, eof)
     {

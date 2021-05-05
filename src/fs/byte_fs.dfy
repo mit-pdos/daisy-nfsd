@@ -265,13 +265,44 @@ module ByteFs {
       }
     }
 
+    method readInternalLarge(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
+      returns (bs: Bytes)
+      requires fs.ValidIno(ino, i)
+      requires fs.has_jrnl(txn)
+      requires 0 < len <= 32*4096
+      requires off as nat + len as nat <= |data()[ino]|
+      ensures fresh(bs)
+      ensures bs.data == this.data()[ino][off..off as nat + len as nat]
+    {
+      bs := NewBytes(0);
+      var off0 := off;
+      var off: uint64 := off0;
+      while off < off0 + len
+        decreases off0 + len - off
+        invariant off0 <= off <= off0 + len
+        invariant fs.ValidIno(ino, i)
+        invariant fresh(bs)
+        invariant bs.data == this.data()[ino][off0..off]
+      {
+        var next_len := 4096;
+        if off0 + len - off <= 4096 {
+          next_len := off0 + len - off;
+        } else if off % 4096 != 0 {
+          next_len := 4096 - off % 4096;
+        }
+        var next_bs := this.readInternal(txn, ino, i, off, next_len);
+        bs.AppendBytes(next_bs);
+        off := off + next_len;
+      }
+    }
+
     method readWithInode(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
       returns (bs: Bytes, ok: bool)
       modifies fs.fs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i)
       ensures fs.ValidIno(ino, i)
-      requires len <= 4096
+      requires len <= 32*4096
       ensures fresh(bs)
       ensures fs.fs.cur_inode == old(fs.fs.cur_inode)
       ensures ok ==>
@@ -299,8 +330,8 @@ module ByteFs {
         }
         return;
       }
-      assert 0 < len <= 4096;
-      bs := readInternal(txn, ino, i, off, len);
+      assert 0 < len <= 32*4096;
+      bs := readInternalLarge(txn, ino, i, off, len);
       assert data() == old(data());
     }
 
@@ -313,7 +344,7 @@ module ByteFs {
           && off as nat + len as nat <= |data()[ino]|
           && bs.data == this.data()[ino][off..off+len]
     {
-      if len > 4096 {
+      if len > 32*4096 {
         ok := false;
         bs := NewBytes(0);
         return;

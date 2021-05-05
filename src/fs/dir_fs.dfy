@@ -1107,7 +1107,6 @@ module DirFs
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> ino !in data
       ensures r.ErrInval? ==> ino in data && data[ino].DirFile?
-      ensures unchanged(this)
       ensures r.Ok? ==>
       (var bs := r.v.data;
        var eof := r.v.eof;
@@ -1115,7 +1114,7 @@ module DirFs
       && is_read_data(data[ino].data, off as nat, len as nat, bs.data, eof)
       )
     {
-      if len > 4096 {
+      if len > 32*4096 {
         // we should really return a short read
         var bs := NewBytes(0);
         return Err(ServerFault);
