@@ -274,7 +274,9 @@ module ByteFs {
       ensures fresh(bs)
       ensures bs.data == this.data()[ino][off..off as nat + len as nat]
     {
-      bs := NewBytes(0);
+      // after the subslice we have a slice with the right capacity
+      bs := NewBytes(len);
+      bs.Subslice(0, 0);
       var off0 := off;
       var off: uint64 := off0;
       while off < off0 + len
