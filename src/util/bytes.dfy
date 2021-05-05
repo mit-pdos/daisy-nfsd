@@ -1,5 +1,4 @@
 include "../machine/bytes.s.dfy"
-include "../machine/machine.s.dfy"
 
 module ByteHelpers {
   import opened ByteSlice

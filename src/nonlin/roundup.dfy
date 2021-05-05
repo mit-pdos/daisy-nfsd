@@ -1,5 +1,5 @@
 // -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=true") -*-
-include "../machine/machine.s.dfy"
+include "../machine/machine.dfy"
 include "../nonlin/arith.dfy"
 
 module Round {

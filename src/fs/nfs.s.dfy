@@ -1,4 +1,3 @@
-include "../machine/machine.s.dfy"
 include "../machine/bytes.s.dfy"
 include "../util/std.dfy"
 include "inode/inode.dfy"

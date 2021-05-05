@@ -4,7 +4,7 @@ Experiment with little-endian encoding of integers.
 IronFleet has good code for this at
 https://github.com/GLaDOS-Michigan/IronFleet/blob/master/ironfleet/src/Dafny/Distributed/Impl/Common/Util.i.dfy
 */
-include "machine.s.dfy"
+include "machine.dfy"
 include "bytes.s.dfy"
 
 module {:extern "encoding", "github.com/mit-pdos/dafny-nfsd/dafny_go/encoding"} IntEncoding

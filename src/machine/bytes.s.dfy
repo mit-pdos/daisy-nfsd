@@ -1,4 +1,4 @@
-include "machine.s.dfy"
+include "machine.dfy"
 
 module {:extern "bytes", "github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"} ByteSlice {
     import opened Machine

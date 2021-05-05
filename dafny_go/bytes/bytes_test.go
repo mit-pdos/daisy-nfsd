@@ -21,7 +21,7 @@ func TestAppend(t *testing.T) {
 }
 
 func TestSubslice(t *testing.T) {
-	// this test is replicated as a Dafny method TestSubslice in machine.s.dfy
+	// this test is replicated as a Dafny method TestSubslice in machine.dfy
 	bs := NewBytes(5)
 	bs.Set(1, 3)
 	bs.Set(2, 4)

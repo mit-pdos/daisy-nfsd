@@ -10,6 +10,7 @@ module FsKinds {
   import opened JrnlTypes
   import opened JrnlSpec
   import opened Kinds
+  import opened KindsFacts
   import opened ByteSlice
   import IntEncoding
   import Round

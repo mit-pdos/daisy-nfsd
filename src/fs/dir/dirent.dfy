@@ -1,4 +1,4 @@
-include "../../machine/machine.s.dfy"
+include "../../machine/machine.dfy"
 include "../../util/std.dfy"
 include "../../util/marshal.i.dfy"
 include "../super.dfy"

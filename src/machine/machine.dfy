@@ -1,5 +1,10 @@
 include "../util/collections.dfy"
 
+// This file is untrusted. It only uses the nativeType feature to give some
+// names to machine integers, but Dafny checks everything in this file (for
+// example, the bounds have to be small enough that a uint64 really fits into a
+// Go uint64 for this to compile).
+
 module Machine {
     newtype {:nativeType "byte"} byte = x:int | 0 <= x < 256
     newtype {:nativeType "uint"} uint32 = x:int | 0 <= x < U32.MAX

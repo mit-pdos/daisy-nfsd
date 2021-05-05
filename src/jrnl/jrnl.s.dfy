@@ -1,8 +1,8 @@
-include "../machine/machine.s.dfy"
 include "../machine/bytes.s.dfy"
 include "../util/pow.dfy"
 include "../util/collections.dfy"
 include "kinds.s.dfy"
+include "kinds_facts.dfy"
 
 module JrnlTypes
 {
@@ -25,6 +25,7 @@ module {:extern "jrnl", "github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"} JrnlSpec
     import opened JrnlTypes
     import opened Machine
     import opened Kinds
+    import opened KindsFacts
     import opened ByteSlice
     import C = Collections
 

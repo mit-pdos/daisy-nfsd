@@ -1,4 +1,4 @@
-include "machine.s.dfy"
+include "machine.dfy"
 
 module {:extern "time", "github.com/mit-pdos/dafny-nfsd/dafny_go/time"} Time {
   import opened Machine
