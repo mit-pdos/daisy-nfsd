@@ -19,9 +19,8 @@ crash-safety reasoning in Perennial.
 
 ## Compiling
 
-Run `make verify` to verify everything and `make compile` to compile
-the file-system and bank examples to Go (the generated code goes into
-`dafnygen/`).
+Run `make` to compile and verify everything, or `make compile` to just compile
+from Dafny to Go. Then you can build the server with `go build ./cmd/dafny-nfsd`.
 
 You'll need Dafny 3:
 
@@ -34,7 +33,7 @@ You'll need Dafny 3:
 Compilation additionally depends on goimports to remove unused imports:
 
 ```sh
-go get golang.org/x/tools/cmd/goimports
+go install golang.org/x/tools/cmd/goimports@latest
 ```
 
 Then you can run some sanity tests over the bank and file-system examples.
@@ -49,6 +48,8 @@ go test -v ./tests
 
 ## Running the NFS server
 
+### Linux
+
 You'll need some basic utilities: the rpcbind service to tell the server what
 port to run on, and the NFS client utilities to mount the file system. On Arch
 Linux these are available using `pacman -S rpcbind nfs-utils` and on Ubuntu you
@@ -56,10 +57,13 @@ can use `apt-get install rpcbind nfs-common`.
 
 You might need to start the rpcbind service with `systemctl start rpcbind`. It
 seems to help if you also run `systemctl start rpc-statd` (it should be
-auto-launched when eeded, though). The `rpcinfo -p` command is useful for
+auto-launched when needed, though). The `rpcinfo -p` command is useful for
 verifying that an `portmapper` service is running on port 111.
 
-Now run `go run ./cmd/dafny-nfsd` to start the server and `sudo mount localhost:/ /mnt/x` to mount it using the Linux NFS client.
+Now run `go run ./cmd/dafny-nfsd` to start the server (with an in-memory disk)
+and `sudo mount localhost:/ /mnt/nfs` to mount it using the Linux NFS client.
+
+### macOS
 
 On macOS you already have `rpcbind` and the NFS client utilities, but you'll
 need to start a couple services with:
@@ -68,6 +72,10 @@ need to start a couple services with:
 sudo launchctl start com.apple.rpcbind
 sudo launchctl start com.apple.lockd
 ```
+
+You can mount with `sudo mount localhost:/ /mnt/nfs` as for Linux, or without
+becoming root in Finder with Go > Connect to server... and connecting to
+`nfs://localhost/`.
 
 ## Developing
 
