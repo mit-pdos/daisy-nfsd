@@ -1113,7 +1113,8 @@ module IndFs
       }
     }
 
-    method zeroFrom(txn: Txn, off: uint64, len: uint64, ghost ino: Ino, i: MemInode)
+    // TODO: this just became flaky
+    method {:timeLimitMultiplier 2} zeroFrom(txn: Txn, off: uint64, len: uint64, ghost ino: Ino, i: MemInode)
       returns (done: bool)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
