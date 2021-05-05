@@ -258,12 +258,14 @@ module TypedFs {
       reveal_valids();
       ino := ialloc.Alloc();
       if ino == 0 {
+        print "ialloc returned 0? (should be impossible)";
         ok := false;
         return;
       }
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
       if !i.ty().InvalidType? {
+        print "ialloc returned inode ", ino, " with type ", i.ty();
         ok := false;
         return;
       }
