@@ -478,7 +478,7 @@ func (nfs *Nfs) NFSPROC3_FSSTAT(args nfstypes.FSSTAT3args) nfstypes.FSSTAT3res {
 	decodeFsstat3(stats, &reply)
 
 	reply.Status = nfstypes.NFS3_OK
-	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Obj_attributes.Attributes_follow = false
 	reply.Resok.Invarsec = 0
 	return reply
 }
