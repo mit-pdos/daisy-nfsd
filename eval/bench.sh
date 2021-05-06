@@ -4,8 +4,8 @@
 
 set -eu
 
-blue=$(tput setaf 4)
-reset=$(tput sgr0)
+blue=$(tput setaf 4 || echo)
+reset=$(tput sgr0 || echo)
 
 info() {
   echo -e "${blue}$1${reset}" 1>&2
