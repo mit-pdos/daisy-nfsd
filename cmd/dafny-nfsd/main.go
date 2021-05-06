@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -57,6 +58,7 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+	memprofile := flag.String("memprofile", "", "write mem profile to file")
 	var diskfile string
 	flag.StringVar(&diskfile, "disk", "", "file to store disk in (empty uses MemDisk)")
 
@@ -79,6 +81,18 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		runtime.GC()    // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
 	}
 
 	listener, err := net.Listen("tcp", ":0")
