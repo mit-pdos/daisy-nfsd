@@ -118,7 +118,8 @@ func main() {
 		}
 		start := time.Now()
 		nfs = nfsd.RecoverNfs(d)
-		util.DPrintf(1, "recovered dafny-nfsd from disk in %v\n", time.Now().Sub(start))
+		dur := time.Now().Sub(start).Truncate(10 * time.Millisecond)
+		util.DPrintf(1, "recovered dafny-nfsd from disk in %v", dur)
 	} else {
 		nfs = nfsd.MakeNfs(d)
 	}
