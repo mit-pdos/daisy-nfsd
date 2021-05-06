@@ -3,7 +3,6 @@ package nfsd
 import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
-	std "github.com/mit-pdos/dafny-nfsd/dafnygen/Std_Compile"
 
 	"github.com/tchajed/goose/machine/disk"
 )
@@ -22,14 +21,13 @@ func zeroDisk(d disk.Disk) {
 }
 
 func MakeNfs(d disk.Disk) *Nfs {
-	// only runs initialization, recovery isn't set up yet
 	zeroDisk(d)
 	dfsopt := dirfs.Companion_DirFilesys_.New(&d)
 	if dfsopt.Is_None() {
 		panic("no dirfs")
 	}
 
-	dfs := dfsopt.Get().(std.Option_Some).X.(*dirfs.DirFilesys)
+	dfs := dfsopt.Dtor_x().(*dirfs.DirFilesys)
 
 	nfs := &Nfs{
 		filesys: dfs,
