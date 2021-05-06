@@ -177,6 +177,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	decodeAttrs(attrs.Attrs, &reply.Resok.Obj_attributes)
 	reply.Resok.Obj_attributes.Nlink = 1
 	reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
+	reply.Resok.Obj_attributes.Used = nfstypes.Size3(attrs.Size)
 	reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
 
 	return reply
