@@ -413,11 +413,7 @@ module TypedFs {
           return;
         }
         assert data[ino] == old(write_data(data[ino], off as nat, data0[..written + 4096])) by {
-          write_data_app(old(data[ino]), off as nat,
-            // already written
-            data0[..written],
-            // newly written
-            data0[written..written + 4096]);
+          write_data_app_auto(old(data[ino]), off as nat);
           assert data0[..written] + data0[written..written + 4096] == data0[..written + 4096];
           assert (off + written) as nat == off as nat + |data0[..written]|;
         }
@@ -434,7 +430,7 @@ module TypedFs {
 
       assert data[ino] == old(write_data(data[ino], off as nat, data0)) by {
         assert data[ino] == write_data(old(data[ino]), off as nat, data0[..written] + data0[written..]) by {
-          write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..]);
+          write_data_app_auto(old(data[ino]), off as nat);
           // NOTE(tej): this is really necessary to line up write_data_app with
           // the postcondition of writeOne_ (without this the proof time blows up)
           assert (off + written) as nat == off as nat + |data0[..written]|;
