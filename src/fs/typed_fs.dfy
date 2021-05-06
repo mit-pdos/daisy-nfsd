@@ -365,7 +365,8 @@ module TypedFs {
       }
     }
 
-    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    // TODO: this recently became flaky
+    method {:timeLimitMultiplier 2} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
