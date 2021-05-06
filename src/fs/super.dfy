@@ -113,6 +113,10 @@ module FsKinds {
       requires b.data == sb0.enc()
       ensures sb == sb0
     {
+      // TODO: we can prove that superblock decoding succeeds, but in reality we
+      // want a runtime check in case the disk isn't as expected or the static
+      // configuration has changed. Unfortunately this runs in a constructor so
+      // it's not so easy to fail.
       var m := Marshal.UInt64Decode(b, 0, magic);
       if m != magic {
         assert false;
