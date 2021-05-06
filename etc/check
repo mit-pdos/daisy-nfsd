@@ -16,7 +16,7 @@ markdown-link-check "research.md"
 black --diff "etc/dafnydep"
 mypy "etc/dafnydep"
 mypy etc/*.py
-black --diff etc/*.py
+black --diff etc/*.py eval/*.py
 pytest etc
 
 # Bash
