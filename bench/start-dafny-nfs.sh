@@ -18,4 +18,14 @@ go build ./cmd/dafny-nfsd && rm -f dafny-nfsd
 go run ./cmd/dafny-nfsd/ -debug=1 -disk /dev/shm/nfs.img "$@" > nfs.out 2>&1 &
 sleep 2
 killall -0 dafny-nfsd # make sure server is running
-sudo mount -t nfs -o vers=3,nordirplus localhost:/ /mnt/nfs
+
+# mount options for Linux NFS client:
+#
+# vers=3 is the default but nice to be explicit
+#
+# nordirplus tells the client not to try READDIRPLUS (it will fall back to READDIR but always first try READDIRPLUS)
+#
+# nolock tells the client not to try to use the Network Lock Manager for
+# advisory locks since our server doesn't run one; instead, clients use local
+# locks which work fine if there's only one client
+sudo mount -t nfs -o vers=3,nordirplus,nolock localhost:/ /mnt/nfs
