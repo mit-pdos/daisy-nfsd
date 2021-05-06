@@ -9,9 +9,9 @@ set -eu
 # scale is a factor to multiply the number of operations by. The defaults are
 # chosen so that scale=1 (the default) takes roughly 10s for each test suite.
 
-blue=$(tput setaf 4)
-red=$(tput setaf 1)
-reset=$(tput sgr0)
+blue=$(tput setaf 4 || echo)
+red=$(tput setaf 1 || echo)
+reset=$(tput sgr0 || echo)
 
 info() {
   echo -e "${blue}$1${reset}" 1>&2
