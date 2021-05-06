@@ -861,39 +861,32 @@ module DirFs
       return Inode.Attrs(attrs0.ty, mode, uid, gid, mtime);
     }
 
-    method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
+    method SETATTRfile(txn: Txn, ino: Ino, i: MemInode, attrs: Sattr3)
       returns (r:Result<()>, ghost attrs': Inode.Attrs)
-      modifies Repr
-      requires Valid() ensures r.Ok? ==> Valid()
+      modifies Repr, i.Repr
+      requires ValidIno(ino, i) ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      ensures r.ErrBadHandle? ==> ino !in data
-      ensures r.ErrIsDir? ==> is_dir(ino)
+      requires is_file(ino)
+      requires attrs.size.Some? ==> attrs.size.x <= Inode.MAX_SZ_u64
+      ensures !r.ErrBadHandle?
+      ensures !r.ErrIsDir?
       ensures r.Ok? ==>
-      && old(is_file(ino))
       && has_set_attrs(old(data[ino].attrs), attrs', attrs)
-      && (var d0 := old(data[ino]);
+      && var d0 := old(data[ino]);
         var sz := if attrs.size.Some? then attrs.size.x as nat else |d0.data|;
         var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0.data, sz);
-        && data == old(data[ino := ByteFile(d', attrs')]))
+        data == old(data[ino := ByteFile(d', attrs')])
     {
-      if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
-        r := Err(FBig);
-        return;
-      }
-      var i :- openFile(txn, ino);
       var sz: uint64 := attrs.size.get_default(i.sz);
       assert dirents == old(dirents);
-      invert_file(ino);
       ghost var attrs0 := data[ino].attrs;
       ghost var d0: seq<byte> := old(fs.data[ino]);
-      assert d0 == old(data[ino].data) by {
-        get_data_at(ino);
-      }
+      get_data_at(ino);
 
       fs.inode_metadata(ino, i);
       assert this !in fs.Repr;
       assert i.attrs == attrs0 by {
-        get_data_at(ino);
+        // get_data_at(ino);
       }
 
       var attrs'_val := SetattrAttributes(attrs, i.attrs);
@@ -914,10 +907,100 @@ module DirFs
       data := data[ino := ByteFile(d', attrs')];
 
       assert Valid() by {
-        file_change_with_attrs_valid(ino, d', attrs');
+        mk_data_at(ino);
+        assert is_of_type(ino, fs.types[ino].ty) by { reveal is_of_type(); }
+        ValidData_change_one(ino);
+        assert ValidRoot() by { reveal ValidRoot(); }
       }
 
       r := Ok(());
+      return;
+    }
+
+    method SETATTRdir(txn: Txn, ino: Ino, i: MemInode, attrs: Sattr3)
+      returns (r:Result<()>, ghost attrs': Inode.Attrs)
+      modifies Repr, i.Repr
+      requires ValidIno(ino, i) ensures r.Ok? ==> Valid()
+      requires fs.has_jrnl(txn)
+      requires is_dir(ino)
+      ensures r.ErrIsDir? ==> attrs.size.Some? && old(is_dir(ino))
+      ensures !r.ErrBadHandle?
+      ensures r.Ok? ==>
+      && has_set_attrs(old(data[ino].attrs), attrs', attrs)
+      && var d0 := old(data[ino]);
+        data == old(data[ino := DirFile(d0.dir, attrs')])
+    {
+      if attrs.size.Some? {
+        r := Err(IsDir);
+        return;
+      }
+      var sz: uint64 := attrs.size.get_default(i.sz);
+      assert dirents == old(dirents);
+      ghost var old_dir := old(data[ino].dir);
+      ghost var attrs0 := data[ino].attrs;
+      ghost var d0 := old(fs.data[ino]);
+      get_data_at(ino);
+
+      fs.inode_metadata(ino, i);
+      assert this !in fs.Repr;
+      assert i.attrs == attrs0 by {
+        get_data_at(ino);
+      }
+
+      var attrs'_val := SetattrAttributes(attrs, i.attrs);
+      attrs' := attrs'_val;
+      fs.setAttrs(ino, i, attrs'_val);
+      fs.finishInode(txn, ino, i);
+
+      data := data[ino := DirFile(old_dir, attrs')];
+
+      assert Valid() by {
+        mk_data_at(ino);
+        assert is_dir(ino);
+        assert is_of_type(ino, fs.types[ino].ty) by { reveal is_of_type(); }
+        ValidData_change_one(ino);
+        assert ValidRoot() by { reveal ValidRoot(); }
+      }
+
+      r := Ok(());
+      return;
+    }
+
+    method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
+      returns (r:Result<()>, ghost attrs': Inode.Attrs)
+      modifies Repr
+      requires Valid() ensures r.Ok? ==> Valid()
+      requires fs.has_jrnl(txn)
+      ensures r.ErrBadHandle? ==> ino !in data
+      ensures r.ErrIsDir? ==> old(is_dir(ino))
+      ensures r.Ok? ==>
+      && old(ino in data)
+      && has_set_attrs(old(data[ino].attrs), attrs', attrs)
+      && (old(is_file(ino)) ==> (var d0 := old(data[ino]);
+        var sz := if attrs.size.Some? then attrs.size.x as nat else |d0.data|;
+        var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0.data, sz);
+        data == old(data[ino := ByteFile(d', attrs')])))
+      && (old(is_dir(ino)) ==> (var d0 := old(data[ino]);
+        data == old(data[ino := DirFile(d0.dir, attrs')])))
+    {
+      if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
+        r := Err(FBig);
+        return;
+      }
+      var ok, i := fs.startInode(txn, ino);
+      if !ok {
+        r := Err(BadHandle);
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        return;
+      }
+      if i.ty().DirType? {
+        assert old(is_dir(ino)) by { reveal is_of_type(); }
+        r, attrs' := SETATTRdir(txn, ino, i, attrs);
+        return;
+      }
+      assert i.ty().FileType?;
+      assert old(is_file(ino)) by { reveal is_of_type(); }
+      r, attrs' := SETATTRfile(txn, ino, i, attrs);
       return;
     }
 
@@ -937,7 +1020,6 @@ module DirFs
       ensures r.ErrBadHandle? ==> is_invalid(ino)
       ensures r.ErrIsDir? ==> is_dir(ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.IsDir?
-      ensures unchanged(this)
       ensures dirents == old(dirents)
     {
       var ok, i := fs.startInode(txn, ino);
