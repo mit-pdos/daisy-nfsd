@@ -112,18 +112,21 @@ module FsKinds {
       requires sb0.Valid()
       requires b.data == sb0.enc()
       ensures sb == sb0
+      // check at runtime super info has not changed
+      ensures sb.info == super
     {
-      // TODO: we can prove that superblock decoding succeeds, but in reality we
-      // want a runtime check in case the disk isn't as expected or the static
-      // configuration has changed. Unfortunately this runs in a constructor so
-      // it's not so easy to fail.
       var m := Marshal.UInt64Decode(b, 0, magic);
       if m != magic {
         assert false;
-        return SuperBlock(Super(0, 0), 0);
+        if m == 0 {
+          expect false, "magic is 0, file system seems to not be initialized";
+        }
+        expect false, "magic is incorrect, not a dafny-nfsd file system";
       }
       var inode_blocks := Marshal.UInt64Decode(b, 8, sb0.info.inode_blocks as uint64);
+      expect inode_blocks == super.inode_blocks as uint64, "number of inode blocks has changed";
       var data_bitmaps := Marshal.UInt64Decode(b, 16, sb0.info.data_bitmaps as uint64);
+      expect data_bitmaps as nat == super.data_bitmaps, "number of data bitmaps has changed";
       var actual_blocks := Marshal.UInt64Decode(b, 24, sb0.actual_blocks);
       return SuperBlock(Super(inode_blocks as nat, data_bitmaps as nat), actual_blocks);
     }
