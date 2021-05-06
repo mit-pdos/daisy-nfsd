@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
+	"time"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
@@ -115,7 +116,9 @@ func main() {
 		if diskfile == "" {
 			panic("cannot recover from MemDisk")
 		}
+		start := time.Now()
 		nfs = nfsd.RecoverNfs(d)
+		util.DPrintf(1, "recovered dafny-nfsd from disk in %v\n", time.Now().Sub(start))
 	} else {
 		nfs = nfsd.MakeNfs(d)
 	}
