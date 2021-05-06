@@ -58,9 +58,15 @@ func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	var diskfile string
 	flag.StringVar(&diskfile, "disk", "", "file to store disk in (empty uses MemDisk)")
+
+	var filesizeMegabytes uint64
+	flag.Uint64Var(&filesizeMegabytes, "size", 400, "size of file system (in MB)")
+
 	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
 
 	flag.Parse()
+
+	filesizeBlocks := filesizeMegabytes * 1000 / 4
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -93,10 +99,10 @@ func main() {
 
 	var d disk.Disk
 	if diskfile == "" {
-		d = disk.NewMemDisk(100_000)
+		d = disk.NewMemDisk(filesizeBlocks)
 	} else {
 		var err error
-		d, err = disk.NewFileDisk(diskfile, 100_000)
+		d, err = disk.NewFileDisk(diskfile, filesizeBlocks)
 		if err != nil {
 			panic("could not create disk file: " + err.Error())
 		}
