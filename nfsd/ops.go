@@ -164,6 +164,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(2, "NFS Getattr error %v", status)
 		return reply
 	}
 
@@ -197,12 +198,15 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	if status == nfstypes.NFS3ERR_JUKEBOX {
 		go nfs.ZeroFreeSpace(inum, hint)
 	}
+	if status != nfstypes.NFS3_OK {
+		util.DPrintf(2, "NFS Setattr error %v", status)
+		return reply
+	}
 	reply.Status = status
 
 	return reply
 }
 
-// Lookup must lock child inode to find gen number
 func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
@@ -215,6 +219,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
+		util.DPrintf(2, "NFS Lookup error %v", status)
 		return reply
 	}
 	fh := Fh{Ino: f_ino.(uint64)}
