@@ -53,15 +53,28 @@ module FsKinds {
   }
 
   // we initialize the superblock this way to get named arguments
-  const super := Super.zero.(inode_blocks:=30, data_bitmaps:=6)
+  const super := Super.zero.(inode_blocks:=30, data_bitmaps:=20)
   lemma super_valid()
     ensures super.Valid()
   {}
   lemma super_size()
     ensures super.num_inodes == 960;
     ensures super.num_data_blocks
-        * 4096 / (1000*1000) == 805 /* MB */
+        * 4096 / (1000*1000) == 2684 /* MB */
   {}
+
+  // we need these to be a real constants because accessing any const in super
+  // computes a big int every time it's referenced, which shows up in the CPU
+  // profile...
+  const super_num_data_blocks: uint64 := 20*(4096*8)
+  const super_data_bitmap_start: uint64 := 513 + 1 + 30;
+  const super_data_start: uint64 := 513 + 1 + 30 + 20;
+  lemma super_consts_ok()
+    ensures super_num_data_blocks as nat == super.num_data_blocks
+    ensures super_data_bitmap_start as nat == super.data_bitmap_start
+    ensures super_data_start as nat == super.data_start
+  {}
+
 
   datatype SuperBlock = SuperBlock(info: Super, actual_blocks: uint64)
   {
@@ -112,18 +125,6 @@ module FsKinds {
     }
   }
 
-  // we need these to be a real constants because accessing any const in super
-  // computes a big int every time it's referenced, which shows up in the CPU
-  // profile...
-  const super_num_data_blocks: uint64 := 6*(4096*8)
-  const super_data_bitmap_start: uint64 := 513 + 1 + 30;
-  const super_data_start: uint64 := 513 + 1 + 30 + 6;
-  lemma super_consts_ok()
-    ensures super_num_data_blocks as nat == super.num_data_blocks
-    ensures super_data_bitmap_start as nat == super.data_bitmap_start
-    ensures super_data_start as nat == super.data_start
-  {}
-
   function zero_inode_witness(): (x:uint64)
     ensures ino_ok(x)
   {
@@ -135,11 +136,6 @@ module FsKinds {
 
   predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
   predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
-
-  // if you want to make a disk for the fs this is a usable number
-  lemma NumBlocks_upper_bound()
-    ensures super.disk_size < 200_000
-  {}
 
   const SuperBlkAddr: Addr := Addr(Super.block_addr, 0);
 
