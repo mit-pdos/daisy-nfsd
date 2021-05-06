@@ -1,6 +1,7 @@
 package nfsd
 
 import (
+	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
 	std "github.com/mit-pdos/dafny-nfsd/dafnygen/Std_Compile"
 
@@ -29,6 +30,18 @@ func MakeNfs(d disk.Disk) *Nfs {
 	}
 
 	dfs := dfsopt.Get().(std.Option_Some).X.(*dirfs.DirFilesys)
+
+	nfs := &Nfs{
+		filesys: dfs,
+	}
+
+	return nfs
+}
+
+func RecoverNfs(d disk.Disk) *Nfs {
+	jrnl := jrnl.NewJrnl(&d)
+	dfs := dirfs.New_DirFilesys_()
+	dfs.Recover(jrnl)
 
 	nfs := &Nfs{
 		filesys: dfs,

@@ -62,6 +62,9 @@ func main() {
 	var filesizeMegabytes uint64
 	flag.Uint64Var(&filesizeMegabytes, "size", 400, "size of file system (in MB)")
 
+	var recover bool
+	flag.BoolVar(&recover, "recover", false, "run recovery (rather than initialization)")
+
 	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
 
 	flag.Parse()
@@ -107,7 +110,15 @@ func main() {
 			panic("could not create disk file: " + err.Error())
 		}
 	}
-	nfs := nfsd.MakeNfs(d)
+	var nfs *nfsd.Nfs
+	if recover {
+		if diskfile == "" {
+			panic("cannot recover from MemDisk")
+		}
+		nfs = nfsd.RecoverNfs(d)
+	} else {
+		nfs = nfsd.MakeNfs(d)
+	}
 	if nfs == nil {
 		panic("could not initialize nfs")
 	}
