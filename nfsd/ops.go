@@ -295,6 +295,14 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 
 	inum := fh2ino(args.Where.Dir)
 	nameseq := filenameToBytes(args.Where.Name)
+	if !args.How.Obj_attributes.Uid.Set_it {
+		args.How.Obj_attributes.Uid.Set_it = true
+		args.How.Obj_attributes.Uid.Uid = nfstypes.Uid3(nfs.uid)
+	}
+	if !args.How.Obj_attributes.Gid.Set_it {
+		args.How.Obj_attributes.Gid.Set_it = true
+		args.How.Obj_attributes.Gid.Gid = nfstypes.Gid3(nfs.gid)
+	}
 	how := encodeCreateHow(args.How)
 
 	r, status, hint := nfs.runTxn(func(txn Txn) Result {
@@ -322,6 +330,14 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 
 	inum := fh2ino(args.Where.Dir)
 	name := filenameToBytes(args.Where.Name)
+	if !args.Attributes.Uid.Set_it {
+		args.Attributes.Uid.Set_it = true
+		args.Attributes.Uid.Uid = nfstypes.Uid3(nfs.uid)
+	}
+	if !args.Attributes.Gid.Set_it {
+		args.Attributes.Gid.Set_it = true
+		args.Attributes.Gid.Gid = nfstypes.Gid3(nfs.gid)
+	}
 	sattr := encodeSattr3(args.Attributes)
 
 	r, status, _ := nfs.runTxn(func(txn Txn) Result {

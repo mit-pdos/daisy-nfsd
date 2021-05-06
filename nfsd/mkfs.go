@@ -1,6 +1,9 @@
 package nfsd
 
 import (
+	"os/user"
+	"strconv"
+
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
 
@@ -9,6 +12,8 @@ import (
 
 type Nfs struct {
 	filesys *dirfs.DirFilesys
+	uid     int
+	gid     int
 }
 
 func zeroDisk(d disk.Disk) {
@@ -20,6 +25,22 @@ func zeroDisk(d disk.Disk) {
 	d.Barrier()
 }
 
+func getUser() (uid int, gid int) {
+	u, err := user.Current()
+	if err != nil {
+		panic("no user")
+	}
+	uid, err = strconv.Atoi(u.Uid)
+	if err != nil {
+		panic("could not user uid")
+	}
+	uid, err = strconv.Atoi(u.Gid)
+	if err != nil {
+		panic("could not user gid")
+	}
+	return
+}
+
 func MakeNfs(d disk.Disk) *Nfs {
 	zeroDisk(d)
 	dfsopt := dirfs.Companion_DirFilesys_.New(&d)
@@ -29,8 +50,12 @@ func MakeNfs(d disk.Disk) *Nfs {
 
 	dfs := dfsopt.Dtor_x().(*dirfs.DirFilesys)
 
+	uid, gid := getUser()
+
 	nfs := &Nfs{
 		filesys: dfs,
+		uid:     uid,
+		gid:     gid,
 	}
 
 	return nfs
@@ -41,8 +66,12 @@ func RecoverNfs(d disk.Disk) *Nfs {
 	dfs := dirfs.New_DirFilesys_()
 	dfs.Recover(jrnl)
 
+	uid, gid := getUser()
+
 	nfs := &Nfs{
 		filesys: dfs,
+		uid:     uid,
+		gid:     gid,
 	}
 
 	return nfs
