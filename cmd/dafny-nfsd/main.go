@@ -66,7 +66,7 @@ func main() {
 
 	flag.Parse()
 
-	filesizeBlocks := filesizeMegabytes * 1000 / 4
+	filesizeBlocks := filesizeMegabytes * 1024 / 4
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
