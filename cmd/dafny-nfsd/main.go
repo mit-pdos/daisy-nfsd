@@ -59,6 +59,7 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile := flag.String("memprofile", "", "write mem profile to file")
+	mutexprofile := flag.String("mutexprofile", "", "write mutex profile to file")
 	var diskfile string
 	flag.StringVar(&diskfile, "disk", "", "file to store disk in (empty uses MemDisk)")
 
@@ -93,6 +94,20 @@ func main() {
 		if err := pprof.WriteHeapProfile(f); err != nil {
 			log.Fatal("could not write memory profile: ", err)
 		}
+	}
+	if *mutexprofile != "" {
+		f, err := os.Create(*mutexprofile)
+		if err != nil {
+			log.Fatal("could not create mutex profile: ", err)
+		}
+		runtime.SetMutexProfileFraction(1)
+		defer func() {
+			mp := pprof.Lookup("mutex")
+			if mp != nil {
+				mp.WriteTo(f, 0)
+			}
+			f.Close()
+		}()
 	}
 
 	listener, err := net.Listen("tcp", ":0")
