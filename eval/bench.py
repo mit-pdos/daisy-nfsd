@@ -27,7 +27,7 @@ def parse_raw(lines):
             fs = m.group("fs")
             continue
         item = get_bench_data(
-            r"""fs-(?P<bench>smallfile): \d* (?P<val>[0-9.]*) file/sec""", line
+            r"""fs-(?P<bench>smallfile): 1 (?P<val>[0-9.]*) file/sec""", line
         )
         if item:
             data.append(item)
