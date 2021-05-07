@@ -453,6 +453,37 @@ module DirFs
       return Ok(dents);
     }
 
+    method updateDirentsMtime(ghost d_ino: Ino, dents: MemDirents)
+      returns (ghost dir_attrs': Inode.Attrs)
+      modifies this, dents.file.ReprFs
+      requires ValidDirents(dents, d_ino)
+      ensures ValidDirents(dents, d_ino)
+      ensures has_modify_attrs(old(data[d_ino].attrs), dir_attrs')
+      ensures dirents == old(dirents)
+      ensures
+      var d0 := data[d_ino].dir;
+      data == old(data[d_ino := DirFile(d0, dir_attrs')])
+    {
+      get_data_at(d_ino);
+      var dir_attrs := dents.getAttrs();
+      var dir_attrs_new := ModifyAttrs(dir_attrs);
+      dir_attrs' := dir_attrs_new;
+      dents.setAttrs(dir_attrs_new);
+      ghost var d0 := data[d_ino].dir;
+      data := data[d_ino := DirFile(d0, dir_attrs')];
+      assert ValidIno(d_ino, dents.file.i) by {
+        dents.fs_valid_ino();
+        assert is_dir(d_ino);
+        assert is_of_type(d_ino, fs.types[d_ino].ty) by {
+          reveal is_of_type();
+        }
+        mk_data_at(d_ino);
+        ValidData_change_one(d_ino);
+        assert ValidRoot() by { reveal ValidRoot(); }
+      }
+    }
+
+
     // private
     //
     // creates a file disconnected from the file system (which is perfectly
@@ -724,7 +755,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
-      returns (r: Result<Ino>, ghost attrs: Inode.Attrs)
+      returns (r: Result<Ino>, ghost dir_attrs: Inode.Attrs, ghost attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -735,9 +766,10 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && has_create_attrs(attrs, how)
+      && has_modify_attrs(old(data[d_ino].attrs), dir_attrs)
       && data == old(
         var d0 := data[d_ino];
-        var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
+        var d' := DirFile(d0.dir[name.data := ino], dir_attrs);
         data[ino := ByteFile(C.repeat(0 as byte, how.size() as nat), attrs)][d_ino := d'])
       )
     {
@@ -760,7 +792,11 @@ module DirFs
         return;
       }
       var dents :- readDirents(txn, d_ino);
-      assert dirents_for(dents, d_ino);
+      dir_attrs := updateDirentsMtime(d_ino, dents);
+      assert && ValidDirents(dents, d_ino)
+            && fresh(dents.Repr())
+            && fresh(dents.file.i.Repr);
+      // assert dirents_for(dents, d_ino);
       assert fresh(dents.file.bs) by {
         assert dents.file.bs in dents.Repr();
       }

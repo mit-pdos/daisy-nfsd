@@ -185,6 +185,29 @@ module FileCursor {
       reveal ValidBytes();
     }
 
+    method getAttrs() returns (attrs: Inode.Attrs)
+      requires Valid()
+      ensures attrs == fs.types[ino]
+    {
+      reveal ValidFs();
+      attrs := i.attrs;
+      fs.inode_metadata(ino, i);
+    }
+
+    method setAttrs(attrs': Inode.Attrs)
+      modifies ReprFs
+      requires Valid() ensures Valid()
+      requires attrs'.ty == fs.types[ino].ty
+      ensures fs.types == old(fs.types[ino := attrs'])
+      ensures fs.data == old(fs.data)
+      ensures buffer_fresh()
+      ensures valid? == old(valid?)
+    {
+      reveal ValidFs();
+      fs.setAttrs(ino, i, attrs');
+      assert Valid() by { reveal ValidBytes(); }
+    }
+
   }
 
 }

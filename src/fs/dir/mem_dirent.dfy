@@ -11,6 +11,8 @@ module MemDirEnts
   import opened DirEntries
   import opened Paths
 
+  import Inode
+
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
     predicate Valid()
@@ -750,6 +752,30 @@ module MemDirEntries
           Arith.mod_add_modulus(old(|val.s|), 64);
         }
       }
+    }
+
+    method getAttrs() returns (attrs: Inode.Attrs)
+      requires Valid()
+      ensures && file.ino in file.fs.types
+              && attrs == file.fs.types[file.ino]
+    {
+      reveal Valid();
+      attrs := file.getAttrs();
+    }
+
+    method setAttrs(attrs': Inode.Attrs)
+      modifies file.ReprFs
+      requires Valid() ensures Valid()
+      requires file.ino in file.fs.types &&
+               attrs'.ty == file.fs.types[file.ino].ty
+      ensures file.fs.types == old(file.fs.types[file.ino := attrs'])
+      ensures val == old(val)
+      ensures fresh(file.Repr() - old(file.Repr()))
+      ensures file.fs.data == old(file.fs.data)
+    {
+      reveal Valid();
+      file.setAttrs(attrs');
+      assert ValidCore() by { reveal ValidCore(); }
     }
 
   }
