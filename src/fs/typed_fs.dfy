@@ -406,7 +406,7 @@ module TypedFs {
         ghost var written0 := written as nat;
         var bs_remaining := bs.Split(4096);
         assert bs_remaining != bs;
-        var bs_remaining_data0 := bs_remaining.data;
+        ghost var bs_remaining_data0 := bs_remaining.data;
         assert bs.data == data0[written..written + 4096];
         ok := writeOne_(txn, ino, i, off + written, bs);
         if !ok {
