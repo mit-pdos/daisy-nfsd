@@ -55,7 +55,7 @@ func main() {
 	err = os.Chdir(mnt)
 	assertNoError(err)
 
-	err = os.Mkdir("foo", 0644)
+	err = os.Mkdir("foo", 0755)
 	assertNoError(err)
 
 	fd, err := unix.Open("message.txt", unix.O_CREAT|unix.O_RDWR, 0644)
@@ -83,8 +83,18 @@ func main() {
 	assertNoError(err, "read message.txt")
 	assertEqual(contents, []byte("hello, world\n"), "file has wrong contents")
 
+	err = unix.Rename("message.txt", "msg.txt")
+	assertNoError(err, "move file within same directory")
+	err = unix.Rename("msg.txt", "foo/msg.txt")
+	assertNoError(err, "move file between directories")
+
+	// attempt to delete foo with msg.txt still inside
+	err = unix.Rmdir("foo")
+	assertIsError(err, "RMDIR on non-empty directory")
+
+	// delete foo/msg.txt and then foo
+	err = unix.Unlink("foo/msg.txt")
+	assertNoError(err, "REMOVE")
 	err = unix.Rmdir("foo")
 	assertNoError(err, "RMDIR")
-	err = unix.Unlink("message.txt")
-	assertNoError(err, "REMOVE")
 }
