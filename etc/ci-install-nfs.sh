@@ -3,4 +3,5 @@ set -eu
 
 sudo apt-get -y install rpcbind nfs-common
 sudo systemctl start rpcbind
-mkdir ~/nfs
+sudo mkdir /mnt/nfs
+sudo chown $USER /mnt/nfs
