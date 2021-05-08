@@ -54,3 +54,4 @@ clean:
 	$(Q)find . -name "*.dfy.ok" -delete
 	$(Q)rm -f .dafnydeps.d
 	$(Q)rm -rf dafnygen
+	$(Q)rm -f dafny-nfsd cpu.prof mem.prof nfs.out
