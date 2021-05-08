@@ -365,28 +365,28 @@ module TypedFs {
       }
     }
 
-    // TODO: this recently became flaky
-    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs0: Bytes)
+    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
-      modifies Repr, bs0, i.Repr
+      modifies Repr, bs, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
-      requires bs0 !in i.Repr
+      requires bs !in i.Repr
       requires has_jrnl(txn)
-      requires |bs0.data| <= WT_MAX as nat
+      requires |bs.data| <= WT_MAX as nat
       requires off as nat <= |data[ino]|
-      requires off as nat + |bs0.data| <= Inode.MAX_SZ
+      requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs0.data)])
+      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
-      if bs0.Len() == 0 {
-        assert bs0.data == [];
+      if bs.Len() == 0 {
+        assert bs.data == [];
         assert write_data(data[ino], off as nat, []) == data[ino];
         return true;
       }
       reveal ValidFields();
-      ghost var data0 := bs0.data;
-      var bs := bs0.Split(0);
+      ghost var data0 := bs.data;
+      // we do this so the loop only modifies fresh variables
+      var bs := bs.Split(0);
       var written: uint64 := 0 as uint64;
       assert data0[..written as nat] == [];
       assert write_data(data[ino], off as nat, []) == data[ino];
@@ -427,14 +427,6 @@ module TypedFs {
         assert bs_remaining_data0 == data0[written0 + 4096..] by {
           C.double_suffix(data0, written0, 4096);
         }
-        assert
-        && 0 < |bs.data| <= |data0| <= WT_MAX as nat
-        && ValidIno(ino, i)
-        && has_jrnl(txn)
-        && written as nat <= |data0|
-        && bs.data == data0[written..]
-        && data == old(data[ino := write_data(data[ino], off as nat, data0[..written])])
-        && types_unchanged();
       }
 
       ok := writeOne_(txn, ino, i, off + written, bs);
