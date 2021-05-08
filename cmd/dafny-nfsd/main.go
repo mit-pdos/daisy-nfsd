@@ -73,7 +73,9 @@ func main() {
 
 	flag.Parse()
 
-	filesizeBlocks := filesizeMegabytes * 1024 / 4
+	// some extra space to hold the log and file-system metadata
+	// (this is in blocks, so it only adds 4MB per 1000 blocks)
+	diskBlocks := 1500 + filesizeMegabytes*1024/4
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -132,10 +134,10 @@ func main() {
 
 	var d disk.Disk
 	if diskfile == "" {
-		d = disk.NewMemDisk(filesizeBlocks)
+		d = disk.NewMemDisk(diskBlocks)
 	} else {
 		var err error
-		d, err = disk.NewFileDisk(diskfile, filesizeBlocks)
+		d, err = disk.NewFileDisk(diskfile, diskBlocks)
 		if err != nil {
 			panic("could not create disk file: " + err.Error())
 		}

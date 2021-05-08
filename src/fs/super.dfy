@@ -57,8 +57,8 @@ module FsKinds {
   // if you update these, remember to update super_size() below
   // (the Dafny server has a bug where it will not always re-do that proof after
   // changing the constants)
-  const NUM_INODE_BLOCKS : uint64 := 30
-  const NUM_DATA_BITMAPS : uint64 := 20
+  const NUM_INODE_BLOCKS : uint64 := 600
+  const NUM_DATA_BITMAPS : uint64 := 200
 
   // we initialize the superblock this way to get named arguments
   const super := Super.zero.(
@@ -69,12 +69,12 @@ module FsKinds {
   // (which is also reported by df -h)
   //
   // num_inodes is NUM_INODE_BLOCKS * 32
-  // num_data_data_blocks (in MB) is 134.2 * NUM_DATA_BITMAPS (rounded down)
+  // num_data_data_blocks (in MB) is 128 * NUM_DATA_BITMAPS
   // (it's exactly NUM_DATA_BITMAPS * 4096*8*4096 / 1_000_000)
   lemma super_size()
-    ensures super.num_inodes == 960;
+    ensures super.num_inodes == 19200;
     ensures super.num_data_blocks
-        * 4096 / (1000*1000) == 2684 /* MB */
+        * 4096 / (1024*1024) == 25600 /* MB */
   {}
   lemma super_valid()
     ensures super.Valid()
