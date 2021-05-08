@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
 	"reflect"
 )
 
@@ -51,10 +50,13 @@ func main() {
 	assertNoError(err)
 	assertEqual(len(ents), 0)
 
-	err = os.Mkdir(path.Join(mnt, "foo"), 0644)
+	err = os.Chdir(mnt)
 	assertNoError(err)
 
-	f, err := os.Create(path.Join(mnt, "message.txt"))
+	err = os.Mkdir("foo", 0644)
+	assertNoError(err)
+
+	f, err := os.Create("message.txt")
 	assertNoError(err)
 	n, err := f.Write([]byte("hello, "))
 	assertNoError(err)
@@ -64,25 +66,25 @@ func main() {
 	f.Sync()
 	f.Close()
 
-	ents, err = os.ReadDir(mnt)
+	ents, err = os.ReadDir(".")
 	assertNoError(err)
 	assertEqual(len(ents), 2)
 
-	_, err = os.ReadDir(path.Join(mnt, "message.txt"))
+	_, err = os.ReadDir("message.txt")
 	assertIsError(err, "readdir non-dir")
 
-	ents, err = os.ReadDir(path.Join(mnt, "foo"))
+	ents, err = os.ReadDir("foo")
 	assertNoError(err, "readdir foo")
 	assertEqual(len(ents), 0, "foo is non-empty?")
 
-	contents, err := os.ReadFile(path.Join(mnt, "message.txt"))
+	contents, err := os.ReadFile("message.txt")
 	assertNoError(err, "read message.txt")
 	assertEqual(contents, []byte("hello, world\n"), "file has wrong contents")
 
 	// will end up being an RMDIR (after REMOVE fails)
-	err = os.Remove(path.Join(mnt, "foo"))
+	err = os.Remove("foo")
 	assertNoError(err, "RMDIR")
 	// will end up being a REMOVE
-	err = os.Remove(path.Join(mnt, "message.txt"))
+	err = os.Remove("message.txt")
 	assertNoError(err, "REMOVE")
 }
