@@ -52,23 +52,40 @@ module FsKinds {
     const disk_size: nat := add_nats(data_start, num_data_blocks)
   }
 
+  // the static dafny-nfsd superblock config
+  //
+  // if you update these, remember to update super_size() below
+  // (the Dafny server has a bug where it will not always re-do that proof after
+  // changing the constants)
+  const NUM_INODE_BLOCKS : uint64 := 30
+  const NUM_DATA_BITMAPS : uint64 := 20
+
   // we initialize the superblock this way to get named arguments
-  const super := Super.zero.(inode_blocks:=30, data_bitmaps:=20)
-  lemma super_valid()
-    ensures super.Valid()
-  {}
+  const super := Super.zero.(
+    inode_blocks:=NUM_INODE_BLOCKS as nat,
+    data_bitmaps:=NUM_DATA_BITMAPS as nat)
+
+  // this lemma gives the human-readable file-system size
+  // (which is also reported by df -h)
+  //
+  // num_inodes is NUM_INODE_BLOCKS * 32
+  // num_data_data_blocks (in MB) is 134.2 * NUM_DATA_BITMAPS (rounded down)
+  // (it's exactly NUM_DATA_BITMAPS * 4096*8*4096 / 1_000_000)
   lemma super_size()
     ensures super.num_inodes == 960;
     ensures super.num_data_blocks
         * 4096 / (1000*1000) == 2684 /* MB */
   {}
+  lemma super_valid()
+    ensures super.Valid()
+  {}
 
   // we need these to be a real constants because accessing any const in super
   // computes a big int every time it's referenced, which shows up in the CPU
   // profile...
-  const super_num_data_blocks: uint64 := 20*(4096*8)
-  const super_data_bitmap_start: uint64 := 513 + 1 + 30;
-  const super_data_start: uint64 := 513 + 1 + 30 + 20;
+  const super_data_bitmap_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS;
+  const super_num_data_blocks: uint64 := NUM_DATA_BITMAPS*(4096*8)
+  const super_data_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS + NUM_DATA_BITMAPS;
   lemma super_consts_ok()
     ensures super_num_data_blocks as nat == super.num_data_blocks
     ensures super_data_bitmap_start as nat == super.data_bitmap_start
@@ -201,7 +218,6 @@ module FsKinds {
     var ino_off := ino % 32;
     assert fs_kinds[ino_blk] == KindInode;
     Arith.mul_assoc(ino_off as nat, 128, 8);
-    Arith.mul_r_strictly_incr(ino as nat, 128*8, 32);
     assert ino_off*128*8 < 4096*8;
     Arith.mul_mod(ino as nat, 128*8);
     assert kindSize(KindInode) == 128*8;
