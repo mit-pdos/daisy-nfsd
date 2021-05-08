@@ -65,5 +65,5 @@ jobs:
           go build ./cmd/dafny-nfsd
           echo "::endgroup::"
           echo "::group::Test NFS server"
-          ./etc/test-nfsd.sh ~/nfs
+          ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
           echo "::endgroup::"
