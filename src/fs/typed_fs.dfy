@@ -366,35 +366,34 @@ module TypedFs {
     }
 
     // TODO: this recently became flaky
-    method {:timeLimitMultiplier 2} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs0: Bytes)
       returns (ok: bool)
-      modifies Repr, bs, i.Repr
+      modifies Repr, bs0, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
-      requires bs !in i.Repr
+      requires bs0 !in i.Repr
       requires has_jrnl(txn)
-      requires |bs.data| <= WT_MAX as nat
+      requires |bs0.data| <= WT_MAX as nat
       requires off as nat <= |data[ino]|
-      requires off as nat + |bs.data| <= Inode.MAX_SZ
+      requires off as nat + |bs0.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+      && data == old(data[ino := write_data(data[ino], off as nat, bs0.data)])
       ensures types_unchanged()
     {
-      if bs.Len() == 0 {
-        assert bs.data == [];
+      if bs0.Len() == 0 {
+        assert bs0.data == [];
         assert write_data(data[ino], off as nat, []) == data[ino];
         return true;
       }
       reveal ValidFields();
-      ghost var data0 := bs.data;
-      ghost var original_bs := bs;
-      var bs := bs;
+      ghost var data0 := bs0.data;
+      var bs := bs0.Split(0);
       var written: uint64 := 0 as uint64;
       assert data0[..written as nat] == [];
       assert write_data(data[ino], off as nat, []) == data[ino];
 
       while bs.Len() > 4096
-        decreases |bs.data|
-        invariant fresh({bs} - {original_bs})
+        decreases |data0| - written as nat;
+        invariant fresh({bs})
         invariant 0 < |bs.data| <= |data0| <= WT_MAX as nat
         invariant ValidIno(ino, i)
         invariant has_jrnl(txn)
@@ -403,23 +402,39 @@ module TypedFs {
         invariant data == old(data[ino := write_data(data[ino], off as nat, data0[..written])])
         invariant types_unchanged()
       {
+        ghost var metric0 := |bs.data|;
+        ghost var written0 := written as nat;
         var bs_remaining := bs.Split(4096);
-        assert bs_ok: bs_remaining.data == data0[written + 4096..] by {
-          C.double_suffix(data0, written as nat, 4096);
-        }
+        assert bs_remaining != bs;
+        var bs_remaining_data0 := bs_remaining.data;
         assert bs.data == data0[written..written + 4096];
         ok := writeOne_(txn, ino, i, off + written, bs);
         if !ok {
           return;
         }
-        assert data[ino] == old(write_data(data[ino], off as nat, data0[..written + 4096])) by {
-          write_data_app_auto(old(data[ino]), off as nat);
+        assert bs_remaining.data == bs_remaining_data0;
+        assert data[ino] == old(write_data(data[ino], off as nat,
+          data0[..written + 4096])) by {
+          assert data[ino] == write_data(old(data[ino]), off as nat,
+            data0[..written] + data0[written..written + 4096]) by {
+            write_data_app_auto(old(data[ino]), off as nat);
+            assert (off + written) as nat == off as nat + |data0[..written]|;
+          }
           assert data0[..written] + data0[written..written + 4096] == data0[..written + 4096];
-          assert (off + written) as nat == off as nat + |data0[..written]|;
         }
         bs := bs_remaining;
         written := written + 4096;
-        reveal bs_ok;
+        assert bs_remaining_data0 == data0[written0 + 4096..] by {
+          C.double_suffix(data0, written0, 4096);
+        }
+        assert
+        && 0 < |bs.data| <= |data0| <= WT_MAX as nat
+        && ValidIno(ino, i)
+        && has_jrnl(txn)
+        && written as nat <= |data0|
+        && bs.data == data0[written..]
+        && data == old(data[ino := write_data(data[ino], off as nat, data0[..written])])
+        && types_unchanged();
       }
 
       ok := writeOne_(txn, ino, i, off + written, bs);
