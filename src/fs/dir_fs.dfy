@@ -330,6 +330,15 @@ module DirFs
       ok := writeEmptyDirToFs(fs, txn, ino, i);
     }
 
+    // to avoid having to find the jrnl field in ops.go
+    method Begin() returns (txn: Txn)
+      requires Valid()
+      ensures fs.has_jrnl(txn)
+    {
+      fs.reveal_valids();
+      txn := fs.fs.fs.fs.jrnl.Begin();
+    }
+
     static method New(d: Disk) returns (fs: Option<DirFilesys>)
       ensures fs.Some? ==> fresh(fs.x) && fs.x.Valid()
       ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[], Inode.Attrs.zero_dir)]
@@ -374,14 +383,6 @@ module DirFs
       assert ValidData();
       assert ValidRoot() by { reveal ValidRoot(); }
       assert ValidTypes() by { reveal is_of_type(); }
-    }
-
-    method Begin() returns (txn: Txn)
-      requires Valid()
-      ensures fs.has_jrnl(txn)
-    {
-      fs.reveal_valids();
-      txn := fs.fs.fs.fs.jrnl.Begin();
     }
 
     predicate ValidDirents(dents: MemDirents, d_ino: Ino)

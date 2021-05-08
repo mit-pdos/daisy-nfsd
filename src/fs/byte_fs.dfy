@@ -344,57 +344,6 @@ module ByteFs {
       assert data() == old(data());
     }
 
-    method readTxn(txn: Txn, ino: Ino, off: uint64, len: uint64)
-      returns (bs: Bytes, ok: bool)
-      modifies fs.fs
-      requires fs.has_jrnl(txn)
-      requires Valid() ensures Valid()
-      ensures ok ==>
-          && off as nat + len as nat <= |data()[ino]|
-          && bs.data == this.data()[ino][off..off+len]
-    {
-      if len > 32*4096 {
-        ok := false;
-        bs := NewBytes(0);
-        return;
-      }
-      var i := fs.startInode(txn, ino);
-      bs, ok := readWithInode(txn, ino, i, off, len);
-      fs.finishInodeReadonly(ino, i);
-    }
-
-    // public
-    method Read(ino: Ino, off: uint64, len: uint64)
-      returns (bs: Bytes, ok: bool)
-      modifies fs.fs
-      requires Valid() ensures Valid()
-      ensures ok ==>
-          && off as nat + len as nat <= |data()[ino]|
-          && bs.data == this.data()[ino][off..off+len]
-      ensures data() == old(data())
-    {
-      var txn := fs.fs.jrnl.Begin();
-      bs, ok := readTxn(txn, ino, off, len);
-      // TODO: this is read-only, no need to commit the transaction
-      var _ := txn.Commit();
-    }
-
-    // public
-    method Size(ino: Ino) returns (sz: uint64)
-      modifies fs.fs
-      requires Valid() ensures Valid()
-      ensures data() == old(data())
-      ensures sz as nat == |data()[ino]|
-    {
-      var txn := fs.fs.jrnl.Begin();
-      var i := fs.startInode(txn, ino);
-      sz := i.sz;
-      fs.inode_metadata(ino, i);
-      fs.finishInodeReadonly(ino, i);
-      // TODO: this is read-only, no need to commit the transaction
-      var _ := txn.Commit();
-    }
-
     // private
     method alignedRawWrite(txn: Txn, ghost ino: Ino, i: MemInode, bs: Bytes, off: uint64)
       returns (ok: bool)
@@ -1063,24 +1012,6 @@ module ByteFs {
         reveal inode_types();
       }
       return;
-    }
-
-    // public
-    method Append(ino: Ino, bs: Bytes) returns (ok:bool)
-      modifies Repr, bs
-      requires Valid() ensures Valid()
-      requires bs.Valid()
-      requires bs.Len() <= 4096
-      ensures ok ==> data() == old(data()[ino := data()[ino] + bs.data])
-    {
-      var txn := fs.fs.jrnl.Begin();
-      ok := append_txn(txn, ino, bs);
-      if !ok {
-        // abort
-        txn.Abort();
-        return;
-      }
-      ok := txn.Commit();
     }
 
     method setType(ghost ino: Ino, i: MemInode, ty': Inode.InodeType)
