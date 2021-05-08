@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+
+	"golang.org/x/sys/unix"
 )
 
 func printFormatArgs(args []interface{}) {
@@ -56,15 +58,15 @@ func main() {
 	err = os.Mkdir("foo", 0644)
 	assertNoError(err)
 
-	f, err := os.Create("message.txt")
+	fd, err := unix.Open("message.txt", unix.O_CREAT|unix.O_RDWR, 0644)
 	assertNoError(err)
-	n, err := f.Write([]byte("hello, "))
+	n, err := unix.Pwrite(fd, []byte("hello, "), 0)
 	assertNoError(err)
 	assertEqual(n, len("hello, "), "short write")
-	_, err = f.Write([]byte("world\n"))
+	_, err = unix.Pwrite(fd, []byte("world\n"), int64(n))
 	assertNoError(err)
-	f.Sync()
-	f.Close()
+	unix.Fsync(fd)
+	unix.Close(fd)
 
 	ents, err = os.ReadDir(".")
 	assertNoError(err)
@@ -81,10 +83,8 @@ func main() {
 	assertNoError(err, "read message.txt")
 	assertEqual(contents, []byte("hello, world\n"), "file has wrong contents")
 
-	// will end up being an RMDIR (after REMOVE fails)
-	err = os.Remove("foo")
+	err = unix.Rmdir("foo")
 	assertNoError(err, "RMDIR")
-	// will end up being a REMOVE
-	err = os.Remove("message.txt")
+	err = unix.Unlink("message.txt")
 	assertNoError(err, "REMOVE")
 }
