@@ -316,18 +316,20 @@ module DirFs
       assert ValidTypes() by { reveal is_of_type(); }
     }
 
-    static method createRootDir(fs: TypedFilesys, txn: Txn, ino: Ino) returns (ok: bool)
+    static method createRootDir(fs: TypedFilesys, txn: Txn, ino: Ino, attrs0: Inode.Attrs)
+      returns (ok: bool)
       modifies fs.Repr
       requires fs.Valid() ensures ok ==> fs.Valid()
       requires fs.has_jrnl(txn)
-      requires fs.types[ino].ty == Inode.InvalidType
+      requires fs.types[ino].ty.InvalidType?
+      requires attrs0.ty.DirType?
       requires fs.data[ino] == []
       ensures ok ==>
       && fs.data == old(fs.data[ino := Dirents.zero.enc()])
-      && fs.types == old(fs.types[ino := fs.types[ino].(ty := Inode.DirType)])
+      && fs.types == old(fs.types[ino := attrs0])
     {
       var i := fs.allocateAt(txn, ino, Inode.DirType);
-      ok := writeEmptyDirToFs(fs, txn, ino, i);
+      ok := writeEmptyDirToFs(fs, txn, ino, i, attrs0);
     }
 
     // to avoid having to find the jrnl field in ops.go
@@ -339,27 +341,34 @@ module DirFs
       txn := fs.fs.fs.fs.jrnl.Begin();
     }
 
-    static method New(d: Disk) returns (fs: Option<DirFilesys>)
+    static method New(d: Disk, uid: uint32, gid: uint32)
+      returns (fs: Option<DirFilesys>, ghost attrs0: Inode.Attrs)
       ensures fs.Some? ==> fresh(fs.x) && fs.x.Valid()
-      ensures fs.Some? ==> fs.x.data == map[fs.x.rootIno := DirFile(map[], Inode.Attrs.zero_dir)]
+      ensures fs.Some? ==>
+        && has_root_attrs(attrs0, uid, gid)
+        && fs.x.data == map[fs.x.rootIno := DirFile(map[], attrs0)]
     {
       var fs_ := new TypedFilesys.Init(d);
 
       fs_.reveal_valids();
       var txn := fs_.fs.fs.fs.jrnl.Begin();
-      var ok := createRootDir(fs_, txn, rootIno);
+      var attrs := RootAttrs(uid, gid);
+      attrs0 := attrs;
+      var ok := createRootDir(fs_, txn, rootIno, attrs);
       if !ok {
-        return None;
+        fs := None;
+        return;
       }
       fs_.reveal_valids();
       ok := txn.Commit();
       if !ok {
-        return None;
+        fs := None;
+        return;
       }
       assert fs_.Valid();
 
-      var dir_fs := new DirFilesys.Init(fs_, Inode.Attrs.zero_dir);
-      return Some(dir_fs);
+      var dir_fs := new DirFilesys.Init(fs_, attrs0);
+      fs := Some(dir_fs);
     }
 
     constructor Recover(jrnl_: Jrnl, ghost fs: DirFilesys)
@@ -525,13 +534,15 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    static method writeEmptyDirToFs(fs: TypedFilesys, txn: Txn, ino: Ino, i: MemInode)
+    static method writeEmptyDirToFs(fs: TypedFilesys, txn: Txn,
+      ino: Ino, i: MemInode, attrs0: Inode.Attrs)
       returns (ok: bool)
       modifies fs.Repr, i.Repr
       requires fs.ValidIno(ino, i) ensures ok ==> fs.Valid()
       requires fs.has_jrnl(txn)
       requires fs.data[ino] == []
-      ensures fs.types_unchanged()
+      requires attrs0.ty == fs.types[ino].ty
+      ensures ok ==> fs.types == old(fs.types[ino := attrs0])
       ensures ok ==> fs.data == old(fs.data[ino := Dirents.zero.enc()])
     {
       var emptyDir := NewBytes(4096);
@@ -543,6 +554,7 @@ module DirFs
         return;
       }
       assert fs.data[ino] == Dirents.zero.enc();
+      fs.setAttrs(ino, i, attrs0);
 
       fs.finishInode(txn, ino, i);
     }
@@ -569,14 +581,13 @@ module DirFs
       if !ok {
         return;
       }
-      fs.setAttrs(ino, i, attrs0);
       assert old(is_invalid(ino)) by {
         assert old(is_of_type(ino, fs.types[ino].ty));
         reveal is_of_type();
       }
 
       assert this !in fs.Repr;
-      ok := writeEmptyDirToFs(fs, txn, ino, i);
+      ok := writeEmptyDirToFs(fs, txn, ino, i, attrs0);
       if !ok {
         return;
       }
@@ -879,7 +890,7 @@ module DirFs
       return Ok(attrs);
     }
 
-    method SetattrAttributes(sattr: Sattr3, attrs0: Inode.Attrs)
+    static method SetattrAttributes(sattr: Sattr3, attrs0: Inode.Attrs)
       returns (attrs: Inode.Attrs)
       ensures has_set_attrs(attrs0, attrs, sattr)
     {
@@ -1109,11 +1120,20 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method ModifyAttrs(attrs: Inode.Attrs) returns (attrs': Inode.Attrs)
+    static method ModifyAttrs(attrs: Inode.Attrs) returns (attrs': Inode.Attrs)
       ensures has_modify_attrs(attrs, attrs')
     {
       var mtime := serverTime();
       return attrs.(mtime := mtime);
+    }
+
+    static method RootAttrs(uid: uint32, gid: uint32) returns (attrs: Inode.Attrs)
+      ensures has_root_attrs(attrs, uid, gid)
+    {
+      var mtime := serverTime();
+      attrs := Inode.Attrs.zero_dir;
+      attrs := attrs.(mtime := mtime).(uid := uid).(gid := gid).(mode := 0755);
+      return;
     }
 
     method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)

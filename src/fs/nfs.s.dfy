@@ -149,6 +149,13 @@ module Nfs {
     && (eof <==> off + |bs| >= |data|)
   }
 
+  predicate has_root_attrs(attrs: Inode.Attrs, uid: uint32, gid: uint32)
+  {
+    && attrs.ty.DirType?
+    && attrs.uid == uid && attrs.gid == gid
+    && attrs.mode == 0755
+  }
+
   predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
   {
     && attrs.ty == attrs0.ty

@@ -12,8 +12,8 @@ import (
 
 type Nfs struct {
 	filesys *dirfs.DirFilesys
-	uid     int
-	gid     int
+	uid     uint32
+	gid     uint32
 }
 
 func zeroDisk(d disk.Disk) {
@@ -25,32 +25,33 @@ func zeroDisk(d disk.Disk) {
 	d.Barrier()
 }
 
-func getUser() (uid int, gid int) {
+func getUser() (uid uint32, gid uint32) {
 	u, err := user.Current()
 	if err != nil {
 		panic("no user")
 	}
-	uid, err = strconv.Atoi(u.Uid)
+	uid_i, err := strconv.Atoi(u.Uid)
 	if err != nil {
 		panic("could not user uid")
 	}
-	uid, err = strconv.Atoi(u.Gid)
+	gid_i, err := strconv.Atoi(u.Gid)
 	if err != nil {
 		panic("could not user gid")
 	}
-	return
+	return uint32(uid_i), uint32(gid_i)
 }
 
 func MakeNfs(d disk.Disk) *Nfs {
 	zeroDisk(d)
-	dfsopt := dirfs.Companion_DirFilesys_.New(&d)
+
+	uid, gid := getUser()
+
+	dfsopt := dirfs.Companion_DirFilesys_.New(&d, uid, gid)
 	if dfsopt.Is_None() {
 		panic("no dirfs")
 	}
 
 	dfs := dfsopt.Dtor_x().(*dirfs.DirFilesys)
-
-	uid, gid := getUser()
 
 	nfs := &Nfs{
 		filesys: dfs,

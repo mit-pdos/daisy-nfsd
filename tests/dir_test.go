@@ -16,7 +16,7 @@ import (
 
 func NewFs() *dirfs.DirFilesys {
 	var d disk.Disk = disk.NewMemDisk(100_000)
-	dfsopt := dirfs.Companion_DirFilesys_.New(&d)
+	dfsopt := dirfs.Companion_DirFilesys_.New(&d, 0, 0)
 	if dfsopt.Is_None() {
 		panic("no dirfs")
 	}
