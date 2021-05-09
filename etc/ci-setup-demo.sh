@@ -7,7 +7,7 @@ echo "XV6_PATH=$HOME/xv6" >> "$GITHUB_ENV"
 
 # install exa manually
 wget -O /tmp/exa.zip https://github.com/ogham/exa/releases/download/v0.10.1/exa-linux-x86_64-v0.10.1.zip
-unzip -d exa-release /tmp/exa.zip
+unzip -d ~/exa-release /tmp/exa.zip
 rm /tmp/exa.zip
 echo "$HOME/exa-release/bin" >> "$GITHUB_PATH"
 
