@@ -61,15 +61,17 @@ jobs:
           go test -bench=. -timeout=1m -v ./tests
           go build ./cmd/dafny-nfsd
           echo "::endgroup::"
-      - name: Set up NFS
+      - name: Setup
         run: |
+          echo "::group::Install NFS"
           ./etc/ci-install-nfs.sh
+          echo "::endgroup::"
+          echo "::group::Set up demo"
+          ./etc/ci-setup-demo.sh
+          echo "::endgroup::"
       - name: Run syscall tests
         run: |
           ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
-      - name: Set up demo
-        run: |
-          ./etc/ci-setup-demo.sh
       - name: Run demo and test output
         run: |
           ./bench/run-dafny-nfs.sh ./etc/run-demo.sh
