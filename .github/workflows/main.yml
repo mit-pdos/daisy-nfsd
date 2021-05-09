@@ -37,7 +37,7 @@ jobs:
         run: |
           go test -v -timeout=1m ./dafny_go/...
   test-compiled:
-    name: Compile and test
+    name: Test NFS server
     runs-on: ubuntu-20.04
     timeout-minutes: 10
     steps:
@@ -52,9 +52,6 @@ jobs:
       - name: Install goimports
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
-      - name: Set up NFS
-        run: |
-          ./etc/ci-install-nfs.sh
       - name: Compile and test
         run: |
           echo "::group::Compile"
@@ -64,6 +61,15 @@ jobs:
           go test -bench=. -timeout=1m -v ./tests
           go build ./cmd/dafny-nfsd
           echo "::endgroup::"
-          echo "::group::Test NFS server"
+      - name: Set up NFS
+        run: |
+          ./etc/ci-install-nfs.sh
+      - name: Run syscall tests
+        run: |
           ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
-          echo "::endgroup::"
+      - name: Set up demo
+        run: |
+          ./etc/ci-setup-demo.sh
+      - name: Run demo and test output
+        run: |
+          ./bench/run-dafny-nfs.sh ./etc/run-demo.sh

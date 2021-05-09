@@ -117,3 +117,4 @@ df -h .
 # cleanup
 rm -r bar
 rm foo baz
+rm -f "$STARSHIP_CONFIG"
