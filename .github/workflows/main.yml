@@ -66,12 +66,6 @@ jobs:
           echo "::group::Install NFS"
           ./etc/ci-install-nfs.sh
           echo "::endgroup::"
-          echo "::group::Set up demo"
-          ./etc/ci-setup-demo.sh
-          echo "::endgroup::"
       - name: Run syscall tests
         run: |
           ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
-      - name: Run demo and test output
-        run: |
-          ./bench/run-dafny-nfs.sh ./etc/run-demo.sh
