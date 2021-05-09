@@ -1132,7 +1132,8 @@ module DirFs
     {
       var mtime := serverTime();
       attrs := Inode.Attrs.zero_dir;
-      attrs := attrs.(mtime := mtime).(uid := uid).(gid := gid).(mode := 0755);
+      attrs := attrs.(mtime := mtime).(uid := uid).(gid := gid).(mode := 493);
+      // we prove here that 493 is the decimal value for the octal 0755
       return;
     }
 

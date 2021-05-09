@@ -153,7 +153,9 @@ module Nfs {
   {
     && attrs.ty.DirType?
     && attrs.uid == uid && attrs.gid == gid
-    && attrs.mode == 0755
+    // Dafny doesn't have octal literals, so write out 0755 carefully
+    // the code just uses 493 which is the decimal value of this expression
+    && attrs.mode == ((7 as bv32 << 6) | (5 as bv32 << 3) | (5 as bv32)) as uint32
   }
 
   predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
