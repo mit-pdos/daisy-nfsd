@@ -1,5 +1,5 @@
 # [1m[37mclone xv6 repo and compile it(B[m
-[J[1;36m/mnt/nfs[0m[31m🔒[0m 
+[J[1;36m/mnt/nfs[0m 
 [1;32m❯[0m git clone $XV6_PATH xv6
 [J[1;36mxv6[0m on [1;35m master[0m 
 [1;32m❯[0m ls
@@ -86,9 +86,9 @@ localhost:/     401M  278M  124M  70% /mnt/nfs
 80480dc
 
 # [1m[37mcreate a small number of files and inspect them(B[m
-[J[1;36m/mnt/nfs[0m[31m🔒[0m 
+[J[1;36m/mnt/nfs[0m 
 [1;32m❯[0m touch foo; mkdir bar; echo 'hello' > baz
-[J[1;36m/mnt/nfs[0m[31m🔒[0m 
+[J[1;36m/mnt/nfs[0m 
 [1;32m❯[0m ls -l
 [1;34md[33mr[31mw[32mx[0m[33mr[38;5;244m-[32mx[33mr[38;5;244m-[32mx[0m [38;5;244m-[0m [1;33mtchajed[0m [34m1969-12-31 19:00[0m [1;34mbar[0m
 .[1;33mr[31mw[0m[38;5;244m-[33mr[38;5;244m--[33mr[38;5;244m--[0m [1;32m6[0m [1;33mtchajed[0m [34m2021-05-07 17:53[0m baz
@@ -96,10 +96,10 @@ localhost:/     401M  278M  124M  70% /mnt/nfs
 [1;34md[33mr[31mw[32mx[0m[33mr[38;5;244m-[32mx[33mr[38;5;244m-[32mx[0m [38;5;244m-[0m [1;33mtchajed[0m [34m2021-05-07 17:53[0m [1;34mxv6[0m
 
 # [1m[37mclean up the system(B[m
-[J[1;36m/mnt/nfs[0m[31m🔒[0m 
+[J[1;36m/mnt/nfs[0m 
 [1;32m❯[0m rm -r xv6
 # [1m[37mcheck that space was recovered(B[m
-[J[1;36m/mnt/nfs[0m[31m🔒[0m 
+[J[1;36m/mnt/nfs[0m 
 [1;32m❯[0m df -h .
 Filesystem      Size  Used Avail Use% Mounted on
 localhost:/     401M   64K  401M   1% /mnt/nfs
