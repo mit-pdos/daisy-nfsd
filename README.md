@@ -2,20 +2,31 @@
 
 [![CI](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml)
 
-Verifying a crash-safe, concurrent file-system with sequential proofs. The goal is to
-connect goose-nfsd's verified journal with sequential verification in Dafny: the
-idea is that the journal should make reasoning sequential, in which case we can
-prove a file system correct using only sequential reasoning in a productive proof
-system like Dafny while carrying out the complicated concurrency and
-crash-safety reasoning in Perennial.
+A verified crash-safe, concurrent NFS server. The idea is to use a verified
+transaction system from [goose-nfsd](https://github.com/mit-pdos/goose-nfsd) to
+make each file-system operation appear atomic even though they execute
+concurrently. The atomicity justifies using sequential proofs in Dafny to reason
+about the body of each transaction, which we prove implements an NFS server.
+This proof strategy combines interactive theorem proving in Perennial to reason
+about the tricky concurrency and crash safety in the transaction system with
+automated proofs in Dafny.
 
-## Status
+## Architecture
 
-[Notes on research directions](./research.md)
+There are three main components:
 
-[Spec for journal interface, assuming 2PL](./src/jrnl/jrnl.s.dfy)
+- The Dafny file-system implementation in [`src/fs`](src/fs/)
+- The Go interfaces assumed by the Dafny code implemented in
+  [`dafny_go`](dafny_go/) (the jrnl API is a thin wrapper around the
+  github.com/mit-pdos/goose-nfsd/twophase package).
+- The NFS server binary that calls the verified Dafny code is implemented
+  between [`nfsd`](nfsd/) and [`cmd/dafny-nfsd`](cmd/dafny-nfsd/).
 
-[Top-level file-system proof](./src/fs/dir_fs.dfy)
+At the top level of the repo we also have various scripts. [`eval`](eval/) and
+[`bench`](bench/) have scripts to run performance experiments (see the [eval
+README](eval/README.md) for more details). [`artifact`](artifact/) sets up a VM
+suitable for running the evaluation. [`etc`](etc/) has miscellaneous scripts
+used for debugging and to implement continuous integration.
 
 ## Compiling
 

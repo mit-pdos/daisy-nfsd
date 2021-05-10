@@ -10,7 +10,7 @@ cd "$DIR"
 
 # Markdown
 markdown-link-check "README.md"
-markdown-link-check "research.md"
+markdown-link-check "eval/README.md"
 
 # Python
 black --diff "etc/dafnydep"
