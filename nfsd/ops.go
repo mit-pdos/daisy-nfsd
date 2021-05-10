@@ -523,6 +523,11 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Resok.Maxfilesize = nfstypes.Size3(
 		inode.Companion_Default___.MAX__SZ__u64(),
 	)
+	// {0, 1} indicates nanosecond-precision timestamps
+	reply.Resok.Time_delta = nfstypes.Nfstime3{
+		Seconds:  0,
+		Nseconds: 1,
+	}
 	// bitmask of supported features - does not include FSF3_LINK (hard link
 	// support) or FSF3_SYMLINK (symbolic links). FSF3_HOMOGENEOUS indicates
 	// that the PATHCONF information is static.
