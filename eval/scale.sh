@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# Extra DafnyNFSD/GooseNFSD commit combinations can be tried by passing extra
+# arguments after the first.  For example,
+#
+# > ./scale.sh 1 abc123,xyz456 def123,master
+#
+# Will, in addition to the standard battery of tests, also run DafnyNFSD with
+# commit abc123 using GoJournal from goose-nfsd with commit xyz456 and
+# DafnyNFSD with commit def123 and goose-nfsd master.
+
 set -eu
 
 blue=$(tput setaf 4 || echo)
@@ -23,6 +32,8 @@ if [[ $# -gt 0 ]]; then
     threads="$1"
 fi
 
+shift
+
 # the path to store the disk file in (use this to run the benchmarks on a real
 # drive)
 disk_path="$HOME"
@@ -31,7 +42,33 @@ cd "$GOOSE_NFSD_PATH"
 go build ./cmd/fs-smallfile
 go build ./cmd/fs-largefile
 
+if [[ $# -gt 0 ]]; then
+for var in "$@"
+do
+	echo 1>&2
+	IFS="," read dnfsver goosever <<< "$var"
+
+        info "DafnyNFS-$dnfsver-$goosever smallfile scalability"
+	info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
+	cd "$GOOSE_NFSD_PATH"
+	git checkout $goosever --quiet
+        go build ./cmd/goose-nfsd && rm goose-nfsd
+
+	cd "$DAFNY_NFSD_PATH"
+	git checkout $dnfsver --quiet
+	echo "fs=dfns-$dnfsver-$goosever"
+	./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+done
+
 cd "$DAFNY_NFSD_PATH"
+git checkout main --quiet
+cd "$GOOSE_NFSD_PATH"
+git checkout master --quiet
+go build ./cmd/goose-nfsd && rm goose-nfsd
+fi
+
+cd "$DAFNY_NFSD_PATH"
+echo 1>&2
 info "DafnyNFS smallfile scalability"
 echo "fs=dnfs"
 ./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
