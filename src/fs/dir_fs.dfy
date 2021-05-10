@@ -489,32 +489,39 @@ module DirFs
     //
     // creates a file disconnected from the file system (which is perfectly
     // legal but useless for most clients)
-    method allocFile(txn: Txn, attrs0: Inode.Attrs)
-      returns (ok: bool, ino: Ino)
+    method allocFile(txn: Txn, sz: uint64, attrs0: Inode.Attrs)
+      returns (r:Result<Ino>)
       modifies Repr
-      requires Valid() ensures ok ==> Valid()
+      requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
+      requires sz as nat <= Inode.MAX_SZ
       requires attrs0.ty.FileType?
       ensures dirents == old(dirents)
-      ensures ok ==>
+      ensures r.Ok? ==>
+      var ino := r.v;
       && old(is_invalid(ino))
       && ino != 0
-      && data == old(data[ino := ByteFile([], attrs0)])
-      ensures !ok ==> data == old(data)
+      && data == old(data[ino := ByteFile(C.repeat(0 as byte, sz as nat), attrs0)])
     {
-      var i;
-      ok, ino, i := fs.allocInode(txn, Inode.FileType);
+      var ok, ino, i := fs.allocInode(txn, Inode.FileType);
       if !ok {
-        return;
+        return Err(NoSpc);
       }
       fs.setAttrs(ino, i, attrs0);
+      var setsize_r := fs.setSize(txn, ino, i, sz);
+      if setsize_r.SetSizeNotZero? {
+        return Err(JukeBox(sz));
+      }
+      if setsize_r.SetSizeNoSpc? {
+        return Err(NoSpc);
+      }
       assert this !in fs.Repr;
       fs.finishInode(txn, ino, i);
       assert old(is_invalid(ino)) by {
         assert old(is_of_type(ino, fs.types[ino].ty));
         reveal is_of_type();
       }
-      data := data[ino := ByteFile([], attrs0)];
+      data := data[ino := ByteFile(C.repeat(0 as byte, sz as nat), attrs0)];
 
       // NOTE(tej): this assertion takes far longer than I expected
       assert is_file(ino);
@@ -523,6 +530,7 @@ module DirFs
       ValidData_change_one(ino);
 
       assert ValidRoot() by { reveal ValidRoot(); }
+      return Ok(ino);
     }
 
     static method writeEmptyDirToFs(fs: TypedFilesys, txn: Txn,
@@ -785,11 +793,7 @@ module DirFs
         return;
       }
       var attrs := CreateAttributes(how);
-      var ok, ino := allocFile(txn, attrs);
-      if !ok {
-        r := Err(NoSpc);
-        return;
-      }
+      var ino :- allocFile(txn, sz, attrs);
       var is_path := Pathc?(name);
       if !is_path {
         // could also have 0s in it but whatever
@@ -829,16 +833,10 @@ module DirFs
       //assert dents.Repr() !! Repr;
       // NOTE(tej): when e.name was missing from this method's modifies clause,
       // this just kept timing out rather than reporting a modifies clause error
-      ok := linkInode(txn, d_ino, dents, e');
+      var ok := linkInode(txn, d_ino, dents, e');
       if !ok {
         r := Err(NoSpc);
         return;
-      }
-      if sz > 0 {
-        var unused_r;
-        ghost var unused_attrs;
-        unused_r, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
-        assert ByteFs.ByteFilesys.setSize_with_zeros([], sz as nat) == C.repeat(0 as byte, sz as nat);
       }
       reveal ino_ok;
       var fattrs := Fattr3(NFS3REG, sz, attrs);

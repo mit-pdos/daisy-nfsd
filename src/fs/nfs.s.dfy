@@ -172,7 +172,6 @@ module Nfs {
     {}
   }
 
-  // TODO: return as post-op attributes
   datatype Fattr3 = Fattr3(ftype: Ftype3, size: uint64, attrs: Inode.Attrs)
 
   predicate is_file_attrs(file: File, attr: Fattr3)
