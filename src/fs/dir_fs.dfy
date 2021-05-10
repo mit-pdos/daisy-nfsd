@@ -1141,7 +1141,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
-      returns (r: Result<()>, ghost attrs: Inode.Attrs)
+      returns (r: Result<Fattr3>)
       modifies Repr, bs
       requires Valid()
       requires fs.has_jrnl(txn)
@@ -1151,12 +1151,16 @@ module DirFs
       ensures r.ErrBadHandle? ==> ino !in old(data)
       ensures (r.Err? && r.err.Inval?) ==> ino in old(data) && old(data[ino].DirFile?)
       ensures r.Ok? ==>
+      var fattr := r.v;
+      var attrs := fattr.attrs;
       && ino in old(data) && old(data[ino].ByteFile?)
       && has_modify_attrs(old(data[ino].attrs), attrs)
-      && data == old(
+      && (var file := old(
       var d0 := data[ino];
       var d' := ByteFs.write_data_holes(d0.data, off as nat, bs.data);
-      data[ino := ByteFile(d', attrs)])
+      ByteFile(d', attrs));
+      && is_file_attrs(file, fattr)
+      && data == old(data[ino := file]))
     {
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
@@ -1176,26 +1180,22 @@ module DirFs
       // aren't affected by the setSize and write later
       fs.inode_metadata(ino, i);
       var new_attrs := ModifyAttrs(i.attrs);
-      attrs := new_attrs;
       fs.setAttrs(ino, i, new_attrs);
 
       if i.sz + bs.Len() > Inode.MAX_SZ_u64 ||
         sum_overflows(off, bs.Len()) ||
         off + bs.Len() > Inode.MAX_SZ_u64 {
-        r := Err(FBig);
-        return;
+        return Err(FBig);
       }
       var createHole := off > i.sz;
       if createHole {
         fs.inode_metadata(ino, i);
         var setsize_r := fs.setSize(txn, ino, i, off);
         if setsize_r.SetSizeNotZero? {
-          r := Err(JukeBox(off));
-          return;
+          return Err(JukeBox(off));
         }
         if setsize_r.SetSizeNoSpc? {
-          r := Err(NoSpc);
-          return;
+          return Err(NoSpc);
         }
         assert |fs.data[ino]| == off as nat;
       }
@@ -1205,8 +1205,7 @@ module DirFs
       var ok;
       ok := fs.write(txn, ino, i, off, bs);
       if !ok {
-        r := Err(NoSpc);
-        return;
+        return Err(NoSpc);
       }
       if createHole {
         assert fs.data[ino] ==
@@ -1214,17 +1213,21 @@ module DirFs
           C.repeat(0 as byte, off as nat - old(|fs.data[ino]|)) +
           old(bs.data);
       }
+      var sz := i.sz;
+      assert sz as nat == |fs.data[ino]| by {
+        fs.inode_metadata(ino, i);
+      }
 
       fs.finishInode(txn, ino, i);
 
-      ghost var f' := ByteFile(fs.data[ino], attrs);
+      ghost var f' := ByteFile(fs.data[ino], new_attrs);
       data := data[ino := f'];
 
       assert Valid() by {
-        file_change_with_attrs_valid(ino, f'.data, attrs);
+        file_change_with_attrs_valid(ino, f'.data, new_attrs);
       }
-      r := Ok(());
-      return;
+      var fattr := Fattr3(NFS3REG, sz, new_attrs);
+      return Ok(fattr);
     }
 
     method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
