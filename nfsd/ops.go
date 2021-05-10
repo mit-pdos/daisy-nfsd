@@ -316,11 +316,14 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		util.DPrintf(1, "NFS Create error %v", status)
 		return reply
 	}
+	create := r.(nfs_spec.CreateResult)
 
-	finum := r.(uint64)
+	finum := create.Dtor_ino()
 
 	reply.Resok.Obj.Handle_follows = true
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	decodeFattr3(create.Dtor_attrs(), finum, &reply.Resok.Obj_attributes.Attributes)
 	return reply
 }
 

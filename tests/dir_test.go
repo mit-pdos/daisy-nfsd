@@ -47,7 +47,7 @@ func TestDirFsLookup(t *testing.T) {
 		))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
-	ino := r.Dtor_v().(uint64)
+	ino := r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 
 	txn = fs.Begin()
 	r = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))

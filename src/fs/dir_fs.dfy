@@ -758,22 +758,25 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
-      returns (r: Result<Ino>, ghost dir_attrs: Inode.Attrs, ghost attrs: Inode.Attrs)
+      returns (r: Result<CreateResult>, ghost dir_attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
-      (var ino := r.v;
+      (var ino := r.v.ino;
+       var fattrs := r.v.attrs;
+       var file := ByteFile(C.repeat(0 as byte, how.size() as nat), fattrs.attrs);
       && is_pathc(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
-      && has_create_attrs(attrs, how)
+      && has_create_attrs(fattrs.attrs, how)
       && has_modify_attrs(old(data[d_ino].attrs), dir_attrs)
+      && is_file_attrs(file, fattrs)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], dir_attrs);
-        data[ino := ByteFile(C.repeat(0 as byte, how.size() as nat), attrs)][d_ino := d'])
+        data[ino := file][d_ino := d'])
       )
     {
       var sz := how.size();
@@ -781,9 +784,8 @@ module DirFs
         r := Err(NoSpc);
         return;
       }
-      var attrs0 := CreateAttributes(how);
-      attrs := attrs0;
-      var ok, ino := allocFile(txn, attrs0);
+      var attrs := CreateAttributes(how);
+      var ok, ino := allocFile(txn, attrs);
       if !ok {
         r := Err(NoSpc);
         return;
@@ -839,7 +841,8 @@ module DirFs
         assert ByteFs.ByteFilesys.setSize_with_zeros([], sz as nat) == C.repeat(0 as byte, sz as nat);
       }
       reveal ino_ok;
-      r := Ok(ino);
+      var fattrs := Fattr3(NFS3REG, sz, attrs);
+      r := Ok(CreateResult(ino, fattrs));
       return;
     }
 
