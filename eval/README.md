@@ -39,9 +39,9 @@ You can run `./plot.sh` to run the Python post-processing and gnuplot all at onc
 
 ## stress tests
 
-Run `./scale.sh` to run the fsstress and fsx-linux tests. You'll need to clone
+Run `./tests.sh` to run the fsstress and fsx-linux tests. You'll need to clone
 ltp and compile it; the script will give you the right commands.
 
 The default number of iterations runs each suite for about 10 seconds. To run
-longer, run something like `./scale.sh 10`, which will scale the default
+longer, run something like `./tests.sh 10`, which will scale the default
 iteration counts by 10.
