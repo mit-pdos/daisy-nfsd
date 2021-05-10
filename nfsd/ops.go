@@ -95,6 +95,15 @@ func decodeAttrs(attrs inode.Attrs, fattr *nfstypes.Fattr3) {
 	fattr.Ctime = decodeTime(attrs.Dtor_mtime())
 }
 
+func decodeFattr3(attrs nfs_spec.Fattr3, inum uint64, fattr *nfstypes.Fattr3) {
+	decodeAttrs(attrs.Dtor_attrs(), fattr)
+	fattr.Ftype = nfstypes.Ftype3(attrs.Dtor_ftype().To__uint32())
+	fattr.Nlink = 1
+	fattr.Size = nfstypes.Size3(attrs.Dtor_size())
+	fattr.Used = nfstypes.Size3(attrs.Dtor_size())
+	fattr.Fileid = nfstypes.Fileid3(inum)
+}
+
 func decodeFsstat3(stats nfs_spec.Fsstat3, fsstat *nfstypes.FSSTAT3res) {
 	fsstat.Resok.Tbytes = nfstypes.Size3(stats.Dtor_tbytes())
 	fsstat.Resok.Fbytes = nfstypes.Size3(stats.Dtor_fbytes())
@@ -168,17 +177,8 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 
-	attrs := stat.(nfs_spec.Attributes).Get().(nfs_spec.Attributes_Attributes)
-	if attrs.Is__dir {
-		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3DIR
-	} else {
-		reply.Resok.Obj_attributes.Ftype = nfstypes.NF3REG
-	}
-	decodeAttrs(attrs.Attrs, &reply.Resok.Obj_attributes)
-	reply.Resok.Obj_attributes.Nlink = 1
-	reply.Resok.Obj_attributes.Size = nfstypes.Size3(attrs.Size)
-	reply.Resok.Obj_attributes.Used = nfstypes.Size3(attrs.Size)
-	reply.Resok.Obj_attributes.Fileid = nfstypes.Fileid3(inum)
+	attrs := stat.(nfs_spec.Fattr3)
+	decodeFattr3(attrs, inum, &reply.Resok.Obj_attributes)
 
 	return reply
 }

@@ -27,19 +27,10 @@ module DirFs
 
   import C = Collections
 
-  datatype File =
-    | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
-    | DirFile(dir: Directory, attrs: Inode.Attrs)
-  {
-    static const empty: File := ByteFile([], Inode.Attrs.zero_file)
-    static const emptyDir: File := DirFile(map[], Inode.Attrs.zero_dir)
-  }
-
   datatype RemoveHint = RemoveHint(ino: Ino, sz: uint64)
 
   type FsData = map<Ino, seq<byte>>
   type FsAttrs = map<Ino, Inode.Attrs>
-  type Data = map<Ino, File>
 
   method HandleResult<T>(r: Result<T>, txn: Txn) returns (r':Result<T>)
     requires txn.Valid()
@@ -847,14 +838,28 @@ module DirFs
         unused_r, unused_attrs :- SETATTR(txn, ino, Sattr3.setNone.(size := Some(sz)));
         assert ByteFs.ByteFilesys.setSize_with_zeros([], sz as nat) == C.repeat(0 as byte, sz as nat);
       }
-      // assert data == old(data[ino := File.empty][d_ino := DirFile(d')]);
       reveal ino_ok;
       r := Ok(ino);
       return;
     }
 
+    method inodeFattr3(ghost ino: Ino, i: MemInode)
+      returns (attr3: Fattr3)
+      requires ValidIno(ino, i)
+      requires ino in data
+      ensures is_file_attrs(data[ino], attr3)
+    {
+      get_data_at(ino);
+      fs.inode_metadata(ino, i);
+      reveal is_of_type();
+        // return the encoded size for a directory
+      attr3 := Fattr3(if i.ty().DirType? then NFS3DIR else NFS3REG,
+        i.sz,
+        i.attrs);
+    }
+
     method GETATTR(txn: Txn, ino: Ino)
-      returns (r: Result<Attributes>)
+      returns (r: Result<Fattr3>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
@@ -862,10 +867,7 @@ module DirFs
       ensures r.Ok? ==>
           (var attrs := r.v;
           && ino in data
-          && attrs.is_dir == data[ino].DirFile?
-          && data[ino].ByteFile? ==> attrs.size as nat == |data[ino].data|
-          && data[ino].DirFile? ==> attrs.size as nat == 4096
-          && data[ino].attrs == attrs.attrs
+          && is_file_attrs(data[ino], attrs)
           )
     {
       var ok, i := fs.startInode(txn, ino);
@@ -875,18 +877,16 @@ module DirFs
       }
       if i.ty().DirType? {
         assert is_dir(ino) by { reveal is_of_type(); }
+        var attrs := inodeFattr3(ino, i);
         //var dents := readDirentsInode(txn, ino, i);
         fs.finishInodeReadonly(ino, i);
-        // NOTE: not sure what the size of a directory is supposed to be, so
-        // just return its encoded size in bytes
-        var attrs := Attributes(true, 4096, i.attrs);
         return Ok(attrs);
       }
       // is a file
       assert i.ty().FileType?;
       assert is_file(ino) by { reveal is_of_type(); }
+      var attrs := inodeFattr3(ino, i);
       fs.finishInodeReadonly(ino, i);
-      var attrs := Attributes(false, i.sz, i.attrs);
       return Ok(attrs);
     }
 

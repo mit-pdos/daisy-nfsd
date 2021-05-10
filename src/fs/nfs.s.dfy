@@ -1,13 +1,26 @@
 include "../machine/bytes.s.dfy"
 include "../util/std.dfy"
 include "inode/inode.dfy"
+// for definition of directories
+include "dir/dirent.dfy"
 
 module Nfs {
   import opened Std
   import opened Machine
   import opened ByteSlice
   import Inode
+  import DirEntries
+  import FsKinds
   import C = Collections
+
+  // DirEntries.Directory = map<PathComp, Ino>
+  // where PathComp is a subset type of seq<byte>
+
+  datatype File =
+    | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
+    | DirFile(dir: DirEntries.Directory, attrs: Inode.Attrs)
+
+   type Data = map<FsKinds.Ino, File>
 
   datatype Error =
     | Noent
@@ -137,7 +150,39 @@ module Nfs {
       ))
   }
 
-  datatype Attributes = Attributes(is_dir: bool, size: uint64, attrs: Inode.Attrs)
+  datatype Ftype3 =
+    | NFS3REG | NFS3DIR
+    | NFS3BLK | NFS3CHR | NFS3LNK | NFS3SOCK | NFS3FIFO
+  {
+    function method to_uint32(): uint32 {
+      match this {
+        case NFS3REG => 1
+        case NFS3DIR => 2
+        case NFS3BLK => 3
+        case NFS3CHR => 4
+        case NFS3LNK => 5
+        case NFS3SOCK => 6
+        case NFS3FIFO => 7
+      }
+    }
+
+    // to catch copy-paste errors
+    static lemma to_uint32_inj(t1: Ftype3, t2: Ftype3)
+      ensures t1.to_uint32() == t2.to_uint32() ==> t1 == t2
+    {}
+  }
+
+  // TODO: return as post-op attributes
+  datatype Fattr3 = Fattr3(ftype: Ftype3, size: uint64, attrs: Inode.Attrs)
+
+  predicate is_file_attrs(file: File, attr: Fattr3)
+  {
+    && file.ByteFile? == attr.ftype.NFS3REG?
+    && file.DirFile? == attr.ftype.NFS3DIR?
+    && file.attrs == attr.attrs
+    && (file.ByteFile? ==> |file.data| == attr.size as nat)
+    // size of directory is an encoding detail that is leaked to clients
+  }
 
   datatype ReadResult = ReadResult(data: Bytes, eof: bool)
 
