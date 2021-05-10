@@ -11,6 +11,7 @@ cd "$DIR"
 # Markdown
 markdown-link-check "README.md"
 markdown-link-check "eval/README.md"
+markdown-link-check "src/fs/README.md"
 
 # Python
 black --diff "etc/dafnydep"

@@ -22,6 +22,15 @@ There are three main components:
 - The NFS server binary that calls the verified Dafny code is implemented
   between [`nfsd`](nfsd/) and [`cmd/dafny-nfsd`](cmd/dafny-nfsd/).
 
+The Dafny proof is split into three parts:
+
+- external interfaces only assumed in Dafny via `{:extern}`:
+  [`src/jrnl`](src/jrnl) (the transaction system) and
+  [`src/machine`](src/machine) (Go primitives)
+- verified helper libraries in [`src/util`](src/util) that would basically be in
+  a decent Dafny standard library
+- the actual file-system proof, documented in its own [README](src/fs/README.md)
+
 At the top level of the repo we also have various scripts. [`eval`](eval/) and
 [`bench`](bench/) have scripts to run performance experiments (see the [eval
 README](eval/README.md) for more details). [`artifact`](artifact/) sets up a VM
