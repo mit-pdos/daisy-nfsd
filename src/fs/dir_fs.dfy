@@ -291,6 +291,7 @@ module DirFs
                             then attrs0
                             else Inode.Attrs.zero
       ensures Valid()
+      ensures fresh(Repr - fs.Repr)
       ensures this.rootIno == rootIno
       ensures data == map[rootIno := DirFile(map[], attrs0)]
     {
@@ -334,7 +335,7 @@ module DirFs
 
     static method New(d: Disk, uid: uint32, gid: uint32)
       returns (fs: Option<DirFilesys>, ghost attrs0: Inode.Attrs)
-      ensures fs.Some? ==> fresh(fs.x) && fs.x.Valid()
+      ensures fs.Some? ==> fresh(fs.x.Repr) && fs.x.Valid()
       ensures fs.Some? ==>
         && has_root_attrs(attrs0, uid, gid)
         && fs.x.data == map[fs.x.rootIno := DirFile(map[], attrs0)]
@@ -367,6 +368,7 @@ module DirFs
       requires same_jrnl(jrnl_, fs.fs.fs.fs.fs.jrnl)
       ensures this.fs.fs.fs.fs.jrnl == jrnl_
       ensures this.data == fs.data
+      ensures fresh(Repr - {jrnl_})
       ensures Valid()
     {
       this.fs := new TypedFilesys.Recover(jrnl_, fs.fs);
@@ -745,7 +747,7 @@ module DirFs
       ok := linkInodeAtFree(txn, d_ino, dents, e', i);
     }
 
-    method CreateAttributes(how: CreateHow3)
+    static method CreateAttributes(how: CreateHow3)
       returns (attrs:Inode.Attrs)
       ensures has_create_attrs(attrs, how)
     {
