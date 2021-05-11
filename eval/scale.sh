@@ -56,14 +56,13 @@ do
 
     cd "$DAFNY_NFSD_PATH"
     git checkout $dnfsver --quiet
-    go mod edit -replace github.com/mit-pdos/goose-nfsd@latest="$GOOSE_NFSD_PATH"
-    go mod tidy
+    go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
     echo "fs=dfns-$dnfsver-$goosever"
     ./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
 done
 
 cd "$DAFNY_NFSD_PATH"
-git restore go.mod
+go mod edit -dropreplace github.com/mit-pdose/goose-nfsd
 git checkout main --quiet
 cd "$GOOSE_NFSD_PATH"
 git checkout master --quiet
