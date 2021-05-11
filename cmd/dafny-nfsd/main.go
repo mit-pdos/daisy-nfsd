@@ -162,10 +162,19 @@ func main() {
 	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
 	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
 
-	sigs := make(chan os.Signal)
+	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)
 	go func() {
 		<-sigs
+		fmt.Fprintf(os.Stderr, "\n")
+		opCounts := nfs.GetOpStats()
+		for _, opCount := range opCounts {
+			op := opCount.Op
+			count := opCount.Count
+			if count > 0 {
+				fmt.Fprintf(os.Stderr, "%12s %5d\n", op, count)
+			}
+		}
 		listener.Close()
 	}()
 

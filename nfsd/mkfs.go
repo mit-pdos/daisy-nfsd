@@ -10,10 +10,21 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 )
 
+const NUM_NFS_OPS = 22
+
 type Nfs struct {
+	// the Dafny Filesys class
 	filesys *dirfs.DirFilesys
-	uid     uint32
-	gid     uint32
+
+	// read-only
+	uid uint32
+	gid uint32
+
+	// stats
+	//
+	// number of calls to each operation, indexed by procedure numbers from RFC
+	// 1813
+	opCounts [NUM_NFS_OPS]uint32
 }
 
 func zeroDisk(d disk.Disk) {

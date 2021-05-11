@@ -162,9 +162,9 @@ func stringOfSeq(s dafny.Seq) string {
 	return string(bs)
 }
 
-func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
-	var reply nfstypes.GETATTR3res
+func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) (reply nfstypes.GETATTR3res) {
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
+	nfs.incCount(nfstypes.NFSPROC3_GETATTR)
 
 	inum := fh2ino(args.Object)
 
@@ -183,9 +183,9 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
-	var reply nfstypes.SETATTR3res
+func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) (reply nfstypes.SETATTR3res) {
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
+	nfs.incCount(nfstypes.NFSPROC3_SETATTR)
 	if args.Guard.Check {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		return reply
@@ -208,9 +208,9 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
+func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKUP3res) {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
-	var reply nfstypes.LOOKUP3res
+	nfs.incCount(nfstypes.NFSPROC3_LOOKUP)
 
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
@@ -228,17 +228,17 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
+func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) (reply nfstypes.ACCESS3res) {
 	util.DPrintf(1, "NFS Access %v\n", args)
-	var reply nfstypes.ACCESS3res
+	nfs.incCount(nfstypes.NFSPROC3_ACCESS)
 	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Access = nfstypes.Uint32(nfstypes.ACCESS3_READ | nfstypes.ACCESS3_LOOKUP | nfstypes.ACCESS3_MODIFY | nfstypes.ACCESS3_EXTEND | nfstypes.ACCESS3_DELETE | nfstypes.ACCESS3_EXECUTE)
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
-	var reply nfstypes.READ3res
+func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) (reply nfstypes.READ3res) {
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
+	nfs.incCount(nfstypes.NFSPROC3_READ)
 
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
@@ -262,10 +262,10 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
-	var reply nfstypes.WRITE3res
+func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3res) {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
+	nfs.incCount(nfstypes.NFSPROC3_WRITE)
 
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
@@ -292,9 +292,9 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
+func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREATE3res) {
 	util.DPrintf(1, "NFS Create %v\n", args)
-	var reply nfstypes.CREATE3res
+	nfs.incCount(nfstypes.NFSPROC3_CREATE)
 
 	inum := fh2ino(args.Where.Dir)
 	nameseq := filenameToBytes(args.Where.Name)
@@ -382,9 +382,9 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
+func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOVE3res) {
 	util.DPrintf(1, "NFS Remove %v\n", args)
-	var reply nfstypes.REMOVE3res
+	nfs.incCount(nfstypes.NFSPROC3_REMOVE)
 
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
