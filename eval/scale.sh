@@ -63,7 +63,7 @@ do
 done
 
 cd "$DAFNY_NFSD_PATH"
-git restore .
+git restore go.mod
 git checkout main --quiet
 cd "$GOOSE_NFSD_PATH"
 git checkout master --quiet
