@@ -36,7 +36,7 @@ shift
 
 # the path to store the disk file in (use this to run the benchmarks on a real
 # drive)
-disk_path="$HOME"
+disk_path="$HOME/disk.img"
 
 cd "$GOOSE_NFSD_PATH"
 go build ./cmd/fs-smallfile
@@ -58,7 +58,7 @@ do
     git checkout $dnfsver --quiet
     go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
     echo "fs=dfns-$dnfsver-$goosever"
-    ./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+    ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
 done
 
 cd "$DAFNY_NFSD_PATH"
@@ -73,15 +73,15 @@ cd "$DAFNY_NFSD_PATH"
 echo 1>&2
 info "DafnyNFS smallfile scalability"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
 
 cd "$GOOSE_NFSD_PATH"
 echo 1>&2
 info "GoNFS smallfile scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-goose-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
 
 echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
-./bench/run-linux.sh     -disk "$disk_path"/disk.img "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-linux.sh     -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
