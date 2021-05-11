@@ -50,25 +50,28 @@ go build ./cmd/fs-largefile
 if [[ $# -gt 0 ]]; then
 for var in "$@"
 do
-	echo 1>&2
-	IFS="," read dnfsver goosever <<< "$var"
+    echo 1>&2
+    IFS="," read -r dnfsver goosever <<< "$var"
 
-        info "DafnyNFS-$dnfsver-$goosever"
-	info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
-	cd "$GOOSE_NFSD_PATH"
-	git checkout $goosever --quiet
-        go build ./cmd/goose-nfsd && rm goose-nfsd
+    info "DafnyNFS-$dnfsver-$goosever"
+    info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
+    cd "$GOOSE_NFSD_PATH"
+    git checkout "$goosever" --quiet
+    go build ./cmd/goose-nfsd && rm goose-nfsd
 
-	cd "$DAFNY_NFSD_PATH"
-	git checkout $dnfsver --quiet
-	echo "fs=dfns-$dnfsver-$goosever"
-	./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-	./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
-	./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    cd "$DAFNY_NFSD_PATH"
+    git checkout "$dnfsver" --quiet
+    go mod edit -replace github.com/mit-pdos/goose-nfsd@latest="$GOOSE_NFSD_PATH"
+    go mod tidy
+    echo "fs=dfns-$dnfsver-$goosever"
+    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
+    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 done
 
 cd "$DAFNY_NFSD_PATH"
 git checkout main --quiet
+git restore .
 cd "$GOOSE_NFSD_PATH"
 git checkout master --quiet
 go build ./cmd/goose-nfsd && rm goose-nfsd
