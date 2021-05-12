@@ -114,7 +114,7 @@ func decodeFsstat3(stats nfs_spec.Fsstat3, fsstat *nfstypes.FSSTAT3res) {
 }
 
 func (nfs *Nfs) NFSPROC3_NULL() {
-	util.DPrintf(0, "NFS Null\n")
+	util.DPrintf(1, "NFS Null\n")
 }
 
 type Txn = *jrnl.Txn
