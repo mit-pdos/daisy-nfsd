@@ -215,7 +215,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKU
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
 
-	f_ino, status, _ := nfs.runTxn(func(txn Txn) Result {
+	r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.LOOKUP(txn, inum, name)
 	})
 	reply.Status = status
@@ -223,8 +223,12 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKU
 		util.DPrintf(2, "NFS Lookup error %v", status)
 		return reply
 	}
-	fh := Fh{Ino: f_ino.(uint64)}
+	ino_r := r.(nfs_spec.InoResult)
+	ino := ino_r.Dtor_ino()
+	fh := Fh{Ino: ino}
 	reply.Resok.Object = fh.MakeFh3()
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	decodeFattr3(ino_r.Dtor_attrs(), ino, &reply.Resok.Obj_attributes.Attributes)
 	return reply
 }
 
@@ -319,7 +323,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREAT
 		util.DPrintf(1, "NFS Create error %v", status)
 		return reply
 	}
-	create := r.(nfs_spec.CreateResult)
+	create := r.(nfs_spec.InoResult)
 
 	finum := create.Dtor_ino()
 

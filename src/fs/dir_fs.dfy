@@ -768,7 +768,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
-      returns (r: Result<CreateResult>, ghost dir_attrs: Inode.Attrs)
+      returns (r: Result<InoResult>, ghost dir_attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -842,7 +842,7 @@ module DirFs
       }
       reveal ino_ok;
       var fattrs := Fattr3(NFS3REG, sz, attrs);
-      r := Ok(CreateResult(ino, fattrs));
+      r := Ok(InoResult(ino, fattrs));
       return;
     }
 
@@ -1338,18 +1338,24 @@ module DirFs
     }
 
     method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r:Result<Ino>)
+      returns (r:Result<InoResult>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
       requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in data
-      ensures r.ErrNoent? ==> is_dir(d_ino) && name.data !in data[d_ino].dir
+      ensures r.ErrNoent? ==> is_dir(d_ino) &&
+      (name.data !in data[d_ino].dir
+      || (name.data in data[d_ino].dir && data[d_ino].dir[name.data] !in data))
       ensures r.Ok? ==>
-      (var ino := r.v;
+      (var ino := r.v.ino;
+       var attrs := r.v.attrs;
       && is_pathc(name.data)
       && is_dir(d_ino)
-      && name.data in data[d_ino].dir && data[d_ino].dir[name.data] == ino && ino != 0
+      && name.data in data[d_ino].dir
+      && data[d_ino].dir[name.data] == ino && ino != 0
+      && ino in data
+      && is_file_attrs(data[ino], attrs)
       )
     {
       var path_ok := Pathc?(name);
@@ -1370,7 +1376,20 @@ module DirFs
       }
       var ino: Ino := name_opt.x.1;
       dents.val.findName_found(name.data);
-      return Ok(ino);
+      var ok, i := fs.startInode(txn, ino);
+      if !ok {
+        // TODO: probably shouldn't happen, inodes should be valid, but this
+        // isn't part of the invariant
+        assert is_invalid(ino) by { reveal is_of_type(); }
+        return Err(Noent);
+      }
+      assert ino in data by {
+        reveal is_of_type();
+      }
+      var attr := inodeFattr3(ino, i);
+      fs.finishInodeReadonly(ino, i);
+
+      return Ok(InoResult(ino, attr));
     }
 
     // this is a low-level function that deletes an inode (currently restricted

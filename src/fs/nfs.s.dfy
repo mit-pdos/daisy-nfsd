@@ -184,7 +184,7 @@ module Nfs {
   }
 
   datatype ReadResult = ReadResult(data: Bytes, eof: bool)
-  datatype CreateResult = CreateResult(ino: FsKinds.Ino, attrs: Fattr3)
+  datatype InoResult = InoResult(ino: FsKinds.Ino, attrs: Fattr3)
 
   predicate is_read_data(data: seq<byte>, off: nat, len: nat,
     bs: seq<byte>, eof: bool)
