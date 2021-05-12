@@ -10,6 +10,7 @@ cd $DIR/..
 
 disk_file=/dev/shm/nfs.img
 cpu_list=""
+extra_args=()
 while true; do
     case "$1" in
     -disk)
@@ -20,6 +21,16 @@ while true; do
     --cpu-list)
         shift
         cpu_list="$1"
+        shift
+        ;;
+    # some argument in -foo=value syntax
+    -*=*)
+        extra_args+=("$1")
+        shift
+        ;;
+    -*)
+        extra_args+=("$1" "$2")
+        shift
         shift
         ;;
     *)
@@ -38,9 +49,9 @@ if [ -n "$disk_file" ]; then
 fi
 
 if [ -z "$cpu_list" ]; then
-    ./bench/start-dafny-nfs.sh -disk "$disk_file" || exit 1
+    ./bench/start-dafny-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 else
-    taskset --cpu-list "$cpu_list" ./bench/start-dafny-nfs.sh -disk "$disk_file" || exit 1
+    taskset --cpu-list "$cpu_list" ./bench/start-dafny-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 fi
 
 function cleanup {
