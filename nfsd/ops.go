@@ -2,6 +2,7 @@ package nfsd
 
 import (
 	"fmt"
+	"time"
 
 	direntries "github.com/mit-pdos/dafny-nfsd/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
@@ -164,7 +165,7 @@ func stringOfSeq(s dafny.Seq) string {
 
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) (reply nfstypes.GETATTR3res) {
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_GETATTR)
+	defer nfs.reportOp(nfstypes.NFSPROC3_GETATTR, time.Now())
 
 	inum := fh2ino(args.Object)
 
@@ -185,7 +186,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) (reply nfstypes.GET
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) (reply nfstypes.SETATTR3res) {
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_SETATTR)
+	defer nfs.reportOp(nfstypes.NFSPROC3_SETATTR, time.Now())
 	if args.Guard.Check {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		return reply
@@ -210,7 +211,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) (reply nfstypes.SET
 
 func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKUP3res) {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_LOOKUP)
+	defer nfs.reportOp(nfstypes.NFSPROC3_LOOKUP, time.Now())
 
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
@@ -234,7 +235,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKU
 
 func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) (reply nfstypes.ACCESS3res) {
 	util.DPrintf(1, "NFS Access %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_ACCESS)
+	defer nfs.reportOp(nfstypes.NFSPROC3_ACCESS, time.Now())
 	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Access = nfstypes.Uint32(nfstypes.ACCESS3_READ | nfstypes.ACCESS3_LOOKUP | nfstypes.ACCESS3_MODIFY | nfstypes.ACCESS3_EXTEND | nfstypes.ACCESS3_DELETE | nfstypes.ACCESS3_EXECUTE)
 	return reply
@@ -242,7 +243,7 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) (reply nfstypes.ACCES
 
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) (reply nfstypes.READ3res) {
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
-	nfs.incCount(nfstypes.NFSPROC3_READ)
+	defer nfs.reportOp(nfstypes.NFSPROC3_READ, time.Now())
 
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
@@ -269,7 +270,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) (reply nfstypes.READ3res)
 func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3res) {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
-	nfs.incCount(nfstypes.NFSPROC3_WRITE)
+	defer nfs.reportOp(nfstypes.NFSPROC3_WRITE, time.Now())
 
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
@@ -298,7 +299,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREATE3res) {
 	util.DPrintf(1, "NFS Create %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_CREATE)
+	defer nfs.reportOp(nfstypes.NFSPROC3_CREATE, time.Now())
 
 	inum := fh2ino(args.Where.Dir)
 	nameseq := filenameToBytes(args.Where.Name)
@@ -334,9 +335,9 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREAT
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
+func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) (reply nfstypes.MKDIR3res) {
 	util.DPrintf(1, "NFS Mkdir %v\n", args)
-	var reply nfstypes.MKDIR3res
+	defer nfs.reportOp(nfstypes.NFSPROC3_MKDIR, time.Now())
 
 	inum := fh2ino(args.Where.Dir)
 	name := filenameToBytes(args.Where.Name)
@@ -388,7 +389,7 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOVE3res) {
 	util.DPrintf(1, "NFS Remove %v\n", args)
-	nfs.incCount(nfstypes.NFSPROC3_REMOVE)
+	defer nfs.reportOp(nfstypes.NFSPROC3_REMOVE, time.Now())
 
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
@@ -410,6 +411,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOV
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	var reply nfstypes.RMDIR3res
+	defer nfs.reportOp(nfstypes.NFSPROC3_RMDIR, time.Now())
 
 	inum := fh2ino(args.Object.Dir)
 	name := filenameToBytes(args.Object.Name)
@@ -425,9 +427,9 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
+func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) (reply nfstypes.RENAME3res) {
 	util.DPrintf(1, "NFS Rename %v\n", args)
-	var reply nfstypes.RENAME3res
+	defer nfs.reportOp(nfstypes.NFSPROC3_RENAME, time.Now())
 
 	src_inum := fh2ino(args.From.Dir)
 	src_name := filenameToBytes(args.From.Name)
@@ -452,9 +454,9 @@ func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3res {
+func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.READDIR3res) {
 	util.DPrintf(1, "NFS Readdir %v\n", args)
-	var reply nfstypes.READDIR3res
+	defer nfs.reportOp(nfstypes.NFSPROC3_READDIR, time.Now())
 
 	inum := fh2ino(args.Dir)
 

@@ -2,12 +2,25 @@ package nfsd
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
+const NUM_NFS_OPS = 22
+
 func (nfs *Nfs) incCount(op uint32) {
 	atomic.AddUint32(&nfs.opCounts[op], 1)
+}
+
+func (nfs *Nfs) incTime(op uint32, ns uint64) {
+	atomic.AddUint64(&nfs.opNanos[op], ns)
+}
+
+func (nfs *Nfs) reportOp(op uint32, start time.Time) {
+	nfs.incCount(op)
+	dur := time.Now().Sub(start)
+	nfs.incTime(op, uint64(dur.Nanoseconds()))
 }
 
 var nfsopNames = map[uint32]string{
@@ -36,22 +49,28 @@ var nfsopNames = map[uint32]string{
 }
 
 type OpCount struct {
-	Op    string
-	Count uint32
+	Op        string
+	Count     uint32
+	TimeNanos uint64
 }
 
 func (nfs *Nfs) GetOpStats() []OpCount {
 	// get all counts locally with atomic reads
 	counts := make([]uint32, NUM_NFS_OPS)
+	times := make([]uint64, NUM_NFS_OPS)
 	for i := range counts {
 		counts[i] = atomic.LoadUint32(&nfs.opCounts[i])
+		times[i] = atomic.LoadUint64(&nfs.opNanos[i])
 	}
 
 	var stats []OpCount
-	for op, count := range counts {
+	for op := range counts {
+		count := counts[op]
+		time := times[op]
 		stats = append(stats, OpCount{
-			Op:    nfsopNames[uint32(op)],
-			Count: count,
+			Op:        nfsopNames[uint32(op)],
+			Count:     count,
+			TimeNanos: time,
 		})
 	}
 	return stats

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"syscall"
 	"time"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
@@ -56,6 +57,20 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 	return bool(res)
 }
 
+func reportStats(stats []nfsd.OpCount) {
+	for _, opCount := range stats {
+		op := opCount.Op
+		count := opCount.Count
+		timeNanos := opCount.TimeNanos
+		microsPerOp := float64(timeNanos) / 1e3 / float64(count)
+		if count > 0 {
+			fmt.Fprintf(os.Stderr,
+				"%14s %5d  avg: %0.1f\n",
+				op, count, microsPerOp)
+		}
+	}
+}
+
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile := flag.String("memprofile", "", "write mem profile to file")
@@ -68,6 +83,9 @@ func main() {
 
 	var recover bool
 	flag.BoolVar(&recover, "recover", false, "run recovery (rather than initialization)")
+
+	var dumpStats bool
+	flag.BoolVar(&dumpStats, "stats", false, "dump stats to stderr on exit")
 
 	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
 
@@ -166,16 +184,21 @@ func main() {
 	signal.Notify(sigs, os.Interrupt)
 	go func() {
 		<-sigs
-		fmt.Fprintf(os.Stderr, "\n")
-		opCounts := nfs.GetOpStats()
-		for _, opCount := range opCounts {
-			op := opCount.Op
-			count := opCount.Count
-			if count > 0 {
-				fmt.Fprintf(os.Stderr, "%12s %5d\n", op, count)
-			}
-		}
 		listener.Close()
+		if dumpStats {
+			fmt.Fprintf(os.Stderr, "\n")
+			opCounts := nfs.GetOpStats()
+			reportStats(opCounts)
+		}
+	}()
+	usrSig := make(chan os.Signal, 1)
+	signal.Notify(usrSig, syscall.SIGUSR1)
+	go func() {
+		for {
+			<-usrSig
+			opCounts := nfs.GetOpStats()
+			reportStats(opCounts)
+		}
 	}()
 
 	for {
