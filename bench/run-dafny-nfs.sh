@@ -41,9 +41,7 @@ done
 
 set -eu
 
-# empty disk file is valid and uses MemDisk
-if [ -n "$disk_file" ]; then
-    rm -f "$disk_file"
+if [[ -n "$disk_file" ]] && [[ ! -e "$disk_file" ]]; then
     dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
     sync "$disk_file"
 fi
@@ -56,7 +54,10 @@ fi
 
 function cleanup {
     ./bench/stop-dafny-nfs.sh
-    rm -f "$disk_file"
+    # only zero regular files
+    if [ -f "$disk_file" ];
+       rm -f "$disk_file"
+    fi
 }
 trap cleanup EXIT
 
