@@ -8,20 +8,13 @@ import pandas as pd
 
 
 def parse_raw(lines):
+    """Construct a dataframe of observations from raw output as lines."""
     fs = None
     data = []
 
-    def get_bench_data(pattern, line):
-        m = re.match(pattern, line)
-        if m:
-            return {
-                "fs": fs,
-                "bench": m.group("bench"),
-                "val": float(m.group("val")),
-            }
-        return None
-
     for line in lines:
+        if re.match(r"""^#""", line):
+            continue
         m = re.match(r"""fs=(?P<fs>.*)""", line)
         if m:
             fs = m.group("fs")

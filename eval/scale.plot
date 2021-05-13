@@ -3,7 +3,7 @@ set output "fig/scale.pdf"
 
 set auto x
 set yrange [0:*]
-set xtics 1
+set xtics 4
 set ylabel "files / sec"
 set format y '%.1s%c'
 set xlabel "\# clients"
