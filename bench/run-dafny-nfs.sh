@@ -55,7 +55,7 @@ fi
 function cleanup {
     ./bench/stop-dafny-nfs.sh
     # only zero regular files
-    if [ -f "$disk_file" ];
+    if [ -f "$disk_file" ]; then
        rm -f "$disk_file"
     fi
 }
