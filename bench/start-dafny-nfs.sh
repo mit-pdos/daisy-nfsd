@@ -10,7 +10,7 @@ set -eu
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
-cd $DIR/..
+cd "$DIR"/..
 
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile

@@ -6,7 +6,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
-cd $DIR/..
+cd "$DIR"/..
 
 disk_file=/dev/shm/nfs.img
 cpu_list=""
@@ -62,6 +62,6 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "# dafny-nfsd -disk $disk_file ${extra_args[@]}" 1>&2
-echo "run $@" 1>&2
+echo "# dafny-nfsd -disk $disk_file ${extra_args[*]}" 1>&2
+echo "run $*" 1>&2
 "$@"

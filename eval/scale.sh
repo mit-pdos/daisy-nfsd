@@ -51,14 +51,14 @@ do
     info "DafnyNFS-$dnfsver-$goosever smallfile scalability"
     info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
     cd "$GOOSE_NFSD_PATH"
-    git checkout $goosever --quiet
+    git checkout "$goosever" --quiet
     go build ./cmd/goose-nfsd && rm goose-nfsd
 
     cd "$DAFNY_NFSD_PATH"
-    git checkout $dnfsver --quiet
+    git checkout "$dnfsver" --quiet
     go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
     echo "fs=dfns-$dnfsver-$goosever"
-    ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+    ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
 done
 
 cd "$DAFNY_NFSD_PATH"
@@ -73,15 +73,15 @@ cd "$DAFNY_NFSD_PATH"
 echo 1>&2
 info "DafnyNFS smallfile scalability"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
 
 cd "$GOOSE_NFSD_PATH"
 echo 1>&2
 info "GoNFS smallfile scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-goose-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
 
 echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
-./bench/run-linux.sh     -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads=$threads
+./bench/run-linux.sh     -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"

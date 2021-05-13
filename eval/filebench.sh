@@ -34,15 +34,15 @@ fbenchrunner=$DAFNY_NFSD_PATH/eval/run-filebench.sh
 cd "$DAFNY_NFSD_PATH"
 info "DafnyNFS filebench scalability"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img $fbenchrunner $threads $2
+./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
 cd "$GOOSE_NFSD_PATH"
 echo 1>&2
 info "GoNFS filebench scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_path"/disk.img $fbenchrunner $threads $2
+./bench/run-goose-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
 echo 1>&2
 info "Linux filebench scalability"
 echo "fs=linux"
-./bench/run-linux.sh -disk "$disk_path"/disk.img $fbenchrunner $threads $2
+./bench/run-linux.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"

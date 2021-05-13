@@ -23,6 +23,8 @@ pytest etc
 # Bash
 shellcheck "etc/dafnyq"
 shellcheck "etc/check"
+shellcheck eval/*.sh
+shellcheck bench/*.sh
 
 # Go
 echo "gofmt"
