@@ -87,7 +87,7 @@ func main() {
 	var dumpStats bool
 	flag.BoolVar(&dumpStats, "stats", false, "dump stats to stderr on exit")
 
-	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
+	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 
 	flag.Parse()
 
