@@ -14,8 +14,8 @@ cd "$DIR"/..
 
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile
-go build ./cmd/dafny-nfsd && rm -f dafny-nfsd
-go run ./cmd/dafny-nfsd/ -debug=0 -disk /dev/shm/nfs.img "$@" 1>nfs.out 2>&1 &
+go build ./cmd/dafny-nfsd
+./dafny-nfsd -debug=0 -disk /dev/shm/nfs.img "$@" 1>nfs.out 2>&1 &
 # don't need nfsd to be running yet; mount will retry until it can connect
 sleep 0.5
 killall -0 dafny-nfsd # make sure server is running
