@@ -9,6 +9,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$DIR"/..
 
 disk_file=/dev/shm/nfs.img
+size_mb=400
 cpu_list=""
 extra_args=()
 while true; do
@@ -16,6 +17,11 @@ while true; do
     -disk)
         shift
         disk_file="$1"
+        shift
+        ;;
+    -size)
+        shift
+        size_mb="$1"
         shift
         ;;
     --cpu-list)
@@ -42,14 +48,14 @@ done
 set -eu
 
 if [[ -n "$disk_file" ]] && [[ ! -e "$disk_file" ]]; then
-    dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
+    dd status=none if=/dev/zero of="$disk_file" bs=4K count=$((size_mb * 1024 / 4))
     sync "$disk_file"
 fi
 
 if [ -z "$cpu_list" ]; then
-    ./bench/start-dafny-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
+    ./bench/start-dafny-nfs.sh -disk "$disk_file" -size "$size_mb" "${extra_args[@]}" || exit 1
 else
-    taskset --cpu-list "$cpu_list" ./bench/start-dafny-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
+    taskset --cpu-list "$cpu_list" ./bench/start-dafny-nfs.sh -size "$size_mb" -disk "$disk_file" "${extra_args[@]}" || exit 1
 fi
 
 function cleanup {
