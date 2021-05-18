@@ -14,10 +14,10 @@ red=$(tput setaf 1 || echo)
 reset=$(tput sgr0 || echo)
 
 info() {
-  echo -e "${blue}$1${reset}" 1>&2
+    echo -e "${blue}$1${reset}" 1>&2
 }
 error() {
-  echo -e "${red}$1${reset}" 1>&2
+    echo -e "${red}$1${reset}" 1>&2
 }
 
 if [ -z "${LTP_PATH:-}" ]; then
@@ -42,7 +42,7 @@ fi
 
 scale=1
 if [ $# -ge 1 ]; then
-  scale="$1"
+    scale="$1"
 fi
 
 cd "$DAFNY_NFSD_PATH"

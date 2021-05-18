@@ -8,7 +8,7 @@ set -eu
 # default disk is /dev/shm/nfs.img but can be overriden by passing -disk again
 #
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # root of repo
 cd "$DIR"/..
 

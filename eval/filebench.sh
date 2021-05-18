@@ -6,7 +6,7 @@ blue=$(tput setaf 4 || echo)
 reset=$(tput sgr0 || echo)
 
 info() {
-  echo -e "${blue}$1${reset}" 1>&2
+    echo -e "${blue}$1${reset}" 1>&2
 }
 
 if [ ! -d "$DAFNY_NFSD_PATH" ]; then

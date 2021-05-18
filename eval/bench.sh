@@ -17,7 +17,7 @@ blue=$(tput setaf 4 || echo)
 reset=$(tput sgr0 || echo)
 
 info() {
-  echo -e "${blue}$1${reset}" 1>&2
+    echo -e "${blue}$1${reset}" 1>&2
 }
 
 if [ ! -d "$DAFNY_NFSD_PATH" ]; then
@@ -48,34 +48,32 @@ go build ./cmd/fs-smallfile
 go build ./cmd/fs-largefile
 
 if [[ $# -gt 0 ]]; then
-for var in "$@"
-do
-    echo 1>&2
-    IFS="," read -r dnfsver goosever <<< "$var"
+    for var in "$@"; do
+        echo 1>&2
+        IFS="," read -r dnfsver goosever <<<"$var"
 
-    info "DafnyNFS-$dnfsver-$goosever"
-    info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
-    cd "$GOOSE_NFSD_PATH"
-    git checkout "$goosever" --quiet
-    go build ./cmd/goose-nfsd && rm goose-nfsd
+        info "DafnyNFS-$dnfsver-$goosever"
+        info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
+        cd "$GOOSE_NFSD_PATH"
+        git checkout "$goosever" --quiet
+        go build ./cmd/goose-nfsd && rm goose-nfsd
+
+        cd "$DAFNY_NFSD_PATH"
+        git checkout "$dnfsver" --quiet
+        go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
+        echo "fs=dfns-$dnfsver-$goosever"
+        ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+        ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
+        ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    done
 
     cd "$DAFNY_NFSD_PATH"
-    git checkout "$dnfsver" --quiet
-    go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
-    echo "fs=dfns-$dnfsver-$goosever"
-    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
-    ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
-done
-
-cd "$DAFNY_NFSD_PATH"
-go mod edit -dropreplace github.com/mit-pdose/goose-nfsd
-git checkout main --quiet
-cd "$GOOSE_NFSD_PATH"
-git checkout master --quiet
-go build ./cmd/goose-nfsd && rm goose-nfsd
+    go mod edit -dropreplace github.com/mit-pdose/goose-nfsd
+    git checkout main --quiet
+    cd "$GOOSE_NFSD_PATH"
+    git checkout master --quiet
+    go build ./cmd/goose-nfsd && rm goose-nfsd
 fi
-
 
 cd "$DAFNY_NFSD_PATH"
 

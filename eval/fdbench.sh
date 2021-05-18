@@ -6,15 +6,13 @@ fi
 
 # DaisyNFS cannot handle directories with more than 1024 files, so delete excess files
 
-find $LINUX -type d -printf '%p %i\n' | while read outername outerinode
-do
-count=$(find $outername -type d -maxdepth 1 | wc -l)
-remain=$(expr 1024 - $count)
-find $outername -type f -maxdepth 1 -printf '%p %i\n' | sort -n | head -n -$remain | while read name inode
-do
-	    find $outername -inum "$inode" -delete
-	    echo "delete $name"
-done
+find $LINUX -type d -printf '%p %i\n' | while read outername outerinode; do
+    count=$(find $outername -type d -maxdepth 1 | wc -l)
+    remain=$(expr 1024 - $count)
+    find $outername -type f -maxdepth 1 -printf '%p %i\n' | sort -n | head -n -$remain | while read name inode; do
+        find $outername -inum "$inode" -delete
+        echo "delete $name"
+    done
 done
 
 # DaisyNFS cannot handle symbolic links, so delete them

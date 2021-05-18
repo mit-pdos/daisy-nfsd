@@ -4,7 +4,7 @@
 # Usage:  ./run-dafny-nfs.sh  go run ./cmd/fs-smallfile
 #
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # root of repo
 cd "$DIR"/..
 
@@ -62,7 +62,7 @@ function cleanup {
     ./bench/stop-dafny-nfs.sh
     # only zero regular files
     if [ -f "$disk_file" ]; then
-       rm -f "$disk_file"
+        rm -f "$disk_file"
     fi
 }
 trap cleanup EXIT
