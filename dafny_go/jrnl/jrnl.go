@@ -2,8 +2,8 @@ package jrnl
 
 import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
-	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/twophase"
+	"github.com/mit-pdos/go-journal/addr"
+	"github.com/mit-pdos/go-journal/twophase"
 	"github.com/tchajed/goose/machine/disk"
 )
 

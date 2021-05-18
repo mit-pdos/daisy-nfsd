@@ -1,6 +1,6 @@
 package jrnl
 
-import "github.com/mit-pdos/goose-nfsd/alloc"
+import "github.com/mit-pdos/go-journal/alloc"
 
 type Allocator struct {
 	alloc alloc.Alloc
