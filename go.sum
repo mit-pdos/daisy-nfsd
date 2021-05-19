@@ -20,6 +20,8 @@ github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m
 github.com/mit-pdos/go-journal v0.0.0-20210518170312-a289a2ecaa2b/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
 github.com/mit-pdos/go-journal v0.1.0 h1:FObyAkoDR+2wFupbnAfiGZTC/Ku8QKn0MLIkBAdTC6w=
 github.com/mit-pdos/go-journal v0.1.0/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
+github.com/mit-pdos/go-journal v0.2.1 h1:jhk6W78j13eBA50Xrzn+HYXQQdRiKfuEh894XatZt7s=
+github.com/mit-pdos/go-journal v0.2.1/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
 github.com/mit-pdos/goose-nfsd v0.2.0 h1:NO0nAWjmpk8MqJXLXNUaO7IJYWn3RMT91PHC4LAflXM=
 github.com/mit-pdos/goose-nfsd v0.2.0/go.mod h1:CWZQ9A6aSvrcCZheEYlMmKARn/7qTaecSAqoPAFR2xU=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
