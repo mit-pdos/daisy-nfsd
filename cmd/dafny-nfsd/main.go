@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -90,6 +91,19 @@ func main() {
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 
 	flag.Parse()
+
+	buildInfo, okbi := debug.ReadBuildInfo()
+	if !okbi {
+		log.Printf("Failed to read build info")
+	} else {
+		log.Printf("BuildInfo: Main: %+v", buildInfo.Main)
+		for _, depmod := range buildInfo.Deps {
+			log.Printf("BuildInfo: Dependency: %+v", depmod)
+			if depmod.Replace != nil {
+				log.Printf("BuildInfo: ---> replaced with: %+v", *depmod.Replace)
+			}
+		}
+	}
 
 	// some extra space to hold the log and file-system metadata
 	// (this is in blocks, so it only adds 4MB per 1000 blocks)
