@@ -47,11 +47,6 @@ done
 
 set -eu
 
-if [[ -n "$disk_file" ]] && [[ ! -e "$disk_file" ]]; then
-    dd status=none if=/dev/zero of="$disk_file" bs=4K count=$((size_mb * 1024 / 4))
-    sync "$disk_file"
-fi
-
 if [ -z "$cpu_list" ]; then
     ./bench/start-dafny-nfs.sh -disk "$disk_file" -size "$size_mb" "${extra_args[@]}" || exit 1
 else
