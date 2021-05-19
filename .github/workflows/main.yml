@@ -69,3 +69,35 @@ jobs:
       - name: Run syscall tests
         run: |
           ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
+  test-macos:
+    name: Test NFS server (macOS)
+    runs-on: macos-10.15
+    timeout-minutes: 10
+    steps:
+      - name: Install Dafny
+        uses: tchajed/setup-dafny-action@v1
+        with:
+          dafny-version: ${{ env.dafny }}
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.go }}
+      - uses: actions/checkout@v2
+      - name: Install goimports
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+      - name: Compile
+        run: |
+          make compile
+          go build ./cmd/dafny-nfsd
+      - name: Setup
+        run: |
+          echo "::group::Start NFS services"
+          ./etc/ci-macos-setup-nfs.sh
+          echo "::endgroup::"
+      - name: Run syscall tests
+        run: |
+          ./bench/run-dafny-nfs.sh \
+            -disk "/tmp/disk.img" \
+            -nfs-mount-opts "nordirplus,locallocks,retrycnt=10" \
+            -mount-path /tmp/nfs \
+            go run ./cmd/fs-test /tmp/nfs
