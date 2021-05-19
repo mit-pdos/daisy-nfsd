@@ -76,6 +76,8 @@ func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile := flag.String("memprofile", "", "write mem profile to file")
 	mutexprofile := flag.String("mutexprofile", "", "write mutex profile to file")
+	blockprofile := flag.String("blockprofile", "", "write block profile to file")
+
 	var diskfile string
 	flag.StringVar(&diskfile, "disk", "", "file to store disk in (empty uses MemDisk)")
 
@@ -137,6 +139,20 @@ func main() {
 		runtime.SetMutexProfileFraction(1)
 		defer func() {
 			mp := pprof.Lookup("mutex")
+			if mp != nil {
+				mp.WriteTo(f, 0)
+			}
+			f.Close()
+		}()
+	}
+	if *blockprofile != "" {
+		f, err := os.Create(*blockprofile)
+		if err != nil {
+			log.Fatal("could not create block profile: ", err)
+		}
+		runtime.SetBlockProfileRate(1)
+		defer func() {
+			mp := pprof.Lookup("block")
 			if mp != nil {
 				mp.WriteTo(f, 0)
 			}
