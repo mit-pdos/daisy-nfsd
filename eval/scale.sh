@@ -26,6 +26,10 @@ if [ ! -d "$GOOSE_NFSD_PATH" ]; then
     echo "GOOSE_NFSD_PATH is unset" 1>&2
     exit 1
 fi
+if [ ! -d "$GO_JRNL_PATH" ]; then
+    echo "GO_JRNL_PATH is unset" 1>&2
+    exit 1
+fi
 
 threads=10
 if [[ $# -gt 0 ]]; then
@@ -48,24 +52,22 @@ if [[ $# -gt 0 ]]; then
         IFS="," read -r dnfsver goosever <<<"$var"
 
         info "DafnyNFS-$dnfsver-$goosever smallfile scalability"
-        info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
-        cd "$GOOSE_NFSD_PATH"
+        info "Assuming DafnyNFS is using $GO_JRNL_PATH for GoJournal"
+        cd "$GO_JRNL_PATH"
         git checkout "$goosever" --quiet
-        go build ./cmd/goose-nfsd && rm goose-nfsd
 
         cd "$DAFNY_NFSD_PATH"
         git checkout "$dnfsver" --quiet
-        go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
+        go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
         echo "fs=dfns-$dnfsver-$goosever"
         ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
     done
 
     cd "$DAFNY_NFSD_PATH"
-    go mod edit -dropreplace github.com/mit-pdose/goose-nfsd
+    go mod edit -dropreplace github.com/mit-pdose/go-journal
     git checkout main --quiet
-    cd "$GOOSE_NFSD_PATH"
+    cd "$GO_JRNL_PATH"
     git checkout master --quiet
-    go build ./cmd/goose-nfsd && rm goose-nfsd
 fi
 
 cd "$DAFNY_NFSD_PATH"

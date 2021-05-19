@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Extra DafnyNFSD/GooseNFSD commit combinations can be tried by passing extra
+# Extra DafnyNFSD/GoJournal commit combinations can be tried by passing extra
 # arguments after the first.  For example,
 #
 # > ./bench.sh 1 abc123,xyz456 def123,master
 #
 # Will, in addition to the standard battery of tests, also run DafnyNFSD with
-# commit abc123 using GoJournal from goose-nfsd with commit xyz456 and
-# DafnyNFSD with commit def123 and goose-nfsd master.
+# commit abc123 using GoJournal with commit xyz456 and
+# DafnyNFSD with commit def123 and go-journal master.
 
 # run various performance benchmarks
 
@@ -26,6 +26,10 @@ if [ ! -d "$DAFNY_NFSD_PATH" ]; then
 fi
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
     echo "GOOSE_NFSD_PATH is unset" 1>&2
+    exit 1
+fi
+if [ ! -d "$GO_JRNL_PATH" ]; then
+    echo "GO_JRNL_PATH is unset" 1>&2
     exit 1
 fi
 if [ ! -d "$XV6_PATH" ]; then
@@ -53,14 +57,13 @@ if [[ $# -gt 0 ]]; then
         IFS="," read -r dnfsver goosever <<<"$var"
 
         info "DafnyNFS-$dnfsver-$goosever"
-        info "Assuming DafnyNFS is using $GOOSE_NFSD_PATH for GoJournal"
-        cd "$GOOSE_NFSD_PATH"
+        info "Assuming DafnyNFS is using $GO_JRNL_PATH for GoJournal"
+        cd "$GO_JRNL_PATH"
         git checkout "$goosever" --quiet
-        go build ./cmd/goose-nfsd && rm goose-nfsd
 
         cd "$DAFNY_NFSD_PATH"
         git checkout "$dnfsver" --quiet
-        go mod edit -replace github.com/mit-pdos/goose-nfsd="$GOOSE_NFSD_PATH"
+        go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
         echo "fs=dfns-$dnfsver-$goosever"
         ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
         ./bench/run-dafny-nfs.sh "$GOOSE_NFSD_PATH"/fs-largefile
@@ -68,11 +71,10 @@ if [[ $# -gt 0 ]]; then
     done
 
     cd "$DAFNY_NFSD_PATH"
-    go mod edit -dropreplace github.com/mit-pdose/goose-nfsd
+    go mod edit -dropreplace github.com/mit-pdose/go-journal
     git checkout main --quiet
-    cd "$GOOSE_NFSD_PATH"
-    git checkout master --quiet
-    go build ./cmd/goose-nfsd && rm goose-nfsd
+    cd "$GO_JRNL_PATH"
+    git checkout main --quiet
 fi
 
 cd "$DAFNY_NFSD_PATH"
