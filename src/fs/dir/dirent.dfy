@@ -19,8 +19,12 @@ module DirEntries
     // dirent_sz - 8
   const path_len_u64: uint64 := 56
   const path_len: nat := path_len_u64 as nat
-    // arbitrary limit to prevent integer overflow/overflowing inode max sz
-  const dir_sz_u64: uint64 := 1024
+
+    // this is the maximum directory size in entries
+    //
+    // somewhat arbitrary limit to prevent integer overflow/overflowing inode
+    // max sz
+  const dir_sz_u64: uint64 := 10240
   const dir_sz: nat := dir_sz_u64 as nat
 
   const MAX_FILENAME_SZ: uint64 := path_len_u64

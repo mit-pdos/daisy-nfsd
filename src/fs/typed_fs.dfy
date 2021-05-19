@@ -265,6 +265,7 @@ module TypedFs {
       i := fs.startInode(txn, ino);
       fs.inode_metadata(ino, i);
       if !i.ty().InvalidType? {
+        print "inode allocator returned used inode ", ino, "\n";
         ok := false;
         return;
       }

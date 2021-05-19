@@ -729,6 +729,7 @@ module MemDirEntries
       }
       var sz := file.size();
       if sz >= 64*dir_sz_u64 {
+        print "directory ", file.ino, " cannot be grown further\n";
         ok := false;
         return;
       }

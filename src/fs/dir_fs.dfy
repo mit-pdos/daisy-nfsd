@@ -817,6 +817,7 @@ module DirFs
         if how.Unchecked? {
           // TODO: support creating a file and overwriting existing (rather than
           // failing here)
+          print "returning ERREXIST instead of overwriting\n";
           r := Err(Exist);
         } else {
           r := Err(Exist);
