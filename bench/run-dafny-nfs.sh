@@ -11,6 +11,7 @@ cd "$DIR"/..
 disk_file=/dev/shm/nfs.img
 size_mb=400
 cpu_list=""
+nfs_mount_path="/mnt/nfs"
 extra_args=()
 while true; do
     case "$1" in
@@ -22,6 +23,12 @@ while true; do
     -size)
         shift
         size_mb="$1"
+        shift
+        ;;
+    -mount-path)
+        shift
+        nfs_mount_path="$1"
+        extra_args+=("-mount-path" "$nfs_mount_path")
         shift
         ;;
     --cpu-list)
@@ -54,8 +61,8 @@ else
 fi
 
 function cleanup {
-    ./bench/stop-dafny-nfs.sh
-    # only zero regular files
+    ./bench/stop-dafny-nfs.sh "$mount_path"
+    # only delete regular files
     if [ -f "$disk_file" ]; then
         rm -f "$disk_file"
     fi

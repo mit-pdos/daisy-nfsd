@@ -4,5 +4,10 @@
 # Usage:  ./stop-dafny-nfs.sh
 #
 
+path="$1"
+if [ -z "$path" ]; then
+	path=/mnt/nfs
+fi
+
 killall -s SIGINT dafny-nfsd
-sudo umount -f /mnt/nfs
+sudo umount -f "$path"
