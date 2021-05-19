@@ -96,6 +96,7 @@ jobs:
           echo "::endgroup::"
       - name: Run syscall tests
         run: |
+          rpcinfo -p
           ./bench/run-dafny-nfs.sh \
             -disk "/tmp/disk.img" \
             -nfs-mount-opts "nordirplus,locallocks,retrycnt=10" \
