@@ -3,7 +3,7 @@ package jrnl
 import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
 	"github.com/mit-pdos/go-journal/addr"
-	"github.com/mit-pdos/go-journal/twophase"
+	"github.com/mit-pdos/go-journal/txn"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -19,7 +19,7 @@ func (_ Companion_DefaultStruct) DiskSize(d *Disk) uint64 {
 
 type Blkno = uint64
 type Txn struct {
-	btxn *twophase.TwoPhase
+	txn *txn.Txn
 }
 
 func dafnyAddrToAddr(a Addr) addr.Addr {
@@ -27,48 +27,47 @@ func dafnyAddrToAddr(a Addr) addr.Addr {
 }
 
 type Jrnl struct {
-	tpp *twophase.TwoPhasePre
+	log *txn.Log
 }
 
 func NewJrnl(d *Disk) *Jrnl {
-	tpp := twophase.Init(*d)
-	return &Jrnl{tpp}
+	return &Jrnl{log: txn.Init(*d)}
 }
 
 func (jrnl *Jrnl) Begin() *Txn {
-	return &Txn{btxn: twophase.Begin(jrnl.tpp)}
+	return &Txn{txn: txn.Begin(jrnl.log)}
 }
 
 func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
 	a_ := dafnyAddrToAddr(a)
-	buf := txn.btxn.ReadBuf(a_, sz)
+	buf := txn.txn.ReadBuf(a_, sz)
 	return &bytes.Bytes{Data: buf}
 }
 
 func (txn *Txn) ReadBit(a Addr) bool {
 	a_ := dafnyAddrToAddr(a)
-	return txn.btxn.ReadBufBit(a_)
+	return txn.txn.ReadBufBit(a_)
 }
 
 func (txn *Txn) Write(a Addr, bs *bytes.Bytes) {
 	a_ := dafnyAddrToAddr(a)
-	txn.btxn.OverWrite(a_, bs.Len()*8, bs.Data)
+	txn.txn.OverWrite(a_, bs.Len()*8, bs.Data)
 }
 
 func (txn *Txn) WriteBit(a Addr, b bool) {
 	a_ := dafnyAddrToAddr(a)
-	txn.btxn.OverWriteBit(a_, b)
+	txn.txn.OverWriteBit(a_, b)
 }
 
 func (txn *Txn) Commit() bool {
-	ok := txn.btxn.Commit()
+	ok := txn.txn.Commit()
 	return ok
 }
 
 func (txn *Txn) Abort() {
-	txn.btxn.ReleaseAll()
+	txn.txn.ReleaseAll()
 }
 
 func (txn *Txn) NDirty() uint64 {
-	return txn.btxn.NDirty()
+	return txn.txn.NDirty()
 }

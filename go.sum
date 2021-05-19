@@ -17,10 +17,10 @@ github.com/mattn/go-isatty v0.0.10/go.mod h1:qgIWMr58cqv1PHHyhnkY9lrL7etaEgOFcME
 github.com/mattn/go-isatty v0.0.11/go.mod h1:PhnuNfih5lzO57/f3n+odYbM4JtupLOxQOAqxQCu2WE=
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
-github.com/mit-pdos/go-journal v0.2.1 h1:jhk6W78j13eBA50Xrzn+HYXQQdRiKfuEh894XatZt7s=
-github.com/mit-pdos/go-journal v0.2.1/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
-github.com/mit-pdos/goose-nfsd v0.3.0 h1:hsjNA80egQt3caoqqItdKgztSCvSVYKwOwEDyhab9UA=
-github.com/mit-pdos/goose-nfsd v0.3.0/go.mod h1:czDHeEEQKXvIGmipTYbDmG9bYTOwgUkEtP2DWSZsnu8=
+github.com/mit-pdos/go-journal v0.3.0 h1:P5SyzStjN8kwABJFmFTV4JKw4uB29ImTAgrdBou6xMs=
+github.com/mit-pdos/go-journal v0.3.0/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
+github.com/mit-pdos/goose-nfsd v0.4.0 h1:G0xUd8Y+r1Uy4KT59iFlGZmBDBvSCr+9DZdk9uI5/xI=
+github.com/mit-pdos/goose-nfsd v0.4.0/go.mod h1:7laI6Er82qYRhKLPDMc9CFYdbm1MpOuDntbpPN3Nkrg=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
