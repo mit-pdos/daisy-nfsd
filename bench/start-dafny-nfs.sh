@@ -17,32 +17,32 @@ nfs_mount_opts=""
 nfs_mount_path="/mnt/nfs"
 extra_args=()
 while [[ "$#" -gt 0 ]]; do
-	case "$1" in
-	-disk)
-		shift
-		disk_path="$1"
-		shift
-		;;
-	-nfs-mount-opts)
-		shift
-		nfs_mount_opts="$1"
-		shift
-		;;
-	-mount-path)
-		shift
-		nfs_mount_path="$1"
-		shift
-		;;
-	-*=*)
-		extra_args+=("$1")
-		shift
-		;;
-	-*)
-		extra_args+=("$1" "$2")
-		shift
-		shift
-		;;
-	esac
+    case "$1" in
+    -disk)
+        shift
+        disk_path="$1"
+        shift
+        ;;
+    -nfs-mount-opts)
+        shift
+        nfs_mount_opts="$1"
+        shift
+        ;;
+    -mount-path)
+        shift
+        nfs_mount_path="$1"
+        shift
+        ;;
+    -*=*)
+        extra_args+=("$1")
+        shift
+        ;;
+    -*)
+        extra_args+=("$1" "$2")
+        shift
+        shift
+        ;;
+    esac
 done
 
 # make sure code is compiled in case it takes longer than 2s to build
@@ -64,7 +64,7 @@ killall -0 dafny-nfsd # make sure server is running
 # locks which work fine if there's only one client
 _nfs_mount="vers=3,nordirplus,nolock"
 if [ -n "$nfs_mount_opts" ]; then
-	_nfs_mount="vers=3,nordirplus,$nfs_mount_opts"
+    _nfs_mount="vers=3,nordirplus,$nfs_mount_opts"
 fi
 
 sudo mount -t nfs -o ${_nfs_mount} localhost:/ "$nfs_mount_path"

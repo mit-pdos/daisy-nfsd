@@ -61,7 +61,7 @@ else
 fi
 
 function cleanup {
-    ./bench/stop-dafny-nfs.sh "$mount_path"
+    ./bench/stop-dafny-nfs.sh "$nfs_mount_path"
     # only delete regular files
     if [ -f "$disk_file" ]; then
         rm -f "$disk_file"
