@@ -71,7 +71,7 @@ if [[ $# -gt 0 ]]; then
     done
 
     cd "$DAFNY_NFSD_PATH"
-    go mod edit -dropreplace github.com/mit-pdose/go-journal
+    go mod edit -dropreplace github.com/mit-pdos/go-journal
     git checkout main --quiet
     cd "$GO_JRNL_PATH"
     git checkout main --quiet
