@@ -1,15 +1,15 @@
-# daisy-nfsd
+# DaisyNFS
 
 [![CI](https://github.com/mit-pdos/daisy-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/daisy-nfsd/actions/workflows/main.yml)
 
-A verified crash-safe, concurrent NFS server. The idea is to use a verified
-transaction system from [go-nfsd](https://github.com/mit-pdos/go-nfsd) to
-make each file-system operation appear atomic even though they execute
-concurrently. The atomicity justifies using sequential proofs in Dafny to reason
-about the body of each transaction, which we prove implements an NFS server.
-This proof strategy combines interactive theorem proving in Perennial to reason
-about the tricky concurrency and crash safety in the transaction system with
-automated proofs in Dafny.
+A verified crash-safe, concurrent NFS server. The idea is to make operations
+atomic with a verified transaction system from
+[GoJournal](https://github.com/mit-pdos/go-journal), and then verify the atomic
+behavior of each operation in Dafny. The atomicity justifies using sequential
+proofs in Dafny to reason about the body of each transaction, which we prove
+implements an NFS server. This proof strategy combines interactive theorem
+proving in Perennial to reason about the tricky concurrency and crash safety in
+the transaction system with automated proofs in Dafny.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ There are three main components:
 - The Dafny file-system implementation in [`src/fs`](src/fs/)
 - The Go interfaces assumed by the Dafny code implemented in
   [`dafny_go`](dafny_go/) (the jrnl API is a thin wrapper around the
-  github.com/mit-pdos/go-nfsd/twophase package).
+  github.com/mit-pdos/go-nfsd/txn package).
 - The NFS server binary that calls the verified Dafny code is implemented
   between [`nfsd`](nfsd/) and [`cmd/daisy-nfsd`](cmd/daisy-nfsd/).
 

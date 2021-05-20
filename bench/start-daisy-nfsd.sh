@@ -67,4 +67,4 @@ if [ -n "$nfs_mount_opts" ]; then
     _nfs_mount="vers=3,nordirplus,$nfs_mount_opts"
 fi
 
-sudo mount -t nfs -o ${_nfs_mount} localhost:/ "$nfs_mount_path"
+sudo mount -t nfs -o "${_nfs_mount}" localhost:/ "$nfs_mount_path"
