@@ -74,7 +74,7 @@ if [[ $# -gt 0 ]]; then
     go mod edit -dropreplace github.com/mit-pdos/go-journal
     git checkout main --quiet
     cd "$GO_JRNL_PATH"
-    git checkout main --quiet
+    git checkout master --quiet
 fi
 
 cd "$DAISY_NFSD_PATH"
