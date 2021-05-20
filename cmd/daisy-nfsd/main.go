@@ -19,7 +19,7 @@ import (
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/go-nfsd/nfstypes"
 
-	"github.com/mit-pdos/dafny-nfsd/nfsd"
+	"github.com/mit-pdos/daisy-nfsd/nfsd"
 
 	"github.com/tchajed/goose/machine/disk"
 )
@@ -198,7 +198,7 @@ func main() {
 		start := time.Now()
 		nfs = nfsd.RecoverNfs(d)
 		dur := time.Now().Sub(start).Truncate(10 * time.Millisecond)
-		util.DPrintf(1, "recovered dafny-nfsd from disk in %v", dur)
+		util.DPrintf(1, "recovered daisy-nfsd from disk in %v", dur)
 	} else {
 		nfs = nfsd.MakeNfs(d)
 	}

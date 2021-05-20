@@ -21,7 +21,7 @@ def process_file(src: typing.TextIO, dst: typing.TextIO):
                     impname = parts[0]
                     imppath = parts[1].replace('"', "")
                     if "/" not in imppath and imppath != "reflect":
-                        imppath = "github.com/mit-pdos/dafny-nfsd/dafnygen/" + imppath
+                        imppath = "github.com/mit-pdos/daisy-nfsd/dafnygen/" + imppath
                     l = '%s "%s"\n' % (impname, imppath)
         dst.write(l)
 

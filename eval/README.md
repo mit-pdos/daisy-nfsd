@@ -4,7 +4,7 @@ These scripts use some environment variables that point to a few repositories:
 
 ```
 export GOOSE_NFSD_PATH=~/go-nfsd
-export DAFNY_NFSD_PATH=~/dafny-nfsd
+export DAFNY_NFSD_PATH=~/daisy-nfsd
 export XV6_PATH=~/xv6-public
 export LTP_PATH=~/ltp
 ```
@@ -15,7 +15,7 @@ You'll need to clone
 [linux-test-project/ltp](https://github.com/linux-test-project/ltp) (this last
 one is only needed to run the stress tests).
 
-This repo is [mit-pdos/dafny-nfsd](https://github.com/mit-pdos/dafny-nfsd).
+This repo is [mit-pdos/daisy-nfsd](https://github.com/mit-pdos/daisy-nfsd).
 
 ## smallfile, largefile, and app benchmarks
 

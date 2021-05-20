@@ -9,8 +9,8 @@ info() {
     echo -e "${blue}$1${reset}" 1>&2
 }
 
-if [ ! -d "$DAFNY_NFSD_PATH" ]; then
-    echo "DAFNY_NFSD_PATH is unset" 1>&2
+if [ ! -d "$DAISY_NFSD_PATH" ]; then
+    echo "DAISY_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 if [ ! -d "$GO_NFSD_PATH" ]; then
@@ -29,12 +29,12 @@ bench=$2
 # drive)
 disk_path="$HOME"
 
-fbenchrunner=$DAFNY_NFSD_PATH/eval/run-filebench.sh
+fbenchrunner=$DAISY_NFSD_PATH/eval/run-filebench.sh
 
-cd "$DAFNY_NFSD_PATH"
+cd "$DAISY_NFSD_PATH"
 info "DafnyNFS filebench scalability"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
+./bench/run-daisy-nfsd.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
 cd "$GO_NFSD_PATH"
 echo 1>&2

@@ -66,12 +66,12 @@ Verifying CheckWellformed$$IndFs.IndFilesys.write ...
 
 Verifying Impl$$IndFs.IndFilesys.write ...
   [9.172 s, 114 proof obligations]  error
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(379,10): Error: A postcondition might not hold on this return path.
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(360,14): Related location: This is the postcondition that might not hold.
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(339,9): Related location
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(330,9): Related location
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(289,10): Related location
-/Users/tchajed/code/dafny-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(290,68): Related location
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(379,10): Error: A postcondition might not hold on this return path.
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(360,14): Related location: This is the postcondition that might not hold.
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(339,9): Related location
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(330,9): Related location
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(289,10): Related location
+/Users/tchajed/code/daisy-nfsd/src/Dafny/examples/fs/indirect_fs.dfy(290,68): Related location
 Execution trace:
     (0,0): anon0
     (0,0): anon10_Then

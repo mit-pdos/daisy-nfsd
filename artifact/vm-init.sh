@@ -2,7 +2,7 @@
 
 set -eu
 
-VM=dafny-vm
+VM=daisy-nfs-vm
 if [ $# -ge 1 ]; then
   VM="$1"
 fi
@@ -18,6 +18,6 @@ multipass exec "$VM" -- wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/m
 multipass exec "$VM" -- sh install.sh --unattended
 multipass exec "$VM" -- rm install.sh
 multipass exec "$VM" -- sudo chsh -s /usr/bin/zsh ubuntu
-multipass exec "$VM" -- git clone https://github.com/mit-pdos/dafny-nfsd
+multipass exec "$VM" -- git clone https://github.com/mit-pdos/daisy-nfsd
 multipass exec "$VM" -- git config --global pull.ff only
 multipass stop "$VM"

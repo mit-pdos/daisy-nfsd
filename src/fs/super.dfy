@@ -52,7 +52,7 @@ module FsKinds {
     const disk_size: nat := add_nats(data_start, num_data_blocks)
   }
 
-  // the static dafny-nfsd superblock config
+  // the static daisy-nfsd superblock config
   //
   // if you update these, remember to update super_size() below
   // (the Dafny server has a bug where it will not always re-do that proof after
@@ -138,7 +138,7 @@ module FsKinds {
         if m == 0 {
           expect false, "magic is 0, file system seems to not be initialized";
         }
-        expect false, "magic is incorrect, not a dafny-nfsd file system";
+        expect false, "magic is incorrect, not a daisy-nfsd file system";
       }
       var inode_blocks := Marshal.UInt64Decode(b, 8, sb0.info.inode_blocks as uint64);
       expect inode_blocks == super.inode_blocks as uint64, "number of inode blocks has changed";

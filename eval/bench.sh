@@ -20,8 +20,8 @@ info() {
     echo -e "${blue}$1${reset}" 1>&2
 }
 
-if [ ! -d "$DAFNY_NFSD_PATH" ]; then
-    echo "DAFNY_NFSD_PATH is unset" 1>&2
+if [ ! -d "$DAISY_NFSD_PATH" ]; then
+    echo "DAISY_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 if [ ! -d "$GO_NFSD_PATH" ]; then
@@ -61,30 +61,30 @@ if [[ $# -gt 0 ]]; then
         cd "$GO_JRNL_PATH"
         git checkout "$goosever" --quiet
 
-        cd "$DAFNY_NFSD_PATH"
+        cd "$DAISY_NFSD_PATH"
         git checkout "$dnfsver" --quiet
         go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
         echo "fs=dfns-$dnfsver-$goosever"
-        ./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-        ./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/fs-largefile
-        ./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+        ./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+        ./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-largefile
+        ./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
     done
 
-    cd "$DAFNY_NFSD_PATH"
+    cd "$DAISY_NFSD_PATH"
     go mod edit -dropreplace github.com/mit-pdos/go-journal
     git checkout main --quiet
     cd "$GO_JRNL_PATH"
     git checkout main --quiet
 fi
 
-cd "$DAFNY_NFSD_PATH"
+cd "$DAISY_NFSD_PATH"
 
 echo 1>&2
 info "DafnyNFS"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/fs-largefile
-./bench/run-dafny-nfs.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-largefile
+./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 cd "$GO_NFSD_PATH"
 

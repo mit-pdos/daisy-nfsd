@@ -23,9 +23,9 @@ sudo systemctl restart sshd
 
 # Get source code
 
-## assumes https://github.com/mit-pdos/dafny-nfsd has already been cloned to
-## ~/dafny-nfsd (since this is the easiest way to run this script)
-ln -s ~/dafny-nfsd/eval ~/artifact
+## assumes https://github.com/mit-pdos/daisy-nfsd has already been cloned to
+## ~/daisy-nfsd (since this is the easiest way to run this script)
+ln -s ~/daisy-nfsd/eval ~/artifact
 
 git clone \
     --recurse-submodules \
@@ -40,7 +40,7 @@ git clone --depth=1 https://github.com/pimlie/ubuntu-mainline-kernel.sh
 cd
 
 cat >> ~/.profile <<EOF
-export DAFNY_NFSD_PATH=$HOME/dafny-nfsd
+export DAISY_NFSD_PATH=$HOME/daisy-nfsd
 export GO_NFSD_PATH=$HOME/code/go-nfsd
 export PERENNIAL_PATH=$HOME/perennial
 export XV6_PATH=$HOME/code/xv6-public

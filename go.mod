@@ -1,4 +1,4 @@
-module github.com/mit-pdos/dafny-nfsd
+module github.com/mit-pdos/daisy-nfsd
 
 go 1.16
 

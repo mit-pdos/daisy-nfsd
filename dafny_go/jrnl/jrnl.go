@@ -1,7 +1,7 @@
 package jrnl
 
 import (
-	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
+	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
 	"github.com/mit-pdos/go-journal/addr"
 	"github.com/mit-pdos/go-journal/txn"
 	"github.com/tchajed/goose/machine/disk"

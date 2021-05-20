@@ -3,7 +3,7 @@
 set -eu
 
 #
-# Usage:  ./start-dafny-nfs.sh <arguments>
+# Usage:  ./start-daisy-nfsd.sh <arguments>
 #
 # default disk is /dev/shm/nfs.img but can be overriden by passing -disk again
 #
@@ -47,10 +47,10 @@ done
 
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile
-go build ./cmd/dafny-nfsd
-./dafny-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
+go build ./cmd/daisy-nfsd
+./daisy-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
 sleep 2
-killall -0 dafny-nfsd # make sure server is running
+killall -0 daisy-nfsd # make sure server is running
 
 # mount options for Linux NFS client:
 #

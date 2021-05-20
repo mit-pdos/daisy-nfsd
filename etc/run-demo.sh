@@ -16,7 +16,7 @@ set -u
 # force color output that matches gold output
 export TERM=xterm-256color
 
-./bench/run-dafny-nfs.sh ./tests/demo.sh /mnt/nfs |
+./bench/run-daisy-nfsd.sh ./tests/demo.sh /mnt/nfs |
     sed -E 's/20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}/2021-05-07 17:53/' |
     tee tests/demo-actual.out
 diff tests/demo-expected.out tests/demo-actual.out

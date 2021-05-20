@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"
+	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
 	"github.com/stretchr/testify/assert"
 	"github.com/tchajed/goose/machine/disk"
 )

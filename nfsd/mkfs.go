@@ -4,8 +4,8 @@ import (
 	"os/user"
 	"strconv"
 
-	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
-	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
+	"github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"
+	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
 
 	"github.com/tchajed/goose/machine/disk"
 )

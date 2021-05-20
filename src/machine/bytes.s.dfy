@@ -1,6 +1,6 @@
 include "machine.dfy"
 
-module {:extern "bytes", "github.com/mit-pdos/dafny-nfsd/dafny_go/bytes"} ByteSlice {
+module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSlice {
     import opened Machine
     import C = Collections
 

@@ -45,7 +45,7 @@ if [ $# -ge 1 ]; then
     scale="$1"
 fi
 
-cd "$DAFNY_NFSD_PATH"
+cd "$DAISY_NFSD_PATH"
 
 # from fsstress -H:
 #
@@ -62,7 +62,7 @@ cd "$DAFNY_NFSD_PATH"
 #   -S               prints the table of operations (omitting zero frequency)
 #
 # we skip symlink and mknod since they aren't supported
-./bench/run-dafny-nfs.sh "$LTP_PATH"/testcases/kernel/fs/fsstress/fsstress \
+./bench/run-daisy-nfsd.sh "$LTP_PATH"/testcases/kernel/fs/fsstress/fsstress \
     -l $((scale * 75)) -n 100 -p 4 -f symlink=0 -f mknod=0 -S -d /mnt/nfs
 
 # from fsx-linux help:
@@ -72,5 +72,5 @@ cd "$DAFNY_NFSD_PATH"
 #
 # disable mapped operations since they don't test the server any more than
 # direct reads/writes
-./bench/run-dafny-nfs.sh "$LTP_PATH"/testcases/kernel/fs/fsx-linux/fsx-linux \
+./bench/run-daisy-nfsd.sh "$LTP_PATH"/testcases/kernel/fs/fsx-linux/fsx-linux \
     -N $((scale * 20000)) -l 1000000 /mnt/nfs/x

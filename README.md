@@ -1,6 +1,6 @@
-# dafny-nfsd
+# daisy-nfsd
 
-[![CI](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml)
+[![CI](https://github.com/mit-pdos/daisy-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/daisy-nfsd/actions/workflows/main.yml)
 
 A verified crash-safe, concurrent NFS server. The idea is to use a verified
 transaction system from [go-nfsd](https://github.com/mit-pdos/go-nfsd) to
@@ -20,7 +20,7 @@ There are three main components:
   [`dafny_go`](dafny_go/) (the jrnl API is a thin wrapper around the
   github.com/mit-pdos/go-nfsd/twophase package).
 - The NFS server binary that calls the verified Dafny code is implemented
-  between [`nfsd`](nfsd/) and [`cmd/dafny-nfsd`](cmd/dafny-nfsd/).
+  between [`nfsd`](nfsd/) and [`cmd/daisy-nfsd`](cmd/daisy-nfsd/).
 
 The Dafny proof is split into three parts:
 
@@ -40,7 +40,7 @@ used for debugging and to implement continuous integration.
 ## Compiling
 
 Run `make` to compile and verify everything, or `make compile` to just compile
-from Dafny to Go. Then you can build the server with `go build ./cmd/dafny-nfsd`.
+from Dafny to Go. Then you can build the server with `go build ./cmd/daisy-nfsd`.
 
 You'll need Dafny 3:
 
@@ -80,7 +80,7 @@ seems to help if you also run `systemctl start rpc-statd` (it should be
 auto-launched when needed, though). The `rpcinfo -p` command is useful for
 verifying that an `portmapper` service is running on port 111.
 
-Now run `go run ./cmd/dafny-nfsd` to start the server (with an in-memory disk)
+Now run `go run ./cmd/daisy-nfsd` to start the server (with an in-memory disk)
 and `sudo mount localhost:/ /mnt/nfs` to mount it using the Linux NFS client.
 
 ### macOS

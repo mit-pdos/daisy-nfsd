@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Usage:  ./run-dafny-nfs.sh  go run ./cmd/fs-smallfile
+# Usage:  ./run-daisy-nfsd.sh  go run ./cmd/fs-smallfile
 #
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -55,13 +55,13 @@ done
 set -eu
 
 if [ -z "$cpu_list" ]; then
-    ./bench/start-dafny-nfs.sh -disk "$disk_file" -size "$size_mb" "${extra_args[@]}" || exit 1
+    ./bench/start-daisy-nfsd.sh -disk "$disk_file" -size "$size_mb" "${extra_args[@]}" || exit 1
 else
-    taskset --cpu-list "$cpu_list" ./bench/start-dafny-nfs.sh -size "$size_mb" -disk "$disk_file" "${extra_args[@]}" || exit 1
+    taskset --cpu-list "$cpu_list" ./bench/start-daisy-nfsd.sh -size "$size_mb" -disk "$disk_file" "${extra_args[@]}" || exit 1
 fi
 
 function cleanup {
-    ./bench/stop-dafny-nfs.sh "$nfs_mount_path"
+    ./bench/stop-daisy-nfsd.sh "$nfs_mount_path"
     # only delete regular files
     if [ -f "$disk_file" ]; then
         rm -f "$disk_file"
@@ -70,6 +70,6 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "# dafny-nfsd -disk $disk_file ${extra_args[*]}" 1>&2
+echo "# daisy-nfsd -disk $disk_file ${extra_args[*]}" 1>&2
 echo "run $*" 1>&2
 "$@"
