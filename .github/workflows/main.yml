@@ -88,7 +88,7 @@ jobs:
       - name: Compile
         run: |
           make compile
-          go build ./cmd/dafny-nfsd
+          go build ./cmd/daisy-nfsd
       - name: Setup
         run: |
           echo "::group::Start NFS services"

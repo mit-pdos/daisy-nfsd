@@ -5,6 +5,6 @@
 /dafnygen
 *.prof
 # from go build
-/dafny-nfsd
+/daisy-nfsd
 # from eval scripts
 /nfs.out
