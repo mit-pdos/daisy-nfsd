@@ -80,7 +80,7 @@ cd "$GO_NFSD_PATH"
 echo 1>&2
 info "GoNFS smallfile scalability"
 echo "fs=gonfs"
-./bench/run-go-nfs.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+./bench/run-go-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
 echo 1>&2
 info "Linux smallfile scalability"

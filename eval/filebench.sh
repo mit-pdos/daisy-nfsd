@@ -40,7 +40,7 @@ cd "$GO_NFSD_PATH"
 echo 1>&2
 info "GoNFS filebench scalability"
 echo "fs=gonfs"
-./bench/run-go-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
+./bench/run-go-nfsd.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
 echo 1>&2
 info "Linux filebench scalability"

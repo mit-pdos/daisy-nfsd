@@ -91,9 +91,9 @@ cd "$GO_NFSD_PATH"
 echo 1>&2
 info "GoNFS"
 echo "fs=gonfs"
-./bench/run-go-nfs.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-./bench/run-go-nfs.sh "$GO_NFSD_PATH"/fs-largefile
-./bench/run-go-nfs.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/fs-largefile
+./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 echo 1>&2
 info "Linux ext4 over NFS"
