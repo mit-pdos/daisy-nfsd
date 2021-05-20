@@ -59,7 +59,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::Test compiled code"
           go test -bench=. -timeout=1m -v ./tests
-          go build ./cmd/dafny-nfsd
+          go build ./cmd/daisy-nfsd
           echo "::endgroup::"
       - name: Setup
         run: |
@@ -68,7 +68,7 @@ jobs:
           echo "::endgroup::"
       - name: Run syscall tests
         run: |
-          ./bench/run-dafny-nfs.sh go run ./cmd/fs-test /mnt/nfs
+          ./bench/run-daisy-nfsd.sh go run ./cmd/fs-test /mnt/nfs
   test-macos:
     name: Test NFS server (macOS)
     runs-on: macos-10.15
@@ -97,7 +97,7 @@ jobs:
       - name: Run syscall tests
         run: |
           rpcinfo -p
-          ./bench/run-dafny-nfs.sh \
+          ./bench/run-daisy-nfsd.sh \
             -disk "/tmp/disk.img" \
             -nfs-mount-opts "nordirplus,locallocks,retrycnt=10" \
             -mount-path /tmp/nfs \
