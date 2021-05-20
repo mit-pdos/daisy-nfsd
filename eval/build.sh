@@ -10,12 +10,12 @@ if [ ! -d "$DAFNY_NFSD_PATH" ]; then
     echo "DAFNY_NFSD_PATH is unset" 1>&2
     exit 1
 fi
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 go build ./cmd/fs-smallfile
 go build ./cmd/fs-largefile
 

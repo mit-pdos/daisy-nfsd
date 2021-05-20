@@ -19,8 +19,10 @@ github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Ky
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
 github.com/mit-pdos/go-journal v0.4.0 h1:YFJv5J/1vuhPmnXpbqZ6UzesUBXtMD5xmBdADhiGFjw=
 github.com/mit-pdos/go-journal v0.4.0/go.mod h1:lIXkEqvoKSzfrsaFYwh7JqKN2IqqCv7OyphUaU3v85g=
-github.com/mit-pdos/goose-nfsd v0.5.0 h1:i/R37rjHklA5J72cEe2oEntvXmPZNwFu3q5rj0Cu+JQ=
-github.com/mit-pdos/goose-nfsd v0.5.0/go.mod h1:FBKxzRtTf+C8mgxC+6HVDlQox86RaMZ33nx5xwmqOuk=
+github.com/mit-pdos/go-nfsd v0.5.0 h1:i/R37rjHklA5J72cEe2oEntvXmPZNwFu3q5rj0Cu+JQ=
+github.com/mit-pdos/go-nfsd v0.5.0/go.mod h1:FBKxzRtTf+C8mgxC+6HVDlQox86RaMZ33nx5xwmqOuk=
+github.com/mit-pdos/go-nfsd v0.6.0 h1:IwWOf6jMiEmv+IT7KnFeaqdkcqoo34D/jNXsBqd7+WY=
+github.com/mit-pdos/go-nfsd v0.6.0/go.mod h1:X7Z9O5HJ8yT/zsjsVkQbVQpLaRm8UoCE7eSp+YkfAyE=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

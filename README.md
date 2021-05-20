@@ -3,7 +3,7 @@
 [![CI](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml/badge.svg)](https://github.com/mit-pdos/dafny-nfsd/actions/workflows/main.yml)
 
 A verified crash-safe, concurrent NFS server. The idea is to use a verified
-transaction system from [goose-nfsd](https://github.com/mit-pdos/goose-nfsd) to
+transaction system from [go-nfsd](https://github.com/mit-pdos/go-nfsd) to
 make each file-system operation appear atomic even though they execute
 concurrently. The atomicity justifies using sequential proofs in Dafny to reason
 about the body of each transaction, which we prove implements an NFS server.
@@ -18,7 +18,7 @@ There are three main components:
 - The Dafny file-system implementation in [`src/fs`](src/fs/)
 - The Go interfaces assumed by the Dafny code implemented in
   [`dafny_go`](dafny_go/) (the jrnl API is a thin wrapper around the
-  github.com/mit-pdos/goose-nfsd/twophase package).
+  github.com/mit-pdos/go-nfsd/twophase package).
 - The NFS server binary that calls the verified Dafny code is implemented
   between [`nfsd`](nfsd/) and [`cmd/dafny-nfsd`](cmd/dafny-nfsd/).
 
@@ -58,7 +58,7 @@ go install golang.org/x/tools/cmd/goimports@latest
 
 Then you can run some sanity tests over the bank and file-system examples.
 These are ordinary Go tests that import the code generated from Dafny and
-run it, linking with [goose-nfsd](https://github.com/mit-pdos/goose-nfsd),
+run it, linking with [go-nfsd](https://github.com/mit-pdos/go-nfsd),
 specifically with its `twophase` package. To run these tests,
 after compiling with `make compile`, run:
 
@@ -103,7 +103,7 @@ We provide a library at `dafny_go` that exports some external APIs that are
 axiomatized using `{:extern}` modules, classes, and methods in Dafny. Some of
 these are core primitives, like `[]byte` and little-endian encoding, while the
 big one is the `jrnl` package which interfaces between Dafny and
-`github.com/mit-pdos/goose-nfsd/txn`.
+`github.com/mit-pdos/go-nfsd/txn`.
 
 The support library is trusted and hence its agreement with the Dafny spec is
 important.

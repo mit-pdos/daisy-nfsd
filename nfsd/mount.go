@@ -2,7 +2,7 @@ package nfsd
 
 import (
 	dirfs "github.com/mit-pdos/dafny-nfsd/dafnygen/DirFs_Compile"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 
 	"log"
 )

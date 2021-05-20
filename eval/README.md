@@ -3,14 +3,14 @@
 These scripts use some environment variables that point to a few repositories:
 
 ```
-export GOOSE_NFSD_PATH=~/goose-nfsd
+export GOOSE_NFSD_PATH=~/go-nfsd
 export DAFNY_NFSD_PATH=~/dafny-nfsd
 export XV6_PATH=~/xv6-public
 export LTP_PATH=~/ltp
 ```
 
 You'll need to clone
-[mit-pdos/goose-nfsd](https://github.com/mit-pdos/goose-nfsd),
+[mit-pdos/go-nfsd](https://github.com/mit-pdos/go-nfsd),
 [mit-pdos/xv6-public](https://github.com/mit-pdos/xv6-public), and
 [linux-test-project/ltp](https://github.com/linux-test-project/ltp) (this last
 one is only needed to run the stress tests).

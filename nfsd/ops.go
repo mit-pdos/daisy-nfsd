@@ -18,7 +18,7 @@ import (
 	"github.com/mit-pdos/dafny-nfsd/dafny_go/jrnl"
 
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 var _ = fmt.Printf

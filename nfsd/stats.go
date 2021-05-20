@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 const NUM_NFS_OPS = 22

@@ -17,7 +17,7 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 
 	"github.com/mit-pdos/dafny-nfsd/nfsd"
 

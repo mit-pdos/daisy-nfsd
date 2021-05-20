@@ -6,8 +6,8 @@
 # > ./scale.sh 1 abc123,xyz456 def123,master
 #
 # Will, in addition to the standard battery of tests, also run DafnyNFSD with
-# commit abc123 using GoJournal from goose-nfsd with commit xyz456 and
-# DafnyNFSD with commit def123 and goose-nfsd master.
+# commit abc123 using GoJournal from go-nfsd with commit xyz456 and
+# DafnyNFSD with commit def123 and go-nfsd master.
 
 set -eu
 
@@ -22,8 +22,8 @@ if [ ! -d "$DAFNY_NFSD_PATH" ]; then
     echo "DAFNY_NFSD_PATH is unset" 1>&2
     exit 1
 fi
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 if [ ! -d "$GO_JRNL_PATH" ]; then
@@ -42,7 +42,7 @@ shift
 # drive)
 disk_path="$HOME/disk.img"
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 go build ./cmd/fs-smallfile
 go build ./cmd/fs-largefile
 
@@ -60,7 +60,7 @@ if [[ $# -gt 0 ]]; then
         git checkout "$dnfsver" --quiet
         go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
         echo "fs=dfns-$dnfsver-$goosever"
-        ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
+        ./bench/run-dafny-nfs.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
     done
 
     cd "$DAFNY_NFSD_PATH"
@@ -74,15 +74,15 @@ cd "$DAFNY_NFSD_PATH"
 echo 1>&2
 info "DafnyNFS smallfile scalability"
 echo "fs=dnfs"
-./bench/run-dafny-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
+./bench/run-dafny-nfs.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 echo 1>&2
 info "GoNFS smallfile scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
+./bench/run-go-nfs.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
 echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
-./bench/run-linux.sh -disk "$disk_path" "$GOOSE_NFSD_PATH"/fs-smallfile -threads="$threads"
+./bench/run-linux.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"

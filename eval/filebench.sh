@@ -13,8 +13,8 @@ if [ ! -d "$DAFNY_NFSD_PATH" ]; then
     echo "DAFNY_NFSD_PATH is unset" 1>&2
     exit 1
 fi
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 
@@ -36,11 +36,11 @@ info "DafnyNFS filebench scalability"
 echo "fs=dnfs"
 ./bench/run-dafny-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 echo 1>&2
 info "GoNFS filebench scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
+./bench/run-go-nfs.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 
 echo 1>&2
 info "Linux filebench scalability"

@@ -33,7 +33,7 @@ git clone \
 
 mkdir ~/code
 cd ~/code
-git clone https://github.com/mit-pdos/goose-nfsd
+git clone https://github.com/mit-pdos/go-nfsd
 git clone https://github.com/mit-pdos/xv6-public
 git clone --depth=1 https://github.com/linux-test-project/ltp
 git clone --depth=1 https://github.com/pimlie/ubuntu-mainline-kernel.sh
@@ -41,7 +41,7 @@ cd
 
 cat >> ~/.profile <<EOF
 export DAFNY_NFSD_PATH=$HOME/dafny-nfsd
-export GOOSE_NFSD_PATH=$HOME/code/goose-nfsd
+export GO_NFSD_PATH=$HOME/code/go-nfsd
 export PERENNIAL_PATH=$HOME/perennial
 export XV6_PATH=$HOME/code/xv6-public
 export LTP_PATH=$HOME/code/ltp
@@ -72,7 +72,7 @@ echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)" | sudo tee -a /
 sudo systemctl enable rpcbind
 sudo systemctl enable rpc-statd
 sudo systemctl disable nfs-server
-# can't run goose-nfsd and Linux NFS server at the same time
+# can't run go-nfsd and Linux NFS server at the same time
 sudo systemctl stop nfs-server
 
 # Set up Linux file-system tests
@@ -104,9 +104,9 @@ echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
 export PATH=/usr/local/go/bin:$PATH
 go install golang.org/x/tools/cmd/goimports@latest
 
-cd ~/code/goose-nfsd
+cd ~/code/go-nfsd
 # fetch dependencies
-go build ./cmd/goose-nfsd && rm goose-nfsd
+go build ./cmd/go-nfsd && rm go-nfsd
 cd
 
 # Install Coq
