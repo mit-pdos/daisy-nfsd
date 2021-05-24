@@ -19,8 +19,6 @@ github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Ky
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
 github.com/mit-pdos/go-journal v0.4.0 h1:YFJv5J/1vuhPmnXpbqZ6UzesUBXtMD5xmBdADhiGFjw=
 github.com/mit-pdos/go-journal v0.4.0/go.mod h1:lIXkEqvoKSzfrsaFYwh7JqKN2IqqCv7OyphUaU3v85g=
-github.com/mit-pdos/go-nfsd v0.5.0 h1:i/R37rjHklA5J72cEe2oEntvXmPZNwFu3q5rj0Cu+JQ=
-github.com/mit-pdos/go-nfsd v0.5.0/go.mod h1:FBKxzRtTf+C8mgxC+6HVDlQox86RaMZ33nx5xwmqOuk=
 github.com/mit-pdos/go-nfsd v0.6.0 h1:IwWOf6jMiEmv+IT7KnFeaqdkcqoo34D/jNXsBqd7+WY=
 github.com/mit-pdos/go-nfsd v0.6.0/go.mod h1:X7Z9O5HJ8yT/zsjsVkQbVQpLaRm8UoCE7eSp+YkfAyE=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
@@ -42,8 +40,9 @@ github.com/tchajed/goose v0.2.0/go.mod h1:Y2zBxxd3wa0lrYRDyebxZgbgV4LLsPUtsBiLe1
 github.com/tchajed/mailboat v0.0.0-20191026015926-338a5b81ac1d/go.mod h1:dmgNTEH0kreeKMWd+ntzsrp7ie2LWHGMe7VxP6d1Aew=
 github.com/tchajed/mailboat v0.2.0/go.mod h1:aKa/T1YCMVZFM2xbXnMNyp9r4k0pPni4+sJ8GoY51Hw=
 github.com/tchajed/marshal v0.0.0-20200707011626-0d2aa09818a9/go.mod h1:TPo3bTYJkH87/4rXlxe0bpVWLnN+b5kjJnoXHLBfdaA=
-github.com/tchajed/marshal v0.1.0 h1:PWlQivQOw2/zq12ungtkppOuA8uONeeU9QOl95AU1uk=
 github.com/tchajed/marshal v0.1.0/go.mod h1:jq2B5uP+QvY51sZB57Td/OsareaZEzm3HVuvVKhC22I=
+github.com/tchajed/marshal v0.2.0 h1:6syf2SG3//AE891aHhj6BS+fv3OCMxFM322x05ot3QE=
+github.com/tchajed/marshal v0.2.0/go.mod h1:jq2B5uP+QvY51sZB57Td/OsareaZEzm3HVuvVKhC22I=
 github.com/zeldovich/go-rpcgen v0.1.4 h1:k3ezhjpA5GzqEi0hPm24DgMDiWszk7itmC9JWJxt/50=
 github.com/zeldovich/go-rpcgen v0.1.4/go.mod h1:CaF7Ys1EaK+D18PEYCmjISruqU1z98Cw+F/fwNUj4KQ=
 golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
