@@ -851,15 +851,17 @@ module IndFs
     // zero an intermediate metadata block where children are already zero
     //
     // intermediate means this method only handles the single- and
-    // double-indirect blocks under the triple indirect block, where the parent
-    // is another block (and not the inode) and this block only has pointers so
-    // changing it to a zero doesn't affect the data
+    // double-indirect blocks under the double/triple indirect blocks, where the
+    // parent is another block (and not the inode) and this block only has
+    // pointers so changing it to a zero doesn't affect the data
     method zeroOutIntermediateIndirectWithParent(txn: Txn,
       pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
-      requires 0 < pos.ilevel < 3 && pos.idx.k == 11
+      // the level of the pos should intermediate: not data (0) and not root in
+      // the inode (config.ilevels[pos.idx.k])
+      requires 0 < pos.ilevel < config.ilevels[pos.idx.k]
       requires children_zero(pos, to_blkno)
       requires ibn != 0
       requires ibn == to_blkno[pos.parent()]

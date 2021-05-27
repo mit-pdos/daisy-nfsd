@@ -12,7 +12,7 @@ module Inode {
   import opened Marshal
   import C = Collections
 
-  const MAX_SZ_u64: uint64 := 4096 * (8 + 3*512 + 512*512*512);
+  const MAX_SZ_u64: uint64 := 4096 * (8 + 2*512 + 512*512 + 512*512*512);
   const MAX_SZ: nat := MAX_SZ_u64 as nat;
 
   datatype InodeType = InvalidType | FileType | DirType
