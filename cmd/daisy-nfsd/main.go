@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/pprof"
 	"runtime/debug"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -72,6 +72,21 @@ func reportStats(stats []nfsd.OpCount) {
 	}
 }
 
+func logBuildInfo() {
+	buildInfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		log.Printf("Failed to read build info")
+		return
+	}
+	log.Printf("BuildInfo: Main: %+v", buildInfo.Main)
+	for _, depmod := range buildInfo.Deps {
+		log.Printf("BuildInfo: Dependency: %+v", depmod)
+		if depmod.Replace != nil {
+			log.Printf("BuildInfo: ---> replaced with: %+v", *depmod.Replace)
+		}
+	}
+}
+
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile := flag.String("memprofile", "", "write mem profile to file")
@@ -90,21 +105,14 @@ func main() {
 	var dumpStats bool
 	flag.BoolVar(&dumpStats, "stats", false, "dump stats to stderr on exit")
 
+	var printBuildInfo bool
+	flag.BoolVar(&printBuildInfo, "build-info", false, "log build info")
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 
 	flag.Parse()
 
-	buildInfo, okbi := debug.ReadBuildInfo()
-	if !okbi {
-		log.Printf("Failed to read build info")
-	} else {
-		log.Printf("BuildInfo: Main: %+v", buildInfo.Main)
-		for _, depmod := range buildInfo.Deps {
-			log.Printf("BuildInfo: Dependency: %+v", depmod)
-			if depmod.Replace != nil {
-				log.Printf("BuildInfo: ---> replaced with: %+v", *depmod.Replace)
-			}
-		}
+	if printBuildInfo {
+		logBuildInfo()
 	}
 
 	// some extra space to hold the log and file-system metadata
@@ -197,7 +205,7 @@ func main() {
 		}
 		start := time.Now()
 		nfs = nfsd.RecoverNfs(d)
-		dur := time.Now().Sub(start).Truncate(10 * time.Millisecond)
+		dur := time.Since(start).Truncate(10 * time.Millisecond)
 		util.DPrintf(1, "recovered daisy-nfsd from disk in %v", dur)
 	} else {
 		nfs = nfsd.MakeNfs(d)
