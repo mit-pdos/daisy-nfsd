@@ -913,6 +913,17 @@ module DirFs
       return Inode.Attrs(attrs0.ty, mode, uid, gid, mtime);
     }
 
+    static method MkdirAttributes(sattr: Sattr3)
+      returns (attrs: Inode.Attrs)
+      ensures has_mkdir_attrs(attrs, sattr)
+    {
+      var sattr := sattr;
+      if sattr.mtime.DontChange? {
+        sattr := sattr.(mtime := SetToServerTime);
+      }
+      attrs := SetattrAttributes(sattr, Inode.Attrs.zero_dir);
+    }
+
     method SETATTRdir(txn: Txn, ino: Ino, i: MemInode, attrs: Sattr3)
       returns (r:Result<()>, ghost attrs': Inode.Attrs)
       modifies Repr, i.Repr
@@ -1284,7 +1295,7 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && old(is_pathc(name.data))
-      && has_set_attrs(Inode.Attrs.zero_dir, attrs', sattr)
+      && has_mkdir_attrs(attrs', sattr)
       && data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], d0.attrs);
@@ -1297,7 +1308,7 @@ module DirFs
         r := Err(NameTooLong);
         return;
       }
-      var attrs'_val := SetattrAttributes(sattr, Inode.Attrs.zero_dir);
+      var attrs'_val := MkdirAttributes(sattr);
       attrs' := attrs'_val;
       var ok, ino := allocDir(txn, attrs'_val);
       if !ok {

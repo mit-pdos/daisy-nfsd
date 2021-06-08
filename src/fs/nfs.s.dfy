@@ -203,6 +203,18 @@ module Nfs {
     && attrs.mode == ((7 as bv32 << 6) | (5 as bv32 << 3) | (5 as bv32)) as uint32
   }
 
+  predicate has_mkdir_attrs(attrs: Inode.Attrs, sattr: Sattr3)
+  {
+    && attrs.ty.DirType?
+    && attrs.mode == sattr.mode.get_default(0)
+    && attrs.uid == sattr.uid.get_default(0)
+    && attrs.gid == sattr.gid.get_default(0)
+    // Linux calls MKDIR with DontChange, but we expect it to get a creation
+    // timestamp somehow
+    // && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
+    && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
+  }
+
   predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
   {
     && attrs.ty == attrs0.ty
