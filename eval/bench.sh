@@ -37,6 +37,34 @@ if [ ! -d "$XV6_PATH" ]; then
     exit 1
 fi
 
+usage() {
+    echo "Usage: $0 [-o | --output OUTFILE]" 1>&2
+}
+
+output_file="$DAISY_NFSD_PATH/eval/data/bench-raw.txt"
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+    -o | --output)
+        shift
+        output_file="$1"
+        shift
+        ;;
+    -help | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        echo "Unknown option $1" 1>&2
+        usage
+        exit 0
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+output_file=$(realpath "$output_file")
+
 startthreads=1
 threads=10
 if [[ $# -gt 0 ]]; then
@@ -79,25 +107,33 @@ fi
 
 cd "$DAISY_NFSD_PATH"
 
-echo 1>&2
-info "DafnyNFS"
-echo "fs=dnfs"
-./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/fs-largefile
-./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+do_eval() {
+    echo 1>&2
+    info "DafnyNFS"
+    echo "fs=dnfs"
+    ./bench/run-daisy-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+    ./bench/run-daisy-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-largefile
+    ./bench/run-daisy-nfsd.sh -disk "" "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
-cd "$GO_NFSD_PATH"
+    cd "$GO_NFSD_PATH"
 
-echo 1>&2
-info "GoNFS"
-echo "fs=gonfs"
-./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/fs-largefile
-./bench/run-go-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    echo 1>&2
+    info "GoNFS"
+    echo "fs=gonfs"
+    ./bench/run-go-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+    ./bench/run-go-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-largefile
+    ./bench/run-go-nfsd.sh -disk "" "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
-echo 1>&2
-info "Linux ext4 over NFS"
-echo "fs=linux"
-./bench/run-linux.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
-./bench/run-linux.sh "$GO_NFSD_PATH"/fs-largefile
-./bench/run-linux.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    echo 1>&2
+    info "Linux ext4 over NFS"
+    echo "fs=linux"
+    ./bench/run-linux.sh "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
+    ./bench/run-linux.sh "$GO_NFSD_PATH"/fs-largefile
+    ./bench/run-linux.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+}
+
+if [ "$output_file" = "-" ]; then
+    do_eval
+else
+    do_eval | tee "$output_file"
+fi
