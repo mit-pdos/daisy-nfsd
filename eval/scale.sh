@@ -41,7 +41,7 @@ usage() {
 # the path to store the disk file in (use this to run the benchmarks on a real
 # drive)
 disk_path="$HOME/disk.img"
-output_file="$DAISY_NFSD/eval/data/scale-raw.txt"
+output_file="$DAISY_NFSD_PATH/eval/data/scale-raw.txt"
 
 while true; do
     case "$1" in
