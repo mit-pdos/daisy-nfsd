@@ -18,6 +18,7 @@ import (
 
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/go-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/util/timed_disk"
 
 	"github.com/mit-pdos/daisy-nfsd/nfsd"
 
@@ -198,6 +199,9 @@ func main() {
 			panic("could not create disk file: " + err.Error())
 		}
 	}
+	if dumpStats {
+		d = timed_disk.New(d)
+	}
 	var nfs *nfsd.Nfs
 	if recover {
 		if diskfile == "" {
@@ -227,6 +231,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\n")
 			opCounts := nfs.GetOpStats()
 			reportStats(opCounts)
+			d.(*timed_disk.Disk).WriteStats(os.Stderr)
 		}
 	}()
 	usrSig := make(chan os.Signal, 1)
