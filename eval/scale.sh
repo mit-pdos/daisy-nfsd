@@ -130,7 +130,7 @@ do_eval() {
     go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
 
     echo "fs=serial-dnfs"
-    ./bench/run-daisy-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+    ./bench/run-daisy-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
     go mod edit -dropreplace github.com/mit-pdos/go-journal
     cd "$GO_JRNL_PATH"
