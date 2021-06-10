@@ -40,14 +40,14 @@ usage() {
 
 # the path to store the disk file in (use this to run the benchmarks on a real
 # drive)
-disk_path="$HOME/disk.img"
+disk_file="$HOME/disk.img"
 output_file="$DAISY_NFSD_PATH/eval/data/scale-raw.txt"
 
 while true; do
     case "$1" in
     -disk)
         shift
-        disk_path="$1"
+        disk_file="$1"
         shift
         ;;
     -o | --output)
@@ -97,7 +97,7 @@ do_eval() {
             git checkout "$dnfsver" --quiet
             go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
             echo "fs=dfns-$dnfsver-$goosever"
-            ./bench/run-daisy-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+            ./bench/run-daisy-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
         done
 
         cd "$DAISY_NFSD_PATH"
@@ -111,13 +111,13 @@ do_eval() {
     echo 1>&2
     info "DafnyNFS smallfile scalability"
     echo "fs=dnfs"
-    ./bench/run-daisy-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+    ./bench/run-daisy-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
     cd "$GO_NFSD_PATH"
     echo 1>&2
     info "Linux smallfile scalability"
     echo "fs=linux"
-    ./bench/run-linux.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+    ./bench/run-linux.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
     echo 1>&2
     info "Serial DaisyNFS (holding locks)"
@@ -130,7 +130,7 @@ do_eval() {
     go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
 
     echo "fs=serial-dnfs"
-    ./bench/run-daisy-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+    ./bench/run-daisy-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
     go mod edit -dropreplace github.com/mit-pdos/go-journal
     cd "$GO_JRNL_PATH"
@@ -140,7 +140,7 @@ do_eval() {
     echo 1>&2
     info "GoNFS smallfile scalability"
     echo "fs=gonfs"
-    ./bench/run-go-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+    ./bench/run-go-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 }
 
 if [ "$output_file" = "-" ]; then
