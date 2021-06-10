@@ -113,16 +113,34 @@ do_eval() {
     echo "fs=dnfs"
     ./bench/run-daisy-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 
+    echo 1>&2
+    info "Linux smallfile scalability"
+    echo "fs=linux"
+    ./bench/run-linux.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+
+    echo 1>&2
+    info "Serial DaisyNFS (holding locks)"
+
+    # we change the local checkout of go-journal
+    pushd "$GO_JRNL_PATH" >/dev/null
+    git apply "$GO_NFSD_PATH/eval/serial.patch"
+    popd >/dev/null
+    # ... and then also point go-nfsd to the local version
+    go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
+
+    echo "fs=serial-dnfs"
+    ./bench/run-daisy-nfsd.sh -disk "$disk_file" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
+
+    go mod edit -dropreplace github.com/mit-pdos/go-journal
+    pushd "$GO_JRNL_PATH" >/dev/null
+    git restore wal/installer.go wal/logger.go wal/wal.go
+    popd >/dev/null
+
     cd "$GO_NFSD_PATH"
     echo 1>&2
     info "GoNFS smallfile scalability"
     echo "fs=gonfs"
     ./bench/run-go-nfsd.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
-
-    echo 1>&2
-    info "Linux smallfile scalability"
-    echo "fs=linux"
-    ./bench/run-linux.sh -disk "$disk_path" "$GO_NFSD_PATH"/fs-smallfile -threads="$threads"
 }
 
 if [ "$output_file" = "-" ]; then
