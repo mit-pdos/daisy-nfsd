@@ -44,23 +44,23 @@ usage() {
 output_file="$DAISY_NFSD_PATH/eval/data/bench-raw.txt"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-    -o | --output)
-        shift
-        output_file="$1"
-        shift
-        ;;
-    -help | --help)
-        usage
-        exit 0
-        ;;
-    -*)
-        echo "Unknown option $1" 1>&2
-        usage
-        exit 0
-        ;;
-    *)
-        break
-        ;;
+        -o | --output)
+            shift
+            output_file="$1"
+            shift
+            ;;
+        -help | --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option $1" 1>&2
+            usage
+            exit 0
+            ;;
+        *)
+            break
+            ;;
     esac
 done
 output_file=$(realpath "$output_file")

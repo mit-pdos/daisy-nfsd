@@ -45,28 +45,28 @@ output_file="$DAISY_NFSD_PATH/eval/data/scale-raw.txt"
 
 while true; do
     case "$1" in
-    -disk)
-        shift
-        disk_file="$1"
-        shift
-        ;;
-    -o | --output)
-        shift
-        output_file="$1"
-        shift
-        ;;
-    -help | --help)
-        usage
-        exit 0
-        ;;
-    -*)
-        error "unexpected flag $1"
-        usage
-        exit 1
-        ;;
-    *)
-        break
-        ;;
+        -disk)
+            shift
+            disk_file="$1"
+            shift
+            ;;
+        -o | --output)
+            shift
+            output_file="$1"
+            shift
+            ;;
+        -help | --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            error "unexpected flag $1"
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
     esac
 done
 output_file=$(realpath "$output_file")
@@ -144,7 +144,7 @@ do_eval() {
 }
 
 if [ "$output_file" = "-" ]; then
-    do_eval
+    do_eval "$@"
 else
-    do_eval | tee "$output_file"
+    do_eval "$@" | tee "$output_file"
 fi
