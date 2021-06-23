@@ -306,7 +306,7 @@ module TypedFs {
         ialloc.Free(ino);
     }
 
-    method freeInode(txn: Txn, ino: Ino, i: MemInode)
+    method {:timeLimitMultiplier 2} freeInode(txn: Txn, ino: Ino, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures Valid()
