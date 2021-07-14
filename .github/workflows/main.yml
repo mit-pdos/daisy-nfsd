@@ -10,7 +10,7 @@ on:
 
 # settings shared across all jobs
 env:
-  dafny: "3.1.0"
+  dafny: "3.2.0"
   go: "1.16.x"
 
 jobs:
