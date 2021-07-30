@@ -2,11 +2,11 @@
 
 ## Create image (AMI) with prepped image
 
-Launch i3.large
+Launch an i3.large using Hirsute
 
-Run `bench-vm-setup.sh` (TODO: commit this file)
+Run `setup-image.sh`
 
-Should only take 5 minutes
+Should only take 2-3 minutes
 
 Stop instance
 
@@ -20,7 +20,7 @@ Name image daisy-eval-run
 
 Boot from AMI - need to set instance type (i3.metal) and security group
 
-Run `aws-setup.sh` first (TODO: commit this file)
+Run `aws-setup.sh` first
 
 Run `aws.sh` (TODO: fix this script, unify go-nfsd experimental setup support with
 daisy-nfsd)
