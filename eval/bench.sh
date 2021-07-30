@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Extra DafnyNFSD/GoJournal commit combinations can be tried by passing extra
+# Extra DaisyNFS/GoJournal commit combinations can be tried by passing extra
 # arguments after the first.  For example,
 #
 # > ./bench.sh 1 abc123,xyz456 def123,master
 #
-# Will, in addition to the standard battery of tests, also run DafnyNFSD with
+# Will, in addition to the standard battery of tests, also run DaisyNFS with
 # commit abc123 using GoJournal with commit xyz456 and
-# DafnyNFSD with commit def123 and go-journal master.
+# DaisyNFS with commit def123 and go-journal master.
 
 # run various performance benchmarks
 
@@ -84,8 +84,8 @@ if [[ $# -gt 0 ]]; then
         echo 1>&2
         IFS="," read -r dnfsver goosever <<<"$var"
 
-        info "DafnyNFS-$dnfsver-$goosever"
-        info "Assuming DafnyNFS is using $GO_JRNL_PATH for GoJournal"
+        info "DaisyNFS-$dnfsver-$goosever"
+        info "Assuming DaisyNFS is using $GO_JRNL_PATH for GoJournal"
         cd "$GO_JRNL_PATH"
         git checkout "$goosever" --quiet
 
@@ -109,7 +109,7 @@ cd "$DAISY_NFSD_PATH"
 
 do_eval() {
     echo 1>&2
-    info "DafnyNFS"
+    info "DaisyNFS"
     echo "fs=dnfs"
     ./bench/run-daisy-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-smallfile -start="$startthreads" -threads="$threads"
     ./bench/run-daisy-nfsd.sh -disk "" "$GO_NFSD_PATH"/fs-largefile

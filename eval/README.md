@@ -1,4 +1,4 @@
-# DafnyNFS evaluation
+# DaisyNFS evaluation
 
 These scripts use some environment variables that point to a few repositories:
 

@@ -32,7 +32,7 @@ disk_path="$HOME"
 fbenchrunner=$DAISY_NFSD_PATH/eval/run-filebench.sh
 
 cd "$DAISY_NFSD_PATH"
-info "DafnyNFS filebench scalability"
+info "DaisyNFS filebench scalability"
 echo "fs=dnfs"
 ./bench/run-daisy-nfsd.sh -disk "$disk_path"/disk.img "$fbenchrunner" "$threads" "$bench"
 

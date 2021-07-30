@@ -22,6 +22,6 @@ set style line 3 lt rgb "#A00000" lw 2 pt 2
 set style line 4 lt rgb "#F25900" lw 2 pt 9
 
 plot \
-  "data/dnfs.data" using 1:($2) with linespoints ls 1 title 'DafnyNFS', \
+  "data/dnfs.data" using 1:($2) with linespoints ls 1 title 'DaisyNFS', \
   "data/gnfs.data" using 1:($2) with linespoints ls 2 title 'GoNFS', \
   "data/linux-nfs.data" using 1:($2) with linespoints ls 3 title 'Linux NFS'
