@@ -32,10 +32,10 @@ if [ ! -d "$GO_JRNL_PATH" ]; then
 fi
 
 usage() {
-    echo "Usage: $0 [-ssd SSD_FILE] [-o | --output OUT_FILE] [threads]" 1>&2
+    echo "Usage: $0 [-disk DISK_FILE] [-o | --output OUT_FILE] [threads]" 1>&2
     echo 1>&2
     echo "threads defaults to 10" 1>&2
-    echo "SSD_FILE defaults to ~/disk.img" 1>&2
+    echo "DISK_FILE defaults to ~/disk.img" 1>&2
 }
 
 # the path to store the disk file in (use this to run the benchmarks on a real
