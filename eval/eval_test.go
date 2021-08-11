@@ -2,11 +2,17 @@ package eval
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	_ = os.Setenv("GO_NFSD_PATH", ".")
+	_ = os.Setenv("DAISY_NFSD_PATH", ".")
+}
 
 func TestObservationSerialization(t *testing.T) {
 	assert := assert.New(t)
@@ -51,14 +57,19 @@ app-bench 0.352113 app/s
 
 func TestParseSmallfile(t *testing.T) {
 	assert := assert.New(t)
-	os := SmallfileBench(10).ParseOutput(
+	os := SmallfileBench("10s", 10).ParseOutput(
 		strings.Split(sampleBench, "\n"),
 	)
 	assert.Len(os, 3)
 
 	assert.Equal(Observation{
 		Values: KeyValue{"val": 3076.1},
-		Config: KeyValue{"bench": "smallfile", "start": 10.0, "threads": 10.0},
+		Config: KeyValue{
+			"benchtime": "10s",
+			"bench":     "smallfile",
+			"start":     10.0,
+			"threads":   10.0,
+		},
 	}, os[0])
 
 	assert.Equal(3435.8, os[1].Values["val"])

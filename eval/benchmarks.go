@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"strconv"
 )
@@ -21,8 +22,9 @@ type Benchmark interface {
 }
 
 type regexBench struct {
-	opts  KeyValue
-	regex *regexp.Regexp
+	command string
+	opts    KeyValue
+	regex   *regexp.Regexp
 }
 
 func (b regexBench) Opts() KeyValue {
@@ -40,7 +42,9 @@ func goArgs(kvs []keyValuePair) []string {
 }
 
 func (b regexBench) Command() []string {
-	return goArgs(b.opts.Pairs())
+	args := []string{b.command}
+	args = append(args, goArgs(b.opts.Pairs())...)
+	return args
 }
 
 // parseLineResult matches against a line to identify a benchmark and value
@@ -90,22 +94,29 @@ func (b regexBench) ParseOutput(lines []string) []Observation {
 	return obs
 }
 
-func benchFromRegex(opts KeyValue, r string) Benchmark {
-	return regexBench{opts: opts, regex: regexp.MustCompile(r)}
+func benchFromRegex(command string, opts KeyValue, r string) Benchmark {
+	return regexBench{
+		command: command,
+		opts:    opts,
+		regex:   regexp.MustCompile(r),
+	}
 }
 
 func LargefileBench(fileSizeMb int) Benchmark {
 	return benchFromRegex(
+		path.Join(goNfsdPath(), "cmd/fs-largefile"),
 		KeyValue{"file-size": float64(fileSizeMb)},
 		`fs-(?P<bench>largefile):.* throughput (?P<val>[0-9.]*) MB/s`,
 	)
 }
 
-func SmallfileBench(threads int) Benchmark {
+func SmallfileBench(benchtime string, threads int) Benchmark {
 	return benchFromRegex(
+		path.Join(goNfsdPath(), "cmd/fs-smallfile"),
 		KeyValue{
-			"start":   float64(threads),
-			"threads": float64(threads),
+			"benchtime": benchtime,
+			"start":     float64(threads),
+			"threads":   float64(threads),
 		},
 		`fs-(?P<bench>smallfile): [0-9]+ (?P<val>[0-9.]*) file/sec`,
 	)
@@ -113,7 +124,17 @@ func SmallfileBench(threads int) Benchmark {
 
 func AppBench() Benchmark {
 	return benchFromRegex(
+		path.Join(goNfsdPath(), "bench", "app-bench.sh"),
 		KeyValue{},
 		`(?P<bench>app)-bench (?P<val>[0-9.]*) app/s`,
 	)
+}
+
+func RunBenchmark(fs Fs, b Benchmark) []Observation {
+	lines := fs.Run(b.Command())
+	obs := b.ParseOutput(lines)
+	for i := range obs {
+		obs[i].Config.Extend(fs.opts)
+	}
+	return obs
 }
