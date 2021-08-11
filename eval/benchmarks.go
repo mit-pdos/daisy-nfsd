@@ -12,6 +12,8 @@ type Benchmark interface {
 	// (including bench, the benchmark name, and also eg, size in largefile)
 	Opts() KeyValue
 
+	SetOpt(key string, val interface{})
+
 	// Command to run this benchmark
 	//
 	// does not include file system
@@ -29,6 +31,10 @@ type regexBench struct {
 
 func (b regexBench) Opts() KeyValue {
 	return b.opts
+}
+
+func (b regexBench) SetOpt(key string, val interface{}) {
+	b.opts[key] = val
 }
 
 // goArgs converts key-value pairs to options using Go's flag syntax for
@@ -75,7 +81,8 @@ func (b regexBench) lineToObservation(line string) (o Observation, ok bool) {
 	if !ok {
 		return Observation{}, false
 	}
-	conf := b.opts.Clone()
+	conf := make(KeyValue)
+	conf.ExtendPrefixed("bench/", b.opts)
 	conf["bench"] = bench
 	return Observation{
 		Config: conf,
@@ -134,7 +141,7 @@ func RunBenchmark(fs Fs, b Benchmark) []Observation {
 	lines := fs.Run(b.Command())
 	obs := b.ParseOutput(lines)
 	for i := range obs {
-		obs[i].Config.Extend(fs.opts)
+		obs[i].Config.ExtendPrefixed("fs/", fs.opts)
 	}
 	return obs
 }

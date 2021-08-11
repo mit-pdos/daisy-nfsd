@@ -58,10 +58,10 @@ func (kv KeyValue) Clone() KeyValue {
 	return kv2
 }
 
-// Extend adds all the pairs in newKv to kv
-func (kv KeyValue) Extend(newKv KeyValue) {
+// ExtendPrefixed adds all the pairs in newKv to kv
+func (kv KeyValue) ExtendPrefixed(prefix string, newKv KeyValue) {
 	for k, v := range newKv {
-		kv[k] = v
+		kv[prefix+k] = v
 	}
 }
 
