@@ -38,3 +38,27 @@ func (bs *BenchmarkSuite) Run() []Observation {
 	}
 	return obs
 }
+
+func BenchSuite() []Benchmark {
+	return []Benchmark{
+		LargefileBench(100),
+		SmallfileBench("10s", 10),
+		AppBench(),
+	}
+}
+
+func LargefileSuite() []Benchmark {
+	return []Benchmark{
+		LargefileBench(100),
+	}
+}
+
+func ScaleSuite(threads int) func() []Benchmark {
+	return func() []Benchmark {
+		var bs []Benchmark
+		for i := 0; i < threads; i++ {
+			bs = append(bs, SmallfileBench("10s", i))
+		}
+		return bs
+	}
+}
