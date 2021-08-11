@@ -6,5 +6,6 @@
 *.prof
 # from go build
 /daisy-nfsd
+/daisy-eval
 # from eval scripts
 /nfs.out

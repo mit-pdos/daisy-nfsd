@@ -39,10 +39,10 @@ func (b regexBench) SetOpt(key string, val interface{}) {
 
 // goArgs converts key-value pairs to options using Go's flag syntax for
 // arguments, where KeyValue{"key": "value"} would be passed as -key=value.
-func goArgs(kvs []keyValuePair) []string {
+func goArgs(kvs []KeyValuePair) []string {
 	var args []string
 	for _, kv := range kvs {
-		args = append(args, fmt.Sprintf("-%s=%v", kv.key, kv.val))
+		args = append(args, fmt.Sprintf("-%s=%v", kv.Key, kv.Val))
 	}
 	return args
 }

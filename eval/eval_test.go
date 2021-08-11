@@ -65,10 +65,10 @@ func TestParseSmallfile(t *testing.T) {
 	assert.Equal(Observation{
 		Values: KeyValue{"val": 3076.1},
 		Config: KeyValue{
-			"benchtime": "10s",
-			"bench":     "smallfile",
-			"start":     10.0,
-			"threads":   10.0,
+			"bench/benchtime": "10s",
+			"bench":           "smallfile",
+			"bench/start":     10.0,
+			"bench/threads":   10.0,
 		},
 	}, os[0])
 

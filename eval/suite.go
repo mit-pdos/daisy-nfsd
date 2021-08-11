@@ -5,33 +5,33 @@ import (
 )
 
 type BenchmarkSuite struct {
-	iters       int
-	randomize   bool
-	filesystems []KeyValue
-	benches     func() []Benchmark
+	Iters       int
+	Randomize   bool
+	Filesystems []KeyValue
+	Benches     func() []Benchmark
 }
 
 func (bs *BenchmarkSuite) Run() []Observation {
 	var benches []Benchmark
-	for i := 0; i < bs.iters; i++ {
-		benches := bs.benches()
+	for i := 0; i < bs.Iters; i++ {
+		benches := bs.Benches()
 		for _, b := range benches {
-			b.SetOpt("bench/iter", float64(i))
+			b.SetOpt("meta/iter", float64(i))
 			benches = append(benches, b)
 		}
 	}
-	if bs.randomize {
+	if bs.Randomize {
 		rand.Shuffle(len(benches), func(i int, j int) {
 			benches[i], benches[j] = benches[j], benches[i]
 		})
 	}
-	obs := make([]Observation, 0, len(bs.filesystems)*len(benches))
-	for _, fsOpts := range bs.filesystems {
+	obs := make([]Observation, 0, len(bs.Filesystems)*len(benches))
+	for _, fsOpts := range bs.Filesystems {
 		fs := GetFilesys(fsOpts)
 		for _, b := range benches {
 			newObs := RunBenchmark(fs, b)
 			for i := range newObs {
-				newObs[i].Config["meta/iters"] = float64(bs.iters)
+				newObs[i].Config["meta/iters"] = float64(bs.Iters)
 			}
 			obs = append(obs, newObs...)
 		}
@@ -42,7 +42,7 @@ func (bs *BenchmarkSuite) Run() []Observation {
 func BenchSuite() []Benchmark {
 	return []Benchmark{
 		LargefileBench(100),
-		SmallfileBench("10s", 10),
+		SmallfileBench("20s", 10),
 		AppBench(),
 	}
 }
@@ -60,5 +60,35 @@ func ScaleSuite(threads int) func() []Benchmark {
 			bs = append(bs, SmallfileBench("10s", i))
 		}
 		return bs
+	}
+}
+
+func BasicFilesystems(unstable bool) []KeyValue {
+	ext4Opts := "data=journal"
+	if unstable {
+		ext4Opts = "data=ordered"
+	}
+	return []KeyValue{
+		{
+			"fs-name":        "daisy-nfsd",
+			"disk":           "", // in-memory
+			"size":           float64(500),
+			"nfs-mount-opts": "wsize=65536,rsize=65536",
+		},
+		{
+			"fs-name":        "linux",
+			"fs":             "ext4",
+			"disk":           "/dev/shm/disk.img",
+			"size":           float64(500),
+			"mount-opts":     ext4Opts,
+			"nfs-mount-opts": "wsize=65536,rsize=65536",
+		},
+		{
+			"fs-name":        "go-nfsd",
+			"unstable":       unstable,
+			"disk":           "", // in-memory
+			"size":           float64(500),
+			"nfs-mount-opts": "wsize=65536,rsize=65536",
+		},
 	}
 }

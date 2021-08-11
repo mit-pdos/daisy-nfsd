@@ -39,12 +39,12 @@ func daisyNfsdPath() string {
 //
 // Each key is prefixed with an additional hyphen, so for example
 // KeyValue{"disk": "/dev/shm/disk.img"} will become -disk /dev/shm/disk.img.
-func shellArgs(kvs []keyValuePair) []string {
+func shellArgs(kvs []KeyValuePair) []string {
 	var args []string
 	for _, pair := range kvs {
 		args = append(args,
-			"-"+pair.key, // the key is an option name
-			fmt.Sprintf("%v", pair.val))
+			"-"+pair.Key, // the key is an option name
+			fmt.Sprintf("%v", pair.Val))
 	}
 	return args
 }
