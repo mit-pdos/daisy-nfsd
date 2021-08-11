@@ -64,6 +64,8 @@ func main() {
 	suite.Filesystems = eval.BasicFilesystems(unstable)
 	suite.Benches = eval.BenchSuite
 
+	eval.PrepareBenchmarks()
+
 	obs := suite.Run()
 	if outFile == "" {
 		PrintObservations(obs, os.Stdout)

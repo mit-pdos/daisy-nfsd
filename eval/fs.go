@@ -33,6 +33,10 @@ func daisyNfsdPath() string {
 	return getEnvDir("DAISY_NFSD_PATH")
 }
 
+func xv6Path() string {
+	return getEnvDir("XV6_PATH")
+}
+
 // shellArgs returns kvs treating the keys as argument names,
 // with shell script arguments: each option must have an argument,
 // which is supplied as the next argument.
@@ -59,7 +63,7 @@ func (fs Fs) scriptName() string {
 }
 
 func (fs Fs) Run(command []string) []string {
-	args := shellArgs(fs.opts.Delete("fs-name").Pairs())
+	args := shellArgs(fs.opts.Delete("name").Pairs())
 	args = append(args, command...)
 	cmd := exec.Command(fs.scriptPath, args...)
 	cmd.Stderr = os.Stderr
@@ -72,17 +76,17 @@ func (fs Fs) Run(command []string) []string {
 }
 
 func GetFilesys(conf KeyValue) Fs {
-	name := conf["fs-name"].(string)
+	name := conf["name"].(string)
 	fs := Fs{opts: conf}
 	switch name {
 	case "linux":
-		fs.scriptPath = path.Join(goNfsdPath(), "run-linux.sh")
+		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-linux.sh")
 	case "go-nfsd":
-		fs.scriptPath = path.Join(goNfsdPath(), "run-go-nfsd.sh")
+		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-go-nfsd.sh")
 	case "fscq":
-		fs.scriptPath = path.Join(goNfsdPath(), "run-fscq.sh")
+		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-fscq.sh")
 	case "daisy-nfsd":
-		fs.scriptPath = path.Join(daisyNfsdPath(), "run-daisy-nfsd.sh")
+		fs.scriptPath = path.Join(daisyNfsdPath(), "bench", "run-daisy-nfsd.sh")
 	}
 	return fs
 }

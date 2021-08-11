@@ -9,15 +9,21 @@ import (
 
 // KeyValue is a generic set of key-value pairs
 //
-// expect values to be string, float64, or bool
+// expect values to be string, float64,
+// or bool (or recursively another KeyValue)
 type KeyValue map[string]interface{}
 
 func (kv KeyValue) Validate() error {
 	for key, v := range kv {
-		switch v.(type) {
+		switch v := v.(type) {
 		case string, float64, bool:
 			// allowed, fine
 			continue
+		case KeyValue:
+			err := v.Validate()
+			if err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("key %v is of type %T and not "+
 				"string, float64, or bool", key, v)
@@ -35,7 +41,18 @@ type KeyValuePair struct {
 func (kv KeyValue) Pairs() []KeyValuePair {
 	var pairs []KeyValuePair
 	for key, val := range kv {
-		pairs = append(pairs, KeyValuePair{key, val})
+		switch val := val.(type) {
+		case KeyValue:
+			for _, pair := range val.Pairs() {
+				pairs = append(pairs,
+					KeyValuePair{
+						Key: key + "." + pair.Key,
+						Val: pair.Val,
+					})
+			}
+		default:
+			pairs = append(pairs, KeyValuePair{key, val})
+		}
 	}
 	sort.Slice(pairs, func(i int, j int) bool {
 		return pairs[i].Key < pairs[j].Key
@@ -53,16 +70,14 @@ func (kv KeyValue) Delete(key string) KeyValue {
 func (kv KeyValue) Clone() KeyValue {
 	kv2 := make(KeyValue, len(kv))
 	for k, v := range kv {
-		kv2[k] = v
+		switch v := v.(type) {
+		case KeyValue:
+			kv2[k] = v.Clone()
+		default:
+			kv2[k] = v
+		}
 	}
 	return kv2
-}
-
-// ExtendPrefixed adds all the pairs in newKv to kv
-func (kv KeyValue) ExtendPrefixed(prefix string, newKv KeyValue) {
-	for k, v := range newKv {
-		kv[prefix+k] = v
-	}
 }
 
 type Observation struct {

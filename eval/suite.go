@@ -14,9 +14,8 @@ type BenchmarkSuite struct {
 func (bs *BenchmarkSuite) Run() []Observation {
 	var benches []Benchmark
 	for i := 0; i < bs.Iters; i++ {
-		benches := bs.Benches()
-		for _, b := range benches {
-			b.SetOpt("meta/iter", float64(i))
+		for _, b := range bs.Benches() {
+			b.Config["meta"] = KeyValue{"iter": float64(i)}
 			benches = append(benches, b)
 		}
 	}
@@ -31,7 +30,7 @@ func (bs *BenchmarkSuite) Run() []Observation {
 		for _, b := range benches {
 			newObs := RunBenchmark(fs, b)
 			for i := range newObs {
-				newObs[i].Config["meta/iters"] = float64(bs.Iters)
+				newObs[i].Config["meta"].(KeyValue)["iters"] = float64(bs.Iters)
 			}
 			obs = append(obs, newObs...)
 		}
@@ -70,13 +69,13 @@ func BasicFilesystems(unstable bool) []KeyValue {
 	}
 	return []KeyValue{
 		{
-			"fs-name":        "daisy-nfsd",
+			"name":           "daisy-nfsd",
 			"disk":           "", // in-memory
 			"size":           float64(500),
 			"nfs-mount-opts": "wsize=65536,rsize=65536",
 		},
 		{
-			"fs-name":        "linux",
+			"name":           "linux",
 			"fs":             "ext4",
 			"disk":           "/dev/shm/disk.img",
 			"size":           float64(500),
@@ -84,7 +83,7 @@ func BasicFilesystems(unstable bool) []KeyValue {
 			"nfs-mount-opts": "wsize=65536,rsize=65536",
 		},
 		{
-			"fs-name":        "go-nfsd",
+			"name":           "go-nfsd",
 			"unstable":       unstable,
 			"disk":           "", // in-memory
 			"size":           float64(500),

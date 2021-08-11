@@ -2,39 +2,19 @@ package eval
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"strconv"
 )
 
-type Benchmark interface {
-	// Opts has configuration related to the benchmark workload under test
-	// (including bench, the benchmark name, and also eg, size in largefile)
-	Opts() KeyValue
-
-	SetOpt(key string, val interface{})
-
-	// Command to run this benchmark
-	//
-	// does not include file system
-	Command() []string
-
-	// ParseOutput converts the output of the benchmark to a set of observations
-	ParseOutput(lines []string) []Observation
-}
-
-type regexBench struct {
-	command string
-	opts    KeyValue
-	regex   *regexp.Regexp
-}
-
-func (b regexBench) Opts() KeyValue {
-	return b.opts
-}
-
-func (b regexBench) SetOpt(key string, val interface{}) {
-	b.opts[key] = val
+type Benchmark struct {
+	command []string
+	// Config has configuration related to the benchmark workload under test
+	// "bench" is a map with benchmark options
+	Config KeyValue
+	regex  *regexp.Regexp
 }
 
 // goArgs converts key-value pairs to options using Go's flag syntax for
@@ -47,50 +27,51 @@ func goArgs(kvs []KeyValuePair) []string {
 	return args
 }
 
-func (b regexBench) Command() []string {
-	args := []string{b.command}
-	args = append(args, goArgs(b.opts.Pairs())...)
+func (b Benchmark) Command() []string {
+	var args []string
+	args = append(args, b.command...)
+	opts := b.Config["bench"].(KeyValue)
+	args = append(args, goArgs(opts.Pairs())...)
 	return args
 }
 
 // parseLineResult matches against a line to identify a benchmark and value
 //
 // interpreting the value is left to the caller, based on the benchmark
-func (b regexBench) parseLineResult(line string) (bench string, val float64,
+func (b Benchmark) parseLineResult(line string) (bench string, val float64,
 	ok bool) {
 	matches := b.regex.FindStringSubmatch(line)
 	if matches == nil {
 		ok = false
 		return
 	}
-	bench_i := b.regex.SubexpIndex("bench")
-	bench = matches[bench_i]
-	val_i := b.regex.SubexpIndex("val")
+	benchIdx := b.regex.SubexpIndex("bench")
+	bench = matches[benchIdx]
+	valIdx := b.regex.SubexpIndex("val")
 	var err error
-	val, err = strconv.ParseFloat(matches[val_i], 10)
+	val, err = strconv.ParseFloat(matches[valIdx], 10)
 	if err != nil {
-		panic(fmt.Sprintf("unexpected number %v", matches[val_i]))
+		panic(fmt.Sprintf("unexpected number %v", matches[valIdx]))
 	}
 	ok = true
 	return
 }
 
 // parseLine translates one line of output to maybe one observation
-func (b regexBench) lineToObservation(line string) (o Observation, ok bool) {
+func (b Benchmark) lineToObservation(line string) (o Observation, ok bool) {
 	bench, val, ok := b.parseLineResult(line)
 	if !ok {
 		return Observation{}, false
 	}
-	conf := make(KeyValue)
-	conf.ExtendPrefixed("bench/", b.opts)
-	conf["bench"] = bench
+	conf := b.Config.Clone()
+	conf["bench"].(KeyValue)["name"] = bench
 	return Observation{
 		Config: conf,
 		Values: KeyValue{"val": val},
 	}, true
 }
 
-func (b regexBench) ParseOutput(lines []string) []Observation {
+func (b Benchmark) ParseOutput(lines []string) []Observation {
 	var obs []Observation
 	for _, line := range lines {
 		o, ok := b.lineToObservation(line)
@@ -101,17 +82,17 @@ func (b regexBench) ParseOutput(lines []string) []Observation {
 	return obs
 }
 
-func benchFromRegex(command string, opts KeyValue, r string) Benchmark {
-	return regexBench{
+func benchFromRegex(command []string, opts KeyValue, r string) Benchmark {
+	return Benchmark{
 		command: command,
-		opts:    opts,
+		Config:  KeyValue{"bench": opts},
 		regex:   regexp.MustCompile(r),
 	}
 }
 
 func LargefileBench(fileSizeMb int) Benchmark {
 	return benchFromRegex(
-		path.Join(goNfsdPath(), "cmd/fs-largefile"),
+		[]string{path.Join(goNfsdPath(), "fs-largefile")},
 		KeyValue{"file-size": float64(fileSizeMb)},
 		`fs-(?P<bench>largefile):.* throughput (?P<val>[0-9.]*) MB/s`,
 	)
@@ -119,7 +100,7 @@ func LargefileBench(fileSizeMb int) Benchmark {
 
 func SmallfileBench(benchtime string, threads int) Benchmark {
 	return benchFromRegex(
-		path.Join(goNfsdPath(), "cmd/fs-smallfile"),
+		[]string{path.Join(goNfsdPath(), "fs-smallfile")},
 		KeyValue{
 			"benchtime": benchtime,
 			"start":     float64(threads),
@@ -131,17 +112,38 @@ func SmallfileBench(benchtime string, threads int) Benchmark {
 
 func AppBench() Benchmark {
 	return benchFromRegex(
-		path.Join(goNfsdPath(), "bench", "app-bench.sh"),
+		[]string{path.Join(goNfsdPath(), "bench", "app-bench.sh"),
+			xv6Path(),
+			"/mnt/nfs"},
 		KeyValue{},
 		`(?P<bench>app)-bench (?P<val>[0-9.]*) app/s`,
 	)
+}
+
+func PrepareBenchmarks() {
+	dir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	os.Chdir(goNfsdPath())
+	err = exec.Command("go", "build",
+		"./cmd/fs-largefile").Run()
+	if err != nil {
+		panic(err)
+	}
+	err = exec.Command("go", "build",
+		"./cmd/fs-smallfile").Run()
+	if err != nil {
+		panic(err)
+	}
+	os.Chdir(dir)
 }
 
 func RunBenchmark(fs Fs, b Benchmark) []Observation {
 	lines := fs.Run(b.Command())
 	obs := b.ParseOutput(lines)
 	for i := range obs {
-		obs[i].Config.ExtendPrefixed("fs/", fs.opts)
+		obs[i].Config["fs"] = fs.opts
 	}
 	return obs
 }
