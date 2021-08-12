@@ -84,6 +84,8 @@ func GetFilesys(conf KeyValue) Fs {
 	case "go-nfsd":
 		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-go-nfsd.sh")
 	case "fscq":
+		// check this because it's a dependency
+		_ = getEnvDir("FSCQ_PATH")
 		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-fscq.sh")
 	case "daisy-nfsd":
 		fs.scriptPath = path.Join(daisyNfsdPath(), "bench", "run-daisy-nfsd.sh")

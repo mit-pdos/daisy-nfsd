@@ -16,12 +16,40 @@ func printObservations(w io.Writer, obs []eval.Observation) {
 	for _, o := range obs {
 		val := o.Values["val"].(float64)
 		fmt.Fprintf(w, "%f ", val)
-		kvs := o.Config.Flatten().Pairs()
-		for _, kv := range kvs {
+		for _, kv := range o.Config.Flatten().Pairs() {
 			fmt.Fprintf(w, "%s=%v ", kv.Key, kv.Val)
 		}
 		fmt.Fprintf(w, "\n")
 	}
+}
+
+var suiteFlags = []cli.Flag{
+	&cli.BoolFlag{
+		Name:  "randomize",
+		Value: true,
+		Usage: "randomize order of running benchmarks",
+	},
+	&cli.IntFlag{
+		Name:  "iters",
+		Value: 1,
+		Usage: "number of iterations to run each configuration",
+	},
+	&cli.StringFlag{
+		Name:  "disk",
+		Value: ":memory:",
+		Usage: "path to disk file to use for all benchmarks " +
+			"(:memory: uses tmpfs or MemFs as appropriate)",
+	},
+	&cli.StringFlag{
+		Name:  "out",
+		Value: "",
+		Usage: "file to output to (use .gz extension for compression)",
+	},
+	&cli.BoolFlag{
+		Name:  "flatten",
+		Value: true,
+		Usage: "flatten output configurations for compatibility with pandas",
+	},
 }
 
 // WriteObservations saves observations in JSON (possibly compressed) to a file
@@ -43,40 +71,19 @@ func writeObservations(outFile string, obs []eval.Observation) error {
 	return err
 }
 
-// OutputObservations chooses whether to print or output observations
-// depending on outFile flag value
-func OutputObservations(outFile string, obs []eval.Observation) error {
+// OutputObservations outputs based on flags
+func OutputObservations(c *cli.Context, obs []eval.Observation) error {
+	outFile := c.String("out")
+	if c.Bool("flatten") {
+		for i := range obs {
+			obs[i].Config = obs[i].Config.Flatten()
+		}
+	}
 	if outFile == "" {
 		printObservations(os.Stdout, obs)
 		return nil
 	}
 	return writeObservations(outFile, obs)
-}
-
-func suiteFlags() []cli.Flag {
-	return []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "randomize",
-			Value: true,
-			Usage: "randomize order of running benchmarks",
-		},
-		&cli.IntFlag{
-			Name:  "iters",
-			Value: 1,
-			Usage: "number of iterations to run each configuration",
-		},
-		&cli.StringFlag{
-			Name:  "disk",
-			Value: ":memory:",
-			Usage: "path to disk file to use for all benchmarks " +
-				"(:memory: uses tmpfs or MemFs as appropriate)",
-		},
-		&cli.StringFlag{
-			Name:  "out",
-			Value: "",
-			Usage: "file to output to (use .gz extension for compression)",
-		},
-	}
 }
 
 func initializeSuite(c *cli.Context) *eval.BenchmarkSuite {
@@ -94,10 +101,10 @@ func beforeBench(_ *cli.Context) error {
 var benchCommand = &cli.Command{
 	Name:  "bench",
 	Usage: "run a few single-threaded benchmarks",
-	Flags: append(suiteFlags(), &cli.BoolFlag{
+	Flags: []cli.Flag{&cli.BoolFlag{
 		Name:  "unstable",
 		Usage: "use unstable writes in baseline systems",
-	}),
+	}},
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
 		eval.PrepareBenchmarks()
@@ -106,7 +113,7 @@ var benchCommand = &cli.Command{
 			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
 		suite.Benches = eval.BenchSuite
 		obs := suite.Run()
-		err := OutputObservations(c.String("out"), obs)
+		err := OutputObservations(c, obs)
 		return err
 	},
 }
@@ -114,7 +121,7 @@ var benchCommand = &cli.Command{
 var scaleCommand = &cli.Command{
 	Name:  "scale",
 	Usage: "benchmark smallfile with varying clients",
-	Flags: append(suiteFlags(), &cli.IntFlag{
+	Flags: []cli.Flag{&cli.IntFlag{
 		Name:  "threads",
 		Value: 10,
 		Usage: "maximum number of threads to run till",
@@ -122,7 +129,7 @@ var scaleCommand = &cli.Command{
 		Name:  "benchtime",
 		Value: "10s",
 		Usage: "duration to run each benchmark",
-	}),
+	}},
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
 		suite := initializeSuite(c)
@@ -130,7 +137,7 @@ var scaleCommand = &cli.Command{
 			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
 		suite.Benches = eval.ScaleSuite(c.String("benchtime"), c.Int("threads"))
 		obs := suite.Run()
-		err := OutputObservations(c.String("out"), obs)
+		err := OutputObservations(c, obs)
 		return err
 	},
 }
@@ -138,7 +145,6 @@ var scaleCommand = &cli.Command{
 var largefileCommand = &cli.Command{
 	Name:   "largefile",
 	Usage:  "benchmark largefile on many filesystem configurations",
-	Flags:  suiteFlags(),
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
 		if c.String("disk") != ":memory:" {
@@ -150,7 +156,7 @@ var largefileCommand = &cli.Command{
 			eval.ManyMemFilesystems()
 		suite.Benches = eval.LargefileSuite
 		obs := suite.Run()
-		err := OutputObservations(c.String("out"), obs)
+		err := OutputObservations(c, obs)
 		return err
 	},
 }
@@ -158,6 +164,7 @@ var largefileCommand = &cli.Command{
 func main() {
 	app := &cli.App{
 		Usage: "run benchmarks",
+		Flags: suiteFlags,
 		Commands: []*cli.Command{
 			benchCommand,
 			scaleCommand,
