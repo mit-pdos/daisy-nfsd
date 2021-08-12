@@ -172,13 +172,9 @@ var largefileCommand = &cli.Command{
 	Usage:  "benchmark largefile on many filesystem configurations",
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
-		if c.String("disk") != ":memory:" {
-			return fmt.Errorf("largefile doesn't support non-memory" +
-				" benchmarks (yet)")
-		}
 		suite := initializeSuite(c)
 		suite.Filesystems =
-			eval.ManyMemFilesystems()
+			eval.ManyDurabilityFilesystems(c.String("disk"))
 		suite.Benches = eval.LargefileSuite
 		obs := suite.Run()
 		err := OutputObservations(c, obs)

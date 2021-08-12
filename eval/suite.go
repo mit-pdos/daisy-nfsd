@@ -79,18 +79,20 @@ func BasicFilesystems(disk string, unstable bool) []KeyValue {
 	if unstable {
 		ext4Opts = "data=ordered"
 	}
-	return extendAll(KeyValue{"size": float64(500)},
+	return extendAll(KeyValue{
+		"size":           float64(500),
+		"nfs-mount-opts": "wsize=65536,rsize=65536",
+	},
 		[]KeyValue{
 			{
 				"name": "daisy-nfsd",
 				"disk": nfsdDisk,
 			},
 			{
-				"name":           "linux",
-				"fs":             "ext4",
-				"disk":           linuxDisk,
-				"mount-opts":     ext4Opts,
-				"nfs-mount-opts": "wsize=65536,rsize=65536",
+				"name":       "linux",
+				"fs":         "ext4",
+				"disk":       linuxDisk,
+				"mount-opts": ext4Opts,
 			},
 			{
 				"name":     "go-nfsd",
@@ -120,23 +122,40 @@ func LinuxDurabilityFilesystems(disk string) []KeyValue {
 	return kvs
 }
 
-func ManyMemFilesystems() []KeyValue {
+func ManyDurabilityFilesystems(disk string) []KeyValue {
 	var kvs []KeyValue
+	if disk == ":memory:" {
+		kvs = append(kvs,
+			extendAll(KeyValue{"name": "daisy-nfsd"},
+				[]KeyValue{
+					{"disk": "/dev/shm/disk.img"},
+					{"disk": ""},
+				})...)
+	} else {
+		kvs = append(kvs,
+			extendAll(KeyValue{"name": "daisy-nfsd"},
+				[]KeyValue{
+					{"disk": disk},
+				})...)
+	}
+	if disk == ":memory:" {
+		kvs = append(kvs,
+			extendAll(KeyValue{"name": "go-nfsd"},
+				[]KeyValue{
+					{"disk": "/dev/shm/disk.img", "unstable": true},
+					{"disk": "/dev/shm/disk.img", "unstable": false},
+					{"disk": "", "unstable": true},
+					{"disk": "", "unstable": false},
+				})...)
+	} else {
+		kvs = append(kvs,
+			extendAll(KeyValue{"name": "go-nfsd"},
+				[]KeyValue{
+					{"disk": disk, "unstable": true},
+					{"disk": disk, "unstable": false},
+				})...)
+	}
 	kvs = append(kvs,
-		extendAll(KeyValue{"name": "go-nfsd"},
-			[]KeyValue{
-				{"disk": "/dev/shm/disk.img", "unstable": true},
-				{"disk": "/dev/shm/disk.img", "unstable": false},
-				{"disk": "", "unstable": true},
-				{"disk": "", "unstable": false},
-			})...)
-	kvs = append(kvs,
-		extendAll(KeyValue{"name": "daisy-nfsd"},
-			[]KeyValue{
-				{"disk": "/dev/shm/disk.img"},
-				{"disk": ""},
-			})...)
-	kvs = append(kvs,
-		LinuxDurabilityFilesystems("/dev/shm/disk.img")...)
+		LinuxDurabilityFilesystems(disk)...)
 	return extendAll(KeyValue{"size": float64(500)}, kvs)
 }
