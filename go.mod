@@ -8,6 +8,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tchajed/goose v0.3.1
 	github.com/tchajed/marshal v0.2.0
+	github.com/urfave/cli/v2 v2.3.0 // indirect
 	github.com/zeldovich/go-rpcgen v0.1.4
 	golang.org/x/sys v0.0.0-20210608053332-aa57babbf139
 )

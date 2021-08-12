@@ -37,22 +37,26 @@ type KeyValuePair struct {
 	Val interface{}
 }
 
-// Pairs returns the key-value pairs in kv, sorted by key
-func (kv KeyValue) Pairs() []KeyValuePair {
-	var pairs []KeyValuePair
+func (kv KeyValue) Flatten() KeyValue {
+	flat := make(KeyValue)
 	for key, val := range kv {
 		switch val := val.(type) {
 		case KeyValue:
 			for _, pair := range val.Pairs() {
-				pairs = append(pairs,
-					KeyValuePair{
-						Key: key + "." + pair.Key,
-						Val: pair.Val,
-					})
+				flat[key+"."+pair.Key] = pair.Val
 			}
 		default:
-			pairs = append(pairs, KeyValuePair{key, val})
+			flat[key] = val
 		}
+	}
+	return flat
+}
+
+// Pairs returns the key-value pairs in kv, sorted by key
+func (kv KeyValue) Pairs() []KeyValuePair {
+	var pairs []KeyValuePair
+	for key, val := range kv {
+		pairs = append(pairs, KeyValuePair{key, val})
 	}
 	sort.Slice(pairs, func(i int, j int) bool {
 		return pairs[i].Key < pairs[j].Key
@@ -78,6 +82,21 @@ func (kv KeyValue) Clone() KeyValue {
 		}
 	}
 	return kv2
+}
+
+// Extend adds all key-value pairs from kv2 to kv
+//
+// modifies kv in-place and returns kv (for chaining)
+func (kv KeyValue) Extend(kv2 KeyValue) KeyValue {
+	for k, v := range kv2 {
+		switch v := v.(type) {
+		case KeyValue:
+			kv[k] = v.Clone()
+		default:
+			kv[k] = v
+		}
+	}
+	return kv
 }
 
 type Observation struct {

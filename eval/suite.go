@@ -52,42 +52,92 @@ func LargefileSuite() []Benchmark {
 	}
 }
 
-func ScaleSuite(threads int) func() []Benchmark {
+func ScaleSuite(benchtime string, threads int) func() []Benchmark {
 	return func() []Benchmark {
 		var bs []Benchmark
-		for i := 0; i < threads; i++ {
-			bs = append(bs, SmallfileBench("10s", i))
+		for i := 1; i <= threads; i++ {
+			bs = append(bs, SmallfileBench(benchtime, i))
 		}
 		return bs
 	}
 }
 
-func BasicFilesystems(unstable bool) []KeyValue {
+func extendAll(common KeyValue, kvs []KeyValue) []KeyValue {
+	for i := range kvs {
+		kvs[i].Extend(common)
+	}
+	return kvs
+}
+
+func BasicFilesystems(disk string, unstable bool) []KeyValue {
+	nfsdDisk := disk
+	linuxDisk := disk
+	if disk == ":memory:" {
+		nfsdDisk = "" // use MemDisk
+		linuxDisk = "/dev/shm/disk.img"
+	}
 	ext4Opts := "data=journal"
 	if unstable {
 		ext4Opts = "data=ordered"
 	}
-	return []KeyValue{
-		{
-			"name":           "daisy-nfsd",
-			"disk":           "", // in-memory
-			"size":           float64(500),
-			"nfs-mount-opts": "wsize=65536,rsize=65536",
-		},
-		{
-			"name":           "linux",
-			"fs":             "ext4",
-			"disk":           "/dev/shm/disk.img",
-			"size":           float64(500),
-			"mount-opts":     ext4Opts,
-			"nfs-mount-opts": "wsize=65536,rsize=65536",
-		},
-		{
-			"name":           "go-nfsd",
-			"unstable":       unstable,
-			"disk":           "", // in-memory
-			"size":           float64(500),
-			"nfs-mount-opts": "wsize=65536,rsize=65536",
-		},
+	return extendAll(KeyValue{"size": float64(500)},
+		[]KeyValue{
+			{
+				"name": "daisy-nfsd",
+				"disk": nfsdDisk,
+			},
+			{
+				"name":           "linux",
+				"fs":             "ext4",
+				"disk":           linuxDisk,
+				"mount-opts":     ext4Opts,
+				"nfs-mount-opts": "wsize=65536,rsize=65536",
+			},
+			{
+				"name":     "go-nfsd",
+				"unstable": unstable,
+				"disk":     nfsdDisk,
+			},
+		})
+}
+
+// LinuxDurabilityFilesystems returns many Linux filesystems,
+// varying durability options
+func LinuxDurabilityFilesystems(disk string) []KeyValue {
+	if disk == ":memory:" {
+		disk = "/dev/shm/disk.img"
 	}
+	kvs := extendAll(KeyValue{"name": "linux", "disk": disk},
+		[]KeyValue{
+			{"fs": "ext4", "mount-opts": "data=journal"},
+			{"fs": "ext4", "mount-opts": "data=ordered"},
+			{"fs": "ext4", "mount-opts": "data=ordered",
+				"nfs-mount-opts": "wsize=65536,rsize=65536,sync"},
+			{"fs": "btrfs", "mount-opts": ""},
+			{"fs": "btrfs", "mount-opts": "flushoncommit"},
+			{"fs": "btrfs", "mount-opts": "",
+				"nfs-mount-opts": "wsize=65536,rsize=65536,sync"},
+		})
+	return kvs
+}
+
+func ManyMemFilesystems() []KeyValue {
+	var kvs []KeyValue
+	kvs = append(kvs,
+		extendAll(KeyValue{"name": "go-nfsd"},
+			[]KeyValue{
+				{"disk": "/dev/shm/disk.img", "unstable": true},
+				{"disk": "/dev/shm/disk.img", "unstable": false},
+				{"disk": "", "unstable": true},
+				{"disk": "", "unstable": false},
+			})...)
+	kvs = append(kvs,
+		extendAll(KeyValue{"name": "daisy-nfsd"},
+			[]KeyValue{
+				{"disk": "/dev/shm/disk.img"},
+				{"disk": ""},
+			})...)
+	kvs = append(kvs,
+		LinuxDurabilityFilesystems("/dev/shm/disk.img")...)
+	return extendAll(KeyValue{"size": float64(500)}, kvs)
 }
