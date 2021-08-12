@@ -43,10 +43,12 @@ func (bs *BenchmarkSuite) Run() []Observation {
 	return obs
 }
 
-var BenchSuite = []Benchmark{
-	LargefileBench(100),
-	SmallfileBench("20s", 10),
-	AppBench(),
+func BenchSuite(smallfileDuration string) []Benchmark {
+	return []Benchmark{
+		LargefileBench(100),
+		SmallfileBench(smallfileDuration, 1),
+		AppBench(),
+	}
 }
 
 var LargefileSuite = []Benchmark{

@@ -129,6 +129,10 @@ var benchCommand = &cli.Command{
 	Flags: []cli.Flag{&cli.BoolFlag{
 		Name:  "unstable",
 		Usage: "use unstable writes in baseline systems",
+	}, &cli.StringFlag{
+		Name:  "benchtime",
+		Usage: "smallfile duration",
+		Value: "20s",
 	}},
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
@@ -136,7 +140,7 @@ var benchCommand = &cli.Command{
 		suite := initializeSuite(c)
 		suite.Filesystems =
 			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
-		suite.Benches = eval.BenchSuite
+		suite.Benches = eval.BenchSuite(c.String("benchtime"))
 		obs := suite.Run()
 		err := OutputObservations(c, obs)
 		return err
