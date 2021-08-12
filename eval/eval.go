@@ -127,6 +127,10 @@ func WriteObservations(w io.Writer, obs []Observation) error {
 		if err != nil {
 			return err
 		}
+		_, err = w.Write([]byte{'\n'})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

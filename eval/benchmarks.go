@@ -92,7 +92,7 @@ func benchFromRegex(command []string, opts KeyValue, r string) Benchmark {
 
 func LargefileBench(fileSizeMb int) Benchmark {
 	return benchFromRegex(
-		[]string{path.Join(goNfsdPath(), "fs-largefile")},
+		[]string{"${GO_NFSD_PATH}/fs-largefile"},
 		KeyValue{"file-size": float64(fileSizeMb)},
 		`fs-(?P<bench>largefile):.* throughput (?P<val>[0-9.]*) MB/s`,
 	)
@@ -100,7 +100,7 @@ func LargefileBench(fileSizeMb int) Benchmark {
 
 func SmallfileBench(benchtime string, threads int) Benchmark {
 	return benchFromRegex(
-		[]string{path.Join(goNfsdPath(), "fs-smallfile")},
+		[]string{"${GO_NFSD_PATH}/fs-smallfile"},
 		KeyValue{
 			"benchtime": benchtime,
 			"start":     float64(threads),
@@ -112,8 +112,8 @@ func SmallfileBench(benchtime string, threads int) Benchmark {
 
 func AppBench() Benchmark {
 	return benchFromRegex(
-		[]string{path.Join(goNfsdPath(), "bench", "app-bench.sh"),
-			xv6Path(),
+		[]string{path.Join("${GO_NFSD_PATH}", "bench", "app-bench.sh"),
+			"${XV6_PATH}",
 			"/mnt/nfs"},
 		KeyValue{},
 		`(?P<bench>app)-bench (?P<val>[0-9.]*) app/s`,

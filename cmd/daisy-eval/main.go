@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mit-pdos/daisy-nfsd/eval"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -108,7 +109,16 @@ func initializeSuite(c *cli.Context) *eval.BenchmarkSuite {
 	}
 }
 
-func beforeBench(_ *cli.Context) error {
+func beforeBench(c *cli.Context) error {
+	if c.String("dir") != "" {
+		s, err := os.Stat(c.String("dir"))
+		if err != nil {
+			return errors.Wrap(err, "could not open -dir")
+		}
+		if !s.Mode().IsDir() {
+			return errors.New("-dir is not a directory")
+		}
+	}
 	eval.PrepareBenchmarks()
 	return nil
 }

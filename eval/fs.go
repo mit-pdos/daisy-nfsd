@@ -64,8 +64,10 @@ func (fs Fs) scriptName() string {
 
 func (fs Fs) Run(command []string) []string {
 	args := shellArgs(fs.opts.Delete("name").Pairs())
-	args = append(args, command...)
-	cmd := exec.Command(fs.scriptPath, args...)
+	for _, cmdArg := range command {
+		args = append(args, os.ExpandEnv(cmdArg))
+	}
+	cmd := exec.Command(os.ExpandEnv(fs.scriptPath), args...)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
@@ -81,15 +83,16 @@ func GetFilesys(conf KeyValue) Fs {
 	fs := Fs{opts: conf}
 	switch name {
 	case "linux":
-		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-linux.sh")
+		fs.scriptPath = path.Join("${GO_NFSD_PATH}", "bench", "run-linux.sh")
 	case "go-nfsd":
-		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-go-nfsd.sh")
+		fs.scriptPath = path.Join("${GO_NFSD_PATH}", "bench", "run-go-nfsd.sh")
 	case "fscq":
 		// check this because it's a dependency
 		_ = getEnvDir("FSCQ_PATH")
 		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-fscq.sh")
 	case "daisy-nfsd":
-		fs.scriptPath = path.Join(daisyNfsdPath(), "bench", "run-daisy-nfsd.sh")
+		fs.scriptPath = path.Join("${DAISY_NFSD_PATH}",
+			"bench", "run-daisy-nfsd.sh")
 	}
 	return fs
 }

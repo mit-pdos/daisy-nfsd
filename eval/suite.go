@@ -8,14 +8,22 @@ type BenchmarkSuite struct {
 	Iters       int
 	Randomize   bool
 	Filesystems []KeyValue
-	Benches     func() []Benchmark
+	Benches     []Benchmark
 }
 
 func (bs *BenchmarkSuite) Run() []Observation {
 	var benches []Benchmark
 	for i := 0; i < bs.Iters; i++ {
-		for _, b := range bs.Benches() {
-			b.Config["meta"] = KeyValue{"iter": float64(i)}
+		for _, b := range bs.Benches {
+			b := Benchmark{
+				command: b.command,
+				Config:  b.Config.Clone(),
+				regex:   b.regex,
+			}
+			b.Config["meta"] = KeyValue{
+				"iter":  float64(i),
+				"iters": float64(bs.Iters),
+			}
 			benches = append(benches, b)
 		}
 	}
@@ -29,37 +37,28 @@ func (bs *BenchmarkSuite) Run() []Observation {
 		fs := GetFilesys(fsOpts)
 		for _, b := range benches {
 			newObs := RunBenchmark(fs, b)
-			for i := range newObs {
-				newObs[i].Config["meta"].(KeyValue)["iters"] = float64(bs.Iters)
-			}
 			obs = append(obs, newObs...)
 		}
 	}
 	return obs
 }
 
-func BenchSuite() []Benchmark {
-	return []Benchmark{
-		LargefileBench(100),
-		SmallfileBench("20s", 10),
-		AppBench(),
-	}
+var BenchSuite = []Benchmark{
+	LargefileBench(100),
+	SmallfileBench("20s", 10),
+	AppBench(),
 }
 
-func LargefileSuite() []Benchmark {
-	return []Benchmark{
-		LargefileBench(100),
-	}
+var LargefileSuite = []Benchmark{
+	LargefileBench(100),
 }
 
-func ScaleSuite(benchtime string, threads int) func() []Benchmark {
-	return func() []Benchmark {
-		var bs []Benchmark
-		for i := 1; i <= threads; i++ {
-			bs = append(bs, SmallfileBench(benchtime, i))
-		}
-		return bs
+func ScaleSuite(benchtime string, threads int) []Benchmark {
+	var bs []Benchmark
+	for i := 1; i <= threads; i++ {
+		bs = append(bs, SmallfileBench(benchtime, i))
 	}
+	return bs
 }
 
 func extendAll(common KeyValue, kvs []KeyValue) []KeyValue {
