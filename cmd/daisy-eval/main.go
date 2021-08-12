@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/mit-pdos/daisy-nfsd/eval"
@@ -41,9 +42,15 @@ var suiteFlags = []cli.Flag{
 			"(:memory: uses tmpfs or MemFs as appropriate)",
 	},
 	&cli.StringFlag{
+		Name:  "dir",
+		Value: "",
+		Usage: "Directory to output to. " +
+			"Filename will be based on benchmark suite name.",
+	},
+	&cli.StringFlag{
 		Name:  "out",
 		Value: "",
-		Usage: "file to output to (use .gz extension for compression)",
+		Usage: "file to output to, overwriting -dir",
 	},
 	&cli.BoolFlag{
 		Name:  "flatten",
@@ -73,10 +80,18 @@ func writeObservations(outFile string, obs []eval.Observation) error {
 
 // OutputObservations outputs based on flags
 func OutputObservations(c *cli.Context, obs []eval.Observation) error {
-	outFile := c.String("out")
 	if c.Bool("flatten") {
 		for i := range obs {
 			obs[i].Config = obs[i].Config.Flatten()
+		}
+	}
+	// -out takes precedence
+	outFile := c.String("out")
+	if outFile == "" {
+		outDir := c.String("dir")
+		if outDir != "" {
+			outFile = path.Join(outDir,
+				fmt.Sprintf("%s.json.gz", c.Command.Name))
 		}
 	}
 	if outFile == "" {

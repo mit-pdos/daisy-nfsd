@@ -69,8 +69,9 @@ func (fs Fs) Run(command []string) []string {
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
-		panic(fmt.Sprintf("%s %s failed\n: %v",
-			fs.scriptName(), strings.Join(args, " "), err))
+		fmt.Fprintf(os.Stderr, "%s %s failed\n", fs.scriptName(),
+			strings.Join(args, " "))
+		os.Exit(cmd.ProcessState.ExitCode())
 	}
 	return strings.Split(string(out), "\n")
 }
