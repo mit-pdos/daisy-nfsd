@@ -1281,7 +1281,7 @@ module DirFs
 
     method {:timeLimitMultiplier 2} MKDIR(txn: Txn,
       d_ino: Ino, name: Bytes, sattr: Sattr3)
-      returns (r: Result<Ino>, ghost attrs': Inode.Attrs)
+      returns (r: Result<InoResult>)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1291,7 +1291,8 @@ module DirFs
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       ensures r.Ok? ==>
-      (var ino := r.v;
+      (var ino := r.v.ino;
+      var attrs' := r.v.attrs.attrs;
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && old(is_pathc(name.data))
@@ -1309,7 +1310,7 @@ module DirFs
         return;
       }
       var attrs'_val := MkdirAttributes(sattr);
-      attrs' := attrs'_val;
+      var attrs' := attrs'_val;
       var ok, ino := allocDir(txn, attrs'_val);
       if !ok {
         r := Err(NoSpc);
@@ -1345,7 +1346,8 @@ module DirFs
         r := Err(NoSpc);
         return;
       }
-      r := Ok(ino);
+      var fattr := Fattr3(NFS3DIR, 0, attrs');
+      r := Ok(InoResult(ino, fattr));
       return;
     }
 
