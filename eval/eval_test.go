@@ -12,6 +12,7 @@ import (
 func init() {
 	_ = os.Setenv("GO_NFSD_PATH", ".")
 	_ = os.Setenv("DAISY_NFSD_PATH", ".")
+	_ = os.Setenv("XV6_PATH", ".")
 }
 
 func TestObservationSerialization(t *testing.T) {
@@ -65,10 +66,12 @@ func TestParseSmallfile(t *testing.T) {
 	assert.Equal(Observation{
 		Values: KeyValue{"val": 3076.1},
 		Config: KeyValue{
-			"bench/benchtime": "10s",
-			"bench":           "smallfile",
-			"bench/start":     10.0,
-			"bench/threads":   10.0,
+			"bench": KeyValue{
+				"benchtime": "10s",
+				"name":      "smallfile",
+				"start":     10.0,
+				"threads":   10.0,
+			},
 		},
 	}, os[0])
 
@@ -82,7 +85,7 @@ func TestParseLargefile(t *testing.T) {
 	)
 	assert.Len(os, 3)
 	assert.Equal(228.05, os[0].Values["val"])
-	assert.Equal("largefile", os[0].Config["bench"])
+	assert.Equal("largefile", os[0].Config["bench"].(KeyValue)["name"])
 }
 
 func TestParseApp(t *testing.T) {
@@ -92,5 +95,5 @@ func TestParseApp(t *testing.T) {
 	)
 	assert.Len(os, 3)
 	assert.Equal(0.352113, os[2].Values["val"])
-	assert.Equal("app", os[0].Config["bench"])
+	assert.Equal("app", os[0].Config.Flatten()["bench.name"])
 }
