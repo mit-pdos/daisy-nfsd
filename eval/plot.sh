@@ -5,5 +5,5 @@ cd "$DIR"
 
 ./eval.py -i data bench
 ./eval.py -i data scale
-./bench.plot -i data -o data
-./scale.plot -i data -o data
+./bench.plot -i data -o data/bench.pdf
+./scale.plot -i data -o data/scale.pdf

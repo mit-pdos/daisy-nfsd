@@ -3,8 +3,8 @@
 These scripts use some environment variables that point to a few repositories:
 
 ```
-export GOOSE_NFSD_PATH=~/go-nfsd
-export DAFNY_NFSD_PATH=~/daisy-nfsd
+export GO_NFSD_PATH=~/go-nfsd
+export DAISY_NFSD_PATH=~/daisy-nfsd
 export XV6_PATH=~/xv6-public
 export LTP_PATH=~/ltp
 ```
