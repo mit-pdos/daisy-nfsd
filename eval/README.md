@@ -17,21 +17,19 @@ one is only needed to run the stress tests).
 
 This repo is [mit-pdos/daisy-nfsd](https://github.com/mit-pdos/daisy-nfsd).
 
+These instructions assume you've compiled the evaluation driver with `go build ./cmd/daisy-eval`.
+
 ## smallfile, largefile, and app benchmarks
 
-Run `./bench.sh | tee data/bench-raw.txt`. Then `./bench.py data/bench-raw.txt`
-will produce a file `data/bench.data`.
-
-By default runs up to 10 cores; you can set this with `./bench.sh 10` for example.
+Run `daisy-eval -i eval/data bench`. Then `./eval/eval.py -i eval/data bench`
+will produce a file `eval/data/bench.data`.
 
 ## smallfile scalability on a disk
 
-Run `./scale.sh | tee data/scale-raw.txt`. Then `./scale.py data/scale-raw.txt`
-will produce files for each system in `data/{dnfs,gnfs,linux-nfs}.data`.
+Run `daisy-eval -i eval/data bench`. Then `./eval/eval.py -i eval/data scale`
+will produce files for each system in `data/{daisy-nfsd,go-nfsd,linux}.data`.
 
-This hosts the disk in a file in your home directory, so that file system
-determines what disk you're using. You can change a local variable in
-`./scale.sh` if you need to change this.
+The `daisy-eval` driver has an argument to set the disk file.
 
 ## Plotting
 
