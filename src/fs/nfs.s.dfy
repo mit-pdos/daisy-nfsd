@@ -198,9 +198,9 @@ module Nfs {
   {
     && attrs.ty.DirType?
     && attrs.uid == uid && attrs.gid == gid
-    // Dafny doesn't have octal literals, so write out 0755 carefully
-    // the code just uses 493 which is the decimal value of this expression
-    && attrs.mode == ((7 as bv32 << 6) | (5 as bv32 << 3) | (5 as bv32)) as uint32
+    // Dafny doesn't have octal literals, so write out 0777 carefully
+    // the code just uses 511 which is the decimal value of this expression
+    && attrs.mode == ((7 as bv32 << 6) | (7 as bv32 << 3) | (7 as bv32)) as uint32
   }
 
   predicate has_mkdir_attrs(attrs: Inode.Attrs, sattr: Sattr3)
