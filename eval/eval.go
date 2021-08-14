@@ -121,16 +121,14 @@ func ReadObservation(r io.Reader) (o Observation, err error) {
 	return
 }
 
-func WriteObservations(w io.Writer, obs []Observation) error {
-	for _, o := range obs {
-		err := o.Write(w)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte{'\n'})
-		if err != nil {
-			return err
-		}
+func WriteObservation(w io.Writer, o Observation) {
+	o.Config = o.Config.Flatten()
+	err := o.Write(w)
+	if err != nil {
+		panic(fmt.Errorf("could not write output: %v", err))
 	}
-	return nil
+	_, err = w.Write([]byte{'\n'})
+	if err != nil {
+		panic(fmt.Errorf("could not write output: %v", err))
+	}
 }

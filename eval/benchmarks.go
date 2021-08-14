@@ -138,12 +138,3 @@ func PrepareBenchmarks() {
 	}
 	os.Chdir(dir)
 }
-
-func RunBenchmark(fs Fs, b Benchmark) []Observation {
-	lines := fs.Run(b.Command())
-	obs := b.ParseOutput(lines)
-	for i := range obs {
-		obs[i].Config["fs"] = fs.opts
-	}
-	return obs
-}

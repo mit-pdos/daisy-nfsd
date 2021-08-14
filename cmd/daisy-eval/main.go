@@ -13,18 +13,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// PrintObservations prints observations for manual inspection
-func printObservations(w io.Writer, obs []eval.Observation) {
-	for _, o := range obs {
-		val := o.Values["val"].(float64)
-		fmt.Fprintf(w, "%f ", val)
-		for _, kv := range o.Config.Flatten().Pairs() {
-			fmt.Fprintf(w, "%s=%v ", kv.Key, kv.Val)
-		}
-		fmt.Fprintf(w, "\n")
-	}
-}
-
 var suiteFlags = []cli.Flag{
 	&cli.BoolFlag{
 		Name:  "randomize",
@@ -53,15 +41,10 @@ var suiteFlags = []cli.Flag{
 		Value: "",
 		Usage: "file to output to, overwriting -dir",
 	},
-	&cli.BoolFlag{
-		Name:  "flatten",
-		Value: true,
-		Usage: "flatten output configurations for compatibility with pandas",
-	},
 }
 
 // WriteObservations saves observations in JSON (possibly compressed) to a file
-func writeObservations(outFile string, obs []eval.Observation) error {
+func writeObservations(outFile string, obs <-chan eval.Observation) error {
 	var out io.WriteCloser
 	out, err := os.Create(outFile)
 	if err != nil {
@@ -71,33 +54,23 @@ func writeObservations(outFile string, obs []eval.Observation) error {
 	if strings.HasSuffix(outFile, ".gz") {
 		out = gzip.NewWriter(out)
 	}
-	err = eval.WriteObservations(out, obs)
-	if err != nil {
-		return fmt.Errorf("could not write output: %v", err)
+	for o := range obs {
+		eval.WriteObservation(out, o)
 	}
 	err = out.Close()
 	return err
 }
 
 // OutputObservations outputs based on flags
-func OutputObservations(c *cli.Context, obs []eval.Observation) error {
-	if c.Bool("flatten") {
-		for i := range obs {
-			obs[i].Config = obs[i].Config.Flatten()
-		}
-	}
+func OutputObservations(c *cli.Context, obs <-chan eval.Observation) error {
 	// -out takes precedence
 	outFile := c.String("out")
 	if outFile == "" {
 		outDir := c.String("dir")
 		if outDir != "" {
 			outFile = path.Join(outDir,
-				fmt.Sprintf("%s.json.gz", c.Command.Name))
+				fmt.Sprintf("%s.json", c.Command.Name))
 		}
-	}
-	if outFile == "" {
-		printObservations(os.Stdout, obs)
-		return nil
 	}
 	return writeObservations(outFile, obs)
 }
@@ -123,6 +96,21 @@ func beforeBench(c *cli.Context) error {
 	return nil
 }
 
+func runSuite(c *cli.Context, suite *eval.BenchmarkSuite) error {
+	ws := suite.Workloads()
+	obs := make(chan eval.Observation)
+	go func() {
+		for _, w := range ws {
+			newObs := w.Run()
+			for _, o := range newObs {
+				obs <- o
+			}
+		}
+	}()
+	err := OutputObservations(c, obs)
+	return err
+}
+
 var benchCommand = &cli.Command{
 	Name:  "bench",
 	Usage: "run a few single-threaded benchmarks",
@@ -141,9 +129,7 @@ var benchCommand = &cli.Command{
 		suite.Filesystems =
 			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
 		suite.Benches = eval.BenchSuite(c.String("benchtime"))
-		obs := suite.Run()
-		err := OutputObservations(c, obs)
-		return err
+		return runSuite(c, suite)
 	},
 }
 
@@ -165,9 +151,7 @@ var scaleCommand = &cli.Command{
 		suite.Filesystems =
 			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
 		suite.Benches = eval.ScaleSuite(c.String("benchtime"), c.Int("threads"))
-		obs := suite.Run()
-		err := OutputObservations(c, obs)
-		return err
+		return runSuite(c, suite)
 	},
 }
 
@@ -180,9 +164,7 @@ var largefileCommand = &cli.Command{
 		suite.Filesystems =
 			eval.ManyDurabilityFilesystems(c.String("disk"))
 		suite.Benches = eval.LargefileSuite
-		obs := suite.Run()
-		err := OutputObservations(c, obs)
-		return err
+		return runSuite(c, suite)
 	},
 }
 

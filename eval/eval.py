@@ -92,7 +92,7 @@ def main():
 
     # automatically use command name if a directory is provided
     if path.isdir(args.input):
-        input_path = path.join(args.input, f"{args.dataset_name}.json.gz")
+        input_path = path.join(args.input, f"{args.dataset_name}.json")
         args.output = args.input
     else:
         input_path = args.input

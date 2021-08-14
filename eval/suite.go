@@ -11,18 +11,30 @@ type BenchmarkSuite struct {
 	Benches     []Benchmark
 }
 
-func (bs *BenchmarkSuite) Run() []Observation {
+type Workload struct {
+	fs Fs
+	b  Benchmark
+}
+
+func (w Workload) Run() []Observation {
+	lines := w.fs.Run(w.b.Command())
+	obs := w.b.ParseOutput(lines)
+	for i := range obs {
+		obs[i].Config["fs"] = w.fs.opts
+	}
+	return obs
+}
+
+func (bs *BenchmarkSuite) Workloads() []Workload {
 	var benches []Benchmark
 	for i := 0; i < bs.Iters; i++ {
 		for _, b := range bs.Benches {
+			config := b.Config.Clone()
+			config["meta"] = KeyValue{"iter": float64(i)}
 			b := Benchmark{
 				command: b.command,
-				Config:  b.Config.Clone(),
+				Config:  config,
 				regex:   b.regex,
-			}
-			b.Config["meta"] = KeyValue{
-				"iter":  float64(i),
-				"iters": float64(bs.Iters),
 			}
 			benches = append(benches, b)
 		}
@@ -32,15 +44,14 @@ func (bs *BenchmarkSuite) Run() []Observation {
 			benches[i], benches[j] = benches[j], benches[i]
 		})
 	}
-	obs := make([]Observation, 0, len(bs.Filesystems)*len(benches))
+	var ws []Workload
 	for _, fsOpts := range bs.Filesystems {
 		fs := GetFilesys(fsOpts)
 		for _, b := range benches {
-			newObs := RunBenchmark(fs, b)
-			obs = append(obs, newObs...)
+			ws = append(ws, Workload{fs, b})
 		}
 	}
-	return obs
+	return ws
 }
 
 func BenchSuite(smallfileDuration string) []Benchmark {
