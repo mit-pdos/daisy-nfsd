@@ -12,15 +12,15 @@ type BenchmarkSuite struct {
 }
 
 type Workload struct {
-	fs Fs
-	b  Benchmark
+	Fs    Fs
+	Bench Benchmark
 }
 
 func (w Workload) Run() []Observation {
-	lines := w.fs.Run(w.b.Command())
-	obs := w.b.ParseOutput(lines)
+	lines := w.Fs.Run(w.Bench.Command())
+	obs := w.Bench.ParseOutput(lines)
 	for i := range obs {
-		obs[i].Config["fs"] = w.fs.opts
+		obs[i].Config["fs"] = w.Fs.opts
 	}
 	return obs
 }

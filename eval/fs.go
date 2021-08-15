@@ -58,6 +58,10 @@ type Fs struct {
 	opts       KeyValue
 }
 
+func (fs Fs) Name() string {
+	return fs.opts["name"].(string)
+}
+
 func (fs Fs) scriptName() string {
 	return path.Base(fs.scriptPath)
 }

@@ -7,9 +7,11 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/mit-pdos/daisy-nfsd/eval"
 	"github.com/pkg/errors"
+	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
 )
 
@@ -98,14 +100,30 @@ func beforeBench(c *cli.Context) error {
 
 func runSuite(c *cli.Context, suite *eval.BenchmarkSuite) error {
 	ws := suite.Workloads()
+	bar := progressbar.NewOptions(len(ws),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(os.Stderr, "\n")
+		}),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionThrottle(65*time.Millisecond),
+		progressbar.OptionFullWidth(),
+	)
 	obs := make(chan eval.Observation)
 	go func() {
+		bar.RenderBlank()
 		for _, w := range ws {
+			bar.Describe(fmt.Sprintf("running %s on %s",
+				w.Bench.Name(), w.Fs.Name()))
 			newObs := w.Run()
+			bar.Add(1)
 			for _, o := range newObs {
 				obs <- o
 			}
 		}
+		bar.Finish()
 	}()
 	err := OutputObservations(c, obs)
 	return err

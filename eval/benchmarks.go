@@ -17,6 +17,10 @@ type Benchmark struct {
 	regex  *regexp.Regexp
 }
 
+func (b Benchmark) Name() string {
+	return b.Config["name"].(string)
+}
+
 // goArgs converts key-value pairs to options using Go's flag syntax for
 // arguments, where KeyValue{"key": "value"} would be passed as -key=value.
 func goArgs(kvs []KeyValuePair) []string {
