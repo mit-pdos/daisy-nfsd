@@ -26,6 +26,11 @@ var suiteFlags = []cli.Flag{
 		Value: 1,
 		Usage: "number of iterations to run each configuration",
 	},
+	&cli.DurationFlag{
+		Name:  "wait",
+		Value: 0,
+		Usage: "time to wait between workloads",
+	},
 	&cli.StringFlag{
 		Name:  "disk",
 		Value: ":memory:",
@@ -111,18 +116,27 @@ func runSuite(c *cli.Context, suite *eval.BenchmarkSuite) error {
 		progressbar.OptionThrottle(65*time.Millisecond),
 		progressbar.OptionFullWidth(),
 	)
+	waitTime := c.Duration("wait")
 	obs := make(chan eval.Observation)
+	go func() {
+		for !bar.IsFinished() {
+			bar.RenderBlank()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
 	go func() {
 		bar.RenderBlank()
 		for _, w := range ws {
-			bar.Describe(fmt.Sprintf("running %s on %s",
+			bar.Describe(fmt.Sprintf("running %s on [green]%s[reset]",
 				w.Bench.Name(), w.Fs.Name()))
 			newObs := w.Run()
+			time.Sleep(waitTime)
 			bar.Add(1)
 			for _, o := range newObs {
 				obs <- o
 			}
 		}
+		close(obs)
 		bar.Finish()
 	}()
 	err := OutputObservations(c, obs)

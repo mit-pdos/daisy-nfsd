@@ -72,11 +72,13 @@ func (fs Fs) Run(command []string) []string {
 		args = append(args, os.ExpandEnv(cmdArg))
 	}
 	cmd := exec.Command(os.ExpandEnv(fs.scriptPath), args...)
-	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s %s failed\n", fs.scriptName(),
 			strings.Join(args, " "))
+		if err, ok := err.(*exec.ExitError); ok {
+			fmt.Fprintf(os.Stderr, "%s", string(err.Stderr))
+		}
 		os.Exit(cmd.ProcessState.ExitCode())
 	}
 	return strings.Split(string(out), "\n")
