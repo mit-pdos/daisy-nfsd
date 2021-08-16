@@ -123,12 +123,16 @@ func LinuxDurabilityFilesystems(disk string) []KeyValue {
 	}
 	kvs := extendAll(KeyValue{"name": "linux", "disk": disk},
 		[]KeyValue{
-			{"fs": "ext4", "mount-opts": "data=journal"},
-			{"fs": "ext4", "mount-opts": "data=ordered"},
+			{"fs": "ext4", "mount-opts": "data=journal",
+				"nfs-mount-opts": "wsize=65536,rsize=65536"},
+			{"fs": "ext4", "mount-opts": "data=ordered",
+				"nfs-mount-opts": "wsize=65536,rsize=65536"},
 			{"fs": "ext4", "mount-opts": "data=ordered",
 				"nfs-mount-opts": "wsize=65536,rsize=65536,sync"},
-			{"fs": "btrfs", "mount-opts": ""},
-			{"fs": "btrfs", "mount-opts": "flushoncommit"},
+			{"fs": "btrfs", "mount-opts": "",
+				"nfs-mount-opts": "wsize=65536,rsize=65536"},
+			{"fs": "btrfs", "mount-opts": "flushoncommit",
+				"nfs-mount-opts": "wsize=65536,rsize=65536"},
 			{"fs": "btrfs", "mount-opts": "",
 				"nfs-mount-opts": "wsize=65536,rsize=65536,sync"},
 		})
@@ -168,6 +172,7 @@ func ManyDurabilityFilesystems(disk string) []KeyValue {
 					{"disk": disk, "unstable": false},
 				})...)
 	}
+	kvs = extendAll(KeyValue{"nfs-mount-opts": "wsize=65536,rsize=65536"}, kvs)
 	kvs = append(kvs,
 		LinuxDurabilityFilesystems(disk)...)
 	return extendAll(KeyValue{"size": float64(500)}, kvs)

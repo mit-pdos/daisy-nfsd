@@ -148,6 +148,7 @@ var benchCommand = &cli.Command{
 	Usage: "run a few single-threaded benchmarks",
 	Flags: []cli.Flag{&cli.BoolFlag{
 		Name:  "unstable",
+		Value: false,
 		Usage: "use unstable writes in baseline systems",
 	}, &cli.StringFlag{
 		Name:  "benchtime",
