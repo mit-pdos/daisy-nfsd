@@ -19,11 +19,28 @@ def read_observations(f):
     return pd.DataFrame.from_records(records)
 
 
+def cov_percent(data):
+    return round((np.std(data) / np.mean(data)) * 100, 2)
+
+
 def bench_cmd(df, args):
-    df = df.pivot_table(
-        index="bench.name", columns="fs.name", values="val", aggfunc=np.mean
-    )
-    df = df.reindex(index=["smallfile", "largefile", "app"])
+    if args.debug:
+        df = df.pivot_table(
+            index="fs.name",
+            columns="bench.name",
+            values="val",
+            aggfunc=[np.mean, cov_percent],
+        )
+        df = df.reorder_levels([1, 0], axis="columns")
+        df = df[["smallfile", "largefile", "app"]]
+    else:
+        df = df.pivot_table(
+            index="bench.name",
+            columns="fs.name",
+            values="val",
+            aggfunc=np.mean,
+        )
+        df = df.reindex(index=["smallfile", "largefile", "app"])
     df.index.rename("bench", inplace=True)
     if args.debug:
         print(df)
@@ -39,9 +56,22 @@ def bench_cmd(df, args):
 
 
 def scale_cmd(df, args):
-    df = df.pivot_table(
-        index="bench.start", columns="fs.name", values="val", aggfunc=np.mean
-    )
+
+    if args.debug:
+        df = df.pivot_table(
+            index="bench.start",
+            columns="fs.name",
+            values="val",
+            aggfunc=[np.mean, cov_percent],
+        )
+        df = df.reorder_levels([1, 0], axis="columns")
+    else:
+        df = df.pivot_table(
+            index="bench.start",
+            columns="fs.name",
+            values="val",
+            aggfunc=np.mean,
+        )
     df.index.rename("threads", inplace=True)
     if args.debug:
         print(df)

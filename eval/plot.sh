@@ -27,7 +27,8 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-"$DIR/eval.py" -i "$input" bench
-"$DIR/eval.py" -i "$input" scale
-"$DIR/bench.plot" -i "$input" -o "$input"/bench.pdf
-"$DIR/scale.plot" -i "$input" -o "$input"/scale.pdf
+"$DIR/eval.py" -i "$input" bench &&
+    "$DIR/bench.plot" -i "$input" -o "$input"/bench.pdf &
+"$DIR/eval.py" -i "$input" scale &&
+    "$DIR/scale.plot" -i "$input" -o "$input"/scale.pdf &
+wait
