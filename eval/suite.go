@@ -56,14 +56,14 @@ func (bs *BenchmarkSuite) Workloads() []Workload {
 
 func BenchSuite(smallfileDuration string) []Benchmark {
 	return []Benchmark{
-		LargefileBench(100),
+		LargefileBench(300),
 		SmallfileBench(smallfileDuration, 1),
 		AppBench(),
 	}
 }
 
 var LargefileSuite = []Benchmark{
-	LargefileBench(100),
+	LargefileBench(300),
 }
 
 func ScaleSuite(benchtime string, threads int) []Benchmark {
