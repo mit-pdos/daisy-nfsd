@@ -12,6 +12,7 @@ cd "$DAISY_NFSD_PATH"
 git pull
 make compile
 go build ./cmd/daisy-nfsd
+go build ./cmd/daisy-eval
 
 sudo cpupower frequency-set --governor performance
 
