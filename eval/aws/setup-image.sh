@@ -14,6 +14,8 @@ cd
 sudo apt-get update
 sudo apt-get upgrade -y
 sudo apt-get install -y git python3-pip wget unzip
+
+# AWS dependencies
 sudo apt-get install -y linux-tools-common linux-tools-aws stress
 sudo apt-get install -y cpufrequtils
 

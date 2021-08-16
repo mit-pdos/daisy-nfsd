@@ -22,5 +22,4 @@ Boot from AMI - need to set instance type (i3.metal) and security group
 
 Run `aws-setup.sh` first
 
-Run `aws.sh` (TODO: fix this script, unify go-nfsd experimental setup support with
-daisy-nfsd)
+Run `eval.sh`
