@@ -242,6 +242,12 @@ func main() {
 			opCounts := nfs.GetOpStats()
 			nfs.ResetStats()
 			reportStats(opCounts)
+			// disk stats are only even tracked with -stats
+			if dumpStats {
+				d := d.(*timed_disk.Disk)
+				d.WriteStats(os.Stderr)
+				d.ResetStats()
+			}
 		}
 	}()
 
