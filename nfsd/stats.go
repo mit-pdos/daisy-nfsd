@@ -75,3 +75,10 @@ func (nfs *Nfs) GetOpStats() []OpCount {
 	}
 	return stats
 }
+
+func (nfs *Nfs) ResetStats() {
+	for i := 0; i < NUM_NFS_OPS; i++ {
+		atomic.StoreUint32(&nfs.opCounts[i], 0)
+		atomic.StoreUint64(&nfs.opNanos[i], 0)
+	}
+}

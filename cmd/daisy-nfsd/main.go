@@ -240,6 +240,7 @@ func main() {
 		for {
 			<-usrSig
 			opCounts := nfs.GetOpStats()
+			nfs.ResetStats()
 			reportStats(opCounts)
 		}
 	}()
