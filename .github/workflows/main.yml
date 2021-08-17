@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Test support library
         run: |
-          go test -v -timeout=1m ./dafny_go/...
+          go test -v -timeout=1m ./dafny_go/... ./eval
   test-compiled:
     name: Test NFS server
     runs-on: ubuntu-20.04
