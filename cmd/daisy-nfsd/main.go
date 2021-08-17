@@ -234,22 +234,21 @@ func main() {
 			d.(*timed_disk.Disk).WriteStats(os.Stderr)
 		}
 	}()
-	usrSig := make(chan os.Signal, 1)
-	signal.Notify(usrSig, syscall.SIGUSR1)
-	go func() {
-		for {
-			<-usrSig
-			opCounts := nfs.GetOpStats()
-			nfs.ResetStats()
-			reportStats(opCounts)
-			// disk stats are only even tracked with -stats
-			if dumpStats {
+	if dumpStats {
+		usrSig := make(chan os.Signal, 1)
+		signal.Notify(usrSig, syscall.SIGUSR1)
+		go func() {
+			for {
+				<-usrSig
+				opCounts := nfs.GetOpStats()
+				nfs.ResetStats()
+				reportStats(opCounts)
 				d := d.(*timed_disk.Disk)
 				d.WriteStats(os.Stderr)
 				d.ResetStats()
 			}
-		}
-	}()
+		}()
+	}
 
 	for {
 		conn, err := listener.Accept()

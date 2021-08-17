@@ -18,30 +18,30 @@ nfs_mount_path="/mnt/nfs"
 extra_args=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-    -disk)
-        shift
-        disk_path="$1"
-        shift
-        ;;
-    -nfs-mount-opts)
-        shift
-        nfs_mount_opts="$1"
-        shift
-        ;;
-    -mount-path)
-        shift
-        nfs_mount_path="$1"
-        shift
-        ;;
-    -*=*)
-        extra_args+=("$1")
-        shift
-        ;;
-    -*)
-        extra_args+=("$1" "$2")
-        shift
-        shift
-        ;;
+        -disk)
+            shift
+            disk_path="$1"
+            shift
+            ;;
+        -nfs-mount-opts)
+            shift
+            nfs_mount_opts="$1"
+            shift
+            ;;
+        -mount-path)
+            shift
+            nfs_mount_path="$1"
+            shift
+            ;;
+        -*=*)
+            extra_args+=("$1")
+            shift
+            ;;
+        -*)
+            extra_args+=("$1" "$2")
+            shift
+            shift
+            ;;
     esac
 done
 
@@ -50,7 +50,8 @@ make --quiet compile
 go build ./cmd/daisy-nfsd
 ./daisy-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
 sleep 2
-killall -0 daisy-nfsd # make sure server is running
+killall -0 daisy-nfsd       # make sure server is running
+killall -SIGUSR1 daisy-nfsd # reset stats after recovery
 
 # mount options for Linux NFS client:
 #
