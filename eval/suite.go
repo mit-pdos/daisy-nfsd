@@ -122,6 +122,9 @@ func LinuxDurabilityFilesystems(disk string) []KeyValue {
 		disk = "/dev/shm/disk.img"
 	}
 	kvs := extendAll(KeyValue{"name": "linux", "disk": disk},
+		// not a perfect cross product because using NFS sync means the
+		// underlying file system's durability is irrelevant, so we only test
+		// one configuration
 		[]KeyValue{
 			{"fs": "ext4", "mount-opts": "data=journal",
 				"nfs-mount-opts": "wsize=65536,rsize=65536"},
@@ -140,39 +143,43 @@ func LinuxDurabilityFilesystems(disk string) []KeyValue {
 }
 
 func ManyDurabilityFilesystems(disk string) []KeyValue {
+	nfsMountOpts := []interface{}{
+		"wsize=65536,rsize=65536",
+		"wsize=65536,rsize=65536,sync",
+	}
 	var kvs []KeyValue
 	if disk == ":memory:" {
 		kvs = append(kvs,
-			extendAll(KeyValue{"name": "daisy-nfsd"},
-				[]KeyValue{
-					{"disk": "/dev/shm/disk.img"},
-					{"disk": ""},
-				})...)
+			KeyValue{
+				"name":           "daisy-nfsd",
+				"disk":           []interface{}{"/dev/shm/disk.img", ""},
+				"nfs-mount-opts": nfsMountOpts,
+			}.Product()...)
 	} else {
 		kvs = append(kvs,
-			extendAll(KeyValue{"name": "daisy-nfsd"},
-				[]KeyValue{
-					{"disk": disk},
-				})...)
+			KeyValue{
+				"name":           "daisy-nfsd",
+				"disk":           disk,
+				"nfs-mount-opts": nfsMountOpts,
+			}.Product()...)
 	}
 	if disk == ":memory:" {
 		kvs = append(kvs,
-			extendAll(KeyValue{"name": "go-nfsd"},
-				[]KeyValue{
-					{"disk": "/dev/shm/disk.img", "unstable": true},
-					{"disk": "/dev/shm/disk.img", "unstable": false},
-					{"disk": "", "unstable": true},
-					{"disk": "", "unstable": false},
-				})...)
+			KeyValue{
+				"name":           "go-nfsd",
+				"disk":           []interface{}{"/dev/shm/disk.img", ""},
+				"unstable":       []interface{}{true, false},
+				"nfs-mount-opts": nfsMountOpts,
+			})
 	} else {
 		kvs = append(kvs,
-			extendAll(KeyValue{"name": "go-nfsd"},
-				[]KeyValue{
-					{"disk": disk, "unstable": true},
-					{"disk": disk, "unstable": false},
-				})...)
+			KeyValue{
+				"name":           "go-nfsd",
+				"disk":           disk,
+				"unstable":       []interface{}{true, false},
+				"nfs-mount-opts": nfsMountOpts,
+			}.Product()...)
 	}
-	kvs = extendAll(KeyValue{"nfs-mount-opts": "wsize=65536,rsize=65536"}, kvs)
 	kvs = append(kvs,
 		LinuxDurabilityFilesystems(disk)...)
 	return extendAll(KeyValue{"size": float64(800)}, kvs)

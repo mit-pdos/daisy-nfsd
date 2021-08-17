@@ -66,6 +66,7 @@ func TestParseSmallfile(t *testing.T) {
 	assert.Equal(Observation{
 		Values: KeyValue{"val": 3076.1},
 		Config: KeyValue{
+			"name": "smallfile",
 			"bench": KeyValue{
 				"benchtime": "10s",
 				"name":      "smallfile",
@@ -96,4 +97,38 @@ func TestParseApp(t *testing.T) {
 	assert.Len(os, 3)
 	assert.Equal(0.352113, os[2].Values["val"])
 	assert.Equal("app", os[0].Config.Flatten()["bench.name"])
+}
+
+func TestKeyValue_Product(t *testing.T) {
+	assert := assert.New(t)
+	assert.Equal(KeyValue{"foo": "bar"}.Product(), []KeyValue{{"foo": "bar"}})
+	assert.Equal(KeyValue{"foo": "bar", "x": 4.0}.Product(),
+		[]KeyValue{{"foo": "bar", "x": 4.0}})
+
+	assert.Equal(KeyValue{"foo": []interface{}{"bar", "baz"}}.Product(),
+		[]KeyValue{
+			{"foo": "bar"}, {"foo": "baz"},
+		},
+	)
+
+	assert.Equal(KeyValue{"common": true, "foo": []interface{}{"bar",
+		"baz"}}.Product(),
+		[]KeyValue{
+			{"common": true, "foo": "bar"},
+			{"common": true, "foo": "baz"},
+		},
+	)
+
+	// exact order of elements depends on iteration order
+	assert.ElementsMatch(KeyValue{
+		"foo":     []interface{}{"bar", "baz"},
+		"another": []interface{}{true, false},
+	}.Product(),
+		[]KeyValue{
+			{"foo": "bar", "another": true},
+			{"foo": "bar", "another": false},
+			{"foo": "baz", "another": true},
+			{"foo": "baz", "another": false},
+		},
+	)
 }

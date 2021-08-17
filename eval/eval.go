@@ -99,6 +99,29 @@ func (kv KeyValue) Extend(kv2 KeyValue) KeyValue {
 	return kv
 }
 
+// Product takes the cross product of any fields that are slices
+func (kv KeyValue) Product() []KeyValue {
+	variants := []KeyValue{{}}
+	for k, v := range kv {
+		switch v := v.(type) {
+		case []interface{}:
+			var newVariants []KeyValue
+			for _, kvs := range variants {
+				for _, vv := range v {
+					newVariants = append(newVariants,
+						KeyValue{k: vv}.Extend(kvs))
+				}
+			}
+			variants = newVariants
+		default:
+			for _, kvs := range variants {
+				kvs[k] = v
+			}
+		}
+	}
+	return variants
+}
+
 type Observation struct {
 	Values KeyValue `json:"values"`
 	Config KeyValue `json:"config"`
