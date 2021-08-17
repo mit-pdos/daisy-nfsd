@@ -14,7 +14,7 @@ module TypedFs {
   import Nfs
   import opened MemInodes
 
-  const WT_MAX: uint64 := 16*4096
+  const WT_MAX: uint64 := 256*4096
 
   class TypedFilesys
   {
