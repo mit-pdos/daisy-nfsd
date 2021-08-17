@@ -93,7 +93,7 @@ func BasicFilesystems(disk string, unstable bool) []KeyValue {
 		ext4Opts = "data=ordered"
 	}
 	return extendAll(KeyValue{
-		"size":           float64(600),
+		"size":           float64(800),
 		"nfs-mount-opts": "wsize=65536,rsize=65536",
 	},
 		[]KeyValue{
@@ -175,5 +175,5 @@ func ManyDurabilityFilesystems(disk string) []KeyValue {
 	kvs = extendAll(KeyValue{"nfs-mount-opts": "wsize=65536,rsize=65536"}, kvs)
 	kvs = append(kvs,
 		LinuxDurabilityFilesystems(disk)...)
-	return extendAll(KeyValue{"size": float64(600)}, kvs)
+	return extendAll(KeyValue{"size": float64(800)}, kvs)
 }
