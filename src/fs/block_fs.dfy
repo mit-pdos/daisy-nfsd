@@ -115,10 +115,12 @@ module BlockFs
   }
 
   // public
-  method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, n: uint64, blk: Bytes)
+  method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, c: BlknoCache,
+    n: uint64, blk: Bytes)
     returns (ok: bool)
-    modifies fs.Repr, i.Repr
+    modifies fs.Repr, i.Repr, c
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+    requires fs.ValidCache(ino, c)
     requires fs.has_jrnl(txn)
     requires is_lba(n)
     requires is_block(blk.data)
@@ -130,7 +132,7 @@ module BlockFs
     ensures blk.data == old(blk.data)
     ensures !ok ==> block_data(fs.data) == old(block_data(fs.data))
   {
-    ok := fs.write(txn, Pos.from_flat(ino, n), i, blk);
+    ok := fs.write(txn, Pos.from_flat(ino, n), i, c, blk);
     if !ok {
       return;
     }

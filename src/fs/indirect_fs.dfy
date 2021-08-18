@@ -37,6 +37,31 @@ module IndFs
     config_properties();
   }
 
+  // BlknoCache keeps track of resolved Pos -> Blkno mappings within the same
+  // transaction, to save work between iterations of read and write.
+  //
+  // This is currently used only for resolveMetadata for write, but should also
+  // be used within read and in resolveBlkno for checking for zeroing.
+  class BlknoCache
+  {
+    var lastLookup: Option<(Pos, Blkno)>
+
+    constructor()
+      ensures fresh(this)
+      ensures lastLookup.None?
+    {
+      lastLookup := None;
+    }
+  }
+
+  // caching policy is to only cache the second-to-last level (since we only
+  // cache one lookup, we don't want to cache more indirect lookups since they
+  // will be used less)
+  predicate method shouldCache(pos: Pos)
+  {
+      pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k]
+  }
+
   class IndFilesys
   {
     // filesys contains a mapping from allocated Blkno's to poss
@@ -235,6 +260,16 @@ module IndFs
     {
       && Valid()
       && fs.quiescent()
+    }
+
+    predicate ValidCache(ino: Ino, c: BlknoCache)
+      reads Repr, c
+      requires Valid()
+    {
+      match c.lastLookup {
+        case None => true
+        case Some((pos, bn)) => pos.ino == ino && to_blkno[pos] == bn
+      }
     }
 
     constructor Init(d: Disk)
@@ -501,6 +536,38 @@ module IndFs
       }
     }
 
+    method checkCache(pos: Pos, c: BlknoCache)
+      returns (bn:Option<Blkno>)
+      requires Valid()
+      requires ValidCache(pos.ino, c)
+      ensures bn.Some? ==> to_blkno[pos] == bn.x
+    {
+      match c.lastLookup {
+        case None => return None;
+        case Some((pos', bn)) => {
+          if pos.idx == pos'.idx {
+            return Some(bn);
+          } else {
+            return None;
+          }
+        }
+      }
+    }
+
+    method updateCache(pos: Pos, c: BlknoCache, bn: Blkno)
+      modifies c
+      requires Valid()
+      requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
+      requires to_blkno[pos] == bn
+    {
+    // caching policy is to only cache the second-to-last level (since we only
+    // cache one lookup, we don't want to cache more indirect lookups since they
+    // will be used less)
+      if pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k] {
+        c.lastLookup := Some((pos, bn));
+      }
+    }
+
     // resolveBlkno gets the bn storing pos. Like resolveMetadata but does not
     // allocate along the way, since this is intended only for freeing.
     method resolveBlkno(txn: Txn, pos: Pos, i: MemInode)
@@ -537,16 +604,24 @@ module IndFs
     }
 
     // private
-    method resolveMetadata(txn: Txn, pos: Pos, i: MemInode) returns (ok: bool, bn: Blkno)
+    method resolveMetadata(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache)
+      returns (ok: bool, bn: Blkno)
       decreases pos.ilevel
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, c
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       ensures bn == to_blkno[pos]
       ensures ok == (bn != 0)
       ensures state_unchanged()
     {
       reveal ValidInodes();
+      var mbn := checkCache(pos, c);
+      if mbn.Some? {
+        bn := mbn.x;
+        ok := (bn != 0);
+        return;
+      }
       var idx := pos.idx;
       if pos.ilevel == 0 {
         assert idx.off == IndOff.direct;
@@ -554,18 +629,20 @@ module IndFs
         if bn != 0 {
           // we haven't actually written anything, just resolved existing metadata
           ok := true;
+          updateCache(pos, c, bn);
           return;
         }
         assert bn == 0;
         // need to allocate a top-level indirect block
         ok, bn := allocateRootMetadata(txn, pos, i);
+        c.lastLookup := Some((pos, bn));
         return;
       }
       // recurse
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
       var ibn;
-      ok, ibn := this.resolveMetadata(txn, parent, i);
+      ok, ibn := this.resolveMetadata(txn, parent, i, c);
       if !ok {
         bn := 0;
         IndBlocks.to_blknos_zero();
@@ -580,12 +657,14 @@ module IndFs
         reveal ValidIndirect();
       }
       assert ValidIno(pos.ino, i);
+      updateCache(pos, c, bn);
       assert state_unchanged();
       if bn != 0 {
         return;
       }
 
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
+      c.lastLookup := Some((pos, bn));
       assert ValidIno(pos.ino, i);
       if !ok {
         IndBlocks.to_blknos_zero();
@@ -625,11 +704,12 @@ module IndFs
       reveal ValidMetadata();
     }
 
-    method write(txn: Txn, pos: Pos, i: MemInode, blk: Bytes)
+    method write(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache, blk: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, c
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
+      requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       requires pos.data?
       requires is_block(blk.data)
       ensures ok ==> data == old(data[pos := blk.data])
@@ -639,7 +719,7 @@ module IndFs
       var i': MemInode := i;
       var idx := pos.idx;
       var bn;
-      ok, bn := this.resolveMetadata(txn, pos, i');
+      ok, bn := this.resolveMetadata(txn, pos, i', c);
       if !ok {
          return;
       }

@@ -364,7 +364,8 @@ module ByteFs {
       ensures !ok ==> data() == old(data())
     {
       var blkoff: uint64 := off / 4096;
-      ok := block_write(fs, txn, ino, i, blkoff, bs);
+      var c := new BlknoCache();
+      ok := block_write(fs, txn, ino, i, c, blkoff, bs);
       assert types_unchanged() by {
         reveal inode_types();
       }

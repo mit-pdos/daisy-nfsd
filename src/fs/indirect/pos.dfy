@@ -230,12 +230,12 @@ module IndirectPos
   datatype preIdx = Idx(k: uint64, off: IndOff)
   {
     const ilevel: uint64 := off.ilevel
+      // if false, idx is indirect
     predicate method data?()
     {
       && k as nat < |config.ilevels|
       && off.ilevel == config.ilevels[k]
     }
-
 
     static function from_inode(k: uint64): Idx
       requires k as nat < |config.ilevels|
@@ -345,6 +345,7 @@ module IndirectPos
   {
     const ilevel: uint64 := idx.off.ilevel;
     const data?: bool := idx.data?()
+    const indirect?: bool := !data?
 
     static function method from_flat(ghost ino: Ino, n: uint64): Pos
       requires n as nat < config.total
