@@ -44,13 +44,15 @@ module IndFs
   // be used within read and in resolveBlkno for checking for zeroing.
   class BlknoCache
   {
-    var lastLookup: Option<(Pos, Blkno)>
+    var pos: Pos;
+    var bn: Blkno;
+    var ok: bool;
 
     constructor()
       ensures fresh(this)
-      ensures lastLookup.None?
+      ensures ok == false
     {
-      lastLookup := None;
+      ok := false;
     }
   }
 
@@ -266,10 +268,9 @@ module IndFs
       reads Repr, c
       requires Valid()
     {
-      match c.lastLookup {
-        case None => true
-        case Some((pos, bn)) => pos.ino == ino && to_blkno[pos] == bn
-      }
+      c.ok ==>
+        && c.pos.ino == ino
+        && to_blkno[c.pos] == c.bn
     }
 
     constructor Init(d: Disk)
@@ -542,16 +543,10 @@ module IndFs
       requires ValidCache(pos.ino, c)
       ensures bn.Some? ==> to_blkno[pos] == bn.x
     {
-      match c.lastLookup {
-        case None => return None;
-        case Some((pos', bn)) => {
-          if pos.idx == pos'.idx {
-            return Some(bn);
-          } else {
-            return None;
-          }
-        }
+      if c.ok && c.pos.idx == pos.idx {
+        return Some(c.bn);
       }
+      return None;
     }
 
     method updateCache(pos: Pos, c: BlknoCache, bn: Blkno)
@@ -564,7 +559,9 @@ module IndFs
     // cache one lookup, we don't want to cache more indirect lookups since they
     // will be used less)
       if pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k] {
-        c.lastLookup := Some((pos, bn));
+        c.ok := true;
+        c.pos := pos;
+        c.bn := bn;
       }
     }
 
@@ -635,7 +632,9 @@ module IndFs
         assert bn == 0;
         // need to allocate a top-level indirect block
         ok, bn := allocateRootMetadata(txn, pos, i);
-        c.lastLookup := Some((pos, bn));
+        c.ok := true;
+        c.pos := pos;
+        c.bn := bn;
         return;
       }
       // recurse
@@ -664,7 +663,9 @@ module IndFs
       }
 
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
-      c.lastLookup := Some((pos, bn));
+      c.ok := true;
+      c.pos := pos;
+      c.bn := bn;
       assert ValidIno(pos.ino, i);
       if !ok {
         IndBlocks.to_blknos_zero();
