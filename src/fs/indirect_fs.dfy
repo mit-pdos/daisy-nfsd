@@ -46,13 +46,28 @@ module IndFs
   {
     var pos: Pos;
     var bn: Blkno;
+    var bs: Bytes;
     var ok: bool;
 
+    function Repr(): set<object>
+      reads this
+    {
+      {this, bs}
+    }
+
     constructor()
-      ensures fresh(this)
+      ensures fresh(this.Repr())
       ensures ok == false
     {
       ok := false;
+      var bs0 := NewBytes(0);
+      bs := bs0;
+    }
+
+    predicate Valid()
+      reads Repr()
+    {
+      ok ==> !pos.data?
     }
   }
 
@@ -265,12 +280,14 @@ module IndFs
     }
 
     predicate ValidCache(ino: Ino, c: BlknoCache)
-      reads Repr, c
+      reads Repr, c.Repr()
       requires Valid()
     {
-      c.ok ==>
+      && c.Valid()
+      && (c.ok ==>
         && c.pos.ino == ino
         && to_blkno[c.pos] == c.bn
+        && c.bs.data == zero_lookup(fs.data_block, c.bn))
     }
 
     constructor Init(d: Disk)
@@ -476,6 +493,7 @@ module IndFs
       ensures ok == (bn != 0)
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures fs.inodes == old(fs.inodes)
+      ensures pblock.data == zero_lookup(fs.data_block, ibn)
       ensures state_unchanged()
     {
       assert IndBlocks.to_blknos(block0) == IndBlocks.IndBlknos.zero by {
@@ -549,11 +567,13 @@ module IndFs
       return None;
     }
 
-    method updateCache(pos: Pos, c: BlknoCache, bn: Blkno)
+    method updateCache(txn: Txn, pos: Pos, c: BlknoCache, bn: Blkno)
       modifies c
       requires Valid()
+      requires has_jrnl(txn)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       requires to_blkno[pos] == bn
+      ensures fresh(c.Repr() - old(c.Repr()))
     {
     // caching policy is to only cache the second-to-last level (since we only
     // cache one lookup, we don't want to cache more indirect lookups since they
@@ -562,6 +582,8 @@ module IndFs
         c.ok := true;
         c.pos := pos;
         c.bn := bn;
+        var bs := fs.getDataBlock(txn, bn);
+        c.bs := bs;
       }
     }
 
@@ -601,16 +623,17 @@ module IndFs
     }
 
     // private
-    method resolveMetadata(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache)
+    method {:timeLimitMultiplier 2} resolveMetadata(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache)
       returns (ok: bool, bn: Blkno)
       decreases pos.ilevel
-      modifies Repr, i.Repr, c
+      modifies Repr, i.Repr, c.Repr()
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       ensures bn == to_blkno[pos]
       ensures ok == (bn != 0)
       ensures state_unchanged()
+      ensures fresh(c.Repr() - old(c.Repr()))
     {
       reveal ValidInodes();
       var mbn := checkCache(pos, c);
@@ -626,15 +649,12 @@ module IndFs
         if bn != 0 {
           // we haven't actually written anything, just resolved existing metadata
           ok := true;
-          updateCache(pos, c, bn);
           return;
         }
         assert bn == 0;
         // need to allocate a top-level indirect block
         ok, bn := allocateRootMetadata(txn, pos, i);
-        c.ok := true;
-        c.pos := pos;
-        c.bn := bn;
+        c.ok := false;
         return;
       }
       // recurse
@@ -648,24 +668,29 @@ module IndFs
         reveal ValidIndirect();
         return;
       }
+      var pblock: Bytes;
+      if c.ok && c.bn == ibn {
+        pblock := c.bs;
+      } else {
+        pblock := fs.getDataBlock(txn, ibn);
+      }
+      assert fresh({pblock} - {c.bs});
       // now we have somewhere to store the reference to this block, but might
       // need to allocate into the parent
-      var pblock := fs.getDataBlock(txn, ibn);
       bn := IndBlocks.decode_one(pblock, child.j);
       assert bn == to_blkno[pos] by {
         reveal ValidIndirect();
       }
       assert ValidIno(pos.ino, i);
-      updateCache(pos, c, bn);
+      updateCache(txn, pos, c, bn);
       assert state_unchanged();
       if bn != 0 {
         return;
       }
 
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
-      c.ok := true;
-      c.pos := pos;
-      c.bn := bn;
+      c.ok := false;
+      c.bs := NewBytes(0);
       assert ValidIno(pos.ino, i);
       if !ok {
         IndBlocks.to_blknos_zero();
@@ -707,15 +732,17 @@ module IndFs
 
     method write(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache, blk: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr, c
+      modifies Repr, i.Repr, c.Repr()
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       requires pos.data?
       requires is_block(blk.data)
+      requires blk != c.bs
       ensures ok ==> data == old(data[pos := blk.data])
       ensures !ok ==> data == old(data)
       ensures metadata == old(metadata)
+      ensures fresh(c.Repr() - old(c.Repr()))
     {
       var i': MemInode := i;
       var idx := pos.idx;
@@ -728,6 +755,13 @@ module IndFs
 
       fs.writeDataBlock(txn, bn, blk);
       data := data[pos := blk.data];
+
+      if c.ok {
+        assert c.bn != bn by {
+          assert c.pos != pos;// one is data, other is not
+          reveal ValidPos();
+        }
+      }
 
       assert ValidPos() by {
         reveal ValidPos();

@@ -365,6 +365,9 @@ module ByteFs {
     {
       var blkoff: uint64 := off / 4096;
       var c := new BlknoCache();
+      assert c.bs != bs by {
+        assert c.bs in c.Repr();
+      }
       ok := block_write(fs, txn, ino, i, c, blkoff, bs);
       assert types_unchanged() by {
         reveal inode_types();

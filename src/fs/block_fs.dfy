@@ -118,12 +118,13 @@ module BlockFs
   method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, c: BlknoCache,
     n: uint64, blk: Bytes)
     returns (ok: bool)
-    modifies fs.Repr, i.Repr, c
+    modifies fs.Repr, i.Repr, c.Repr()
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
     requires fs.ValidCache(ino, c)
     requires fs.has_jrnl(txn)
     requires is_lba(n)
     requires is_block(blk.data)
+    requires blk != c.bs
     ensures fs.metadata == old(fs.metadata)
     ensures ok ==> block_data(fs.data) == old(
         var data := block_data(fs.data);
