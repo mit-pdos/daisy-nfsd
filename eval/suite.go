@@ -93,8 +93,7 @@ func BasicFilesystems(disk string, unstable bool) []KeyValue {
 		ext4Opts = "data=ordered"
 	}
 	return extendAll(KeyValue{
-		"size":           float64(800),
-		"nfs-mount-opts": "wsize=65536,rsize=65536",
+		"size": float64(800),
 	},
 		[]KeyValue{
 			{
@@ -102,10 +101,11 @@ func BasicFilesystems(disk string, unstable bool) []KeyValue {
 				"disk": nfsdDisk,
 			},
 			{
-				"name":       "linux",
-				"fs":         "ext4",
-				"disk":       linuxDisk,
-				"mount-opts": ext4Opts,
+				"name":           "linux",
+				"fs":             "ext4",
+				"disk":           linuxDisk,
+				"mount-opts":     ext4Opts,
+				"nfs-mount-opts": "wsize=65536,rsize=65536",
 			},
 			{
 				"name":     "go-nfsd",
@@ -144,6 +144,9 @@ func LinuxDurabilityFilesystems(disk string) []KeyValue {
 
 func ManyDurabilityFilesystems(disk string) []KeyValue {
 	nfsMountOpts := []interface{}{
+		// under sync the write size will be 65536=16*4k since that's the write
+		// size in largefile anyway, so use the same batch size without it for a
+		// fair comparison
 		"wsize=65536,rsize=65536",
 		"wsize=65536,rsize=65536,sync",
 	}
