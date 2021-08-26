@@ -25,10 +25,10 @@ github.com/mattn/go-isatty v0.0.13/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Ky
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
 github.com/mattn/go-runewidth v0.0.13 h1:lTGmDsbAYt5DmK6OnoV7EuIF1wEIFAcxld6ypU4OSgU=
 github.com/mattn/go-runewidth v0.0.13/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
-github.com/mit-pdos/go-journal v0.4.0 h1:YFJv5J/1vuhPmnXpbqZ6UzesUBXtMD5xmBdADhiGFjw=
-github.com/mit-pdos/go-journal v0.4.0/go.mod h1:lIXkEqvoKSzfrsaFYwh7JqKN2IqqCv7OyphUaU3v85g=
-github.com/mit-pdos/go-nfsd v0.6.1 h1:td7AIFnaR6WkmfYvqLq+zTcJ/DajFcqIwb97Uy+/hDE=
-github.com/mit-pdos/go-nfsd v0.6.1/go.mod h1:OZovLE9EJO1trMnEig5Y/HFgygdiH9rvq8uVDb8mW0w=
+github.com/mit-pdos/go-journal v0.4.1 h1:IF0ZmSykl9OxCq0lY86Vok2dBr0DSWwFC7HSyTX/Eyc=
+github.com/mit-pdos/go-journal v0.4.1/go.mod h1:RkZFb2508uICvKqf4iqH5UHtFXRx2w1kV88oTBkmG9Q=
+github.com/mit-pdos/go-nfsd v0.6.2 h1:jKPAlwC149hvMDAzJdzj5UAqIju18JCUoXNDEDOprpA=
+github.com/mit-pdos/go-nfsd v0.6.2/go.mod h1:I2mYTlYHLWQMM0wXbTeNfNT0K7Fwv9NObDeo3CyKRjE=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2EmQ4l5rM/4FEfDWcRD+abF5XlKShorW5LRoQ=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db/go.mod h1:l0dey0ia/Uv7NcFFVbCLtqEBQbrT4OCwCSKTEv6enCw=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
@@ -62,7 +62,6 @@ github.com/tchajed/goose v0.3.1/go.mod h1:s6D4ibH0SaPtDcp0krx05XkZLlqipgRyRH8X6J
 github.com/tchajed/mailboat v0.0.0-20191026015926-338a5b81ac1d/go.mod h1:dmgNTEH0kreeKMWd+ntzsrp7ie2LWHGMe7VxP6d1Aew=
 github.com/tchajed/mailboat v0.2.0/go.mod h1:aKa/T1YCMVZFM2xbXnMNyp9r4k0pPni4+sJ8GoY51Hw=
 github.com/tchajed/marshal v0.0.0-20200707011626-0d2aa09818a9/go.mod h1:TPo3bTYJkH87/4rXlxe0bpVWLnN+b5kjJnoXHLBfdaA=
-github.com/tchajed/marshal v0.1.0/go.mod h1:jq2B5uP+QvY51sZB57Td/OsareaZEzm3HVuvVKhC22I=
 github.com/tchajed/marshal v0.2.0 h1:6syf2SG3//AE891aHhj6BS+fv3OCMxFM322x05ot3QE=
 github.com/tchajed/marshal v0.2.0/go.mod h1:jq2B5uP+QvY51sZB57Td/OsareaZEzm3HVuvVKhC22I=
 github.com/urfave/cli/v2 v2.3.0 h1:qph92Y649prgesehzOrQjdWyxFOp/QVM+6imKHad91M=
@@ -95,11 +94,10 @@ golang.org/x/sys v0.0.0-20200817155316-9781c653f443/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210330210617-4fbd30eecc44/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210510120138-977fb7262007/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20210514084401-e8d321eab015/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20210616094352-59db8d763f22/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20210817142637-7d9622a276b7 h1:lQ8Btl/sJr2+f4ql7ffKUKfnV0BsgsICvm0oEeINAQY=
-golang.org/x/sys v0.0.0-20210817142637-7d9622a276b7/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf h1:2ucpDCmfkl8Bd/FsLtiD653Wf96cW37s+iGx93zsu4k=
+golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b h1:9zKuko04nR4gjZ4+DNjHqRlAJqbJETHwiNKDqTfOjfE=
 golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
