@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Install Dafny
-        uses: tchajed/setup-dafny-action@v1
+        uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
       - uses: actions/checkout@v2
@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Install Dafny
-        uses: tchajed/setup-dafny-action@v1
+        uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
       - uses: actions/setup-go@v2
@@ -75,7 +75,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Install Dafny
-        uses: tchajed/setup-dafny-action@v1
+        uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
       - uses: actions/setup-go@v2
