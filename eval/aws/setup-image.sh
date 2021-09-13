@@ -26,10 +26,12 @@ ln -s ~/daisy-nfsd/eval ~/artifact
 
 mkdir ~/code
 cd ~/code
-git clone https://github.com/mit-pdos/go-nfsd
-git clone https://github.com/mit-pdos/go-journal
-git clone https://github.com/mit-pdos/xv6-public
-git clone --depth=1 https://github.com/linux-test-project/ltp
+git clone https://github.com/mit-pdos/go-nfsd &
+git clone https://github.com/mit-pdos/go-journal &
+git clone https://github.com/mit-pdos/xv6-public &
+git clone https://github.com/mit-pdos/fscq &
+git clone --depth=1 https://github.com/linux-test-project/ltp &
+wait
 cd
 
 cat >>~/.profile <<EOF
@@ -39,6 +41,7 @@ export GO_JRNL_PATH=$HOME/code/go-journal
 export GO_JOURNAL_PATH=$HOME/code/go-journal
 export PERENNIAL_PATH=$HOME/perennial
 export XV6_PATH=$HOME/code/xv6-public
+export FSCQ_PATH=$HOME/fscq
 export LTP_PATH=$HOME/code/ltp
 EOF
 echo "source ~/.profile" >>~/.zshrc
@@ -75,13 +78,47 @@ sudo sed -i "s/RPCNFSDCOUNT=8/RPCNFSDCOUNT=$(nproc)/" /etc/default/nfs-kernel-se
 
 # Set up Linux file-system tests
 
-# sudo apt-get install -y autoconf m4 automake pkg-config
-# cd ~/code/ltp
-# make -j4 autotools
-# ./configure
-# make -j4 -C testcases/kernel/fs/fsstress
-# make -j4 -C testcases/kernel/fs/fsx-linux
-# cd
+sudo apt-get install -y autoconf m4 automake pkg-config
+cd ~/code/ltp
+make -j4 autotools
+./configure
+make -j4 -C testcases/kernel/fs/fsstress
+make -j4 -C testcases/kernel/fs/fsx-linux
+cd
+
+# Install Coq (to build FSCQ)
+
+# opam dependencies
+sudo apt-get install -y m4 bubblewrap
+# coq dependencies
+sudo apt-get install -y libgmp-dev
+
+# use binary installer for opam since it has fewer dependencies than Ubuntu
+# package
+wget https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
+# echo is to answer question about where to install opam
+echo "" | sh install.sh --no-backup
+rm install.sh
+
+opam init --auto-setup --bare
+# takes ~5 minutes (compiles OCaml)
+opam switch create 4.12.0+flambda
+
+# shellcheck disable=2046
+eval $(opam env)
+
+# takes ~5 minutes
+opam install -y -j4 coq.8.13.2
+
+# Install FSCQ
+
+sudo apt-get install -y ghc cabal-install libfuse-dev
+cabal update
+cabal install --lib rdtsc digest
+cd ~/code/fscq/src
+# takes ~3 minutes
+make J=4 mkfs fscq
+cd
 
 # Install Python dependencies
 

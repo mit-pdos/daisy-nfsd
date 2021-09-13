@@ -4,6 +4,8 @@
 
 Launch an i3.large using Hirsute
 
+`wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
+
 Run `setup-image.sh`
 
 Should only take 2-3 minutes
