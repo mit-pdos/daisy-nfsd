@@ -2,21 +2,25 @@
 
 ## Create image (AMI) with prepped image
 
-Launch an i3.large using Hirsute
+Launch an i3.xlarge using Hirsute. Make sure to **increase the root volume size
+to 12GB**.
 
 `wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
 
-Run `setup-image.sh`
+Run `bash setup-image.sh`
 
-Should only take 2-3 minutes
+Will take 20 minutes
 
 Stop instance
 
 Select instance and click on Actions > Images and templates > Create image
 
-This takes a while (due to taking a snapshot)
-
 Name image daisy-eval-run
+
+This takes several minutes (due to taking a snapshot)
+
+Make sure to deregister old AMI and **delete its snapshot** (this has a monthly
+storage cost)
 
 ## Run experiments
 

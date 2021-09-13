@@ -18,12 +18,12 @@ sudo cpupower frequency-set --governor performance
 
 # disable all but the first numa node
 for node in /sys/devices/system/node/node*; do
-  if [ "$(basename "$node")" = "node0" ]; then
-    continue
-  fi
-  for cpu in "$node/cpu"[0-9]*; do
-    echo 0 | sudo tee "$cpu"/online >/dev/null
-  done
+    if [ "$(basename "$node")" = "node0" ]; then
+        continue
+    fi
+    for cpu in "$node/cpu"[0-9]*; do
+        echo 0 | sudo tee "$cpu"/online >/dev/null
+    done
 done
 
 cd "$DAISY_NFSD_PATH/eval"
@@ -37,5 +37,8 @@ sudo sed -i "s/RPCNFSDCOUNT=[0-9]*/RPCNFSDCOUNT=$RPC_NFSD_COUNT/" /etc/default/n
 grep RPCNFSDCOUNT /etc/default/nfs-kernel-server
 
 sudo turbostat stress -c 2 -t 10 2>&1 | tee data/cpuinfo.txt
+
+# Filebench wants ASLR disabled
+echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
 
 sudo chown "$USER" "$SSD"
