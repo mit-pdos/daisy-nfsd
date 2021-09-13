@@ -89,7 +89,7 @@ pip3 install argparse
 
 # Install Go and Go dependencies
 
-GO_FILE=go1.16.6.linux-amd64.tar.gz
+GO_FILE=go1.17.1.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE

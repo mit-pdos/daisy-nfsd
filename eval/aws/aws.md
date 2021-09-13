@@ -18,7 +18,8 @@ Name image daisy-eval-run
 
 ## Run experiments
 
-Boot from AMI - need to set instance type (i3.metal) and security group
+Boot from AMI - need to set instance type (i3.metal), change to spot instance,
+and set security group
 
 Run `aws-setup.sh` first
 
