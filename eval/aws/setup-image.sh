@@ -102,7 +102,7 @@ rm install.sh
 
 opam init --auto-setup --bare
 # takes ~5 minutes (compiles OCaml)
-opam switch create 4.12.0+flambda
+opam switch create 4.12.0+flambda --package=ocaml-variants.4.12.0+options,ocaml-option-flambda
 
 # shellcheck disable=2046
 eval $(opam env)
