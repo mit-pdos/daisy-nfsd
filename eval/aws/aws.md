@@ -25,7 +25,7 @@ storage cost)
 ## Run experiments
 
 Boot from AMI - need to set instance type (i3.metal), change to spot instance,
-and set security group
+and set security group to something that allows port 22 (for SSH access)
 
 Run `aws-setup.sh` first
 
