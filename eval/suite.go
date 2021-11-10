@@ -82,7 +82,7 @@ func extendAll(common KeyValue, kvs []KeyValue) []KeyValue {
 	return kvs
 }
 
-func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
+func BasicFilesystem(name string, disk string, unstable bool, jrnlpatch string) KeyValue {
 	nfsdDisk := disk
 	linuxDisk := disk
 	if disk == ":memory:" {
@@ -94,6 +94,7 @@ func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 	case "daisy-nfsd":
 		config = KeyValue{
 			"disk": nfsdDisk,
+			"jrnlpatch": jrnlpatch,
 		}
 	case "linux":
 		opts := "data=journal"

@@ -1,0 +1,35 @@
+diff --git a/wal/installer.go b/wal/installer.go
+index cd774ef..9b59901 100644
+--- a/wal/installer.go
++++ b/wal/installer.go
+@@ -60,14 +60,12 @@ func (l *Walog) logInstall() (uint64, LogPosition) {
+ 		return 0, installEnd
+ 	}
+ 
+-	l.memLock.Unlock()
+ 
+ 	util.DPrintf(5, "logInstall up to %d\n", installEnd)
+ 	installBlocks(l.d, bufs)
+ 	l.d.Barrier()
+ 	Advance(l.d, installEnd)
+ 
+-	l.memLock.Lock()
+ 	l.st.cutMemLog(installEnd)
+ 	l.condInstall.Broadcast()
+ 
+diff --git a/wal/logger.go b/wal/logger.go
+index efa671b..ad97c24 100644
+--- a/wal/logger.go
++++ b/wal/logger.go
+@@ -34,11 +34,9 @@ func (l *Walog) logAppend(circ *circularAppender) bool {
+ 	if len(newbufs) == 0 {
+ 		return false
+ 	}
+-	l.memLock.Unlock()
+ 
+ 	circ.Append(l.d, diskEnd, newbufs)
+ 
+-	l.memLock.Lock()
+ 
+ 	machine.Linearize()
+ 

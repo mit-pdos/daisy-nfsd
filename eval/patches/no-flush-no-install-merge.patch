@@ -1,0 +1,26 @@
+diff --git a/txn/txn.go b/txn/txn.go
+index 065814f..f218e56 100644
+--- a/txn/txn.go
++++ b/txn/txn.go
+@@ -124,7 +124,7 @@ func (txn *Txn) NDirty() uint64 {
+ 
+ func (txn *Txn) commitNoRelease() bool {
+ 	util.DPrintf(5, "tp Commit %p\n", txn)
+-	return txn.buftxn.CommitWait(true)
++	return txn.buftxn.CommitWait(false)
+ }
+ 
+ func (txn *Txn) Commit() bool {
+diff --git a/wal/installer.go b/wal/installer.go
+index cd774ef..5627d20 100644
+--- a/wal/installer.go
++++ b/wal/installer.go
+@@ -32,7 +32,7 @@ func absorbBufs(bufs []Update) []Update {
+ // the data region either has the value from the old transaction or the new
+ // transaction (with all of bufs applied).
+ func installBlocks(d disk.Disk, bufs []Update) {
+-	absorbed := absorbBufs(bufs)
++	absorbed := bufs
+ 	for i, buf := range absorbed {
+ 		blkno := buf.Addr
+ 		blk := buf.Block

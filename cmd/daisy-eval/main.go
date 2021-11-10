@@ -55,6 +55,11 @@ var suiteFlags = []cli.Flag{
 			"(basic, durability, " +
 			"or comma-separated list like daisy-nfsd,linux,go-nfsd)",
 	},
+	&cli.StringFlag{
+		Name:  "jrnlpatch",
+		Value: "",
+		Usage: "patch to apply to go-journal before running benchmark",
+	},
 }
 
 // WriteObservations saves observations in JSON (possibly compressed) to a file
@@ -122,7 +127,8 @@ func cliFilesystems(c *cli.Context) []eval.KeyValue {
 	fsNames := strings.Split(fss, ",")
 	for _, name := range fsNames {
 		configs = append(configs,
-			eval.BasicFilesystem(name, c.String("disk"), c.Bool("unstable")))
+			eval.BasicFilesystem(
+				name, c.String("disk"), c.Bool("unstable"), c.String("jrnlpatch")))
 	}
 	return configs
 }

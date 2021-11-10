@@ -1,0 +1,12 @@
+diff --git a/txn/txn.go b/txn/txn.go
+index 065814f..58de716 100644
+--- a/txn/txn.go
++++ b/txn/txn.go
+@@ -15,6 +15,7 @@ import (
+ 	"github.com/mit-pdos/go-journal/util"
+ )
+ 
++
+ type Log struct {
+ 	log   *obj.Log
+ 	locks *lockmap.LockMap

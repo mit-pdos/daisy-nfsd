@@ -1,0 +1,20 @@
+diff --git a/txn/txn.go b/txn/txn.go
+index 065814f..370e24d 100644
+--- a/txn/txn.go
++++ b/txn/txn.go
+@@ -46,13 +46,13 @@ func Begin(tsys *Log) *Txn {
+ }
+ 
+ func (txn *Txn) acquireNoCheck(addr addr.Addr) {
+-	flatAddr := addr.Flatid()
++	flatAddr := uint64(0)
+ 	txn.locks.Acquire(flatAddr)
+ 	txn.acquired[flatAddr] = true
+ }
+ 
+ func (txn *Txn) isAlreadyAcquired(addr addr.Addr) bool {
+-	flatAddr := addr.Flatid()
++	flatAddr := uint64(0)
+ 	return txn.acquired[flatAddr]
+ }
+ 
