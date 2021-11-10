@@ -15,6 +15,7 @@ cd "$DIR"/..
 disk_path=/dev/shm/nfs.img
 nfs_mount_opts=""
 nfs_mount_path="/mnt/nfs"
+jrnl_patch_path=""
 extra_args=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -33,6 +34,11 @@ while [[ "$#" -gt 0 ]]; do
             nfs_mount_path="$1"
             shift
             ;;
+        -jrnlpatch)
+            shift
+            jrnl_patch_path="$1"
+            shift
+            ;;
         -*=*)
             extra_args+=("$1")
             shift
@@ -47,7 +53,30 @@ done
 
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile
+if [[ ! -z "$jrnl_patch_path" ]]
+then
+	jrnl_patch_path=$(realpath "$jrnl_patch_path")
+
+	pushd "$GO_JRNL_PATH"
+	git apply "$jrnl_patch_path"
+	popd
+
+	pushd "$DAISY_NFSD_PATH"
+	go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
+	popd
+fi
 go build ./cmd/daisy-nfsd
+if [[ ! -z "$jrnl_patch_path" ]]
+then
+	pushd "$GO_JRNL_PATH"
+	git reset --hard
+	popd
+
+	pushd "$DAISY_NFSD_PATH"
+	go mod edit -dropreplace github.com/mit-pdos/go-journal
+	popd
+fi
+
 killall -w daisy-nfsd 2>/dev/null || true
 umount -f "$nfs_mount_path" 2>/dev/null || true
 ./daisy-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
