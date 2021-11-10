@@ -48,6 +48,8 @@ done
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile
 go build ./cmd/daisy-nfsd
+killall -w daisy-nfsd 2>/dev/null || true
+umount -f "$nfs_mount_path" 2>/dev/null || true
 ./daisy-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
 sleep 2
 killall -0 daisy-nfsd       # make sure server is running

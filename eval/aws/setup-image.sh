@@ -21,7 +21,7 @@ sudo apt-get install -y cpufrequtils
 
 # Get source code
 
-git clone https://github.com/mit-pdos/daisy-nfsd
+git clone -b mtheng-eval https://github.com/mit-pdos/daisy-nfsd
 ln -s ~/daisy-nfsd/eval ~/artifact
 
 mkdir ~/code

@@ -5,7 +5,7 @@
 Launch an i3.xlarge using Hirsute. Make sure to **increase the root volume size
 to 12GB**.
 
-`wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
+`wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/mtheng-eval/eval/aws/setup-image.sh`
 
 Run `bash setup-image.sh`
 
