@@ -53,29 +53,7 @@ done
 
 # make sure code is compiled in case it takes longer than 2s to build
 make --quiet compile
-if [[ ! -z "$jrnl_patch_path" ]]
-then
-	jrnl_patch_path=$(realpath "$jrnl_patch_path")
-
-	pushd "$GO_JRNL_PATH"
-	git apply "$jrnl_patch_path"
-	popd
-
-	pushd "$DAISY_NFSD_PATH"
-	go mod edit -replace github.com/mit-pdos/go-journal="$GO_JRNL_PATH"
-	popd
-fi
-go build ./cmd/daisy-nfsd
-if [[ ! -z "$jrnl_patch_path" ]]
-then
-	pushd "$GO_JRNL_PATH"
-	git reset --hard
-	popd
-
-	pushd "$DAISY_NFSD_PATH"
-	go mod edit -dropreplace github.com/mit-pdos/go-journal
-	popd
-fi
+./bench/rebuild.sh -jrnlpatch "$jrnl_patch_path" -exec ./cmd/daisy-nfsd
 
 killall -w daisy-nfsd 2>/dev/null || true
 umount -f "$nfs_mount_path" 2>/dev/null || true

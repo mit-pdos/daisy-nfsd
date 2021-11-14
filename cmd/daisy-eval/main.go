@@ -180,6 +180,10 @@ var benchCommand = &cli.Command{
 		Name:  "unstable",
 		Value: false,
 		Usage: "use unstable writes in baseline systems",
+	}, &cli.IntFlag{
+		Name:  "threads",
+		Value: 1,
+		Usage: "additionally run smallfile with this number of threads",
 	}, &cli.StringFlag{
 		Name:  "benchtime",
 		Usage: "smallfile duration",
@@ -190,7 +194,7 @@ var benchCommand = &cli.Command{
 		eval.PrepareBenchmarks()
 		suite := initializeSuite(c)
 		suite.Filesystems = cliFilesystems(c)
-		suite.Benches = eval.BenchSuite(c.String("benchtime"))
+		suite.Benches = eval.BenchSuite(c.String("benchtime"), c.Int("threads"))
 		return runSuite(c, suite)
 	},
 }
@@ -228,6 +232,29 @@ var largefileCommand = &cli.Command{
 	},
 }
 
+var txnbenchCommand = &cli.Command{
+	Name:  "txnbench",
+	Usage: "run a txn layer benchmark",
+	Flags: []cli.Flag{&cli.IntFlag{
+		Name:  "threads",
+		Value: 40,
+		Usage: "maximum number of threads to run till",
+	}, &cli.StringFlag{
+		Name:  "benchtime",
+		Usage: "smallfile duration",
+		Value: "20s",
+	}},
+	Before: beforeBench,
+	Action: func(c *cli.Context) error {
+		eval.PrepareBenchmarks()
+		suite := initializeSuite(c)
+		suite.Filesystems = eval.NullFilesystems()
+		suite.Benches = eval.TxnBenchSuite(
+			c.String("benchtime"), c.Int("threads"), c.String("disk"), c.String("jrnlpatch"))
+		return runSuite(c, suite)
+	},
+}
+
 func main() {
 	app := &cli.App{
 		Usage: "run benchmarks",
@@ -236,6 +263,7 @@ func main() {
 			benchCommand,
 			scaleCommand,
 			largefileCommand,
+			txnbenchCommand,
 		},
 	}
 	err := app.Run(os.Args)

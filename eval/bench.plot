@@ -72,7 +72,7 @@ gnuplot <<-EOF
 	set xrange [-1:4]
 	set yrange [0:*]
 	set grid y
-	set ylabel "Relative througput"
+	set ylabel "Relative throughput"
 	set ytics scale 0.5,0 nomirror
 	set xtics scale 0,0
 	set key top right

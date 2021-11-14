@@ -27,8 +27,6 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-"$DIR/eval-patch.py" -i "$input" &&
-    "$DIR/patch.plot" -i "$input" -o "$input"/patch.pdf &
 "$DIR/eval.py" -i "$input" bench &&
     "$DIR/bench.plot" -i "$input" -o "$input"/bench.pdf &
 if [[ -f "$input/scale.json" ]]
@@ -36,4 +34,8 @@ then
     "$DIR/eval.py" -i "$input" scale &&
         "$DIR/scale.plot" -i "$input" -o "$input"/scale.pdf &
 fi
+"$DIR/eval-patch.py" -i "$input" &&
+    "$DIR/patch.plot" -i "$input" -o "$input"/patch.pdf &
+"$DIR/eval-txn-bench.py" -i "$input" &&
+    "$DIR/txn-bench.plot" -i "$input" -o "$input"/txn-bench.pdf &
 wait

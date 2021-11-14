@@ -12,7 +12,7 @@ def read_observations(d):
         fullpatchd = os.path.join(d, patchd)
         if not os.path.isdir(fullpatchd):
             continue
-        input_path = os.path.join(fullpatchd, "bench.json")
+        input_path = os.path.join(fullpatchd, "txnbench.json")
         with open(input_path, "rb") as f:
             for line in f:
                 o = json.loads(line)
@@ -27,22 +27,20 @@ def get_patch_name(fname):
 def patch_cmd(df, args):
     if args.debug:
         df = df.pivot_table(
-            index="fs.jrnlpatch",
+            index="bench.jrnlpatch",
             columns="bench.name",
             values="val",
             # aggfunc=[np.mean, cov_percent],
             aggfunc=[np.mean],
         )
         df = df.reorder_levels([1, 0], axis="columns")
-        df = df[["smallfile", "largefile", "app"]]
     else:
         df = df.pivot_table(
             index="bench.name",
-            columns="fs.jrnlpatch",
+            columns="bench.jrnlpatch",
             values="val",
             aggfunc=np.mean,
         )
-        df = df.reindex(index=["smallfile", "largefile", "app"])
     df.index.rename("bench", inplace=True)
     if args.debug:
         print(df)
@@ -51,7 +49,7 @@ def patch_cmd(df, args):
     df.insert(0, 'orig', df.pop('orig'))
     columns = df.columns
     df.to_csv(
-        os.path.join(args.output, "patch.data"),
+        os.path.join(args.output, "txn-bench.data"),
         sep="\t",
         columns=columns,
     )

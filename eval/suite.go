@@ -55,12 +55,17 @@ func (bs *BenchmarkSuite) Workloads() []Workload {
 	return ws
 }
 
-func BenchSuite(smallfileDuration string) []Benchmark {
-	return []Benchmark{
+func BenchSuite(smallfileDuration string, threads int) []Benchmark {
+	benchmarks := []Benchmark{
 		LargefileBench(300),
 		SmallfileBench(smallfileDuration, 1),
 		AppBench(),
 	}
+	if threads > 1 {
+		benchmarks = append(benchmarks,
+			NamedSmallfileBench(smallfileDuration, threads, "par-smallfile"))
+	}
+	return benchmarks
 }
 
 var LargefileSuite = []Benchmark{
@@ -75,11 +80,25 @@ func ScaleSuite(benchtime string, threads int) []Benchmark {
 	return bs
 }
 
+func TxnBenchSuite(smallfileDuration string, threads int, disk string, jrnlpatch string) []Benchmark {
+	return []Benchmark{
+		TxnBench(smallfileDuration, threads, disk, jrnlpatch),
+	}
+}
+
 func extendAll(common KeyValue, kvs []KeyValue) []KeyValue {
 	for i := range kvs {
 		kvs[i].Extend(common)
 	}
 	return kvs
+}
+
+func NullFilesystems() []KeyValue {
+	return []KeyValue{
+		{
+			"name": "txn-bench",
+		},
+	}
 }
 
 func BasicFilesystem(name string, disk string, unstable bool, jrnlpatch string) KeyValue {
@@ -93,7 +112,7 @@ func BasicFilesystem(name string, disk string, unstable bool, jrnlpatch string) 
 	switch name {
 	case "daisy-nfsd":
 		config = KeyValue{
-			"disk": nfsdDisk,
+			"disk":      nfsdDisk,
 			"jrnlpatch": jrnlpatch,
 		}
 	case "linux":

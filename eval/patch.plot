@@ -56,16 +56,16 @@ else
     line1='column("orig")/column("orig")'
     line2='column("no-append-merge")/column("orig")'
     line3='column("no-install-merge")/column("orig")'
-    line4='column("no-flush")/column("orig")'
-    line5='column("global-wal-lock")/column("orig")'
-    line6='column("global-txn-lock")/column("orig")'
+    line4='column("global-wal-lock")/column("orig")'
+    line5='column("global-txn-lock")/column("orig")'
+    line6='column("no-merge")/column("orig")'
     label1=$(awk 'NR==2 {printf "%.0f", $2}' "$input")
     label2=$(awk 'NR==3 {printf "%.0f", $2}' "$input")
     label3=$(awk 'NR==4 {printf "%0.3f", $2}' "$input")
 fi
 
 gnuplot <<-EOF
-	set terminal pdf dashed noenhanced size 11cm,7cm
+	set terminal pdf dashed noenhanced size 11cm,9cm
 	set output "${output}"
 
 	set style data histogram
@@ -75,7 +75,7 @@ gnuplot <<-EOF
 	set xrange [-1:4]
 	set yrange [0:*]
 	set grid y
-	set ylabel "Relative througput"
+	set ylabel "Relative throughput"
 	set ytics scale 0.5,0 nomirror
 	set xtics scale 0,0
 	set key top right
@@ -91,9 +91,15 @@ gnuplot <<-EOF
 	plot "${input}" \
 	        using (${line1}):xtic(1) title "orig${label}" lc rgb '#b6d7a8' lt 1, \
 	     '' using (${line2}):xtic(1) title "no-merge-on-append${label}" lc rgb '#3a81ba' lt 1, \
-         '' using (${line3}):xtic(1) title "no-merge-on-install${label}" lc rgb '#cc0000' lt 1, \
-         '' using (${line4}):xtic(1) title "no-flush${label}" lc rgb '#00cc00' lt 1, \
-         '' using (${line5}):xtic(1) title "global-wal-lock${label}" lc rgb '#0000cc' lt 1, \
-         '' using (${line6}):xtic(1) title "global-txn-lock${label}" lc rgb '#cccc00' lt 1, \
+       '' using (${line3}):xtic(1) title "no-merge-on-install${label}" lc rgb '#cc0000' lt 1, \
+       '' using (${line6}):xtic(1) title "no-merge${label}" lc rgb '#00cc00' lt 1, \
 
 EOF
+#          '' using (${line4}):xtic(1) title "global-wal-lock${label}" lc rgb '#0000cc' lt 1, \
+#          '' using (${line5}):xtic(1) title "global-txn-lock${label}" lc rgb '#cccc00' lt 1, \
+#          '' using (${line6}):xtic(1) title "no-flush${label}" lc rgb '#00cc00' lt 1, \
+#          '' using (${line7}):xtic(1) title "no-flush-no-append-merge${label}" lc rgb '#00cccc' lt 1, \
+#          '' using (${line8}):xtic(1) title "no-flush-no-install-merge${label}" lc rgb '#cc00cc' lt 1, \
+#          '' using (${line9}):xtic(1) title "no-flush-no-merge${label}" lc rgb '#999999' lt 1, \
+# 
+# EOF

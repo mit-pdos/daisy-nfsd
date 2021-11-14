@@ -99,6 +99,8 @@ func GetFilesys(conf KeyValue) Fs {
 	case "daisy-nfsd":
 		fs.scriptPath = path.Join("${DAISY_NFSD_PATH}",
 			"bench", "run-daisy-nfsd.sh")
+	case "txn-bench":
+		fs.scriptPath = path.Join("${DAISY_NFSD_PATH}", "bench", "run-txn-bench.sh")
 	}
 	return fs
 }

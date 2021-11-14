@@ -104,10 +104,10 @@ func LargefileBench(fileSizeMb int) Benchmark {
 	)
 }
 
-func SmallfileBench(benchtime string, threads int) Benchmark {
+func NamedSmallfileBench(benchtime string, threads int, name string) Benchmark {
 	return benchFromRegex(
 		[]string{"${GO_NFSD_PATH}/fs-smallfile"},
-		"smallfile",
+		name,
 		KeyValue{
 			"benchtime": benchtime,
 			"start":     float64(threads),
@@ -115,6 +115,10 @@ func SmallfileBench(benchtime string, threads int) Benchmark {
 		},
 		`fs-(?P<bench>smallfile): [0-9]+ (?P<val>[0-9.]*) file/sec`,
 	)
+}
+
+func SmallfileBench(benchtime string, threads int) Benchmark {
+	return NamedSmallfileBench(benchtime, threads, "smallfile")
 }
 
 func AppBench() Benchmark {
@@ -125,6 +129,20 @@ func AppBench() Benchmark {
 		"app",
 		KeyValue{},
 		`(?P<bench>app)-bench (?P<val>[0-9.]*) app/s`,
+	)
+}
+
+func TxnBench(benchtime string, threads int, disk string, jrnlpatch string) Benchmark {
+	return benchFromRegex(
+		[]string{},
+		"txn",
+		KeyValue{
+			"benchtime": benchtime,
+			"threads":   float64(threads),
+			"disk":      disk,
+			"jrnlpatch": jrnlpatch,
+		},
+		`(?P<bench>txn)-bench: [0-9]+ (?P<val>[0-9.]*) txn/sec`,
 	)
 }
 

@@ -1,0 +1,9 @@
+[random]
+# Perform 4K random reads for 10 seconds using direct I/Os
+filename=/dev/dm-0
+readwrite=randread
+blocksize=4k
+ioengine=sync
+direct=1
+time_based=1
+runtime=10
