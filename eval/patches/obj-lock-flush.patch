@@ -1,0 +1,28 @@
+diff --git a/obj/obj.go b/obj/obj.go
+index 88a0284..3c82b02 100644
+--- a/obj/obj.go
++++ b/obj/obj.go
+@@ -88,6 +88,7 @@ func (l *Log) doCommit(bufs []*buf.Buf) (wal.LogPosition, bool) {
+ 	n, ok := l.log.MemAppend(blks)
+ 	// FIXME: should only be set if ok
+ 	l.pos = n
++	l.log.Flush(n)
+ 
+ 	l.mu.Unlock()
+ 
+@@ -98,14 +99,10 @@ func (l *Log) doCommit(bufs []*buf.Buf) (wal.LogPosition, bool) {
+ func (l *Log) CommitWait(bufs []*buf.Buf, wait bool) bool {
+ 	var commit = true
+ 	if len(bufs) > 0 {
+-		n, ok := l.doCommit(bufs)
++		_, ok := l.doCommit(bufs)
+ 		if !ok {
+ 			util.DPrintf(10, "memappend failed; log is too small\n")
+ 			commit = false
+-		} else {
+-			if wait {
+-				l.log.Flush(n)
+-			}
+ 		}
+ 	} else {
+ 		util.DPrintf(5, "commit read-only trans\n")

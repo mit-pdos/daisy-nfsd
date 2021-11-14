@@ -1,0 +1,62 @@
+diff --git a/wal/installer.go b/wal/installer.go
+index cd774ef..bea5ecf 100644
+--- a/wal/installer.go
++++ b/wal/installer.go
+@@ -17,10 +17,12 @@ func (st *WalogState) cutMemLog(installEnd LogPosition) {
+ 
+ // absorbBufs returns bufs' such that applyUpds(d, bufs') = applyUpds(d,
+ // bufs) and bufs' has unique addresses
+-func absorbBufs(bufs []Update) []Update {
+-	s := mkSliding(nil, 0)
++func absorbBufs(bufs []Update, s *sliding) []Update {
+ 	s.memWrite(bufs)
+-	return s.intoMutable()
++	absorbed := s.intoMutable()
++	s.clearMutable()
++	s.deleteFrom(s.end())
++	return absorbed
+ }
+ 
+ // installBlocks installs the updates in bufs to the data region
+@@ -31,8 +33,8 @@ func absorbBufs(bufs []Update) []Update {
+ // (2) at all intermediate points,
+ // the data region either has the value from the old transaction or the new
+ // transaction (with all of bufs applied).
+-func installBlocks(d disk.Disk, bufs []Update) {
+-	absorbed := absorbBufs(bufs)
++func installBlocks(d disk.Disk, bufs []Update, s *sliding) {
++	absorbed := absorbBufs(bufs, s)
+ 	for i, buf := range absorbed {
+ 		blkno := buf.Addr
+ 		blk := buf.Block
+@@ -52,7 +54,7 @@ func installBlocks(d disk.Disk, bufs []Update) {
+ // for debugging)
+ //
+ // Installer holds memLock
+-func (l *Walog) logInstall() (uint64, LogPosition) {
++func (l *Walog) logInstall(s *sliding) (uint64, LogPosition) {
+ 	installEnd := l.st.diskEnd
+ 	bufs := l.st.memLog.takeTill(installEnd)
+ 	numBufs := uint64(len(bufs))
+@@ -63,7 +65,7 @@ func (l *Walog) logInstall() (uint64, LogPosition) {
+ 	l.memLock.Unlock()
+ 
+ 	util.DPrintf(5, "logInstall up to %d\n", installEnd)
+-	installBlocks(l.d, bufs)
++	installBlocks(l.d, bufs, s)
+ 	l.d.Barrier()
+ 	Advance(l.d, installEnd)
+ 
+@@ -76,10 +78,11 @@ func (l *Walog) logInstall() (uint64, LogPosition) {
+ 
+ // installer installs blocks from the on-disk log to their home location.
+ func (l *Walog) installer() {
++	s := mkSliding(nil, 0)
+ 	l.memLock.Lock()
+ 	l.st.nthread += 1
+ 	for !l.st.shutdown {
+-		blkcount, txn := l.logInstall()
++		blkcount, txn := l.logInstall(s)
+ 		if blkcount > 0 {
+ 			util.DPrintf(5, "Installed till txn %d\n", txn)
+ 		} else {
