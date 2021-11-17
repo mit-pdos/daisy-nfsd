@@ -62,3 +62,11 @@ func TestPathEncode(t *testing.T) {
 	s2 := dirents.Companion_Default___.DecodeEncodeTest(s)
 	assert.Equal(t, s2.LenInt(), int(3), "decoded string is short")
 }
+
+// based on a test rtm came up with
+func TestInvalidInodeNumber(t *testing.T) {
+	fs := NewFs()
+	txn := fs.Begin()
+	r := fs.LOOKUP(txn, 1<<60, stringToBytes("foo"))
+	assert.True(t, r.ErrBadHandle_q(), "should fail with ErrBadHandle")
+}
