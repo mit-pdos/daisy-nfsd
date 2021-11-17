@@ -48,6 +48,18 @@ module DirFs
     return r;
   }
 
+  // returns Ok(ino) if ino_ok(ino) (in which case ino is an Ino)
+  method checkInoBounds(ino: uint64) returns (r:Result<Ino>)
+    ensures r.Err? ==> !ino_ok(ino) && r.ErrBadHandle?
+    ensures r.Ok? ==> r.v == ino
+  {
+    var ok := is_ino_ok(ino);
+    if !ok {
+      return Err(BadHandle);
+    }
+    return Ok(ino);
+  }
+
   method serverTime() returns (t:Inode.NfsTime)
   {
     var unix_nano := Time.TimeUnixNano();
@@ -767,14 +779,16 @@ module DirFs
       return Inode.Attrs(Inode.FileType, mode, uid, gid, mtime);
     }
 
-    method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: Ino, name: Bytes, how: CreateHow3)
+    // public
+    method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: uint64, name: Bytes, how: CreateHow3)
       returns (r: Result<InoResult>, ghost dir_attrs: Inode.Attrs)
       modifies Repr, name
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.Ok? ==>
-      (var ino := r.v.ino;
+      && ino_ok(d_ino)
+      && (var ino := r.v.ino;
        var fattrs := r.v.attrs;
        var file := ByteFile(C.repeat(0 as byte, how.size() as nat), fattrs.attrs);
       && is_pathc(old(name.data))
@@ -789,6 +803,7 @@ module DirFs
         data[ino := file][d_ino := d'])
       )
     {
+      var d_ino :- checkInoBounds(d_ino);
       var sz := how.size();
       if sz > Inode.MAX_SZ_u64 {
         r := Err(NoSpc);
@@ -862,7 +877,8 @@ module DirFs
         i.attrs);
     }
 
-    method GETATTR(txn: Txn, ino: Ino)
+    // public
+    method GETATTR(txn: Txn, ino: uint64)
       returns (r: Result<Fattr3>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
@@ -874,6 +890,7 @@ module DirFs
           && is_file_attrs(data[ino], attrs)
           )
     {
+      var ino :- checkInoBounds(ino);
       var ok, i := fs.startInode(txn, ino);
       if !ok {
         assert is_invalid(ino) by { reveal is_of_type(); }
@@ -973,13 +990,14 @@ module DirFs
       return;
     }
 
-    method SETATTR(txn: Txn, ino: Ino, attrs: Sattr3)
+    // public
+    method SETATTR(txn: Txn, ino: uint64, attrs: Sattr3)
       returns (r:Result<()>, ghost attrs': Inode.Attrs)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       ensures r.ErrBadHandle? ==> ino !in data
-      ensures r.ErrIsDir? ==> old(is_dir(ino))
+      ensures r.ErrIsDir? ==> ino_ok(ino) && old(is_dir(ino))
       ensures r.Ok? ==>
       && old(ino in data)
       && has_set_attrs(old(data[ino].attrs), attrs', attrs)
@@ -990,6 +1008,7 @@ module DirFs
       && (old(is_dir(ino)) ==> (var d0 := old(data[ino]);
         data == old(data[ino := DirFile(d0.dir, attrs')])))
     {
+      var ino :- checkInoBounds(ino);
       if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
         r := Err(FBig);
         return;
@@ -1152,7 +1171,8 @@ module DirFs
       return;
     }
 
-    method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: Ino, off: uint64, bs: Bytes)
+    // public
+    method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: uint64, off: uint64, bs: Bytes)
       returns (r: Result<Fattr3>)
       modifies Repr, bs
       requires Valid()
@@ -1174,6 +1194,7 @@ module DirFs
       && is_file_attrs(file, fattr)
       && data == old(data[ino := file]))
     {
+      var ino :- checkInoBounds(ino);
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
       assert dirents == old(dirents);
@@ -1242,7 +1263,8 @@ module DirFs
       return Ok(fattr);
     }
 
-    method READ(txn: Txn, ino: Ino, off: uint64, len: uint64)
+    // public
+    method READ(txn: Txn, ino: uint64, off: uint64, len: uint64)
       returns (r: Result<ReadResult>)
       modifies fs.fs.fs.fs
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1261,6 +1283,7 @@ module DirFs
         var bs := NewBytes(0);
         return Err(ServerFault);
       }
+      var ino :- checkInoBounds(ino);
       var i_r := openFile(txn, ino);
       var i :- i_r.IsDirToInval();
       var bs, ok, eof := fs.read(txn, ino, i, off, len);
@@ -1279,20 +1302,23 @@ module DirFs
       return Ok(ReadResult(bs, eof));
     }
 
+    // public
     method {:timeLimitMultiplier 2} MKDIR(txn: Txn,
-      d_ino: Ino, name: Bytes, sattr: Sattr3)
+      d_ino: uint64, name: Bytes, sattr: Sattr3)
       returns (r: Result<InoResult>)
       modifies Repr, name
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       requires name.Valid()
       ensures (r.Err? && r.err.Exist?) ==>
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
       ensures r.Ok? ==>
       (var ino := r.v.ino;
       var attrs' := r.v.attrs.attrs;
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && old(is_pathc(name.data))
@@ -1309,6 +1335,7 @@ module DirFs
         r := Err(NameTooLong);
         return;
       }
+      var d_ino :- checkInoBounds(d_ino);
       var attrs'_val := MkdirAttributes(sattr);
       var attrs' := attrs'_val;
       var ok, ino := allocDir(txn, attrs'_val);
@@ -1351,20 +1378,22 @@ module DirFs
       return;
     }
 
-    method LOOKUP(txn: Txn, d_ino: Ino, name: Bytes)
+    // public
+    method LOOKUP(txn: Txn, d_ino: uint64, name: Bytes)
       returns (r:Result<InoResult>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
       requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in data
-      ensures r.ErrNoent? ==> is_dir(d_ino) &&
+      ensures r.ErrNoent? ==> ino_ok(d_ino) && is_dir(d_ino) &&
       (name.data !in data[d_ino].dir
       || (name.data in data[d_ino].dir && data[d_ino].dir[name.data] !in data))
       ensures r.Ok? ==>
       (var ino := r.v.ino;
        var attrs := r.v.attrs;
       && is_pathc(name.data)
+      && ino_ok(d_ino)
       && is_dir(d_ino)
       && name.data in data[d_ino].dir
       && data[d_ino].dir[name.data] == ino && ino != 0
@@ -1376,6 +1405,7 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
+      var d_ino :- checkInoBounds(d_ino);
       var dents :- readDirents(txn, d_ino);
       assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
@@ -1576,7 +1606,8 @@ module DirFs
       r := unlinkInode(txn, d_ino, dents, name);
     }
 
-    method REMOVE(txn: Txn, d_ino: Ino, name: Bytes)
+    // public
+    method REMOVE(txn: Txn, d_ino: uint64, name: Bytes)
       // returns a hint for what free space to erase
       returns (r: Result<RemoveHint>)
       modifies Repr
@@ -1585,6 +1616,7 @@ module DirFs
       requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
       ensures r.ErrNoent? ==>
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data !in old(data[d_ino].dir)
@@ -1596,6 +1628,7 @@ module DirFs
         && ino in old(data)
         && old(data[ino].DirFile?))
       ensures r.Ok? ==>
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
@@ -1608,6 +1641,7 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
+      var d_ino :- checkInoBounds(d_ino);
       var ino :- this.unlink(txn, d_ino, name);
 
       var remove_r := removeInode(txn, ino);
@@ -1652,7 +1686,8 @@ module DirFs
       assert ValidRoot() by { reveal ValidRoot(); }
     }
 
-    method {:timeLimitMultiplier 2} RMDIR(txn: Txn, d_ino: Ino, name: Bytes)
+    // public
+    method {:timeLimitMultiplier 2} RMDIR(txn: Txn, d_ino: uint64, name: Bytes)
       returns (r: Result<()>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
@@ -1660,11 +1695,13 @@ module DirFs
       requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in old(data)
       ensures r.ErrNoent? ==>
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data !in old(data[d_ino].dir)
       ensures r.ErrNotDir? ==>
       && is_pathc(name.data)
+      && ino_ok(d_ino)
       && (old(is_file(d_ino))
         || (&& old(d_ino in data && data[d_ino].DirFile?)
           && old(name.data) in old(data[d_ino].dir)
@@ -1672,6 +1709,7 @@ module DirFs
             && ino in old(data)
             && old(data[ino].ByteFile?))))
       ensures r.Ok? ==>
+      && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
@@ -1684,6 +1722,7 @@ module DirFs
       if !path_ok {
         return Err(NameTooLong);
       }
+      var d_ino :- checkInoBounds(d_ino);
       var ino :- this.unlink(txn, d_ino, name);
       if ino == rootIno {
         return Err(Inval);
@@ -1711,7 +1750,8 @@ module DirFs
       return Ok(());
     }
 
-    method READDIR(txn: Txn, d_ino: Ino)
+    // public
+    method READDIR(txn: Txn, d_ino: uint64)
       returns (r: Result<seq<MemDirEnt>>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
@@ -1727,6 +1767,7 @@ module DirFs
       && |dents_seq| == |data[d_ino].dir|
       )
     {
+      var d_ino :- checkInoBounds(d_ino);
       var dents :- readDirents(txn, d_ino);
       assert dents.dir() == data[d_ino].dir by {
         get_data_at(d_ino);
@@ -1806,7 +1847,8 @@ module DirFs
       return Ok(());
     }
 
-    method RENAME(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+    // public
+    method RENAME(txn: Txn, src_d_ino: uint64, src_name: Bytes, dst_d_ino: uint64, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires src_name.Valid() && dst_name.Valid()
@@ -1822,6 +1864,8 @@ module DirFs
       if !dst_name_ok {
         return Err(NameTooLong);
       }
+      var src_d_ino :- checkInoBounds(src_d_ino);
+      var dst_d_ino :- checkInoBounds(dst_d_ino);
       // to avoid deadlock, ensure that inodes are acquired in order (smaller to
       // large)
       if dst_d_ino < src_d_ino {
@@ -1832,6 +1876,7 @@ module DirFs
       return Ok(());
     }
 
+    // public
     method FSSTAT() returns (r: Fsstat3)
       requires Valid()
     {
@@ -1846,7 +1891,11 @@ module DirFs
       return;
     }
 
-    method ZeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
+    // public
+    //
+    // Returns Ok(true) if this inode now has all its free space zeroed. Caller
+    // should call in a loop until this method returns true.
+    method ZeroFreeSpace(txn: Txn, ino: uint64, sz_hint: uint64)
       returns (r: Result<bool>)
       modifies Repr
       requires fs.has_jrnl(txn)
@@ -1854,6 +1903,11 @@ module DirFs
       ensures r.Ok? // only return a Result to use runTxn in Go
       ensures data == old(data)
     {
+      var ok := is_ino_ok(ino);
+      if !ok {
+        // not a valid inode, consider it done
+        return Ok(true);
+      }
       var done := fs.zeroFreeSpace(txn, ino, sz_hint);
       return Ok(done);
     }

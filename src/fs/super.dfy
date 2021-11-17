@@ -57,6 +57,7 @@ module FsKinds {
   // if you update these, remember to update super_size() below
   // (the Dafny server has a bug where it will not always re-do that proof after
   // changing the constants)
+  const NUM_INODES : uint64 := 19200
   const NUM_INODE_BLOCKS : uint64 := 600
   const NUM_DATA_BITMAPS : uint64 := 200
 
@@ -73,6 +74,7 @@ module FsKinds {
   // (it's exactly NUM_DATA_BITMAPS * 4096*8*4096 / 1_000_000)
   lemma super_size()
     ensures super.num_inodes == 19200;
+    ensures super.num_inodes == NUM_INODES as nat;
     ensures super.num_data_blocks
         * 4096 / (1024*1024) == 25600 /* MB */
   {}
@@ -160,6 +162,13 @@ module FsKinds {
 
   predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
   predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
+
+  method is_ino_ok(ino: uint64) returns (ok:bool)
+    ensures ok == ino_ok(ino)
+  {
+    ok := ino < NUM_INODES;
+    reveal ino_ok();
+  }
 
   const SuperBlkAddr: Addr := Addr(Super.block_addr, 0);
 
