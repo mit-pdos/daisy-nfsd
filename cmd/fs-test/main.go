@@ -72,6 +72,10 @@ func main() {
 	assertNoError(err)
 	assertEqual(len(ents), 2)
 
+	// attempt to unlink a directory
+	err = unix.Unlink("foo")
+	assertIsError(err)
+
 	_, err = os.ReadDir("message.txt")
 	assertIsError(err, "readdir non-dir")
 

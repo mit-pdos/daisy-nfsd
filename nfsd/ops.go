@@ -401,13 +401,13 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOV
 	hint_r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.REMOVE(txn, inum, name)
 	})
-	hint := hint_r.(dirfs.RemoveHint)
-	go nfs.ZeroFreeSpace(hint.Dtor_ino(), hint.Dtor_sz())
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Remove error %v", status)
 		return reply
 	}
+	hint := hint_r.(dirfs.RemoveHint)
+	go nfs.ZeroFreeSpace(hint.Dtor_ino(), hint.Dtor_sz())
 
 	return reply
 }
