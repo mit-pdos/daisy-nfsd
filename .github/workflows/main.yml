@@ -10,13 +10,13 @@ on:
 
 # settings shared across all jobs
 env:
-  dafny: "3.2.0"
-  go: "1.16.x"
+  dafny: "3.3.0"
+  go: "1.17.x"
 
 jobs:
   verify:
     name: Verify
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Install Dafny
         uses: dafny-lang/setup-dafny-action@v1
@@ -27,7 +27,7 @@ jobs:
         run: make -j2 verify
   test-support:
     name: Test dafny_go
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v2
         with:
@@ -38,7 +38,7 @@ jobs:
           go test -v -timeout=1m ./dafny_go/... ./eval
   test-compiled:
     name: Test NFS server
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Install Dafny
