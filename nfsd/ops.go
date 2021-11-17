@@ -56,7 +56,8 @@ func encodeSetTime(how nfstypes.Time_how, time nfstypes.Nfstime3) nfs_spec.SetTi
 	if how == nfstypes.SET_TO_CLIENT_TIME {
 		return nfs_spec.Companion_SetTime_.Create_SetToClientTime_(encodeTime(time))
 	}
-	panic("unexpectd time_how")
+	util.DPrintf(2, "unexpected time_how %d", how)
+	return nfs_spec.Companion_SetTime_.Create_DontChange_()
 }
 
 func encodeSattr3(attrs nfstypes.Sattr3) nfs_spec.Sattr3 {
