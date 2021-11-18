@@ -92,8 +92,8 @@ func encodeCreateHow(how nfstypes.Createhow3) nfs_spec.CreateHow3 {
 	}
 	util.DPrintf(2, "unexpected createhow3 %d", how.Mode)
 	// construct a dummy createhow3
-	var sattr nfstypes.Sattr3
-	return nfs_spec.Companion_CreateHow3_.Create_Unchecked_(encodeSattr3(sattr))
+	return nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
+		encodeSattr3(nfstypes.Sattr3{}))
 }
 
 func decodeAttrs(attrs inode.Attrs, fattr *nfstypes.Fattr3) {
