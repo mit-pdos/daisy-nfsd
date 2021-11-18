@@ -24,6 +24,10 @@ import (
 var _ = fmt.Printf
 
 func fh2ino(fh3 nfstypes.Nfs_fh3) uint64 {
+	// avoid panic on invalid file handles
+	if len(fh3.Data) != 16 {
+		return 0
+	}
 	fh := MakeFh(fh3)
 	return fh.Ino
 }
@@ -86,7 +90,10 @@ func encodeCreateHow(how nfstypes.Createhow3) nfs_spec.CreateHow3 {
 		t := inode.Companion_NfsTime_.Decode(&bytes.Bytes{Data: how.Verf[:]}, 0)
 		return nfs_spec.Companion_CreateHow3_.Create_Exclusive_(t)
 	}
-	panic("unexpected create mode")
+	util.DPrintf(2, "unexpected createhow3 %d", how.Mode)
+	// construct a dummy createhow3
+	var sattr nfstypes.Sattr3
+	return nfs_spec.Companion_CreateHow3_.Create_Unchecked_(encodeSattr3(sattr))
 }
 
 func decodeAttrs(attrs inode.Attrs, fattr *nfstypes.Fattr3) {
