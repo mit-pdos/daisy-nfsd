@@ -283,6 +283,9 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 	inum := fh2ino(args.File)
 	off := uint64(args.Offset)
 	cnt := uint64(args.Count)
+	if cnt > uint64(len(args.Data)) {
+		cnt = uint64(len(args.Data))
+	}
 
 	bs := bytes.Data(args.Data[:cnt])
 	r, status, hint := nfs.runTxn(func(txn Txn) Result {
@@ -298,7 +301,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 	}
 
 	attrs := r.(nfs_spec.Fattr3)
-	reply.Resok.Count = args.Count
+	reply.Resok.Count = nfstypes.Count3(cnt)
 	reply.Resok.Committed = nfstypes.FILE_SYNC
 	reply.Resok.File_wcc.After.Attributes_follow = true
 	decodeFattr3(attrs, inum, &reply.Resok.File_wcc.After.Attributes)
