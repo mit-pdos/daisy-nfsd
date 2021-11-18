@@ -1,6 +1,7 @@
 package compile_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
@@ -74,11 +75,8 @@ func TestInvalidInodeNumber(t *testing.T) {
 func TestCreateBadNames(t *testing.T) {
 	fs := NewFs()
 	txn := fs.Begin()
-	name := ""
-	for i := 0; i < 100; i++ {
-		name += "x"
-	}
-	r := fs.CREATE(txn, rootIno, stringToBytes(name),
+	// the path length limit is 56
+	r := fs.CREATE(txn, rootIno, stringToBytes(strings.Repeat("x", 100)),
 		nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
 			nfs_spec.Companion_Sattr3_.SetNone(),
 		))
