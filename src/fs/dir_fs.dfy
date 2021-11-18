@@ -779,6 +779,21 @@ module DirFs
       return Inode.Attrs(Inode.FileType, mode, uid, gid, mtime);
     }
 
+    static method validatePath(name: Bytes) returns (p: Result<()>)
+      requires name.Valid()
+      ensures p.Ok? ==> is_pathc(name.data)
+      ensures p.Err? ==> p.err.NameTooLong? || p.err.Inval?
+    {
+      if name.Len() > path_len_u64 {
+        return Err(NameTooLong);
+      }
+      var pathc := Pathc?(name);
+      if !pathc || name.Len() == 0 {
+        return Err(Inval);
+      }
+      return Ok(());
+    }
+
     // public
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: uint64, name: Bytes, how: CreateHow3)
       returns (r: Result<InoResult>, ghost dir_attrs: Inode.Attrs)
@@ -811,12 +826,7 @@ module DirFs
       }
       var attrs := CreateAttributes(how);
       var ino :- allocFile(txn, sz, attrs);
-      var is_path := Pathc?(name);
-      if !is_path {
-        // could also have 0s in it but whatever
-        r := Err(NameTooLong);
-        return;
-      }
+      var _ :- validatePath(name);
       var dents :- readDirents(txn, d_ino);
       dir_attrs := updateDirentsMtime(d_ino, dents);
       assert && ValidDirents(dents, d_ino)
@@ -1329,12 +1339,7 @@ module DirFs
         data[ino := DirFile(map[], attrs')][d_ino := d'])
       )
     {
-      var is_path := Pathc?(name);
-      if !is_path {
-        // could also have 0s in it but whatever
-        r := Err(NameTooLong);
-        return;
-      }
+      var _ :- validatePath(name);
       var d_ino :- checkInoBounds(d_ino);
       var attrs'_val := MkdirAttributes(sattr);
       var attrs' := attrs'_val;

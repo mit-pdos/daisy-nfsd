@@ -70,3 +70,23 @@ func TestInvalidInodeNumber(t *testing.T) {
 	r := fs.LOOKUP(txn, 1<<60, stringToBytes("foo"))
 	assert.True(t, r.ErrBadHandle_q(), "should fail with ErrBadHandle")
 }
+
+func TestCreateBadNames(t *testing.T) {
+	fs := NewFs()
+	txn := fs.Begin()
+	name := ""
+	for i := 0; i < 100; i++ {
+		name += "x"
+	}
+	r := fs.CREATE(txn, rootIno, stringToBytes(name),
+		nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
+			nfs_spec.Companion_Sattr3_.SetNone(),
+		))
+	assert.True(t, r.Is_Err() && r.Dtor_err().Is_NameTooLong(), "should fail due to long name")
+
+	r = fs.CREATE(txn, rootIno, stringToBytes(""),
+		nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
+			nfs_spec.Companion_Sattr3_.SetNone(),
+		))
+	assert.True(t, r.Is_Err() && r.Dtor_err().Is_Inval(), "should fail due to empty name")
+}
