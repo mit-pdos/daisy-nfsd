@@ -12,8 +12,8 @@ require (
 	github.com/tchajed/goose v0.4.0
 	github.com/tchajed/marshal v0.2.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/zeldovich/go-rpcgen v0.1.4
-	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8 // indirect
-	golang.org/x/sys v0.0.0-20211116061358-0a5406a5449c
+	github.com/zeldovich/go-rpcgen v0.1.5
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
+	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 )
