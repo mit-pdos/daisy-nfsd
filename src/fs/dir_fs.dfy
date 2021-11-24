@@ -163,6 +163,19 @@ module DirFs
       else if t == Inode.DirType {}
     }
 
+    lemma data_to_is_dir(ino: Ino)
+      requires fs.ValidDomains()
+      requires ValidTypes()
+      requires ino in data && data[ino].DirFile?
+      ensures is_dir(ino)
+    {
+      reveal is_of_type();
+      ghost var t := fs.types[ino].ty;
+      if t == Inode.InvalidType {}
+      else if t == Inode.FileType {}
+      else if t == Inode.DirType {}
+    }
+
     predicate {:opaque} ValidRoot()
       reads this
     {
@@ -1501,6 +1514,7 @@ module DirFs
       ensures name.data == old(name.data)
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
+      && is_dir(d_ino)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1560,6 +1574,7 @@ module DirFs
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
       && r.v == old(data[d_ino].dir[name.data])
+      && is_dir(d_ino)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1595,6 +1610,7 @@ module DirFs
       ensures !r.ErrIsDir?
       ensures r.Ok? ==>
       && old(is_dir(d_ino))
+      && is_dir(d_ino)
       && name.data in old(data[d_ino].dir)
       && r.v == old(data[d_ino].dir[name.data])
       && data ==
@@ -1786,7 +1802,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} readWithNameFree(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<MemDirents>)
+      returns (r: Result<MemDirents>, ghost removed: Option<Ino>)
       modifies Repr
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
@@ -1798,6 +1814,16 @@ module DirFs
       && dirents_for(r.v, d_ino)
       && r.v.val.findName(name.data) == |r.v.val.s|
       && r.v.file.bs != name
+      && old(is_dir(d_ino))
+      && is_dir(d_ino)
+      && (name.data in old(data[d_ino].dir) ==>
+         var d0 := old(data[d_ino]);
+         var d' := map_delete(d0.dir, old(name.data));
+         && removed == Some(d0.dir[old(name.data)])
+         && data == old(data)[d_ino := DirFile(d', d0.attrs)])
+      && (name.data !in old(data[d_ino].dir) ==>
+         && data == old(data)
+         && removed == None)
     {
       var dents :- readDirents(txn, d_ino);
       assert name != dents.file.bs by {
@@ -1808,25 +1834,81 @@ module DirFs
       }
       var name_opt := dents.findName(txn, name);
       if name_opt.None? {
-        return Ok(dents);
+        get_data_at(d_ino);
+        assert name.data !in old(data[d_ino]).dir;
+        return Ok(dents), None;
       }
       var i := name_opt.x.0;
       var dst_ino := name_opt.x.1;
+      assert name.data in data[d_ino].dir && data[d_ino].dir[name.data] == dst_ino by {
+        get_data_at(d_ino);
+      }
       var _ :- unlinkInodeAt(txn, d_ino, dents, name, i, dst_ino);
 
-      // need to re-confirm that name was removed since unlink's postcondition
-      // isn't strong enough
+      // unlinkInodeAt closes dents, so we need to re-open (the proof of
+      // unlinkInodeAt is extremely hairy and we wouldn't want to re-do it here)
       dents :- assert readDirents(txn, d_ino);
 
       assert fresh(dents.file.Repr()) by {
         assert dents.file.Repr() <= dents.Repr();
       }
 
+      // re-confirm that name was removed; proving this from unlinkInodeAt's
+      // postcondition is tricky (or it might not be strong enough)
       name_opt := dents.findName(txn, name);
       if name_opt.Some? {
-        return Err(ServerFault);
+        return Err(ServerFault), None;
       }
-      return Ok(dents);
+      return Ok(dents), Some(dst_ino);
+    }
+
+
+    twostate predicate rename_basics_ok(src_d_ino: Ino, src_name: seq<byte>,
+      dst_d_ino: Ino, dst_name: seq<byte>)
+      reads this
+    {
+      && is_pathc(src_name)
+      && is_pathc(dst_name)
+      && old(is_dir(src_d_ino))
+      && old(is_dir(dst_d_ino))
+      && is_dir(src_d_ino)
+      && is_dir(dst_d_ino)
+    }
+
+    twostate predicate rename_spec_ok(src_d_ino: Ino, src_name: seq<byte>,
+      dst_d_ino: Ino, dst_name: seq<byte>)
+      reads this
+    {
+      && rename_basics_ok(src_d_ino, src_name, dst_d_ino, dst_name)
+      && var srcd := old(data[src_d_ino]);
+        && src_name in srcd.dir
+        && var srcf := srcd.dir[src_name];
+          var srcd' := DirFile(map_delete(srcd.dir, src_name), srcd.attrs);
+          var data1 := old(data)[src_d_ino := srcd'];
+          var dstd := data1[dst_d_ino];
+          var dstd' := DirFile(dstd.dir[dst_name := srcf], dstd.attrs);
+          data == old(data)[src_d_ino := srcd'][dst_d_ino := dstd']
+    }
+
+    // simpler re-statement of rename_spec_ok when src and destination coincide,
+    // mainly to demonstrate that rename_spec_ok is sensible
+    twostate predicate rename_spec_same_dir(d_ino: Ino, src_name: seq<byte>,
+      dst_name: seq<byte>)
+      reads this
+    {
+      && rename_basics_ok(d_ino, src_name, d_ino, dst_name)
+      && var d0 := old(data[d_ino]);
+        && src_name in d0.dir
+        && var srcf := d0.dir[src_name];
+          var d1 := map_delete(d0.dir, src_name);
+          var d' := DirFile(d1[dst_name := srcf], d0.attrs);
+          data == old(data)[d_ino := d']
+    }
+
+    twostate lemma rename_spec_same_dir_ok(d_ino: Ino, src_name: seq<byte>, dst_name: seq<byte>)
+      requires rename_spec_same_dir(d_ino, src_name, dst_name)
+      ensures rename_spec_ok(d_ino, src_name, d_ino, dst_name)
+    {
     }
 
     method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
@@ -1834,13 +1916,34 @@ module DirFs
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
       requires Valid() ensures r.Ok? ==> Valid()
+      ensures r.Ok? ==>
+      rename_spec_ok(
+        src_d_ino, old(src_name.data),
+        dst_d_ino, old(dst_name.data))
       requires fs.has_jrnl(txn)
     {
+      assert dst_d_ino in data && data[dst_d_ino].DirFile? ==> is_dir(dst_d_ino) by {
+        if dst_d_ino in data && data[dst_d_ino].DirFile? {
+          data_to_is_dir(dst_d_ino);
+        }
+      }
       var ino :- unlink(txn, src_d_ino, src_name);
       if ino == 0 {
         return Err(Inval);
       }
-      var dst :- readWithNameFree(txn, dst_d_ino, dst_name);
+      // circular directory structure (src_d_ino/src_name points back to src_d_ino)
+      if ino == src_d_ino { return Err(ServerFault); }
+      // would create a circular link from destination directory to itself
+      if ino == dst_d_ino { return Err(Inval); }
+      assert is_dir(src_d_ino);
+      ghost var dst_exists := is_dir(dst_d_ino) && dst_name.data in data[dst_d_ino].dir;
+      var dst: MemDirents;
+      ghost var removed: Option<Ino>;
+      dst, removed :- readWithNameFree(txn, dst_d_ino, dst_name);
+      assert old(is_dir(dst_d_ino));
+      assert is_dir(src_d_ino) by {
+        data_to_is_dir(src_d_ino);
+      }
       assert dst_name != dst.file.bs by {
         assert dst.file.bs in dst.Repr();
       }
@@ -1848,6 +1951,33 @@ module DirFs
       var ok := linkInode(txn, dst_d_ino, dst, e');
       if !ok {
         return Err(NoSpc);
+      }
+      assert Valid();
+      assert is_dir(src_d_ino) && is_dir(dst_d_ino) by {
+        data_to_is_dir(src_d_ino);
+        data_to_is_dir(dst_d_ino);
+      }
+      ghost var src_f := old(data[src_d_ino].dir[src_name.data]);
+      ghost var src_name := old(src_name.data);
+      ghost var dst_name := old(dst_name.data);
+      assert rename_spec_ok(src_d_ino, src_name, dst_d_ino, dst_name) by {
+        if dst_exists {
+          if src_d_ino == dst_d_ino {
+            assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
+            rename_spec_same_dir_ok(src_d_ino, src_name, dst_name);
+          } else {
+            assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
+            assert data[dst_d_ino].dir == old(data[dst_d_ino].dir[dst_name := src_f]);
+            assert rename_spec_ok(src_d_ino, src_name, dst_d_ino, dst_name);
+          }
+        } else {
+          if src_d_ino == dst_d_ino {
+            assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
+            rename_spec_same_dir_ok(src_d_ino, src_name, dst_name);
+          } else {
+            assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
+          }
+        }
       }
       return Ok(());
     }
@@ -1859,7 +1989,12 @@ module DirFs
       requires src_name.Valid() && dst_name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      // TODO: need to write down the spec
+      ensures r.Ok? ==>
+        && ino_ok(src_d_ino)
+        && ino_ok(dst_d_ino)
+        && rename_spec_ok(
+          src_d_ino, old(src_name.data),
+          dst_d_ino, old(dst_name.data))
     {
       var src_name_ok := Pathc?(src_name);
       if !src_name_ok {
