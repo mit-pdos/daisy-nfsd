@@ -1961,22 +1961,13 @@ module DirFs
       ghost var src_name := old(src_name.data);
       ghost var dst_name := old(dst_name.data);
       assert rename_spec_ok(src_d_ino, src_name, dst_d_ino, dst_name) by {
-        if dst_exists {
-          if src_d_ino == dst_d_ino {
-            assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
-            rename_spec_same_dir_ok(src_d_ino, src_name, dst_name);
-          } else {
-            assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
-            assert data[dst_d_ino].dir == old(data[dst_d_ino].dir[dst_name := src_f]);
-            assert rename_spec_ok(src_d_ino, src_name, dst_d_ino, dst_name);
-          }
-        } else {
-          if src_d_ino == dst_d_ino {
-            assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
-            rename_spec_same_dir_ok(src_d_ino, src_name, dst_name);
-          } else {
-            assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
-          }
+        if src_d_ino == dst_d_ino {
+          assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
+          rename_spec_same_dir_ok(src_d_ino, src_name, dst_name);
+        } else if dst_exists {
+          assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
+          assert data[dst_d_ino].dir == old(data[dst_d_ino].dir[dst_name := src_f]);
+          assert rename_spec_ok(src_d_ino, src_name, dst_d_ino, dst_name);
         }
       }
       return Ok(());
