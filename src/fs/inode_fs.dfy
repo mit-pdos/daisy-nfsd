@@ -516,6 +516,22 @@ module InodeFs {
       var _ := txn.Read(InodeAddr(ino), 128*8);
     }
 
+    method lockInodes(txn: Txn, inos: seq<uint64>)
+      modifies {}
+      requires Valid()
+      requires txn.jrnl == jrnl
+    {
+      if |inos| == 0 {}
+      else {
+        var ino := inos[0];
+        var ok := is_ino_ok(ino);
+        if ok {
+          lockInode(txn, ino);
+        }
+        lockInodes(txn, inos[1..]);
+      }
+    }
+
     // public
     method getInode(txn: Txn, ino: Ino) returns (i: MemInode)
       modifies {}
