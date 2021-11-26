@@ -108,7 +108,7 @@ opam switch create 4.12.0+flambda --package=ocaml-variants.4.12.0+options,ocaml-
 eval $(opam env)
 
 # takes ~5 minutes
-opam install -y -j4 coq.8.14.1
+opam install -y -j4 coq.8.13.2
 
 # Install FSCQ
 
