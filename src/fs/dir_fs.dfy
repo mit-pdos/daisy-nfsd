@@ -2,6 +2,7 @@ include "typed_fs.dfy"
 include "dir/mem_dirent.dfy"
 include "nfs.s.dfy"
 include "../machine/time.s.dfy"
+include "../util/lock_order.dfy"
 
 module DirFs
 {
@@ -13,6 +14,7 @@ module DirFs
   import opened JrnlTypes
   import opened JrnlSpec
 
+  import opened LockOrder
   import opened DirEntries
   import opened MemDirEnts
   import opened MemDirEntries
@@ -1911,7 +1913,9 @@ module DirFs
     {
     }
 
-    method {:timeLimitMultiplier 2} renamePaths(txn: Txn, src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+    method {:timeLimitMultiplier 2} renamePaths(txn: Txn,
+      locks: LockHint,
+      src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
@@ -1974,7 +1978,8 @@ module DirFs
     }
 
     // public
-    method RENAME(txn: Txn, src_d_ino: uint64, src_name: Bytes, dst_d_ino: uint64, dst_name: Bytes)
+    method RENAME(txn: Txn, locks: LockHint,
+      src_d_ino: uint64, src_name: Bytes, dst_d_ino: uint64, dst_name: Bytes)
       returns (r: Result<()>)
       modifies Repr, dst_name
       requires src_name.Valid() && dst_name.Valid()
@@ -2003,7 +2008,11 @@ module DirFs
         fs.reveal_valids();
         fs.fs.fs.fs.lockInode(txn, dst_d_ino);
       }
-      var _ :- renamePaths(txn, src_d_ino, src_name, dst_d_ino, dst_name);
+      {
+        fs.reveal_valids();
+        fs.fs.fs.fs.lockInodes(txn, locks);
+      }
+      var _ :- renamePaths(txn, locks, src_d_ino, src_name, dst_d_ino, dst_name);
       return Ok(());
     }
 

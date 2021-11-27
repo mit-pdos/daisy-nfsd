@@ -13,6 +13,12 @@ module LockOrder {
     h in locks
   }
 
+  // is it safe to acquire l, with locks held?
+  function method safe_lock(locks: LockHint, l: uint64): bool
+  {
+    locks == [] || l > locks[|locks|-1]
+  }
+
   function method insert_lock_hint(locks: LockHint, h: uint64): LockHint
   {
     if locks == [] then [h]

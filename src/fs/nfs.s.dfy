@@ -35,6 +35,8 @@ module Nfs {
     | BadHandle
     | ServerFault
     | JukeBox(sz_hint: uint64)
+    // this is a purely internal error
+    | LockOrderViolated(locks: seq<uint64>)
   {
     function method nfs3_code(): uint32
     {
@@ -51,6 +53,7 @@ module Nfs {
         case BadHandle => 10001
         case ServerFault => 10006
         case JukeBox(_) => 10008
+        case LockOrderViolated(_) => 10008
       }
     }
   }

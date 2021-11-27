@@ -7,6 +7,7 @@ import (
 	direntries "github.com/mit-pdos/daisy-nfsd/dafnygen/DirEntries_Compile"
 	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
 	inode "github.com/mit-pdos/daisy-nfsd/dafnygen/Inode_Compile"
+	lock_order "github.com/mit-pdos/daisy-nfsd/dafnygen/LockOrder_Compile"
 	memdirents "github.com/mit-pdos/daisy-nfsd/dafnygen/MemDirEnts_Compile"
 	dafny_nfs "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs_Compile"
 	nfs_spec "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs_Compile"
@@ -129,10 +130,7 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 type Txn = *jrnl.Txn
 type Result = dafny_nfs.Result
 
-func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64) {
-	txn := nfs.filesys.Begin()
-	r := f(txn)
-	r = dirfs.Companion_Default___.HandleResult(r, txn)
+func parseResult(r Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64) {
 	if r.Is_Ok() {
 		v = r.Dtor_v()
 	} else {
@@ -141,6 +139,14 @@ func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.N
 		}
 	}
 	status = nfstypes.Nfsstat3(r.Err__code())
+	return
+}
+
+func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64) {
+	txn := nfs.filesys.Begin()
+	r := f(txn)
+	r = dirfs.Companion_Default___.HandleResult(r, txn)
+	v, status, hint = parseResult(r)
 	return
 }
 
@@ -441,6 +447,22 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	return reply
 }
 
+func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Seq) Result) (v interface{}, status nfstypes.Nfsstat3) {
+	locks := lock_order.Companion_Default___.EmptyLockHint()
+	for {
+		txn := nfs.filesys.Begin()
+		r := f(txn, locks)
+		r = dirfs.Companion_Default___.HandleResult(r, txn)
+		v, status, _ = parseResult(r)
+		if r.Is_Err() && r.Dtor_err().Is_LockOrderViolated() {
+			util.DPrintf(3, "Rename violated lock order, restarting")
+			locks = r.Dtor_err().Dtor_locks()
+			continue
+		}
+		return
+	}
+}
+
 func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) (reply nfstypes.RENAME3res) {
 	util.DPrintf(1, "NFS Rename %v\n", args)
 	defer nfs.reportOp(nfstypes.NFSPROC3_RENAME, time.Now())
@@ -450,9 +472,10 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) (reply nfstypes.RENAM
 	dst_inum := fh2ino(args.To.Dir)
 	dst_name := filenameToBytes(args.To.Name)
 
-	_, status, _ := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.RENAME(txn, src_inum, src_name, dst_inum, dst_name)
+	_, status := nfs.runWithLocks(func(txn Txn, locks dafny.Seq) Result {
+		return nfs.filesys.RENAME(txn, locks, src_inum, src_name, dst_inum, dst_name)
 	})
+
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS Rename error %v", status)
