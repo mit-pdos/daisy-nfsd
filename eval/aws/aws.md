@@ -30,3 +30,5 @@ and set security group to something that allows port 22 (for SSH access)
 Run `aws-setup.sh` first
 
 Run `eval.sh`
+
+Download the results: `rsync -az ubuntu@$ip:./daisy-nfsd/eval/data/ eval/data/aws/`
