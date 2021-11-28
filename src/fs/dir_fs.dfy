@@ -1736,10 +1736,14 @@ module DirFs
       && old(is_dir(d_ino))
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
-      && data ==
-        (var d0 := old(data[d_ino]);
-        var d' := map_delete(d0.dir, old(name.data));
-        map_delete(old(data)[d_ino := DirFile(d', d0.attrs)], d0.dir[old(name.data)]))
+      && var d0 := old(data[d_ino]);
+        var n := old(name.data);
+        var d' := map_delete(d0.dir, n);
+        && d0.dir[n] in old(data)
+        && old(data)[d0.dir[n]].DirFile?
+        && old(data)[d0.dir[n]].dir == map[]
+        && data ==
+          map_delete(old(data)[d_ino := DirFile(d', d0.attrs)], d0.dir[n])
     {
       var path_ok := Pathc?(name);
       if !path_ok {
@@ -1747,13 +1751,15 @@ module DirFs
       }
       var d_ino :- checkInoBounds(d_ino);
       var ino :- this.unlink(txn, d_ino, name);
-      if ino == rootIno {
+      if ino == rootIno || ino == d_ino {
         return Err(Inval);
       }
       var dents_r := readDirents(txn, ino);
       if dents_r.ErrBadHandle? {
-        Std.map_delete_id(data, ino);
-        return Ok(());
+        // the directory somehow held an invalid entry; this could probably
+        // legitimately return ERR_NOENT, but our spec doesn't have a case for
+        // this
+        return Err(ServerFault);
       }
       if dents_r.ErrNotDir? {
         return Err(NotDir);
@@ -1766,6 +1772,9 @@ module DirFs
         get_data_at(ino);
         assert data[ino].dir != map[];
         return Err(NotEmpty);
+      }
+      assert data[ino].dir == map[] by {
+        get_data_at(ino);
       }
 
       removeInodeDir(txn, ino);
