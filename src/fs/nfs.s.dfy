@@ -71,7 +71,6 @@ module Nfs {
     const ErrNotDir?: bool := Err? && err.NotDir?
 
     // make this a failure-compatible type
-    // (these duplicate the methods below with the names Dafny requires)
 
     predicate method IsFailure()
     {

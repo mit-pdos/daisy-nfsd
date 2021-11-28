@@ -1682,23 +1682,49 @@ module DirFs
       return Ok(RemoveHint(ino, sz_hint));
     }
 
-    // TODO: would be nice to combine this with removeInode; best way might be
-    // to require caller to do the startInode/type checking and only implement
-    // the removal part
-    method removeInodeDir(txn: Txn, ino: Ino)
+    method removeEmptyDir(txn: Txn, ino: Ino)
+      returns (r: Result<()>)
       modifies Repr
-      requires Valid() ensures Valid()
-      requires ino != rootIno
-      requires is_dir(ino)
+      requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
-      ensures data == old(map_delete(data, ino))
-      ensures dirents == old(map_delete(dirents, ino))
+      requires ino != rootIno
+      ensures r.Err? ==> r.err.NotEmpty? || r.err.BadHandle? || r.err.NotDir?
+      ensures r.ErrBadHandle? ==>
+        old(is_invalid(ino))
+      ensures r.ErrNotDir? ==>
+        && old(is_file(ino))
+      ensures r.Err? && r.err.NotEmpty? ==>
+        && old(is_dir(ino))
+        && old(data)[ino].dir != map[]
+      ensures r.Ok? ==>
+        && old(is_dir(ino))
+        && old(data)[ino].dir == map[]
+        && data == old(map_delete(data, ino))
+        && dirents == old(map_delete(dirents, ino))
     {
       var ok, i := fs.startInode(txn, ino);
       if !ok {
-        assert is_invalid(ino) by { reveal is_of_type(); }
-        assert false;
+          assert is_invalid(ino) by { reveal is_of_type(); }
+          return Err(BadHandle);
       }
+      if i.ty().FileType? {
+        fs.finishInodeReadonly(ino, i);
+        assert is_file(ino) by { reveal is_of_type(); }
+        return Err(NotDir);
+      }
+
+      assert is_dir(ino) by { reveal is_of_type(); }
+      var dents := readDirentsInode(txn, ino, i);
+      var is_empty := dents.isEmpty(txn);
+      if !is_empty {
+        get_data_at(ino);
+        assert data[ino].dir != map[];
+        return Err(NotEmpty);
+      }
+      assert data[ino].dir == map[] by {
+        get_data_at(ino);
+      }
+
       fs.freeInode(txn, ino, i);
       data := map_delete(data, ino);
       dirents := map_delete(dirents, ino);
@@ -1707,6 +1733,7 @@ module DirFs
       mk_data_at(ino);
       ValidData_change_one(ino);
       assert ValidRoot() by { reveal ValidRoot(); }
+      return Ok(());
     }
 
     // public
@@ -1754,30 +1781,16 @@ module DirFs
       if ino == rootIno || ino == d_ino {
         return Err(Inval);
       }
-      var dents_r := readDirents(txn, ino);
-      if dents_r.ErrBadHandle? {
+      var remove := removeEmptyDir(txn, ino);
+      if remove.Err? && remove.err.BadHandle? {
         // the directory somehow held an invalid entry; this could probably
         // legitimately return ERR_NOENT, but our spec doesn't have a case for
         // this
         return Err(ServerFault);
       }
-      if dents_r.ErrNotDir? {
-        return Err(NotDir);
+      if remove.Err? {
+        return Err(remove.err);
       }
-      assert dents_r.Ok?;
-      var dents := dents_r.v;
-      var is_empty := dents.isEmpty(txn);
-      dents.finishReadonly();
-      if !is_empty {
-        get_data_at(ino);
-        assert data[ino].dir != map[];
-        return Err(NotEmpty);
-      }
-      assert data[ino].dir == map[] by {
-        get_data_at(ino);
-      }
-
-      removeInodeDir(txn, ino);
 
       return Ok(());
     }
@@ -1831,10 +1844,12 @@ module DirFs
          var d0 := old(data[d_ino]);
          var d' := map_delete(d0.dir, old(name.data));
          && removed == Some(d0.dir[old(name.data)])
-         && data == old(data)[d_ino := DirFile(d', d0.attrs)])
+         && data == old(data)[d_ino := DirFile(d', d0.attrs)]
+         )
       && (name.data !in old(data[d_ino].dir) ==>
+         && removed == None
          && data == old(data)
-         && removed == None)
+         )
     {
       var dents :- readDirents(txn, d_ino);
       assert name != dents.file.bs by {

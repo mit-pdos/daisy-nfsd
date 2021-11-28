@@ -211,6 +211,21 @@ module TypedFs {
       reveal ValidFields();
     }
 
+    method getInodeType(txn: Txn, ino: Ino) returns (ty: Inode.InodeType)
+      modifies fs.fs.fs
+      requires Valid() ensures Valid()
+      requires has_jrnl(txn)
+      ensures types[ino].ty == ty
+    {
+      reveal_valids();
+      var i := fs.startInode(txn, ino);
+      fs.inode_metadata(ino, i);
+      ty := i.ty();
+      fs.finishInodeReadonly(ino, i);
+      reveal ValidFields();
+      return;
+    }
+
     ghost method finishInodeReadonly(ino: Ino, i: MemInode)
       modifies fs.fs.fs
       requires ValidIno(ino, i)
