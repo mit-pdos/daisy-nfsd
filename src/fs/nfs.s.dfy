@@ -19,6 +19,13 @@ module Nfs {
   datatype File =
     | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
     | DirFile(dir: DirEntries.Directory, attrs: Inode.Attrs)
+  {
+    function delete(name: seq<byte>): File
+      requires DirFile?
+    {
+      DirFile(map_delete(dir, name), attrs)
+    }
+  }
 
   type Fs = map<FsKinds.Ino, File>
 

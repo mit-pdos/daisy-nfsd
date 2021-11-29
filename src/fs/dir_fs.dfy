@@ -70,6 +70,14 @@ module DirFs
     return Inode.NfsTime((sec % 0x1_0000_0000) as uint32, nsec as uint32);
   }
 
+  datatype RenameArgs = RenameArgs(src: Ino, src_name: seq<byte>, dst: Ino, dst_name: seq<byte>)
+  {
+    predicate Valid()
+    {
+      is_pathc(src_name) && is_pathc(dst_name)
+    }
+  }
+
   class DirFilesys
   {
     // external abstract state
@@ -1889,46 +1897,43 @@ module DirFs
     }
 
 
-    static predicate rename_nonerror(src_d_ino: Ino, src_name: seq<byte>,
-      dst_d_ino: Ino, dst_name: seq<byte>, data: Fs)
+    static predicate rename_nonerror(args: RenameArgs, data: Fs)
     {
-      && is_pathc(src_name)
-      && is_pathc(dst_name)
-      && is_dir_fs(src_d_ino, data)
-      && is_dir_fs(dst_d_ino, data)
-      && src_name in data[src_d_ino].dir
+      && args.Valid()
+      && is_dir_fs(args.src, data)
+      && is_dir_fs(args.dst, data)
+      && args.src_name in data[args.src].dir
     }
 
-    static function rename_spec(src_d_ino: Ino, src_name: seq<byte>,
-      dst_d_ino: Ino, dst_name: seq<byte>, data: Fs): Fs
-      requires rename_nonerror(src_d_ino, src_name, dst_d_ino, dst_name, data)
+    static function rename_spec(args: RenameArgs, data: Fs): Fs
+      requires rename_nonerror(args, data)
     {
-      var srcd := data[src_d_ino];
-      var srcf := srcd.dir[src_name];
-      var srcd' := DirFile(map_delete(srcd.dir, src_name), srcd.attrs);
-      var data1: Fs := data[src_d_ino := srcd'];
-      var dstd := data1[dst_d_ino];
-      var dstd' := DirFile(dstd.dir[dst_name := srcf], dstd.attrs);
-      data1[dst_d_ino := dstd']
+      var srcd := data[args.src];
+      var srcf := srcd.dir[args.src_name];
+      var srcd' := srcd.delete(args.src_name);
+      var data1: Fs := data[args.src := srcd'];
+      var dstd := data1[args.dst];
+      var dstd' := DirFile(dstd.dir[args.dst_name := srcf], dstd.attrs);
+      data1[args.dst := dstd']
     }
 
     // simpler re-statement of rename_spec_ok when src and destination coincide,
-    // mainly to demonstrate that rename_spec_ok is sensible
-    static function rename_spec_same_dir(d_ino: Ino, src_name: seq<byte>,
-      dst_name: seq<byte>, data: Fs): Fs
-      requires rename_nonerror(d_ino, src_name, d_ino, dst_name, data)
+    // mainly to demonstrate that rename_spec is sensible
+    static function rename_spec_same_dir(args: RenameArgs, data: Fs): Fs
+      requires args.src == args.dst
+      requires rename_nonerror(args, data)
     {
-      var d0 := data[d_ino];
-      var srcf := d0.dir[src_name];
-      var d1 := map_delete(d0.dir, src_name);
-      var d' := DirFile(d1[dst_name := srcf], d0.attrs);
-      data[d_ino := d']
+      var d0 := data[args.src];
+      var srcf := d0.dir[args.src_name];
+      var d := map_delete(d0.dir, args.src_name);
+      var d := d[args.dst_name := srcf];
+      data[args.src := DirFile(d, d0.attrs)]
     }
 
-    static lemma rename_spec_same_dir_ok(d_ino: Ino, src_name: seq<byte>, dst_name: seq<byte>, data: Fs)
-      requires rename_nonerror(d_ino, src_name, d_ino, dst_name, data)
-      ensures rename_spec_same_dir(d_ino, src_name, dst_name, data)
-              == rename_spec(d_ino, src_name, d_ino, dst_name, data)
+    static lemma rename_spec_same_dir_ok(args: RenameArgs, data: Fs)
+      requires rename_nonerror(args, data)
+      requires args.src == args.dst
+      ensures rename_spec_same_dir(args, data) == rename_spec(args, data)
     {
     }
 
@@ -1940,9 +1945,9 @@ module DirFs
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
       requires Valid() ensures r.Ok? ==> Valid()
       ensures r.Ok? ==>
-      && rename_nonerror(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data), old(data))
-      && data == rename_spec(
-      src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data), old(data))
+      var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
+      && rename_nonerror(args, old(data))
+      && data == rename_spec(args, old(data))
       requires fs.has_jrnl(txn)
     {
       assert dst_d_ino in data && data[dst_d_ino].DirFile? ==> is_dir(dst_d_ino) by {
@@ -1983,15 +1988,16 @@ module DirFs
       ghost var src_f := old(data[src_d_ino].dir[src_name.data]);
       ghost var src_name := old(src_name.data);
       ghost var dst_name := old(dst_name.data);
-      assert rename_nonerror(src_d_ino, src_name, dst_d_ino, dst_name, old(data));
-      assert data == rename_spec(src_d_ino, src_name, dst_d_ino, dst_name, old(data)) by {
+      ghost var args := RenameArgs(src_d_ino, src_name, dst_d_ino, dst_name);
+      assert rename_nonerror(args, old(data));
+      assert data == rename_spec(args, old(data)) by {
         if src_d_ino == dst_d_ino {
           assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
-          rename_spec_same_dir_ok(src_d_ino, src_name, dst_name, old(data));
+          rename_spec_same_dir_ok(args, old(data));
         } else if dst_exists {
           assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
           assert data[dst_d_ino].dir == old(data[dst_d_ino].dir[dst_name := src_f]);
-          assert data == rename_spec(src_d_ino, src_name, dst_d_ino, dst_name, old(data));
+          assert data == rename_spec(args, old(data));
         }
       }
       return Ok(());
@@ -2008,9 +2014,9 @@ module DirFs
       ensures r.Ok? ==>
         && ino_ok(src_d_ino)
         && ino_ok(dst_d_ino)
-        && rename_nonerror(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data), old(data))
-        && data == rename_spec(
-        src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data), old(data))
+        && var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
+          && rename_nonerror(args, old(data))
+          && data == rename_spec(args, old(data))
     {
       var src_name_ok := Pathc?(src_name);
       if !src_name_ok {
