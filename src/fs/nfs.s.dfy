@@ -20,7 +20,17 @@ module Nfs {
     | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
     | DirFile(dir: DirEntries.Directory, attrs: Inode.Attrs)
 
-   type Data = map<FsKinds.Ino, File>
+  type Fs = map<FsKinds.Ino, File>
+
+  predicate is_file_fs(ino: FsKinds.Ino, data: Fs)
+  {
+    ino in data && data[ino].ByteFile?
+  }
+
+  predicate is_dir_fs(ino: FsKinds.Ino, data: Fs)
+  {
+    ino in data && data[ino].DirFile?
+  }
 
   datatype Error =
     | Noent
