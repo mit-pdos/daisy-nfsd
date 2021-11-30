@@ -2003,6 +2003,46 @@ module DirFs
       return Ok(());
     }
 
+    // after the core rename operation, will overwriting the destination file be
+    // valid?
+    //
+    // note that data is before the entire operation; after the initial rename
+    // the destination is lost so there isn't enough information to decide this
+    static predicate rename_cleanup_ok(args: RenameArgs, data: Fs)
+      requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
+    {
+      // there are three ways for the overwrite to be valid:
+      var dst := data[args.dst];
+      // (1) the destination didn't exist so no overwriting took place
+      || (args.dst_name !in dst.dir)
+      || var src := data[args.src];
+        && args.src_name in src.dir
+        && var src_ino := src.dir[args.src_name];
+          var dst_ino := dst.dir[args.dst_name];
+          // (2) source and destination are both files
+          || (&& is_file_fs(src_ino, data)
+            && is_file_fs(dst_ino, data))
+          // (3) source and destinations are both directories, and the
+          // destination is empty
+          || (&& is_dir_fs(src_ino, data)
+            && is_dir_fs(dst_ino, data)
+            && data[dst_ino].dir == map[])
+    }
+
+    // rename with cleanup of any overwritten files
+    static function rename_cleanup(args: RenameArgs, data: Fs): Fs
+      requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
+      requires rename_nonerror(args, data)
+      requires args.dst_name in data[args.dst].dir
+    {
+      var data1: Fs := rename_spec(args, data);
+      var dst := data[args.dst];
+      if args.dst_name in dst.dir then
+        (var dst_ino := dst.dir[args.dst_name];
+        map_delete(data, dst_ino))
+      else data
+    }
+
     // public
     method RENAME(txn: Txn, locks: LockHint,
       src_d_ino: uint64, src_name: Bytes, dst_d_ino: uint64, dst_name: Bytes)
