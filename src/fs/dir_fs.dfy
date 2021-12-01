@@ -72,24 +72,6 @@ module DirFs
     return Inode.NfsTime((sec % 0x1_0000_0000) as uint32, nsec as uint32);
   }
 
-  datatype RenameArgs = RenameArgs(src: Ino, src_name: seq<byte>, dst: Ino, dst_name: seq<byte>)
-  {
-    predicate Valid()
-    {
-      is_pathc(src_name) && is_pathc(dst_name)
-    }
-
-    predicate same_dir()
-    {
-      src == dst
-    }
-
-    predicate trivial()
-    {
-      same_dir() && src_name == dst_name
-    }
-  }
-
   class DirFilesys
   {
     // external abstract state
@@ -1909,46 +1891,6 @@ module DirFs
     }
 
 
-    static predicate rename_overwrite_ok(args: RenameArgs, data: Fs)
-    {
-      && args.Valid()
-      && is_dir_fs(args.src, data)
-      && is_dir_fs(args.dst, data)
-      && args.src_name in data[args.src].dir
-    }
-
-    static function rename_overwrite_spec(args: RenameArgs, data: Fs): Fs
-      requires rename_overwrite_ok(args, data)
-    {
-      var srcd := data[args.src];
-      var srcf := srcd.dir[args.src_name];
-      var srcd' := srcd.delete(args.src_name);
-      var data1: Fs := data[args.src := srcd'];
-      var dstd := data1[args.dst];
-      var dstd' := DirFile(dstd.dir[args.dst_name := srcf], dstd.attrs);
-      data1[args.dst := dstd']
-    }
-
-    // simpler re-statement of rename_overwrite_spec_ok when src and destination coincide,
-    // mainly to demonstrate that rename_overwrite_spec is sensible
-    static function rename_overwrite_spec_same_dir(args: RenameArgs, data: Fs): Fs
-      requires args.src == args.dst
-      requires rename_overwrite_ok(args, data)
-    {
-      var d0 := data[args.src];
-      var srcf := d0.dir[args.src_name];
-      var d := map_delete(d0.dir, args.src_name);
-      var d := d[args.dst_name := srcf];
-      data[args.src := DirFile(d, d0.attrs)]
-    }
-
-    static lemma rename_overwrite_spec_same_dir_ok(args: RenameArgs, data: Fs)
-      requires rename_overwrite_ok(args, data)
-      requires args.src == args.dst
-      ensures rename_overwrite_spec_same_dir(args, data) == rename_overwrite_spec(args, data)
-    {
-    }
-
     // rename and overwrite the destination unconditionally
     method {:timeLimitMultiplier 2} renameOverwrite(txn: Txn,
       src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
@@ -2012,63 +1954,6 @@ module DirFs
         }
       }
       return Ok((ino, removed));
-    }
-
-    // after the core rename operation, will overwriting the destination file be
-    // valid?
-    //
-    // note that data is before the entire operation; after the initial rename
-    // the destination is lost so there isn't enough information to decide this
-    static predicate rename_cleanup_ok(args: RenameArgs, data: Fs)
-      requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
-      requires args.src_name in data[args.src].dir
-    {
-      // we evaluate some of the following after removing the src, which might
-      // make a no-op rename valid or make it valid to rename a directory on top
-      // of its parent
-      var data1: Fs := data[args.src := data[args.src].delete(args.src_name)];
-      // there are three ways for the overwrite to be valid:
-      var dst1 := data1[args.dst];
-      // (1) the destination didn't exist so no overwriting took place
-      || (args.dst_name !in dst1.dir)
-      || var src := data[args.src];
-        var dst := data[args.dst];
-        && var src_ino := src.dir[args.src_name];
-          var dst_ino := dst.dir[args.dst_name];
-          // (2) source and destination are both files
-          || (&& is_file_fs(src_ino, data)
-            && is_file_fs(dst_ino, data))
-          // (3) source and destinations are both directories, and the
-          // destination is empty
-          || (&& is_dir_fs(src_ino, data)
-            && is_dir_fs(dst_ino, data)
-            && data1[dst_ino].dir == map[])
-    }
-
-    // rename with cleanup of any overwritten files
-    //
-    // note this is the entire rename spec, since the original data is needed to
-    // express the right cleanup
-    static function rename_spec(args: RenameArgs, data: Fs): Fs
-      requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
-      requires rename_overwrite_ok(args, data)
-    {
-      // get the old destination file
-      var dst := data[args.dst];
-      var data: Fs := rename_overwrite_spec(args, data);
-      // no cleanup needed if destination didn't exist or src and dst refer to
-      // the same file
-      if args.dst_name !in dst.dir || args.trivial()
-      then data
-      else
-        var dst_ino := dst.dir[args.dst_name];
-        map_delete(data, dst_ino)
-    }
-
-    static predicate rename_ok(args: RenameArgs, data: Fs)
-    {
-      && rename_overwrite_ok(args, data)
-      && rename_cleanup_ok(args, data)
     }
 
     method {:timeLimitMultiplier 2} renameWithCleanup(txn: Txn,
