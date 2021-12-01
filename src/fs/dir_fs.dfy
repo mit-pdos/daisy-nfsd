@@ -3,6 +3,7 @@ include "dir/mem_dirent.dfy"
 include "nfs.s.dfy"
 include "../machine/time.s.dfy"
 include "../util/lock_order.dfy"
+include "../util/bytes.dfy"
 
 module DirFs
 {
@@ -22,6 +23,7 @@ module DirFs
   import opened TypedFs
   import opened FileCursor
   import opened MemInodes
+  import ByteHelpers
   import Time
   import Inode
 
@@ -75,6 +77,16 @@ module DirFs
     predicate Valid()
     {
       is_pathc(src_name) && is_pathc(dst_name)
+    }
+
+    predicate same_dir()
+    {
+      src == dst
+    }
+
+    predicate trivial()
+    {
+      same_dir() && src_name == dst_name
     }
   }
 
@@ -1834,7 +1846,7 @@ module DirFs
     }
 
     method {:timeLimitMultiplier 2} readWithNameFree(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<MemDirents>, ghost removed: Option<Ino>)
+      returns (r: Result<MemDirents>, removed: Option<Ino>)
       modifies Repr
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
@@ -1897,7 +1909,7 @@ module DirFs
     }
 
 
-    static predicate rename_nonerror(args: RenameArgs, data: Fs)
+    static predicate rename_overwrite_ok(args: RenameArgs, data: Fs)
     {
       && args.Valid()
       && is_dir_fs(args.src, data)
@@ -1905,8 +1917,8 @@ module DirFs
       && args.src_name in data[args.src].dir
     }
 
-    static function rename_spec(args: RenameArgs, data: Fs): Fs
-      requires rename_nonerror(args, data)
+    static function rename_overwrite_spec(args: RenameArgs, data: Fs): Fs
+      requires rename_overwrite_ok(args, data)
     {
       var srcd := data[args.src];
       var srcf := srcd.dir[args.src_name];
@@ -1917,11 +1929,11 @@ module DirFs
       data1[args.dst := dstd']
     }
 
-    // simpler re-statement of rename_spec_ok when src and destination coincide,
-    // mainly to demonstrate that rename_spec is sensible
-    static function rename_spec_same_dir(args: RenameArgs, data: Fs): Fs
+    // simpler re-statement of rename_overwrite_spec_ok when src and destination coincide,
+    // mainly to demonstrate that rename_overwrite_spec is sensible
+    static function rename_overwrite_spec_same_dir(args: RenameArgs, data: Fs): Fs
       requires args.src == args.dst
-      requires rename_nonerror(args, data)
+      requires rename_overwrite_ok(args, data)
     {
       var d0 := data[args.src];
       var srcf := d0.dir[args.src_name];
@@ -1930,31 +1942,39 @@ module DirFs
       data[args.src := DirFile(d, d0.attrs)]
     }
 
-    static lemma rename_spec_same_dir_ok(args: RenameArgs, data: Fs)
-      requires rename_nonerror(args, data)
+    static lemma rename_overwrite_spec_same_dir_ok(args: RenameArgs, data: Fs)
+      requires rename_overwrite_ok(args, data)
       requires args.src == args.dst
-      ensures rename_spec_same_dir(args, data) == rename_spec(args, data)
+      ensures rename_overwrite_spec_same_dir(args, data) == rename_overwrite_spec(args, data)
     {
     }
 
-    method {:timeLimitMultiplier 2} renamePaths(txn: Txn,
-      locks: LockHint,
+    // rename and overwrite the destination unconditionally
+    method {:timeLimitMultiplier 2} renameOverwrite(txn: Txn,
       src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
-      returns (r: Result<()>)
+      returns (r: Result<(Ino, Option<Ino>)>)
       modifies Repr, dst_name
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
       requires Valid() ensures r.Ok? ==> Valid()
       ensures r.Ok? ==>
       var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
-      && rename_nonerror(args, old(data))
-      && data == rename_spec(args, old(data))
+      && rename_overwrite_ok(args, old(data))
+      && data == rename_overwrite_spec(args, old(data))
+      && var src_ino := r.v.0;
+        var m_dst_ino := r.v.1;
+      && old(data)[args.src].dir[args.src_name] == src_ino
+      && src_ino != src_d_ino && src_ino != dst_d_ino
+      && (m_dst_ino.None? ==> args.dst_name !in old(data)[args.dst].dir || args.trivial())
+      && (m_dst_ino.Some? ==>
+          var dst_ino := m_dst_ino.x;
+           && dst_ino != src_ino
+           && dst_ino != dst_d_ino
+           && args.dst_name in old(data)[args.dst].dir
+           && old(data)[args.dst].dir[args.dst_name] == dst_ino)
       requires fs.has_jrnl(txn)
     {
-      assert dst_d_ino in data && data[dst_d_ino].DirFile? ==> is_dir(dst_d_ino) by {
-        if dst_d_ino in data && data[dst_d_ino].DirFile? {
-          data_to_is_dir(dst_d_ino);
-        }
-      }
+      ghost var args := RenameArgs(src_d_ino, src_name.data,
+        dst_d_ino, dst_name.data);
       var ino :- unlink(txn, src_d_ino, src_name);
       if ino == 0 {
         return Err(Inval);
@@ -1964,13 +1984,9 @@ module DirFs
       // would create a circular link from destination directory to itself
       if ino == dst_d_ino { return Err(Inval); }
       assert is_dir(src_d_ino);
-      ghost var dst_exists := is_dir(dst_d_ino) && dst_name.data in data[dst_d_ino].dir;
-      var dst: MemDirents;
-      ghost var removed: Option<Ino>;
-      dst, removed :- readWithNameFree(txn, dst_d_ino, dst_name);
-      assert old(is_dir(dst_d_ino));
-      assert is_dir(src_d_ino) by {
-        data_to_is_dir(src_d_ino);
+      var dst, removed :- readWithNameFree(txn, dst_d_ino, dst_name);
+      if removed.Some? && (removed.x == ino || removed.x == dst_d_ino) {
+        return Err(ServerFault);
       }
       assert dst_name != dst.file.bs by {
         assert dst.file.bs in dst.Repr();
@@ -1981,26 +1997,21 @@ module DirFs
         return Err(NoSpc);
       }
       assert Valid();
-      assert is_dir(src_d_ino) && is_dir(dst_d_ino) by {
-        data_to_is_dir(src_d_ino);
-        data_to_is_dir(dst_d_ino);
-      }
       ghost var src_f := old(data[src_d_ino].dir[src_name.data]);
-      ghost var src_name := old(src_name.data);
-      ghost var dst_name := old(dst_name.data);
-      ghost var args := RenameArgs(src_d_ino, src_name, dst_d_ino, dst_name);
-      assert rename_nonerror(args, old(data));
-      assert data == rename_spec(args, old(data)) by {
+      ghost var src_name := args.src_name;
+      ghost var dst_name := args.dst_name;
+      assert rename_overwrite_ok(args, old(data));
+      assert data == rename_overwrite_spec(args, old(data)) by {
         if src_d_ino == dst_d_ino {
           assert data[dst_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name)[dst_name := src_f]);
-          rename_spec_same_dir_ok(args, old(data));
-        } else if dst_exists {
+          rename_overwrite_spec_same_dir_ok(args, old(data));
+        } else if removed.Some? {
           assert data[src_d_ino].dir == old(map_delete(data[src_d_ino].dir, src_name));
           assert data[dst_d_ino].dir == old(data[dst_d_ino].dir[dst_name := src_f]);
-          assert data == rename_spec(args, old(data));
+          assert data == rename_overwrite_spec(args, old(data));
         }
       }
-      return Ok(());
+      return Ok((ino, removed));
     }
 
     // after the core rename operation, will overwriting the destination file be
@@ -2010,13 +2021,18 @@ module DirFs
     // the destination is lost so there isn't enough information to decide this
     static predicate rename_cleanup_ok(args: RenameArgs, data: Fs)
       requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
+      requires args.src_name in data[args.src].dir
     {
+      // we evaluate some of the following after removing the src, which might
+      // make a no-op rename valid or make it valid to rename a directory on top
+      // of its parent
+      var data1: Fs := data[args.src := data[args.src].delete(args.src_name)];
       // there are three ways for the overwrite to be valid:
-      var dst := data[args.dst];
+      var dst1 := data1[args.dst];
       // (1) the destination didn't exist so no overwriting took place
-      || (args.dst_name !in dst.dir)
+      || (args.dst_name !in dst1.dir)
       || var src := data[args.src];
-        && args.src_name in src.dir
+        var dst := data[args.dst];
         && var src_ino := src.dir[args.src_name];
           var dst_ino := dst.dir[args.dst_name];
           // (2) source and destination are both files
@@ -2026,21 +2042,99 @@ module DirFs
           // destination is empty
           || (&& is_dir_fs(src_ino, data)
             && is_dir_fs(dst_ino, data)
-            && data[dst_ino].dir == map[])
+            && data1[dst_ino].dir == map[])
     }
 
     // rename with cleanup of any overwritten files
-    static function rename_cleanup(args: RenameArgs, data: Fs): Fs
+    //
+    // note this is the entire rename spec, since the original data is needed to
+    // express the right cleanup
+    static function rename_spec(args: RenameArgs, data: Fs): Fs
       requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
-      requires rename_nonerror(args, data)
-      requires args.dst_name in data[args.dst].dir
+      requires rename_overwrite_ok(args, data)
     {
-      var data1: Fs := rename_spec(args, data);
+      // get the old destination file
       var dst := data[args.dst];
-      if args.dst_name in dst.dir then
-        (var dst_ino := dst.dir[args.dst_name];
-        map_delete(data, dst_ino))
-      else data
+      var data: Fs := rename_overwrite_spec(args, data);
+      // no cleanup needed if destination didn't exist or src and dst refer to
+      // the same file
+      if args.dst_name !in dst.dir || args.trivial()
+      then data
+      else
+        var dst_ino := dst.dir[args.dst_name];
+        map_delete(data, dst_ino)
+    }
+
+    static predicate rename_ok(args: RenameArgs, data: Fs)
+    {
+      && rename_overwrite_ok(args, data)
+      && rename_cleanup_ok(args, data)
+    }
+
+    method {:timeLimitMultiplier 2} renameWithCleanup(txn: Txn,
+      locks: LockHint,
+      src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
+      returns (r: Result<()>)
+      modifies Repr, dst_name
+      requires is_pathc(src_name.data) && is_pathc(dst_name.data)
+      requires Valid() ensures r.Ok? ==> Valid()
+      ensures r.Ok? ==>
+      var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
+      && rename_ok(args, old(data))
+      && data == rename_spec(args, old(data))
+      requires fs.has_jrnl(txn)
+    {
+      var trivial := false;
+      if src_d_ino == dst_d_ino {
+        assert src_name.Valid() && dst_name.Valid() by {
+          reveal is_pathc();
+        }
+        var eq := ByteHelpers.Equal(src_name, dst_name);
+        if eq {
+          trivial := true;
+        }
+      }
+      var src_dst :- renameOverwrite(txn, src_d_ino, src_name, dst_d_ino, dst_name);
+      if trivial {
+        return Ok(());
+      }
+      ghost var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
+      assert !args.trivial();
+      var src := src_dst.0;
+      var removed := src_dst.1;
+      if removed.None? {
+        return Ok(());
+      }
+      var dst_ino := removed.x;
+      if !LockOrder.safe_lock(locks, src) {
+        return Err(LockOrderViolated(LockOrder.insert_lock_hint(locks, src)));
+      }
+      var t := fs.getInodeType(txn, src);
+      if t.InvalidType? {
+        // we had an invalid file in a directory, something is wrong
+        return Err(ServerFault);
+      }
+      if !LockOrder.safe_lock(locks, dst_ino) {
+        return Err(LockOrderViolated(LockOrder.insert_lock_hint(locks, dst_ino)));
+      }
+      if t.FileType? {
+        assert is_file(src) by { reveal is_of_type(); }
+        var _ :- removeInode(txn, dst_ino);
+        // should have right errors?
+        return Ok(());
+      } else {
+        assert t.DirType?;
+        assert is_dir(src) by { reveal is_of_type(); }
+        if removed.x == rootIno {
+          // root should not be in another directory
+          return Err(ServerFault);
+        }
+        ghost var data_delete: Fs := old(data)[args.src := old(data)[args.src].delete(args.src_name)];
+        ghost var data_pre_cleanup: Fs := data;
+        var _ :- removeEmptyDir(txn, dst_ino);
+        assert data_delete[dst_ino] == data_pre_cleanup[dst_ino];
+        return Ok(());
+      }
     }
 
     // public
@@ -2055,7 +2149,7 @@ module DirFs
         && ino_ok(src_d_ino)
         && ino_ok(dst_d_ino)
         && var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
-          && rename_nonerror(args, old(data))
+          && rename_ok(args, old(data))
           && data == rename_spec(args, old(data))
     {
       var src_name_ok := Pathc?(src_name);
@@ -2068,8 +2162,10 @@ module DirFs
       }
       var src_d_ino :- checkInoBounds(src_d_ino);
       var dst_d_ino :- checkInoBounds(dst_d_ino);
-      // to avoid deadlock, ensure that inodes are acquired in order (smaller to
-      // large)
+
+      // to avoid deadlock, ensure that directories are locked
+      var locks := LockOrder.insert_lock_hints(locks, [src_d_ino, dst_d_ino]);
+
       if dst_d_ino < src_d_ino {
         fs.reveal_valids();
         fs.fs.fs.fs.lockInode(txn, dst_d_ino);
@@ -2078,7 +2174,7 @@ module DirFs
         fs.reveal_valids();
         fs.fs.fs.fs.lockInodes(txn, locks);
       }
-      var _ :- renamePaths(txn, locks, src_d_ino, src_name, dst_d_ino, dst_name);
+      var _ :- renameWithCleanup(txn, locks, src_d_ino, src_name, dst_d_ino, dst_name);
       return Ok(());
     }
 
