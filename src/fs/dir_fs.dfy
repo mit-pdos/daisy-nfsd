@@ -1994,6 +1994,7 @@ module DirFs
       if !LockOrder.safe_lock(locks, src) {
         return Err(LockOrderViolated(LockOrder.insert_lock_hint(locks, src)));
       }
+      var locks := LockOrder.insert_lock_hint(locks, src);
       var t := fs.getInodeType(txn, src);
       if t.InvalidType? {
         // we had an invalid file in a directory, something is wrong
@@ -2051,10 +2052,6 @@ module DirFs
       // to avoid deadlock, ensure that directories are locked
       var locks := LockOrder.insert_lock_hints(locks, [src_d_ino, dst_d_ino]);
 
-      if dst_d_ino < src_d_ino {
-        fs.reveal_valids();
-        fs.fs.fs.fs.lockInode(txn, dst_d_ino);
-      }
       {
         fs.reveal_valids();
         fs.fs.fs.fs.lockInodes(txn, locks);
