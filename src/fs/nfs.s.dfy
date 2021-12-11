@@ -29,6 +29,15 @@ module Nfs {
 
   type Fs = map<FsKinds.Ino, File>
 
+  predicate valid_name(name: seq<byte>)
+  {
+    && DirEntries.is_pathc(name)
+    // the following three paths are specifically disallowed
+    && name != [] // ""
+    && name != ['.' as byte] // "."
+    && name != ['.' as byte, '.' as byte] // ".."
+  }
+
   predicate is_file_fs(ino: FsKinds.Ino, data: Fs)
   {
     ino in data && data[ino].ByteFile?

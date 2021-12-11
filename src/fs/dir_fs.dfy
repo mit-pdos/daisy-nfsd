@@ -798,7 +798,7 @@ module DirFs
 
     static method validatePath(name: Bytes) returns (p: Result<()>)
       requires name.Valid()
-      ensures p.Ok? ==> is_pathc(name.data)
+      ensures p.Ok? ==> valid_name(name.data)
       ensures p.Err? ==> p.err.NameTooLong? || p.err.Inval?
     {
       if name.Len() > path_len_u64 {
@@ -808,6 +808,23 @@ module DirFs
       if !pathc || name.Len() == 0 {
         return Err(Inval);
       }
+      if name.Len() == 1 {
+        var x0 := name.Get(0);
+        if x0 == '.' as byte {
+          assert name.data == ['.' as byte];
+          return Err(Inval);
+        }
+      }
+      assert name.data != ['.' as byte];
+      if name.Len() == 2 {
+        var x0 := name.Get(0);
+        var x1 := name.Get(1);
+        if x0 == '.' as byte && x1 == '.' as byte {
+          assert name.data == ['.' as byte, '.' as byte];
+          return Err(Inval);
+        }
+      }
+      assert name.data != ['.' as byte, '.' as byte];
       return Ok(());
     }
 
@@ -823,7 +840,7 @@ module DirFs
       && (var ino := r.v.ino;
        var fattrs := r.v.attrs;
        var file := ByteFile(C.repeat(0 as byte, how.size() as nat), fattrs.attrs);
-      && is_pathc(old(name.data))
+      && valid_name(old(name.data))
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && has_create_attrs(fattrs.attrs, how)
@@ -1348,7 +1365,7 @@ module DirFs
       && ino_ok(d_ino)
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
-      && old(is_pathc(name.data))
+      && old(valid_name(name.data))
       && has_mkdir_attrs(attrs', sattr)
       && data == old(
         var d0 := data[d_ino];
@@ -2034,7 +2051,10 @@ module DirFs
       ensures r.Ok? ==>
         && ino_ok(src_d_ino)
         && ino_ok(dst_d_ino)
-        && var args := RenameArgs(src_d_ino, old(src_name.data), dst_d_ino, old(dst_name.data));
+        // we validate the destination name fully to avoid creating an invalid path
+        && valid_name(old(dst_name.data))
+        && var args := RenameArgs(src_d_ino, old(src_name.data),
+                                dst_d_ino, old(dst_name.data));
           && rename_ok(args, old(data))
           && data == rename_spec(args, old(data))
     {
@@ -2042,10 +2062,7 @@ module DirFs
       if !src_name_ok {
         return Err(NameTooLong);
       }
-      var dst_name_ok := Pathc?(dst_name);
-      if !dst_name_ok {
-        return Err(NameTooLong);
-      }
+      var _ :- validatePath(dst_name);
       var src_d_ino :- checkInoBounds(src_d_ino);
       var dst_d_ino :- checkInoBounds(dst_d_ino);
 
