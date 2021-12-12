@@ -801,14 +801,15 @@ module DirFs
       ensures p.Ok? ==> valid_name(name.data)
       ensures p.Err? ==> p.err.NameTooLong? || p.err.Inval?
     {
-      if name.Len() > path_len_u64 {
+      var len := name.Len();
+      if len > path_len_u64 {
         return Err(NameTooLong);
       }
       var pathc := Pathc?(name);
       if !pathc || name.Len() == 0 {
         return Err(Inval);
       }
-      if name.Len() == 1 {
+      if len == 1 {
         var x0 := name.Get(0);
         if x0 == '.' as byte {
           assert name.data == ['.' as byte];
@@ -816,7 +817,7 @@ module DirFs
         }
       }
       assert name.data != ['.' as byte];
-      if name.Len() == 2 {
+      if len == 2 {
         var x0 := name.Get(0);
         var x1 := name.Get(1);
         if x0 == '.' as byte && x1 == '.' as byte {
