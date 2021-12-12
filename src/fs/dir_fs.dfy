@@ -696,7 +696,7 @@ module DirFs
     // requires caller to provide a free slot
     method linkInodeAtFree(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt, i: uint64)
       returns (ok: bool)
-      modifies Repr, dents.Repr(), dents.file.i.Repr, e'.name
+      modifies Repr, dents.Repr(), dents.file.i.Repr
       requires e'.name != dents.file.bs
       requires i as nat == dents.val.findFree()
       requires i as nat < |dents.val.s|
@@ -752,7 +752,7 @@ module DirFs
     // need to insert in a slightly different way that isn't implemented)
     method linkInode(txn: Txn, d_ino: Ino, dents: MemDirents, e': MemDirEnt)
       returns (ok: bool)
-      modifies Repr, dents.Repr(), dents.file.i.Repr, e'.name
+      modifies Repr, dents.Repr(), dents.file.i.Repr
       requires e'.name != dents.file.bs
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
@@ -835,7 +835,7 @@ module DirFs
     // public
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: uint64, name: Bytes, how: CreateHow3)
       returns (r: Result<InoResult>, ghost dir_attrs: Inode.Attrs)
-      modifies Repr, name
+      modifies Repr
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1354,7 +1354,7 @@ module DirFs
     method {:timeLimitMultiplier 2} MKDIR(txn: Txn,
       d_ino: uint64, name: Bytes, sattr: Sattr3)
       returns (r: Result<InoResult>)
-      modifies Repr, name
+      modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
       requires name.Valid()
@@ -1916,7 +1916,7 @@ module DirFs
     method {:timeLimitMultiplier 2} renameOverwrite(txn: Txn,
       src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<(Ino, Option<Ino>)>)
-      modifies Repr, dst_name
+      modifies Repr
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
       requires Valid() ensures r.Ok? ==> Valid()
       ensures r.Ok? ==>
@@ -1981,7 +1981,7 @@ module DirFs
       locks: LockHint,
       src_d_ino: Ino, src_name: Bytes, dst_d_ino: Ino, dst_name: Bytes)
       returns (r: Result<()>)
-      modifies Repr, dst_name
+      modifies Repr
       requires is_pathc(src_name.data) && is_pathc(dst_name.data)
       requires Valid() ensures r.Ok? ==> Valid()
       ensures r.Ok? ==>
@@ -2048,7 +2048,7 @@ module DirFs
     method RENAME(txn: Txn, locks: LockHint,
       src_d_ino: uint64, src_name: Bytes, dst_d_ino: uint64, dst_name: Bytes)
       returns (r: Result<()>)
-      modifies Repr, dst_name
+      modifies Repr
       requires src_name.Valid() && dst_name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)

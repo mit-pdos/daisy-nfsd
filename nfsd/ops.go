@@ -168,15 +168,6 @@ func filenameToBytes(name nfstypes.Filename3) *bytes.Bytes {
 	return &bytes.Bytes{Data: []byte(name)}
 }
 
-func stringOfSeq(s dafny.Seq) string {
-	numbytes := s.LenInt()
-	bs := make([]byte, numbytes)
-	for i := 0; i < numbytes; i++ {
-		bs[i] = s.IndexInt(i).(uint8)
-	}
-	return string(bs)
-}
-
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) (reply nfstypes.GETATTR3res) {
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 	defer nfs.reportOp(nfstypes.NFSPROC3_GETATTR, time.Now())

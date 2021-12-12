@@ -69,5 +69,5 @@ func (bs *Bytes) Split(off uint64) *Bytes {
 }
 
 func (bs *Bytes) Print() {
-	fmt.Print(string(bs.Data))
+	fmt.Printf("%v", bs.Data)
 }

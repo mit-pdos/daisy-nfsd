@@ -99,13 +99,13 @@ module Paths {
     return;
   }
 
-  method PadPathc(bs: Bytes)
-    modifies bs
+  method PaddedPathc(bs: Bytes) returns (bs': Bytes)
     requires is_pathc(bs.data)
-    ensures bs.data == encode_pathc(old(bs.data))
+    ensures fresh(bs')
+    ensures bs'.data == encode_pathc(old(bs.data))
   {
-    var zeros := NewBytes(path_len_u64 - bs.Len());
-    bs.AppendBytes(zeros);
+    bs' := NewBytes(path_len_u64);
+    bs'.CopyTo(0, bs);
   }
 
 }

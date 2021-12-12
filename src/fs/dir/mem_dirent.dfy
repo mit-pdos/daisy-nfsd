@@ -627,7 +627,7 @@ module MemDirEntries
 
     method insertEnt(txn: Txn, k: uint64, e: MemDirEnt)
       returns (ok:bool)
-      modifies Repr(), e.name, file.ReprFs
+      modifies Repr(), file.ReprFs
       requires Valid() ensures ok ==> Valid()
       requires has_jrnl(txn)
       requires e.name != file.bs
@@ -647,9 +647,7 @@ module MemDirEntries
 
       loadDirOff(txn, k);
       file_data(k as nat);
-      // modify in place to re-use space
-      PadPathc(e.name);
-      var padded_name := e.name;
+      var padded_name := PaddedPathc(e.name);
       assert |file.bs.data| == 4096 by {
         reveal file.ValidBytes();
       }
