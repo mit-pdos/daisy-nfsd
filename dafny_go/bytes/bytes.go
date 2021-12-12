@@ -1,5 +1,7 @@
 package bytes
 
+import "fmt"
+
 // Bytes wraps a byte slice []byte
 type Bytes struct {
 	Data []byte
@@ -64,4 +66,8 @@ func (bs *Bytes) Split(off uint64) *Bytes {
 	second := bs.Data[off:]
 	bs.Data = first
 	return &Bytes{Data: second}
+}
+
+func (bs *Bytes) Print() {
+	fmt.Print(string(bs.Data))
 }

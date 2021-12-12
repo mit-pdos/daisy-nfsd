@@ -806,7 +806,10 @@ module DirFs
         return Err(NameTooLong);
       }
       var pathc := Pathc?(name);
-      if !pathc || name.Len() == 0 {
+      if !pathc || len == 0 {
+        print "invalid path ";
+        name.Print();
+        print "\n";
         return Err(Inval);
       }
       if len == 1 {

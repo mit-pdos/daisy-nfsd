@@ -106,6 +106,9 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
             data := data[..off as nat];
             bs := new Bytes(rest);
         }
+
+        method {:extern} Print()
+        {}
     }
 
     method {:extern} NewBytes(sz: uint64)
