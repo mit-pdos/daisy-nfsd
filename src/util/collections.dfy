@@ -491,7 +491,14 @@ lemma splice_prefix_comm_auto<T>(xs: seq<T>)
     ensures forall off: nat, ys: seq<T>, max: nat {:trigger {splice(xs, off, ys)[..max]}}
         | off + |ys| <= max <= |xs| ::
         splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
-{}
+{
+    forall off: nat, ys: seq<T>, max: nat
+        | off + |ys| <= max <= |xs|
+        ensures splice(xs, off, ys)[..max] == splice(xs[..max], off, ys)
+    {
+        splice_prefix_comm(xs, off, ys, max);
+    }
+}
 
 lemma double_splice<T>(xs: seq<T>, start: nat, end: nat, off: nat, ys: seq<T>)
     requires start <= end <= |xs|
