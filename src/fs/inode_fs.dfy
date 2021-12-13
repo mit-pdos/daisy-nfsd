@@ -338,7 +338,7 @@ module InodeFs {
 
     // public
     method writeDataBlock(txn: Txn, bn: Blkno, blk: Bytes)
-      modifies this, jrnl
+      modifies this, jrnl, blk
       requires Valid() ensures Valid()
       requires txn.jrnl == jrnl
       requires is_block(blk.data)
@@ -347,7 +347,7 @@ module InodeFs {
       && inodes == old(inodes)
       && cur_inode == old(cur_inode)
       && block_used == old(block_used)
-      && data_block == old(data_block)[bn := blk.data]
+      && data_block == old(data_block[bn := blk.data])
     {
       addException(bn);
       fakeWriteDataBlock(bn, blk.data);
@@ -387,10 +387,11 @@ module InodeFs {
     }
 
     method finishWriteDataBlock(txn: Txn, bn: Blkno, blk: Bytes)
-      modifies jrnl
+      modifies jrnl, blk
       requires txn.jrnl == jrnl
       requires ValidExcept(bn) ensures Valid()
       requires blk.data == data_block[bn]
+      ensures blk.data == []
       ensures
       && inodes == old(inodes)
       && cur_inode == old(cur_inode)

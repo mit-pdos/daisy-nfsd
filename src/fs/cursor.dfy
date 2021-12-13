@@ -146,7 +146,7 @@ module FileCursor {
 
     method writeback(txn: Txn)
       returns (ok: bool)
-      modifies ReprFs
+      modifies Repr(), ReprFs
       // note that ValidFs is preserved just by not modifying this directly and modifying bs
       requires ValidFs()
       requires fs.has_jrnl(txn)
@@ -160,6 +160,7 @@ module FileCursor {
     {
       reveal ValidFs();
       ok := fs.writeBlock(txn, ino, i, off, bs);
+      valid? := false;
       reveal ValidBytes();
     }
 

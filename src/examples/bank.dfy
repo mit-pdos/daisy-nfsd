@@ -107,7 +107,6 @@ class Bank
         }
 
         var txn := jrnl.Begin();
-        var init_acct := encode_acct(init_bal);
         var n := 0;
         while n < 512
         modifies jrnl
@@ -118,6 +117,7 @@ class Bank
         {
             var acct := Acct(n);
             jrnl.in_domain(acct);
+            var init_acct := encode_acct(init_bal);
             txn.Write(acct, init_acct);
             n := n + 1;
         }

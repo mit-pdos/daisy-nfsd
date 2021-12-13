@@ -493,7 +493,6 @@ module IndFs
       ensures ok == (bn != 0)
       ensures fs.cur_inode == old(fs.cur_inode)
       ensures fs.inodes == old(fs.inodes)
-      ensures pblock.data == zero_lookup(fs.data_block, ibn)
       ensures state_unchanged()
     {
       assert IndBlocks.to_blknos(block0) == IndBlocks.IndBlknos.zero by {
@@ -732,7 +731,7 @@ module IndFs
 
     method write(txn: Txn, pos: Pos, i: MemInode, c: BlknoCache, blk: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr, c.Repr()
+      modifies Repr, i.Repr, c.Repr(), blk
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
@@ -754,7 +753,7 @@ module IndFs
       assert ValidIno(pos.ino, i');
 
       fs.writeDataBlock(txn, bn, blk);
-      data := data[pos := blk.data];
+      data := data[pos := old(blk.data)];
 
       if c.ok {
         assert c.bn != bn by {
@@ -985,7 +984,6 @@ module IndFs
       ensures metadata == old(metadata)
       ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
       ensures ibn == to_blkno[pos.parent()]
-      ensures ib.data == fs.data_block[ibn]
     {
       valid_parent_at(pos);
       var parent: Pos := pos.parent();

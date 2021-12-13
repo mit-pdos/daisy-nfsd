@@ -347,17 +347,16 @@ module ByteFs {
     // private
     method alignedRawWrite(txn: Txn, ghost ino: Ino, i: MemInode, bs: Bytes, off: uint64)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, bs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= Inode.MAX_SZ
-      ensures bs.data == old(bs.data)
       ensures (var ino0 := ino;
         forall ino:Ino | ino != ino0 ::
           data()[ino] == old(data()[ino]))
-      ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, bs.data)
+      ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, old(bs.data))
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
       ensures !ok ==> raw_data(ino) == old(raw_data(ino))
@@ -379,10 +378,10 @@ module ByteFs {
       ghost var d := block_data(fs.data)[ino];
       assert off as nat == blkoff as nat * 4096;
       C.concat_homogeneous_len(d0.blks, 4096);
-      assert d.blks == d0.blks[blkoff:=bs.data];
-      ghost var blk: Block := bs.data;
+      assert d.blks == d0.blks[blkoff := old(bs.data)];
+      ghost var blk: Block := old(bs.data);
       assert C.concat(d.blks) == C.splice(C.concat(d0.blks), off as nat, blk) by {
-        C.concat_homogeneous_splice_one(d0.blks, blkoff as nat, bs.data, 4096);
+        C.concat_homogeneous_splice_one(d0.blks, blkoff as nat, old(bs.data), 4096);
       }
       assert raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, blk) by {
         reveal raw_inode_data();
@@ -395,13 +394,12 @@ module ByteFs {
     // private
     method alignedWrite(txn: Txn, ghost ino: Ino, i: MemInode, bs: Bytes, off: uint64)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, bs
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data()[ino]|
-      ensures bs.data == old(bs.data)
       ensures fs.metadata == old(fs.metadata);
       ensures types_unchanged()
       ensures ok ==> data() == old(
@@ -418,7 +416,7 @@ module ByteFs {
       ghost var d0 := old(block_data(fs.data)[ino]);
       ghost var d := block_data(fs.data)[ino];
       C.concat_homogeneous_len(d0.blks, 4096);
-      ghost var blk: Block := bs.data;
+      ghost var blk: Block := old(bs.data);
       ghost var sz := fs.metadata[ino].sz as nat;
       calc {
         inode_data(sz, d);
@@ -652,6 +650,7 @@ module ByteFs {
           zeroLen := sz' - sz0;
         }
         var bs := NewBytes(zeroLen);
+        ghost var bs_written := bs.data;
         var ok := updateInPlace(txn, ino, i, sz0, bs);
         if !ok {
           return SetSizeNoSpc;
@@ -659,8 +658,8 @@ module ByteFs {
         if sz' <= freeStart {
           calc {
             data()[ino];
-            C.splice(old(data()[ino]) + junk, sz0 as nat, bs.data);
-            old(data()[ino]) + bs.data;
+            C.splice(old(data()[ino]) + junk, sz0 as nat, bs_written);
+            old(data()[ino]) + bs_written;
             old(data()[ino]) + C.repeat(0 as byte, (sz' - sz0) as nat);
           }
         } else {
@@ -707,7 +706,7 @@ module ByteFs {
 
     method updateInPlace(txn: Txn, ghost ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, bs
       requires bs !in i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -776,11 +775,13 @@ module ByteFs {
       var len1 := 4096 - off % 4096;
       var bs' := bs.Split(len1);
       assert bs.data + bs'.data == old(bs.data);
+      ghost var bs_written := bs.data;
       ok := updateInPlace(txn, ino, i, off, bs);
       if !ok {
         return;
       }
       var off' := off + len1;
+      ghost var bs'_written := bs'.data;
       ok := updateInPlace(txn, ino, i, off', bs');
       if !ok {
         return;
@@ -788,8 +789,8 @@ module ByteFs {
       ghost var d := data()[ino];
       calc {
         d;
-        C.splice(C.splice(d0, off as nat, bs.data), off' as nat, bs'.data);
-        C.splice(d0, off as nat, bs.data + bs'.data);
+        C.splice(C.splice(d0, off as nat, bs_written), off' as nat, bs'_written);
+        C.splice(d0, off as nat, bs_written + bs'_written);
       }
     }
 
@@ -828,6 +829,7 @@ module ByteFs {
       assert bs'_ok: bs'.data == old(bs.data[written..]);
       assert bs.data == old(bs.data[..written]);
       fs.inode_metadata(ino, i);
+      ghost var bs_written := bs.data;
       ok := this.updateInPlace(txn, ino, i, sz0, bs);
       if !ok {
         return;
@@ -838,16 +840,16 @@ module ByteFs {
       shrinkTo(txn, ino, i, desired_size);
       ghost var data3 := data()[ino];
 
-      assert data3 == data0 + bs.data by {
+      assert data3 == data0 + bs_written by {
         assert |data3| == |data0| + written;
         calc {
           data3;
           data3[..|data0|] + data3[|data0|..];
           {
             assert data3[..|data0|] == data0;
-            assert data3[|data0|..] == bs.data;
+            assert data3[|data0|..] == bs_written;
           }
-          data0 + bs.data;
+          data0 + bs_written;
         }
       }
       C.map_update(old(data()), data(), ino, old(data()[ino] + bs.data[..written]));
