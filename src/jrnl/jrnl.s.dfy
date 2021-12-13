@@ -280,14 +280,16 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         }
 
         method {:extern} Write(a: Addr, bs: Bytes)
-        modifies jrnl
+        modifies jrnl, bs
         requires Valid() ensures Valid()
+        ensures bs.data == []
         requires bs.Valid()
         requires a in jrnl.data && jrnl.size(a) == objSize(ObjData(bs.data))
         requires 8 <= |bs.data|
         ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
         {
             jrnl.data := jrnl.data[a:=ObjData(bs.data)];
+            bs.data := [];
         }
 
         method {:extern} WriteBit(a: Addr, b: bool)

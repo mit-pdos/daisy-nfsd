@@ -141,3 +141,19 @@ func TestAbortTxn(t *testing.T) {
 		assert.True(t, ok, "read-only transaction should succeed")
 	}
 }
+
+func TestWriteBufferTxn(t *testing.T) {
+	var d disk.Disk = disk.NewMemDisk(1000)
+	jrnl := NewJrnl(&d)
+	data := []byte{1, 2, 3, 4}
+	a0 := mkAddr(513, 0)
+
+	{
+		txn := jrnl.Begin()
+		bs := &bytes.Bytes{Data: data}
+		txn.Write(a0, bs)
+		assert.Empty(t, bs.Data,
+			"Write should empty input buffer so txn can own it")
+		txn.Commit()
+	}
+}
