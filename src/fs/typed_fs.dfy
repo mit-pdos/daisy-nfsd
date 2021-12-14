@@ -341,7 +341,7 @@ module TypedFs {
 
     method writeBlock(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, bs
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
       requires bs !in i.Repr
@@ -466,7 +466,7 @@ module TypedFs {
 
     method writeBlockFile(txn: Txn, ino: Ino, i: MemInode, bs: Bytes)
       returns (ok: bool)
-      modifies Repr, i.Repr
+      modifies Repr, i.Repr, bs
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
       requires bs !in i.Repr
       requires has_jrnl(txn)

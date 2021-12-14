@@ -1220,7 +1220,7 @@ module DirFs
     }
 
     // public
-    method {:timeLimitMultiplier 2} WRITE(txn: Txn, ino: uint64, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 3} WRITE(txn: Txn, ino: uint64, off: uint64, bs: Bytes)
       returns (r: Result<Fattr3>)
       modifies Repr, bs
       requires Valid()

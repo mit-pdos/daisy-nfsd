@@ -118,7 +118,7 @@ module BlockFs
   method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, c: BlknoCache,
     n: uint64, blk: Bytes)
     returns (ok: bool)
-    modifies fs.Repr, i.Repr, c.Repr()
+    modifies fs.Repr, i.Repr, c.Repr(), blk
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
     requires fs.ValidCache(ino, c)
     requires fs.has_jrnl(txn)
@@ -130,7 +130,6 @@ module BlockFs
         var data := block_data(fs.data);
         var d0 := data[ino];
         data[ino := d0.(blks := d0.blks[n := blk.data])])
-    ensures blk.data == old(blk.data)
     ensures !ok ==> block_data(fs.data) == old(block_data(fs.data))
   {
     ok := fs.write(txn, Pos.from_flat(ino, n), i, c, blk);
@@ -138,20 +137,19 @@ module BlockFs
       return;
     }
 
-    assert blk.data == old(blk.data);
     reveal block_data();
 
     ghost var d0 := old(block_data(fs.data)[ino]);
     ghost var d := block_data(fs.data)[ino];
-    assert d.blks == d0.blks[n := blk.data] by {
-      block_data_update(old(fs.data), ino, n, blk.data);
+    assert d.blks == d0.blks[n := old(blk.data)] by {
+      block_data_update(old(fs.data), ino, n, old(blk.data));
     }
 
     ghost var ino0: Ino := ino;
     forall ino:Ino | ino != ino0
       ensures block_data(fs.data)[ino] == old(block_data(fs.data)[ino])
     {
-      block_data_update_other(old(fs.data), ino0, ino, n, blk.data);
+      block_data_update_other(old(fs.data), ino0, ino, n, old(blk.data));
     }
   }
 

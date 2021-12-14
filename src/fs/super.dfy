@@ -119,6 +119,7 @@ module FsKinds {
       requires Valid()
       ensures is_block(b.data)
       ensures b.data == enc()
+      ensures fresh(b)
     {
       b := NewBytes(4096);
       IntEncoding.UInt64Put(magic, 0, b);
