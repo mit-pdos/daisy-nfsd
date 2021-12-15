@@ -46,6 +46,8 @@ def bench_cmd(df, args):
         print(df)
         return
     columns = ["linux", "daisy-nfsd", "go-nfsd"]
+    # filter to the columns that actually show up in the data
+    columns = [x for x in columns if x in df.columns]
     if "fscq" in df.columns:
         columns.append("fscq")
     df.to_csv(
@@ -82,6 +84,8 @@ def scale_cmd(df, args):
         sep="\t",
     )
     for fs in ["linux", "daisy-nfsd", "go-nfsd"]:
+        if fs not in df:
+            continue
         with open(path.join(args.output, f"{fs}.data"), "w") as f:
             print(df[fs].to_csv(sep="\t", header=False), end="", file=f)
 
