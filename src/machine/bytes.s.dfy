@@ -73,25 +73,17 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
             data := data[start..end];
         }
 
-        method {:extern} CopyTo(off: uint64, bs: Bytes)
+        // copy some range of bs into some part of this
+        //
+        // Go: copy(this[dst:], bs[src:src+len])
+        method {:extern} CopySegment(dst: uint64, bs: Bytes, src: uint64, len: uint64)
             modifies this
             requires bs != this
-            requires off as nat + |bs.data| <= |this.data|
-            ensures data == old(C.splice(data, off as nat, bs.data))
-            ensures |data| == old(|data|)
-            ensures bs.data == old(bs.data)
+            requires src as nat + len as nat <= |bs.data|
+            requires dst as nat + len as nat <= |this.data|
+            ensures data == C.splice(old(data), dst as nat, bs.data[src..src as nat+len as nat])
         {
-            data := C.splice(data, off as nat, bs.data);
-        }
-
-        method {:extern} CopyFrom(bs: Bytes, off: uint64, len: uint64)
-            modifies this
-            requires bs != this
-            requires off as nat + len as nat <= |bs.data|
-            requires len as nat <= |data|
-            ensures data == bs.data[off as nat..off as nat + len as nat] + old(data[len as nat..])
-        {
-            data := C.splice(data, 0, bs.data[off as nat..off as nat + len as nat]);
+            data := C.splice(data, dst as nat, bs.data[src..src as nat+len as nat]);
         }
 
         method {:extern} Split(off: uint64) returns (bs: Bytes)

@@ -7,6 +7,7 @@ module MemDirEnts
   import opened Machine
   import opened ByteSlice
   import opened FsKinds
+  import ByteHelpers
 
   import opened DirEntries
   import opened Paths
@@ -398,7 +399,7 @@ module MemDirEntries
       name := NewBytes(path_len_u64);
       var start := (k%64) * dirent_sz_u64;
       file_subslice(k as nat, start as nat, start as nat + path_len);
-      name.CopyFrom(file.bs, start, path_len_u64);
+      ByteHelpers.CopyFrom(name, file.bs, start, path_len_u64);
       seq_data_one_name(file.contents(), val, k as nat);
     }
 
@@ -621,7 +622,7 @@ module MemDirEntries
       ensures bs.data == C.splice(old(bs.data), k as nat*dirent_sz, v.enc())
     {
       v.enc_app();
-      bs.CopyTo(k*dirent_sz_u64, name);
+      ByteHelpers.CopyTo(bs, k*dirent_sz_u64, name);
       IntEncoding.UInt64Put(ino, k*dirent_sz_u64 + path_len_u64, bs);
     }
 

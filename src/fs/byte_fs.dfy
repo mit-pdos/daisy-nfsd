@@ -1,4 +1,5 @@
 include "block_fs.dfy"
+include "../util/bytes.dfy"
 include "../util/min_max.dfy"
 
 module ByteFs {
@@ -12,6 +13,7 @@ module ByteFs {
   import opened ByteSlice
   import opened MinMax
   import Round
+  import ByteHelpers
 
   import opened BlockFs
   import opened IndFs
@@ -730,7 +732,7 @@ module ByteFs {
       //assert aligned_off as nat + off as nat % 4096 == off as nat;
       //assert aligned_off as nat + 4096 <= Inode.MAX_SZ;
       var blk := this.alignedRead(txn, ino, i, aligned_off);
-      blk.CopyTo(off % 4096, bs);
+      ByteHelpers.CopyTo(blk, off % 4096, bs);
       ok := this.alignedRawWrite(txn, ino, i, blk, aligned_off);
       if !ok {
         return;

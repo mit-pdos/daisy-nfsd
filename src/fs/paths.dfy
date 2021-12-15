@@ -1,9 +1,11 @@
 include "dir/dirent.dfy"
+include "../util/bytes.dfy"
 
 module Paths {
   import opened Std
   import opened Machine
   import opened ByteSlice
+  import ByteHelpers
 
   import opened DirEntries
 
@@ -105,7 +107,7 @@ module Paths {
     ensures bs'.data == encode_pathc(old(bs.data))
   {
     bs' := NewBytes(path_len_u64);
-    bs'.CopyTo(0, bs);
+    ByteHelpers.CopyTo(bs', 0, bs);
   }
 
 }

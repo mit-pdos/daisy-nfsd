@@ -49,7 +49,7 @@ module bytes_test {
         assert 4 as byte == bs.Get(1);
     }
 
-    method TestCopyFrom()
+    method TestCopySegment()
     {
         // mirror of this Go test:
         /*
@@ -61,8 +61,23 @@ module bytes_test {
         */
         var bs := NewBytes(5);
         bs.Set(2, 3);
-        var bs2 := NewBytes(2);
-        bs2.CopyFrom(bs, 2, 1);
-        assert 3 as byte == bs2.Get(0);
+        var bs2 := NewBytes(3);
+        bs2.Set(0, 1);
+        bs2.Set(2, 2);
+
+        bs2.CopySegment(1, bs, 2, 1);
+
+        assert bs.data == [0,0,3,0,0];
+        assert bs2.data == [1,3,2];
+    }
+
+    method TestCopySegmentClone(bs: Bytes) returns (bs':Bytes)
+        requires bs.Valid()
+        ensures fresh(bs')
+        ensures bs'.data == bs.data
+    {
+        var len := bs.Len();
+        bs' := NewBytes(len);
+        bs'.CopySegment(0, bs, 0, len);
     }
 }
