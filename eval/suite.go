@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"fmt"
 	"math/rand"
 )
 
@@ -81,38 +82,43 @@ func extendAll(common KeyValue, kvs []KeyValue) []KeyValue {
 	return kvs
 }
 
-func BasicFilesystems(disk string, unstable bool) []KeyValue {
+func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 	nfsdDisk := disk
 	linuxDisk := disk
 	if disk == ":memory:" {
 		nfsdDisk = "" // use MemDisk
 		linuxDisk = "/dev/shm/disk.img"
 	}
-	ext4Opts := "data=journal"
-	if unstable {
-		ext4Opts = "data=ordered"
+	var config KeyValue
+	switch name {
+	case "daisy-nfsd":
+		config = KeyValue{
+			"disk": nfsdDisk,
+		}
+	case "linux":
+		opts := "data=journal"
+		if unstable {
+			opts = "data=ordered"
+		}
+		config = KeyValue{
+			"fs":             "ext4",
+			"disk":           linuxDisk,
+			"mount-opts":     opts,
+			"nfs-mount-opts": "wsize=65536,rsize=65536",
+		}
+	case "go-nfsd":
+		config = KeyValue{
+			"unstable": unstable,
+			"disk":     nfsdDisk,
+		}
+	default:
+		panic(fmt.Sprintf("invalid filesystem %s", name))
 	}
-	return extendAll(KeyValue{
+	config.Extend(KeyValue{
+		"name": name,
 		"size": float64(800),
-	},
-		[]KeyValue{
-			{
-				"name": "daisy-nfsd",
-				"disk": nfsdDisk,
-			},
-			{
-				"name":           "linux",
-				"fs":             "ext4",
-				"disk":           linuxDisk,
-				"mount-opts":     ext4Opts,
-				"nfs-mount-opts": "wsize=65536,rsize=65536",
-			},
-			{
-				"name":     "go-nfsd",
-				"unstable": unstable,
-				"disk":     nfsdDisk,
-			},
-		})
+	})
+	return config
 }
 
 // LinuxDurabilityFilesystems returns many Linux filesystems,

@@ -12,6 +12,6 @@ if [ "$#" -gt 0 ]; then
 fi
 
 #./loc.py      | tee data/lines-of-code.txt
-go run ./cmd/daisy-eval -dir eval/data -iters "$iters" bench
-go run ./cmd/daisy-eval -dir eval/data -iters "$iters" scale
+go run ./cmd/daisy-eval -filesystems basic -dir eval/data -iters "$iters" bench
+go run ./cmd/daisy-eval -filesystems basic -dir eval/data -iters "$iters" scale
 ./eval/plot.sh

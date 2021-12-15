@@ -48,6 +48,13 @@ var suiteFlags = []cli.Flag{
 		Value: "",
 		Usage: "file to output to, overwriting -dir",
 	},
+	&cli.StringFlag{
+		Name:  "filesystems",
+		Value: "basic",
+		Usage: "suite of filesystems to run " +
+			"(basic, durability, " +
+			"or comma-separated list like daisy-nfsd,linux,go-nfsd)",
+	},
 }
 
 // WriteObservations saves observations in JSON (possibly compressed) to a file
@@ -101,6 +108,23 @@ func beforeBench(c *cli.Context) error {
 	}
 	eval.PrepareBenchmarks()
 	return nil
+}
+
+func cliFilesystems(c *cli.Context) []eval.KeyValue {
+	fss := c.String("filesystems")
+	if fss == "basic" {
+		fss = "daisy-nfsd,linux,go-nfsd"
+	}
+	if fss == "durability" {
+		return eval.ManyDurabilityFilesystems(c.String("disk"))
+	}
+	var configs []eval.KeyValue
+	fsNames := strings.Split(fss, ",")
+	for _, name := range fsNames {
+		configs = append(configs,
+			eval.BasicFilesystem(name, c.String("disk"), c.Bool("unstable")))
+	}
+	return configs
 }
 
 func runSuite(c *cli.Context, suite *eval.BenchmarkSuite) error {
@@ -159,8 +183,7 @@ var benchCommand = &cli.Command{
 	Action: func(c *cli.Context) error {
 		eval.PrepareBenchmarks()
 		suite := initializeSuite(c)
-		suite.Filesystems =
-			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
+		suite.Filesystems = cliFilesystems(c)
 		suite.Benches = eval.BenchSuite(c.String("benchtime"))
 		return runSuite(c, suite)
 	},
@@ -181,8 +204,7 @@ var scaleCommand = &cli.Command{
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
 		suite := initializeSuite(c)
-		suite.Filesystems =
-			eval.BasicFilesystems(c.String("disk"), c.Bool("unstable"))
+		suite.Filesystems = cliFilesystems(c)
 		suite.Benches = eval.ScaleSuite(c.String("benchtime"), c.Int("threads"))
 		return runSuite(c, suite)
 	},
@@ -194,8 +216,7 @@ var largefileCommand = &cli.Command{
 	Before: beforeBench,
 	Action: func(c *cli.Context) error {
 		suite := initializeSuite(c)
-		suite.Filesystems =
-			eval.ManyDurabilityFilesystems(c.String("disk"))
+		suite.Filesystems = cliFilesystems(c)
 		suite.Benches = eval.LargefileSuite
 		return runSuite(c, suite)
 	},

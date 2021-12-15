@@ -9,5 +9,5 @@ sudo chown "$USER" /dev/nvme1n1
 time ./daisy-eval --dir eval/data/nvme --disk /dev/nvme1n1 --iters 10 bench
 time ./daisy-eval --dir eval/data --disk "/dev/shm/disk.img" --iters 10 bench
 time ./daisy-eval --dir eval/data/nvme --disk /dev/nvme1n1 --iters 1 scale --benchtime=5s --threads 36
-time ./daisy-eval --dir eval/data/nvme --disk /dev/nvme1n1 --iters 10 --wait 3s largefile
-time ./daisy-eval --dir eval/data --disk "/dev/shm/disk.img" --iters 10 --wait 3s largefile
+time ./daisy-eval --filesystems durability --dir eval/data/nvme --disk /dev/nvme1n1 --iters 10 --wait 3s largefile
+time ./daisy-eval --filesystems durability --dir eval/data --disk "/dev/shm/disk.img" --iters 10 --wait 3s largefile
