@@ -50,9 +50,13 @@ func (txn *Txn) ReadBit(a Addr) bool {
 }
 
 func (txn *Txn) Write(a Addr, bs *bytes.Bytes) {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	a_ := dafnyAddrToAddr(a)
 	txn.txn.OverWrite(a_, bs.Len()*8, bs.Data)
 	bs.Data = nil
+	bs.Invalid = true
 }
 
 func (txn *Txn) WriteBit(a Addr, b bool) {

@@ -5,6 +5,7 @@ import "fmt"
 // Bytes wraps a byte slice []byte
 type Bytes struct {
 	Data []byte
+	Invalid bool
 }
 
 func NewBytes(sz uint64) *Bytes {
@@ -20,18 +21,30 @@ func (bs *Bytes) Len() uint64 {
 }
 
 func (bs *Bytes) Get(i uint64) byte {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	return bs.Data[i]
 }
 
 func (bs *Bytes) Set(i uint64, b byte) {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	bs.Data[i] = b
 }
 
 func (bs *Bytes) Append(b byte) {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	bs.Data = append(bs.Data, b)
 }
 
 func (bs *Bytes) AppendBytes(other *Bytes) {
+	if bs.Invalid || other.Invalid {
+		panic("bytes invalid")
+	}
 	if other == bs {
 		panic("attempt to append to self")
 	}
@@ -39,10 +52,16 @@ func (bs *Bytes) AppendBytes(other *Bytes) {
 }
 
 func (bs *Bytes) Subslice(start uint64, end uint64) {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	bs.Data = bs.Data[start:end]
 }
 
 func (bs *Bytes) CopySegment(dst uint64, other *Bytes, src uint64, count uint64) {
+	if bs.Invalid || other.Invalid {
+		panic("bytes invalid")
+	}
 	if other == bs {
 		panic("attempt to CopySegment self")
 	}
@@ -50,6 +69,9 @@ func (bs *Bytes) CopySegment(dst uint64, other *Bytes, src uint64, count uint64)
 }
 
 func (bs *Bytes) Split(off uint64) *Bytes {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	// this "full slice expression" is necessary to make the two Bytes
 	// independent (otherwise bs will have the returned Bytes as its capacity,
 	// which is overwritten by Append)
@@ -62,5 +84,8 @@ func (bs *Bytes) Split(off uint64) *Bytes {
 }
 
 func (bs *Bytes) Print() {
+	if bs.Invalid {
+		panic("bytes invalid")
+	}
 	fmt.Printf("%v", bs.Data)
 }
