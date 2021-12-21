@@ -284,7 +284,10 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 		cnt = uint64(len(args.Data))
 	}
 
-	bs := bytes.Data(args.Data[:cnt])
+	// copy args.Data[:cnt] since RPC library can re-use the input buffer and we
+	// need to give ownership to Dafny (and eventually to GoTxn)
+	bs := bytes.Data(make([]byte, cnt))
+	copy(bs.Data, args.Data)
 	r, status, hint := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.WRITE(txn, inum, off, bs)
 	})
