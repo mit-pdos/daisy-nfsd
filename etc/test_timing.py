@@ -35,6 +35,14 @@ def test_timing_parse3():
     assert d["time_s"] == 60.987
     assert d["result"] == "timeout"
 
+def test_timing_parse_new():
+    """Dafny 3.4 adds a new solver resource count to the trace"""
+    line = r"""    [20.471 s, solver resource count: 32600962, 233 proof obligations]  timed out"""
+    d = get_time(line)
+    assert d is not None
+    assert d["time_s"] == 20.471
+    assert d["result"] == "timeout"
+
 
 def test_df_parse():
     lines = r"""

@@ -164,6 +164,11 @@ module FsKinds {
   predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
   predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
 
+  function method zeroIno(): Ino {
+    reveal ino_ok();
+    0 as Ino
+  }
+
   method is_ino_ok(ino: uint64) returns (ok:bool)
     ensures ok == ino_ok(ino)
   {
@@ -189,6 +194,7 @@ module FsKinds {
     ensures InodeBlk?(bn) <==> exists ino':Ino :: InodeBlk(ino') == bn
   {
     if InodeBlk?(bn) {
+      reveal ino_ok();
       var ino: Ino := (bn - 513 - 1) * 32;
       assert InodeBlk(ino) == bn;
     }

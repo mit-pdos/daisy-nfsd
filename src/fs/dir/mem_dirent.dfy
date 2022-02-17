@@ -552,6 +552,7 @@ module MemDirEntries
         invariant 0 <= i as nat <= |val.s|
         invariant forall k:nat | k < i as nat :: !(val.s[k].used() && val.s[k].name == p)
       {
+        reveal is_pathc();
         var ino := is_name(txn, i, name);
         if ino.Some? {
           C.find_first_characterization(preDirents.findName_pred(p), val.s, i as nat);
@@ -691,6 +692,7 @@ module MemDirEntries
       if !ok {
         return;
       }
+      reveal dirents_unique();
       ghost var val' := seq_data_splice_ino(old_file, val, k as nat, 0 as Ino);
       val := val';
 

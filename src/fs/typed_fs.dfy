@@ -153,6 +153,7 @@ module TypedFs {
         invariant ialloc.Valid()
         invariant 1 <= ino as nat <= iallocMax as nat
       {
+        reveal ino_ok();
         var i := byte_fs.fs.fs.getInode(txn, ino);
         var used := i.ty() != Inode.InvalidType;
         if used {
@@ -272,6 +273,7 @@ module TypedFs {
       && ino != 0
     {
       reveal_valids();
+      reveal ino_ok();
       ino := ialloc.Alloc();
       if ino == 0 {
         ok := false;
@@ -318,6 +320,7 @@ module TypedFs {
         if ino as uint64 == 0 {
             return;
         }
+        reveal ino_ok();
         ialloc.Free(ino);
     }
 
@@ -382,7 +385,7 @@ module TypedFs {
       }
     }
 
-    method write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
+    method {:timeLimitMultiplier 2} write(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
       returns (ok: bool)
       modifies Repr, bs, i.Repr
       requires ValidIno(ino, i) ensures ok ==> ValidIno(ino, i)
@@ -430,15 +433,17 @@ module TypedFs {
           return;
         }
         assert bs_remaining.data == bs_remaining_data0;
+
         assert data[ino] == old(write_data(data[ino], off as nat,
           data0[..written + 4096])) by {
           assert data[ino] == write_data(old(data[ino]), off as nat,
             data0[..written] + data0[written..written + 4096]) by {
-            write_data_app_auto(old(data[ino]), off as nat);
+            write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..written + 4096]);
             assert (off + written) as nat == off as nat + |data0[..written]|;
           }
           assert data0[..written] + data0[written..written + 4096] == data0[..written + 4096];
         }
+
         bs := bs_remaining;
         written := written + 4096;
         assert bs_remaining_data0 == data0[written0 + 4096..] by {
@@ -452,13 +457,17 @@ module TypedFs {
         return;
       }
 
+      // the proof through here takes about 10s, which is why
+      // :timeLimitMultiplier is needed
+
       assert data[ino] == old(write_data(data[ino], off as nat, data0)) by {
         assert data[ino] == write_data(old(data[ino]), off as nat, data0[..written] + data0[written..]) by {
-          write_data_app_auto(old(data[ino]), off as nat);
+          write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..]);
           // NOTE(tej): this is really necessary to line up write_data_app with
           // the postcondition of writeOne_ (without this the proof time blows up)
           assert (off + written) as nat == off as nat + |data0[..written]|;
         }
+
         assert data0 == data0[..written] + data0[written..];
       }
 

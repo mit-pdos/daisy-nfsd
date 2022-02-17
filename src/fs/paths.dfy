@@ -13,6 +13,7 @@ module Paths {
     requires name.Valid()
     ensures p == is_pathc(name.data)
   {
+    reveal is_pathc();
     var i: uint64 := 0;
     var len := name.Len();
     if len > path_len_u64 {
@@ -106,6 +107,7 @@ module Paths {
     ensures fresh(bs')
     ensures bs'.data == encode_pathc(old(bs.data))
   {
+    reveal is_pathc();
     bs' := NewBytes(path_len_u64);
     ByteHelpers.CopyTo(bs', 0, bs);
   }

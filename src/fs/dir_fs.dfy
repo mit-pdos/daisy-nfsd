@@ -84,7 +84,7 @@ module DirFs
     ghost var dirents: map<Ino, Dirents>
     const fs: TypedFilesys
 
-    static const rootIno: Ino := 1 as Ino;
+    static const rootIno: Ino := (reveal ino_ok(); 1 as Ino);
 
     ghost const Repr: set<object> := {this} + fs.Repr
 
@@ -698,6 +698,7 @@ module DirFs
       returns (ok: bool)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires e'.name != dents.file.bs
+      requires e'.name !in dents.file.i.Repr
       requires i as nat == dents.val.findFree()
       requires i as nat < |dents.val.s|
       ensures ok ==> Valid()
@@ -754,6 +755,7 @@ module DirFs
       returns (ok: bool)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires e'.name != dents.file.bs
+      requires e'.name !in dents.file.i.Repr
       ensures ok ==> Valid()
       requires fs.has_jrnl(txn)
       requires ValidDirents(dents, d_ino) && e'.Valid()
@@ -772,6 +774,10 @@ module DirFs
         if !ok {
           return;
         }
+      }
+      assert e'.Valid() && e'.path() == old(e'.path()) by {
+        assert e'.name !in dents.Repr();
+        assert e'.name.data == old(e'.name.data);
       }
       ok := linkInodeAtFree(txn, d_ino, dents, e', i);
     }
@@ -1528,6 +1534,7 @@ module DirFs
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
       requires name != dents.file.bs
+      requires name !in dents.file.i.Repr
       requires ValidDirents(dents, d_ino) ensures r.Ok? ==> Valid()
       requires
       // findName postcondition (when Some((i, ino)))
@@ -1593,6 +1600,7 @@ module DirFs
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
       requires name != dents.file.bs
+      requires name !in dents.file.i.Repr
       requires ValidDirents(dents, d_ino) ensures r.Ok? ==> Valid()
       ensures r.ErrNoent? ==> name.data !in old(data[d_ino].dir)
       ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?

@@ -123,7 +123,7 @@ module DirEntries
 
   datatype DirEnt = DirEnt(name: PathComp, ino: Ino)
   {
-    static const zero := DirEnt(empty_path(), 0 as Ino)
+    static const zero := DirEnt(empty_path(), zeroIno())
 
     // we don't call this valid because unused DirEnts do show up (eg, a Dirents
     // will in general have unused DirEnts and this isn't a problem)
@@ -233,7 +233,7 @@ module DirEntries
     reveal is_pathc();
     var e1 := DirEnt([1], 1 as Ino);
     var e2 := DirEnt([1], 2 as Ino);
-    var e3 := DirEnt([2], 0 as Ino);
+    var e3 := DirEnt([2], zeroIno());
     // the first entry should take precedence
     assert seq_to_dir([e1, e2, e3])[e1.name] == 1 as Ino;
     assert seq_to_dir([e3]) == map[];
@@ -315,7 +315,7 @@ module DirEntries
   lemma {:induction s, i} seq_to_dir_delete(s: seq<DirEnt>, i: nat, dummy_name: PathComp)
     requires dirents_unique(s)
     requires i < |s| && s[i].used()
-    ensures seq_to_dir(s[i := DirEnt(dummy_name, 0 as Ino)]) == map_delete(seq_to_dir(s), s[i].name)
+    ensures seq_to_dir(s[i := DirEnt(dummy_name, zeroIno())]) == map_delete(seq_to_dir(s), s[i].name)
   {
     reveal dirents_unique();
     if 0 < |s| && i == 0 {
@@ -544,8 +544,10 @@ module DirEntries
       requires i < |s| && s[i].used()
       ensures dents.dir == map_delete(this.dir, s[i].name)
     {
+      reveal dirents_unique();
+      reveal is_pathc();
       seq_to_dir_delete(s, i, []);
-      var s' := s[i := DirEnt([], 0 as Ino)];
+      var s' := s[i := DirEnt([], zeroIno())];
       dents := Dirents(s');
     }
 
@@ -576,6 +578,7 @@ module DirEntries
       ensures dents.enc() == this.enc() + C.repeat(0 as byte, dirent_sz * n)
       // it's obvious from the body that |dents.s| == |this.s| + n
     {
+      reveal dirents_unique();
       seq_dir_extend_unused(s, C.repeat(DirEnt.zero, n));
       enc_extend_zero(n);
       var dents := Dirents(s + C.repeat(DirEnt.zero, n));

@@ -30,6 +30,7 @@ TIME_RE = re.compile(
     \s*\[
     (?P<time>[0-9.]*)
     \s s,
+    (\s* solver\ resource\ count:\ [0-9]*,)?
     \s* (?P<num_obligations>[0-9]*)\ proof\ obligations?\]
     \s*(?P<result>verified|error|timed\ out)
     """,
