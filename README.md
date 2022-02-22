@@ -50,7 +50,7 @@ You'll need Dafny 3:
   https://github.com/dafny-lang/dafny/releases, extract it, and add it to your
   $PATH (this is what we have to do in CI, which runs on Ubuntu 20.04).
 
-Compilation additionally depends on goimports to remove unused imports:
+Compilation additionally depends on `goimports` to remove unused imports:
 
 ```sh
 go install golang.org/x/tools/cmd/goimports@latest
@@ -82,6 +82,14 @@ verifying that an `portmapper` service is running on port 111.
 
 Now run `go run ./cmd/daisy-nfsd` to start the server (with an in-memory disk)
 and `sudo mount localhost:/ /mnt/nfs` to mount it using the Linux NFS client.
+
+If you encounter an error with the message `Too many levels of symbolic links.`,
+don't panic! This is actually due to a bug in the Linux NFS client, which was
+fixed in December 2020 in [commit
+3b2a09f127e02](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3b2a09f127e025674945e82c1ec0c88d6740280e).
+If a READDIR result was larger than a page, Linux would simply discard the extra
+data, resulting in a corrupted response. You'll need at least version 5.11 of
+the kernel to get the fix (you can check what you have with `uname -r`).
 
 ### macOS
 
