@@ -19,7 +19,7 @@ func (nfs *Nfs) incTime(op uint32, ns uint64) {
 
 func (nfs *Nfs) reportOp(op uint32, start time.Time) {
 	nfs.incCount(op)
-	dur := time.Now().Sub(start)
+	dur := time.Since(start)
 	nfs.incTime(op, uint64(dur.Nanoseconds()))
 }
 
