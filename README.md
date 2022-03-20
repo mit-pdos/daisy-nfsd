@@ -50,6 +50,10 @@ You'll need Dafny 3:
   https://github.com/dafny-lang/dafny/releases, extract it, and add it to your
   $PATH (this is what we have to do in CI, which runs on Ubuntu 20.04).
 
+Dafny 3.5.0 has a [bug](https://github.com/dafny-lang/dafny/issues/1922) where
+/vcsLoad only supports integers, so you'll need to use something like `make
+DAFNY_LOAD=0` (using a load of 1 might cause timeouts).
+
 Compilation additionally depends on `goimports` to remove unused imports:
 
 ```sh
