@@ -9,6 +9,8 @@ set -eu
 
 cd
 
+set DEBIAN_FRONTEND=noninteractive
+
 # Install really basic dependencies
 
 sudo apt-get update

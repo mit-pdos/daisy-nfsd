@@ -2,7 +2,7 @@
 
 ## Create image (AMI) with prepped image
 
-Launch an i3.xlarge using Hirsute. Make sure to **increase the root volume size
+Launch an i3.xlarge using Hirsute (hirsute-daily-amd64-server). Make sure to **increase the root volume size
 to 12GB**.
 
 `wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
