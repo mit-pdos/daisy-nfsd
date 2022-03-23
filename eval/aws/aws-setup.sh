@@ -31,6 +31,7 @@ cd "$DAISY_NFSD_PATH/eval"
 lscpu | tee data/lscpu.txt
 cpufreq-info | tee data/cpufreq-info.txt
 
+# disable turbo boost
 sudo sh -c "echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo"
 
 sudo sed -i "s/RPCNFSDCOUNT=[0-9]*/RPCNFSDCOUNT=$RPC_NFSD_COUNT/" /etc/default/nfs-kernel-server

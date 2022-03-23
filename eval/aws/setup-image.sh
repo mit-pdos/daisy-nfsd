@@ -213,3 +213,7 @@ sudo dpkg -i hyperfine_${HYPERFINE_VERSION}_amd64.deb
 git config --global pull.ff only
 
 sudo apt-get clean
+
+# disable idling c-states
+sudo sed -E -i '/GRUB_CMDLINE_LINUX/s/"(.*)"/"\1 intel_idle.max_cstate=1 processor.max_cstate=1"/' /etc/default/grub
+sudo update-grub
