@@ -7,6 +7,34 @@
 
 set -eu
 
+usage() {
+    echo "$0 [--no-fscq]" 1>&2
+}
+
+fscq_deps=true
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+    --fscq)
+        fscq_deps=true
+        ;;
+    --no-fscq)
+        fscq_deps=false
+        ;;
+    -help | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        echo "Unknown option $1" 1>&2
+        usage
+        exit 1
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+
 cd
 
 set DEBIAN_FRONTEND=noninteractive
@@ -88,40 +116,49 @@ make -j4 -C testcases/kernel/fs/fsstress
 make -j4 -C testcases/kernel/fs/fsx-linux
 cd
 
-# Install Coq (to build FSCQ)
+install_coq() {
+    # Install Coq (to build FSCQ)
 
-# opam dependencies
-sudo apt-get install -y m4 bubblewrap
-# coq dependencies
-sudo apt-get install -y libgmp-dev
+    # opam dependencies
+    sudo apt-get install -y m4 bubblewrap
+    # coq dependencies
+    sudo apt-get install -y libgmp-dev
 
-# use binary installer for opam since it has fewer dependencies than Ubuntu
-# package
-wget https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
-# echo is to answer question about where to install opam
-echo "" | sh install.sh --no-backup
-rm install.sh
+    # use binary installer for opam since it has fewer dependencies than Ubuntu
+    # package
+    wget https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
+    # echo is to answer question about where to install opam
+    echo "" | sh install.sh --no-backup
+    rm install.sh
 
-opam init --auto-setup --bare
-# takes ~5 minutes (compiles OCaml)
-opam switch create 4.12.0+flambda --package=ocaml-variants.4.12.0+options,ocaml-option-flambda
+    opam init --auto-setup --bare
+    # takes ~5 minutes (compiles OCaml)
+    opam switch create 4.12.0+flambda --package=ocaml-variants.4.12.0+options,ocaml-option-flambda
 
-# shellcheck disable=2046
-eval $(opam env)
+    # shellcheck disable=2046
+    eval $(opam env)
 
-# takes ~5 minutes
-# Coq 8.13.2 is required to build FSCQ
-opam install -y -j4 coq.8.13.2
+    # takes ~5 minutes
+    # Coq 8.13.2 is required to build FSCQ
+    opam install -y -j4 coq.8.13.2
+}
 
-# Install FSCQ
+build_fscq() {
+    # Install FSCQ
 
-sudo apt-get install -y ghc cabal-install libfuse-dev
-cabal update
-cabal install --lib rdtsc digest
-cd ~/code/fscq/src
-# takes ~3 minutes
-make J=4 mkfs fscq
-cd
+    sudo apt-get install -y ghc cabal-install libfuse-dev
+    cabal update
+    cabal install --lib rdtsc digest
+    cd ~/code/fscq/src
+    # takes ~3 minutes
+    make J=4 mkfs fscq
+    cd
+}
+
+if [ "$fscq_deps" = true ]; then
+    install_coq
+    build_fscq
+fi
 
 # Install Python dependencies
 
@@ -141,6 +178,8 @@ go install golang.org/x/tools/cmd/goimports@latest
 cd ~/code/go-nfsd
 # fetch dependencies
 go build ./cmd/go-nfsd && rm go-nfsd
+cd ~/daisy-nfsd
+go get ./dafny_go/...
 cd
 
 cd ~/code
