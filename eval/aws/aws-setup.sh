@@ -14,7 +14,11 @@ make compile
 go build ./cmd/daisy-nfsd
 go build ./cmd/daisy-eval
 
-sudo cpupower frequency-set --governor performance
+## cpupower no longer seems to be available on these images
+# sudo cpupower frequency-set --governor performance
+for cpu in /sys/devices/system/cpu/cpu*; do
+    echo "performance" | sudo tee "$cpu"/cpufreq/scaling_governor >/dev/null
+done
 
 # disable all but the first numa node
 for node in /sys/devices/system/node/node*; do
@@ -37,7 +41,7 @@ sudo sh -c "echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo"
 sudo sed -i "s/RPCNFSDCOUNT=[0-9]*/RPCNFSDCOUNT=$RPC_NFSD_COUNT/" /etc/default/nfs-kernel-server
 grep RPCNFSDCOUNT /etc/default/nfs-kernel-server
 
-sudo turbostat stress -c 2 -t 10 2>&1 | tee data/cpuinfo.txt
+# sudo turbostat stress -c 2 -t 10 2>&1 | tee data/cpuinfo.txt
 
 # Filebench wants ASLR disabled
 echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
