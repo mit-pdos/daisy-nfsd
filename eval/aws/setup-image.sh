@@ -15,9 +15,11 @@ fscq_deps=true
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
     --fscq)
+        shift
         fscq_deps=true
         ;;
     --no-fscq)
+        shift
         fscq_deps=false
         ;;
     -help | --help)
