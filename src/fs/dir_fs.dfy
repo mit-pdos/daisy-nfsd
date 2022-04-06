@@ -84,7 +84,12 @@ module DirFs
     ghost var dirents: map<Ino, Dirents>
     const fs: TypedFilesys
 
-    static const rootIno: Ino := (reveal ino_ok(); 1 as Ino);
+    static function method oneIno(): Ino {
+      reveal ino_ok();
+      1 as Ino
+    }
+
+    static const rootIno: Ino := oneIno();
 
     ghost const Repr: set<object> := {this} + fs.Repr
 
