@@ -1,12 +1,20 @@
 DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
-# these arguments don't affect verification outcomes
-
-# use DAFNY_CORES since /vcsLoad is broken in Dafny 3.5.0
+# use DAFNY_CORES instead of a load factor since /vcsLoad is broken in Dafny 3.5.0
 #DAFNY_LOAD := 0.5
-DAFNY_CORES ?= $(shell echo $$(($$(nproc)/2)))
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	NUM_CORES := $(shell sysctl -n hw.ncpu)
+else
+	NUM_CORES := $(shell nproc)
+endif
+DAFNY_CORES ?= $(shell expr $(NUM_CORES) / 2)
+
+# these arguments don't affect verification outcomes
 DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsCores:$(DAFNY_CORES)
+
 DAFNY_ARGS := /noNLarith /arith:5
 DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
