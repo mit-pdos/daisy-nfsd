@@ -2,8 +2,11 @@ DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 # these arguments don't affect verification outcomes
-DAFNY_LOAD := 0.5
-DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:$(DAFNY_LOAD)
+
+# use DAFNY_CORES since /vcsLoad is broken in Dafny 3.5.0
+#DAFNY_LOAD := 0.5
+DAFNY_CORES ?= $(shell echo $$(($$(nproc)/2)))
+DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsCores:$(DAFNY_CORES)
 DAFNY_ARGS := /noNLarith /arith:5
 DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
