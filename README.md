@@ -4,12 +4,12 @@
 
 A verified crash-safe, concurrent NFS server. The idea is to make operations
 atomic with a verified transaction system from
-[GoJournal](https://github.com/mit-pdos/go-journal), and then verify the atomic
+[GoTxn](https://github.com/mit-pdos/go-journal), and then verify the atomic
 behavior of each operation in Dafny. The atomicity justifies using sequential
 proofs in Dafny to reason about the body of each transaction, which we prove
 implements an NFS server. This proof strategy combines interactive theorem
-proving in Perennial to reason about the tricky concurrency and crash safety in
-the transaction system with automated proofs in Dafny.
+proving in Perennial, to reason about the tricky concurrency and crash safety in
+the transaction system, with automated proofs in Dafny for the file-system code.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ There are three main components:
 - The Dafny file-system implementation in [`src/fs`](src/fs/)
 - The Go interfaces assumed by the Dafny code implemented in
   [`dafny_go`](dafny_go/) (the jrnl API is a thin wrapper around the
-  github.com/mit-pdos/go-nfsd/txn package).
+  github.com/mit-pdos/go-journal/txn package).
 - The NFS server binary that calls the verified Dafny code is implemented
   between [`nfsd`](nfsd/) and [`cmd/daisy-nfsd`](cmd/daisy-nfsd/).
 
@@ -33,9 +33,10 @@ The Dafny proof is split into three parts:
 
 At the top level of the repo we also have various scripts. [`eval`](eval/) and
 [`bench`](bench/) have scripts to run performance experiments (see the [eval
-README](eval/README.md) for more details). [`artifact`](artifact/) sets up a VM
-suitable for running the evaluation. [`etc`](etc/) has miscellaneous scripts
-used for debugging and to implement continuous integration.
+README](eval/README.md) for more details). [`artifact`](artifact/) has an older
+setup for running the evaluation on a VM; these days we use an AWS setup.
+[`etc`](etc/) has miscellaneous scripts used for debugging and to implement
+continuous integration.
 
 ## Compiling
 

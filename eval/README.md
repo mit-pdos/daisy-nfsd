@@ -1,6 +1,9 @@
 # DaisyNFS evaluation
 
-These scripts use some environment variables that point to a few repositories:
+The AWS evaluation setup is documented in [aws/README.md](aws/). These instructions
+document a more manual setup.
+
+The evaluation scripts use some environment variables that point to a few repositories:
 
 ```
 export GO_NFSD_PATH=~/go-nfsd
