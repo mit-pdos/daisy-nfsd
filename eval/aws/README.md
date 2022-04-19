@@ -7,9 +7,9 @@ to 12GB**.
 
 `wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
 
-Run `bash setup-image.sh`
+Run `bash setup-image.sh [--no-fscq]`
 
-Will take 20 minutes
+Will take 5 minutes with `--no-fscq`, 20 minutes if including FSCQ dependencies.
 
 Stop instance
 

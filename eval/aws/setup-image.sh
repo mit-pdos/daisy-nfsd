@@ -48,7 +48,7 @@ sudo apt-get upgrade -y
 sudo apt-get install -y git python3-pip wget unzip
 
 # AWS dependencies
-sudo apt-get install -y linux-tools-common linux-tools-aws stress
+sudo apt-get install -y linux-tools-common linux-tools-aws "linux-tools-$(uname -r)" stress
 sudo apt-get install -y cpufrequtils
 
 # Get source code
@@ -77,6 +77,15 @@ export FSCQ_PATH=$HOME/fscq
 export LTP_PATH=$HOME/code/ltp
 EOF
 echo "source ~/.profile" >>~/.zshrc
+
+# set up tmux to use c-space as prefix
+cat >~/.tmux.conf <<EOF
+set-option -g prefix C-Space
+bind-key Space send-prefix
+bind-key C-Space next-window
+bind-key a last-window
+bind-key C-a last-window
+EOF
 
 # Install Dafny
 
