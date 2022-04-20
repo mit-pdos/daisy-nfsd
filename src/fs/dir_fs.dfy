@@ -31,7 +31,8 @@ module DirFs
 
   import C = Collections
 
-  datatype RemoveHint = RemoveHint(ino: Ino, sz: uint64)
+  // ino and sz are just a hint
+  datatype RemoveResult = RemoveResult(ino: Ino, sz: uint64, d_attrs: Fattr3)
 
   type FsData = map<Ino, seq<byte>>
   type FsAttrs = map<Ino, Inode.Attrs>
@@ -939,6 +940,15 @@ module DirFs
         i.attrs);
     }
 
+    method dirFattr3(ghost ino: Ino, dents: MemDirents)
+      returns (attr3: Fattr3)
+      requires ValidDirents(dents, ino)
+      requires ino in data
+      ensures is_file_attrs(data[ino], attr3)
+    {
+      attr3 := inodeFattr3(ino, dents.file.i);
+    }
+
     // public
     method GETATTR(txn: Txn, ino: uint64)
       returns (r: Result<Fattr3>)
@@ -1505,7 +1515,10 @@ module DirFs
       modifies Repr
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
-      ensures r.ErrBadHandle? ==> is_invalid(ino) && data == old(data) == old(map_delete(data, ino))
+      ensures r.ErrBadHandle? ==>
+      && is_invalid(ino)
+      && data == old(data) == old(map_delete(data, ino))
+      && dirents == old(dirents)
       ensures r.ErrIsDir? ==> is_dir(ino) && data == old(data) && dirents == old(dirents)
       ensures r.Err? ==> r.err.BadHandle? || r.err.IsDir?
       ensures r.Ok? ==>
@@ -1541,7 +1554,7 @@ module DirFs
     method unlinkInodeAt(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes,
       // i and ino are the result of a succesfull findName call
       i: uint64, ghost ino: Ino)
-      returns (r: Result<()>)
+      returns (r: Result<Fattr3>)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
@@ -1559,6 +1572,7 @@ module DirFs
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
       && is_dir(d_ino)
+      && is_file_attrs(data[d_ino], r.v)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1584,6 +1598,9 @@ module DirFs
       assert |fs.data[d_ino]| % 4096 == 0 by {
         dents.fs_ino_size();
       }
+      var attrs := dents.getAttrs();
+      var d_sz := dents.getSizeBytes();
+      var attr3 := Fattr3(NFS3DIR, d_sz, attrs);
       dents.finish(txn);
 
       dirents := dirents[d_ino := dents.val];
@@ -1603,11 +1620,11 @@ module DirFs
         assert ValidRoot() by { reveal ValidRoot(); }
       }
       reveal ino_ok;
-      return Ok(());
+      return Ok(attr3);
     }
 
     method unlinkInode(txn: Txn, d_ino: Ino, dents: MemDirents, name: Bytes)
-      returns (r: Result<Ino>)
+      returns (r: Result<(Ino, Fattr3)>)
       modifies Repr, dents.Repr(), dents.file.i.Repr
       requires fs.has_jrnl(txn)
       requires is_pathc(name.data)
@@ -1618,8 +1635,9 @@ module DirFs
       ensures r.Err? ==> r.err.Noent? || r.err.NoSpc?
       ensures r.Ok? ==>
       && old(name.data in data[d_ino].dir)
-      && r.v == old(data[d_ino].dir[name.data])
+      && r.v.0 == old(data[d_ino].dir[name.data])
       && is_dir(d_ino)
+      && is_file_attrs(data[d_ino], r.v.1)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1639,12 +1657,12 @@ module DirFs
       var i := name_opt.x.0;
       var ino := name_opt.x.1;
 
-      var _ :- unlinkInodeAt(txn, d_ino, dents, name, i, ino);
-      return Ok(ino);
+      var attr3 :- unlinkInodeAt(txn, d_ino, dents, name, i, ino);
+      return Ok((ino, attr3));
     }
 
     method unlink(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<Ino>)
+      returns (r: Result<(Ino, Fattr3)>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1657,7 +1675,8 @@ module DirFs
       && old(is_dir(d_ino))
       && is_dir(d_ino)
       && name.data in old(data[d_ino].dir)
-      && r.v == old(data[d_ino].dir[name.data])
+      && r.v.0 == old(data[d_ino].dir[name.data])
+      && is_file_attrs(data[d_ino], r.v.1)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1674,8 +1693,8 @@ module DirFs
 
     // public
     method REMOVE(txn: Txn, d_ino: uint64, name: Bytes)
-      // returns a hint for what free space to erase
-      returns (r: Result<RemoveHint>)
+      // returns a hint for what free space to erase, and the dir_wcc
+      returns (r: Result<RemoveResult>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1696,8 +1715,10 @@ module DirFs
       ensures r.Ok? ==>
       && ino_ok(d_ino)
       && old(is_dir(d_ino))
+      && is_dir(d_ino)
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
+      && is_file_attrs(data[d_ino], r.v.d_attrs)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1708,12 +1729,15 @@ module DirFs
         return Err(NameTooLong);
       }
       var d_ino :- checkInoBounds(d_ino);
-      var ino :- this.unlink(txn, d_ino, name);
+      var ino_attrs :- this.unlink(txn, d_ino, name);
+      var ino := ino_attrs.0;
+      var attr3 := ino_attrs.1;
 
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
-        return Ok(RemoveHint(ino, 0));
+        assert ino != d_ino;
+        return Ok(RemoveResult(ino, 0, attr3));
       }
 
       if remove_r.Err? {
@@ -1722,7 +1746,7 @@ module DirFs
       }
 
       var sz_hint := remove_r.v;
-      return Ok(RemoveHint(ino, sz_hint));
+      return Ok(RemoveResult(ino, sz_hint, attr3));
     }
 
     method removeEmptyDir(txn: Txn, ino: Ino)
@@ -1820,7 +1844,8 @@ module DirFs
         return Err(NameTooLong);
       }
       var d_ino :- checkInoBounds(d_ino);
-      var ino :- this.unlink(txn, d_ino, name);
+      var ino_attr :- this.unlink(txn, d_ino, name);
+      var ino := ino_attr.0;
       if ino == rootIno || ino == d_ino {
         return Err(Inval);
       }
@@ -1958,7 +1983,8 @@ module DirFs
     {
       ghost var args := RenameArgs(src_d_ino, src_name.data,
         dst_d_ino, dst_name.data);
-      var ino :- unlink(txn, src_d_ino, src_name);
+      var ino_attr :- unlink(txn, src_d_ino, src_name);
+      var ino := ino_attr.0;
       if ino == 0 {
         return Err(Inval);
       }
