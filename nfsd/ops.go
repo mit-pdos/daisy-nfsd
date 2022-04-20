@@ -372,13 +372,15 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) (reply nfstypes.MKDIR3r
 		util.DPrintf(1, "NFS Mkdir error %v", status)
 		return reply
 	}
-	ino_r := r.(nfs_spec.InoResult)
+	ino_r := r.(nfs_spec.CreateResult)
 	finum := ino_r.Dtor_ino()
 
 	reply.Resok.Obj.Handle_follows = true
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	decodeFattr3(ino_r.Dtor_attrs(), finum, &reply.Resok.Obj_attributes.Attributes)
+	reply.Resok.Dir_wcc.After.Attributes_follow = true
+	decodeFattr3(ino_r.Dtor_dir__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
 	return reply
 }
 

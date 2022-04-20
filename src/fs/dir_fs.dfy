@@ -1367,7 +1367,7 @@ module DirFs
     // public
     method {:timeLimitMultiplier 2} MKDIR(txn: Txn,
       d_ino: uint64, name: Bytes, sattr: Sattr3)
-      returns (r: Result<InoResult>)
+      returns (r: Result<CreateResult>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1421,6 +1421,8 @@ module DirFs
         return;
       }
       dents.val.findName_not_found(name.data);
+      var dattrs := dents.getAttrs();
+      var dsz := dents.getSizeBytes();
 
       var e' := MemDirEnt(name, ino);
       assert name.data == old(name.data);
@@ -1431,7 +1433,9 @@ module DirFs
         return;
       }
       var fattr := Fattr3(NFS3DIR, 0, attrs');
-      r := Ok(InoResult(ino, fattr));
+      // this is the directory we are creating in, not the new directory
+      var dattr3 := Fattr3(NFS3DIR, dsz, dattrs);
+      r := Ok(CreateResult(ino, fattr, dattr3));
       return;
     }
 
