@@ -765,6 +765,13 @@ module MemDirEntries
       attrs := file.getAttrs();
     }
 
+    method getSizeBytes() returns (sz:uint64)
+      requires Valid()
+    {
+      reveal Valid();
+      sz := file.size();
+    }
+
     method setAttrs(attrs': Inode.Attrs)
       modifies file.ReprFs
       requires Valid() ensures Valid()

@@ -491,23 +491,25 @@ module DirFs
     }
 
     method updateDirentsMtime(ghost d_ino: Ino, dents: MemDirents)
-      returns (ghost dir_attrs': Inode.Attrs)
+      returns (dir_attrs': Fattr3)
       modifies this, dents.file.ReprFs
       requires ValidDirents(dents, d_ino)
       ensures ValidDirents(dents, d_ino)
-      ensures has_modify_attrs(old(data[d_ino].attrs), dir_attrs')
+      ensures has_modify_attrs(old(data[d_ino].attrs), dir_attrs'.attrs)
       ensures dirents == old(dirents)
       ensures
       var d0 := data[d_ino].dir;
-      data == old(data[d_ino := DirFile(d0, dir_attrs')])
+      var attrs' := dir_attrs'.attrs;
+      data == old(data[d_ino := DirFile(d0, attrs')])
     {
       get_data_at(d_ino);
       var dir_attrs := dents.getAttrs();
       var dir_attrs_new := ModifyAttrs(dir_attrs);
-      dir_attrs' := dir_attrs_new;
+      var dir_sz := dents.getSizeBytes();
+      dir_attrs' := Fattr3(NFS3DIR, dir_sz, dir_attrs_new);
       dents.setAttrs(dir_attrs_new);
       ghost var d0 := data[d_ino].dir;
-      data := data[d_ino := DirFile(d0, dir_attrs')];
+      data := data[d_ino := DirFile(d0, dir_attrs_new)];
       assert ValidIno(d_ino, dents.file.i) by {
         dents.fs_valid_ino();
         assert is_dir(d_ino);
@@ -845,7 +847,7 @@ module DirFs
 
     // public
     method {:timeLimitMultiplier 2} CREATE(txn: Txn, d_ino: uint64, name: Bytes, how: CreateHow3)
-      returns (r: Result<InoResult>, ghost dir_attrs: Inode.Attrs)
+      returns (r: Result<CreateResult>)
       modifies Repr
       requires name.Valid()
       requires Valid() ensures r.Ok? ==> Valid()
@@ -859,12 +861,13 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && has_create_attrs(fattrs.attrs, how)
-      && has_modify_attrs(old(data[d_ino].attrs), dir_attrs)
+      && has_modify_attrs(old(data[d_ino].attrs), r.v.dir_attrs.attrs)
       && is_file_attrs(file, fattrs)
-      && data == old(
+      && (var dir_attrs := r.v.dir_attrs.attrs;
+        data == old(
         var d0 := data[d_ino];
         var d' := DirFile(d0.dir[name.data := ino], dir_attrs);
-        data[ino := file][d_ino := d'])
+        data[ino := file][d_ino := d']))
       )
     {
       var d_ino :- checkInoBounds(d_ino);
@@ -877,7 +880,7 @@ module DirFs
       var ino :- allocFile(txn, sz, attrs);
       var _ :- validatePath(name);
       var dents :- readDirents(txn, d_ino);
-      dir_attrs := updateDirentsMtime(d_ino, dents);
+      var dir_attrs := updateDirentsMtime(d_ino, dents);
       assert && ValidDirents(dents, d_ino)
             && fresh(dents.Repr())
             && fresh(dents.file.i.Repr);
@@ -917,7 +920,7 @@ module DirFs
       }
       reveal ino_ok;
       var fattrs := Fattr3(NFS3REG, sz, attrs);
-      r := Ok(InoResult(ino, fattrs));
+      r := Ok(CreateResult(ino, fattrs, dir_attrs));
       return;
     }
 

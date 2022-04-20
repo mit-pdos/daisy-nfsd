@@ -50,7 +50,7 @@ func createRootFile(fs *dirfs.DirFilesys, name string) uint64 {
 		panic(fmt.Errorf("create failed with %v", r.Dtor_err()))
 	}
 	txn.Commit()
-	return r.Dtor_v().(nfs_spec.InoResult).Dtor_ino()
+	return r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 }
 
 func TestDirFsLookup(t *testing.T) {
@@ -62,7 +62,7 @@ func TestDirFsLookup(t *testing.T) {
 		))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
-	ino := r.Dtor_v().(nfs_spec.InoResult).Dtor_ino()
+	ino := r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 
 	txn = fs.Begin()
 	r = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))

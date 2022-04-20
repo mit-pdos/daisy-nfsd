@@ -335,7 +335,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREAT
 		util.DPrintf(1, "NFS Create error %v", status)
 		return reply
 	}
-	create := r.(nfs_spec.InoResult)
+	create := r.(nfs_spec.CreateResult)
 
 	finum := create.Dtor_ino()
 
@@ -343,6 +343,8 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREAT
 	reply.Resok.Obj.Handle = Fh{Ino: finum}.MakeFh3()
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	decodeFattr3(create.Dtor_attrs(), finum, &reply.Resok.Obj_attributes.Attributes)
+	reply.Resok.Dir_wcc.After.Attributes_follow = true
+	decodeFattr3(create.Dtor_dir__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
 	return reply
 }
 

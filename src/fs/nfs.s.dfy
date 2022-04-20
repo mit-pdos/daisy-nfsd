@@ -331,6 +331,7 @@ module Nfs {
 
   datatype ReadResult = ReadResult(data: Bytes, eof: bool)
   datatype InoResult = InoResult(ino: FsKinds.Ino, attrs: Fattr3)
+  datatype CreateResult = CreateResult(ino: FsKinds.Ino, attrs: Fattr3, dir_attrs: Fattr3)
 
   predicate is_read_data(data: seq<byte>, off: nat, len: nat,
     bs: seq<byte>, eof: bool)
