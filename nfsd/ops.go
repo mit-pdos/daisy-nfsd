@@ -221,12 +221,20 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKU
 	inum := fh2ino(args.What.Dir)
 	name := filenameToBytes(args.What.Name)
 
+	var dattr std.Option
 	r, status, _ := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.LOOKUP(txn, inum, name)
+		var r Result
+		r, dattr = nfs.filesys.LOOKUP(txn, inum, name)
+		return r
 	})
 	reply.Status = status
 	if status != nfstypes.NFS3_OK {
 		util.DPrintf(2, "NFS Lookup error %v", status)
+		if dattr.Is_Some() {
+			reply.Resfail.Dir_attributes.Attributes_follow = true
+			decodeFattr3(dattr.Dtor_x().(nfs_spec.Fattr3),
+				inum, &reply.Resfail.Dir_attributes.Attributes)
+		}
 		return reply
 	}
 	ino_r := r.(nfs_spec.InoResult)
@@ -235,6 +243,11 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) (reply nfstypes.LOOKU
 	reply.Resok.Object = fh.MakeFh3()
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	decodeFattr3(ino_r.Dtor_attrs(), ino, &reply.Resok.Obj_attributes.Attributes)
+	if dattr.Is_Some() {
+		reply.Resok.Dir_attributes.Attributes_follow = true
+		decodeFattr3(dattr.Dtor_x().(nfs_spec.Fattr3),
+			inum, &reply.Resok.Dir_attributes.Attributes)
+	}
 	return reply
 }
 

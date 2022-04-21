@@ -65,7 +65,7 @@ func TestDirFsLookup(t *testing.T) {
 	ino := r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 
 	txn = fs.Begin()
-	r = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))
+	r, _ = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))
 	r = dirfs.Companion_Default___.HandleResult(r, txn)
 	require.True(t, r.Is_Ok(), "Lookup should succeed")
 	ino2 := r.Dtor_v().(nfs_spec.InoResult).Dtor_ino()
@@ -82,7 +82,7 @@ func TestPathEncode(t *testing.T) {
 func TestInvalidInodeNumber(t *testing.T) {
 	fs := NewFs()
 	txn := fs.Begin()
-	r := fs.LOOKUP(txn, 1<<60, stringToBytes("foo"))
+	r, _ := fs.LOOKUP(txn, 1<<60, stringToBytes("foo"))
 	txn.Abort()
 	assert.True(t, r.ErrBadHandle_q(), "should fail with ErrBadHandle")
 }

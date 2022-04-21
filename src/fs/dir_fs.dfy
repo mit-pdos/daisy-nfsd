@@ -1451,7 +1451,9 @@ module DirFs
 
     // public
     method LOOKUP(txn: Txn, d_ino: uint64, name: Bytes)
-      returns (r:Result<InoResult>)
+      // note that LOOKUP returns directory attributes even on failure (in most
+      // cases, at least)
+      returns (r:Result<InoResult>, dattr3: Option<Fattr3>)
       modifies fs.fs.fs.fs
       requires Valid() ensures Valid()
       requires fs.has_jrnl(txn)
@@ -1460,6 +1462,8 @@ module DirFs
       ensures r.ErrNoent? ==> ino_ok(d_ino) && is_dir(d_ino) &&
       (name.data !in data[d_ino].dir
       || (name.data in data[d_ino].dir && data[d_ino].dir[name.data] !in data))
+      ensures r.Err? && dattr3.Some? ==>
+              old(d_ino in data) && is_file_attrs(old(data[d_ino]), dattr3.x)
       ensures r.Ok? ==>
       (var ino := r.v.ino;
        var attrs := r.v.attrs;
@@ -1470,12 +1474,15 @@ module DirFs
       && data[d_ino].dir[name.data] == ino && ino != 0
       && ino in data
       && is_file_attrs(data[ino], attrs)
+      && dattr3.Some? && is_file_attrs(data[d_ino], dattr3.x)
       )
     {
+      dattr3 := None;
       var path_ok := Pathc?(name);
       if !path_ok {
-        return Err(NameTooLong);
+        return Err(NameTooLong), None;
       }
+
       var d_ino :- checkInoBounds(d_ino);
       var dents :- readDirents(txn, d_ino);
       assert dents.dir() == data[d_ino].dir by {
@@ -1484,10 +1491,12 @@ module DirFs
       assert name != dents.file.bs by {
         assert dents.file.bs in dents.Repr();
       }
+      var attr3 := dirFattr3(d_ino, dents);
+      dattr3 := Some(attr3);
       var name_opt := dents.findName(txn, name);
       dents.finishReadonly();
       if name_opt.None? {
-        return Err(Noent);
+        return Err(Noent), dattr3;
       }
       var ino: Ino := name_opt.x.1;
       dents.val.findName_found(name.data);
@@ -1496,7 +1505,7 @@ module DirFs
         // TODO: probably shouldn't happen, inodes should be valid, but this
         // isn't part of the invariant
         assert is_invalid(ino) by { reveal is_of_type(); }
-        return Err(Noent);
+        return Err(Noent), dattr3;
       }
       assert ino in data by {
         reveal is_of_type();
@@ -1504,7 +1513,7 @@ module DirFs
       var attr := inodeFattr3(ino, i);
       fs.finishInodeReadonly(ino, i);
 
-      return Ok(InoResult(ino, attr));
+      return Ok(InoResult(ino, attr)), dattr3;
     }
 
     // this is a low-level function that deletes an inode (currently restricted
