@@ -78,8 +78,11 @@ export LTP_PATH=$HOME/code/ltp
 EOF
 echo "source ~/.profile" >>~/.zshrc
 
-# set up tmux to use c-space as prefix
+# set up tmux
 cat >~/.tmux.conf <<EOF
+# fix colors
+set-option -g default-terminal "tmux-256color"
+# use ctrl-space as prefix (instead of ctrl-b)
 set-option -g prefix C-Space
 bind-key Space send-prefix
 bind-key C-Space next-window
