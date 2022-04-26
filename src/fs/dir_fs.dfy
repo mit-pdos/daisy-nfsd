@@ -31,9 +31,6 @@ module DirFs
 
   import C = Collections
 
-  // ino and sz are just a hint
-  datatype RemoveResult = RemoveResult(ino: Ino, sz: uint64, d_attrs: Fattr3)
-
   type FsData = map<Ino, seq<byte>>
   type FsAttrs = map<Ino, Inode.Attrs>
 
@@ -864,6 +861,7 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && has_create_attrs(fattrs.attrs, how)
+      && has_before_attrs(old(data[d_ino].attrs), r.v.dir_before)
       && has_modify_attrs(old(data[d_ino].attrs), r.v.dir_attrs.attrs)
       && is_file_attrs(file, fattrs)
       && (var dir_attrs := r.v.dir_attrs.attrs;
@@ -883,6 +881,9 @@ module DirFs
       var ino :- allocFile(txn, sz, attrs);
       var _ :- validatePath(name);
       var dents :- readDirents(txn, d_ino);
+      var before_sz := dents.getSizeBytes();
+      var before_attrs := dents.getAttrs();
+      var dir_before := BeforeAttr(before_sz, before_attrs.mtime);
       var dir_attrs := updateDirentsMtime(d_ino, dents);
       assert && ValidDirents(dents, d_ino)
             && fresh(dents.Repr())
@@ -923,7 +924,7 @@ module DirFs
       }
       reveal ino_ok;
       var fattrs := Fattr3(NFS3REG, sz, attrs);
-      r := Ok(CreateResult(ino, fattrs, dir_attrs));
+      r := Ok(CreateResult(ino, fattrs, dir_before, dir_attrs));
       return;
     }
 
@@ -1396,6 +1397,7 @@ module DirFs
       && old(is_dir(d_ino))
       && old(is_invalid(ino))
       && old(valid_name(name.data))
+      && has_before_attrs(old(data[d_ino].attrs), r.v.dir_before)
       && has_mkdir_attrs(attrs', sattr)
       && data == old(
         var d0 := data[d_ino];
@@ -1424,6 +1426,9 @@ module DirFs
       assert dents.Repr() !! Repr;
       assert name !in Repr;
       assert ino != d_ino;
+      var before_sz := dents.getSizeBytes();
+      var before_attrs := dents.getAttrs();
+      var dir_before := BeforeAttr(before_sz, before_attrs.mtime);
       //assert is_dir(d_ino);
       get_data_at(d_ino);
       var name_opt := dents.findName(txn, name);
@@ -1447,7 +1452,7 @@ module DirFs
       var fattr := Fattr3(NFS3DIR, 0, attrs');
       // this is the directory we are creating in, not the new directory
       var dattr3 := Fattr3(NFS3DIR, dsz, dattrs);
-      r := Ok(CreateResult(ino, fattr, dattr3));
+      r := Ok(CreateResult(ino, fattr, dir_before, dattr3));
       return;
     }
 
@@ -1673,7 +1678,7 @@ module DirFs
     }
 
     method unlink(txn: Txn, d_ino: Ino, name: Bytes)
-      returns (r: Result<(Ino, Fattr3)>)
+      returns (r: Result<(Ino, BeforeAttr, Fattr3)>)
       modifies Repr
       requires Valid() ensures r.Ok? ==> Valid()
       requires fs.has_jrnl(txn)
@@ -1687,7 +1692,8 @@ module DirFs
       && is_dir(d_ino)
       && name.data in old(data[d_ino].dir)
       && r.v.0 == old(data[d_ino].dir[name.data])
-      && is_file_attrs(data[d_ino], r.v.1)
+      && has_before_attrs(old(data[d_ino].attrs), r.v.1)
+      && is_file_attrs(data[d_ino], r.v.2)
       && data ==
         (var d0 := old(data[d_ino]);
         var d' := map_delete(d0.dir, old(name.data));
@@ -1695,11 +1701,21 @@ module DirFs
     {
       ghost var path := name.data;
       var dents :- readDirents(txn, d_ino);
+      var sz := dents.getSizeBytes();
+      var dir_attr := dents.getAttrs();
+      var dir_before := BeforeAttr(sz, dir_attr.mtime);
+      assert has_before_attrs(old(data[d_ino].attrs), dir_before) by {
+        get_data_at(d_ino);
+      }
       assert old(is_dir(d_ino));
       assert fresh(dents.file.bs) by {
         assert dents.file.bs in dents.Repr();
       }
-      r := unlinkInode(txn, d_ino, dents, name);
+      var unlink_r := unlinkInode(txn, d_ino, dents, name);
+      if unlink_r.Err? {
+        return Err(unlink_r.err);
+      }
+      return Ok((unlink_r.v.0, dir_before, unlink_r.v.1));
     }
 
     // public
@@ -1729,6 +1745,7 @@ module DirFs
       && is_dir(d_ino)
       && is_pathc(name.data)
       && name.data in old(data[d_ino].dir)
+      && has_before_attrs(old(data[d_ino].attrs), r.v.dir_before)
       && is_file_attrs(data[d_ino], r.v.d_attrs)
       && data ==
         (var d0 := old(data[d_ino]);
@@ -1742,13 +1759,14 @@ module DirFs
       var d_ino :- checkInoBounds(d_ino);
       var ino_attrs :- this.unlink(txn, d_ino, name);
       var ino := ino_attrs.0;
-      var attr3 := ino_attrs.1;
+      var dir_before := ino_attrs.1;
+      var attr3 := ino_attrs.2;
 
       var remove_r := removeInode(txn, ino);
 
       if remove_r.ErrBadHandle? {
         assert ino != d_ino;
-        return Ok(RemoveResult(ino, 0, attr3));
+        return Ok(RemoveResult(ino, 0, dir_before, attr3));
       }
 
       if remove_r.Err? {
@@ -1757,7 +1775,7 @@ module DirFs
       }
 
       var sz_hint := remove_r.v;
-      return Ok(RemoveResult(ino, sz_hint, attr3));
+      return Ok(RemoveResult(ino, sz_hint, dir_before, attr3));
     }
 
     method removeEmptyDir(txn: Txn, ino: Ino)

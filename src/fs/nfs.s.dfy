@@ -296,6 +296,11 @@ module Nfs {
       ))
   }
 
+  predicate has_before_attrs(attrs: Inode.Attrs, before: BeforeAttr)
+  {
+    && attrs.mtime == before.mtime
+  }
+
   datatype Ftype3 =
     | NFS3REG | NFS3DIR
     | NFS3BLK | NFS3CHR | NFS3LNK | NFS3SOCK | NFS3FIFO
@@ -319,6 +324,7 @@ module Nfs {
   }
 
   datatype Fattr3 = Fattr3(ftype: Ftype3, size: uint64, attrs: Inode.Attrs)
+  datatype BeforeAttr = BeforeAttr(size: uint64, mtime: Inode.NfsTime)
 
   predicate is_file_attrs(file: File, attr: Fattr3)
   {
@@ -331,7 +337,9 @@ module Nfs {
 
   datatype ReadResult = ReadResult(data: Bytes, eof: bool)
   datatype InoResult = InoResult(ino: FsKinds.Ino, attrs: Fattr3)
-  datatype CreateResult = CreateResult(ino: FsKinds.Ino, attrs: Fattr3, dir_attrs: Fattr3)
+  datatype CreateResult = CreateResult(ino: FsKinds.Ino, attrs: Fattr3, dir_before: BeforeAttr, dir_attrs: Fattr3)
+  // ino and sz are just a hint
+  datatype RemoveResult = RemoveResult(ino: FsKinds.Ino, sz: uint64, dir_before: BeforeAttr, d_attrs: Fattr3)
 
   predicate is_read_data(data: seq<byte>, off: nat, len: nat,
     bs: seq<byte>, eof: bool)

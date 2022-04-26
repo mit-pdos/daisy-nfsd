@@ -122,6 +122,12 @@ func decodeFattr3Before(attrs nfs_spec.Fattr3, fattr *nfstypes.Wcc_attr) {
 	fattr.Ctime = decodeTime(attrs.Dtor_attrs().Dtor_mtime())
 }
 
+func decodeBefore(attrs nfs_spec.BeforeAttr, fattr *nfstypes.Wcc_attr) {
+	fattr.Size = nfstypes.Size3(attrs.Dtor_size())
+	fattr.Mtime = decodeTime(attrs.Dtor_mtime())
+	fattr.Ctime = decodeTime(attrs.Dtor_mtime())
+}
+
 func decodeFsstat3(stats nfs_spec.Fsstat3, fsstat *nfstypes.FSSTAT3res) {
 	fsstat.Resok.Tbytes = nfstypes.Size3(stats.Dtor_tbytes())
 	fsstat.Resok.Fbytes = nfstypes.Size3(stats.Dtor_fbytes())
@@ -384,7 +390,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) (reply nfstypes.CREAT
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	decodeFattr3(create.Dtor_attrs(), finum, &reply.Resok.Obj_attributes.Attributes)
 	reply.Resok.Dir_wcc.Before.Attributes_follow = true
-	decodeFattr3Before(create.Dtor_dir__attrs(), &reply.Resok.Dir_wcc.Before.Attributes)
+	decodeBefore(create.Dtor_dir__before(), &reply.Resok.Dir_wcc.Before.Attributes)
 	reply.Resok.Dir_wcc.After.Attributes_follow = true
 	decodeFattr3(create.Dtor_dir__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
 	return reply
@@ -422,7 +428,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) (reply nfstypes.MKDIR3r
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	decodeFattr3(ino_r.Dtor_attrs(), finum, &reply.Resok.Obj_attributes.Attributes)
 	reply.Resok.Dir_wcc.Before.Attributes_follow = true
-	decodeFattr3Before(ino_r.Dtor_dir__attrs(), &reply.Resok.Dir_wcc.Before.Attributes)
+	decodeBefore(ino_r.Dtor_dir__before(), &reply.Resok.Dir_wcc.Before.Attributes)
 	reply.Resok.Dir_wcc.After.Attributes_follow = true
 	decodeFattr3(ino_r.Dtor_dir__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
 	return reply
@@ -464,14 +470,13 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOV
 		util.DPrintf(1, "NFS Remove error %v", status)
 		return reply
 	}
-	r := hint_r.(dirfs.RemoveResult)
+	r := hint_r.(nfs_spec.RemoveResult)
 	go nfs.ZeroFreeSpace(r.Dtor_ino(), r.Dtor_sz())
 
-	attrs := r.Dtor_d__attrs()
 	reply.Resok.Dir_wcc.After.Attributes_follow = true
-	decodeFattr3(attrs, inum, &reply.Resok.Dir_wcc.After.Attributes)
+	decodeFattr3(r.Dtor_d__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
 	reply.Resok.Dir_wcc.Before.Attributes_follow = true
-	decodeFattr3Before(attrs, &reply.Resok.Dir_wcc.Before.Attributes)
+	decodeBefore(r.Dtor_dir__before(), &reply.Resok.Dir_wcc.Before.Attributes)
 
 	return reply
 }
