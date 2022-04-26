@@ -447,8 +447,11 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) (reply nfstypes.REMOV
 	r := hint_r.(dirfs.RemoveResult)
 	go nfs.ZeroFreeSpace(r.Dtor_ino(), r.Dtor_sz())
 
+	attrs := r.Dtor_d__attrs()
 	reply.Resok.Dir_wcc.After.Attributes_follow = true
-	decodeFattr3(r.Dtor_d__attrs(), inum, &reply.Resok.Dir_wcc.After.Attributes)
+	decodeFattr3(attrs, inum, &reply.Resok.Dir_wcc.After.Attributes)
+	reply.Resok.Dir_wcc.Before.Attributes_follow = true
+	decodeFattr3Before(attrs, &reply.Resok.Dir_wcc.Before.Attributes)
 
 	return reply
 }
