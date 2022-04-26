@@ -115,13 +115,7 @@ func decodeFattr3(attrs nfs_spec.Fattr3, inum uint64, fattr *nfstypes.Fattr3) {
 	fattr.Fsid = 123
 }
 
-// extract the wcc.before data
-func decodeFattr3Before(attrs nfs_spec.Fattr3, fattr *nfstypes.Wcc_attr) {
-	fattr.Size = nfstypes.Size3(attrs.Dtor_size())
-	fattr.Mtime = decodeTime(attrs.Dtor_attrs().Dtor_mtime())
-	fattr.Ctime = decodeTime(attrs.Dtor_attrs().Dtor_mtime())
-}
-
+// extract wcc.before data
 func decodeBefore(attrs nfs_spec.BeforeAttr, fattr *nfstypes.Wcc_attr) {
 	fattr.Size = nfstypes.Size3(attrs.Dtor_size())
 	fattr.Mtime = decodeTime(attrs.Dtor_mtime())
