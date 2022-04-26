@@ -804,7 +804,9 @@ module DirFs
       var mtime := Inode.NfsTime(0, 0);
       if how_attrs.mtime.SetToClientTime? {
         mtime := how_attrs.mtime.time;
-      } else if how_attrs.mtime.SetToServerTime? {
+      } else
+        // set an initial mtime even if client requests "DontChange" in CREATE
+        if how_attrs.mtime.SetToServerTime? || how_attrs.mtime.DontChange? {
         mtime := serverTime();
       }
       return Inode.Attrs(Inode.FileType, mode, uid, gid, mtime);
