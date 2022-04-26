@@ -112,6 +112,7 @@ func decodeFattr3(attrs nfs_spec.Fattr3, inum uint64, fattr *nfstypes.Fattr3) {
 	fattr.Size = nfstypes.Size3(attrs.Dtor_size())
 	fattr.Used = nfstypes.Size3(attrs.Dtor_size())
 	fattr.Fileid = nfstypes.Fileid3(inum)
+	fattr.Fsid = 123
 }
 
 // extract the wcc.before data
@@ -262,6 +263,25 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) (reply nfstypes.ACCES
 	util.DPrintf(1, "NFS Access %v\n", args)
 	defer nfs.reportOp(nfstypes.NFSPROC3_ACCESS, time.Now())
 	reply.Status = nfstypes.NFS3_OK
+
+	// run a transaction just to get the post-op attributes
+	/*
+		inum := fh2ino(args.Object)
+
+		stat, status, _ := nfs.runTxn(func(txn Txn) Result {
+			return nfs.filesys.GETATTR(txn, inum)
+		})
+		reply.Status = status
+		if status != nfstypes.NFS3_OK {
+			util.DPrintf(2, "NFS Access error %v", status)
+			return reply
+		}
+
+		attrs := stat.(nfs_spec.Fattr3)
+		reply.Resok.Obj_attributes.Attributes_follow = true
+		decodeFattr3(attrs, inum, &reply.Resok.Obj_attributes.Attributes)
+	*/
+
 	reply.Resok.Access = nfstypes.Uint32(nfstypes.ACCESS3_READ | nfstypes.ACCESS3_LOOKUP | nfstypes.ACCESS3_MODIFY | nfstypes.ACCESS3_EXTEND | nfstypes.ACCESS3_DELETE | nfstypes.ACCESS3_EXECUTE)
 	return reply
 }
