@@ -15,6 +15,7 @@ module TypedFs {
   import opened MemInodes
 
   const WT_MAX: uint64 := 256*4096
+  const RD_MAX: uint64 := 32*4096
 
   class TypedFilesys
   {

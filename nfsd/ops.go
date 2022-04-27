@@ -605,7 +605,9 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	util.DPrintf(1, "NFS Fsinfo %v\n", args)
 	var reply nfstypes.FSINFO3res
 	reply.Status = nfstypes.NFS3_OK
-	reply.Resok.Rtmax = nfstypes.Uint32(65536)
+	reply.Resok.Rtmax = nfstypes.Uint32(
+		typed_fs.Companion_Default___.RD__MAX(),
+	)
 	reply.Resok.Rtpref = reply.Resok.Rtmax
 	reply.Resok.Rtmult = 4096
 	reply.Resok.Wtmax = nfstypes.Uint32(
