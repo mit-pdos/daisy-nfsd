@@ -89,7 +89,6 @@ function cleanup {
 }
 trap cleanup EXIT
 
-# taskset 0x3 $1 /mnt/nfs
 echo "# daisy-nfsd -disk $disk_file ${extra_args[*]}" 1>&2
 echo "run $*" 1>&2
 "$@"
