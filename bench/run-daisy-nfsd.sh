@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 #
 # Usage:  ./run-daisy-nfsd.sh  go run ./cmd/fs-smallfile
 #
@@ -12,8 +14,10 @@ disk_file=/dev/shm/nfs.img
 size_mb=400
 cpu_list=""
 nfs_mount_path="/mnt/nfs"
+# go-journal patch
+patch_file=""
 extra_args=()
-while true; do
+while [[ $# -gt 0 ]]; do
     case "$1" in
     -disk)
         shift
@@ -29,6 +33,11 @@ while true; do
         shift
         nfs_mount_path="$1"
         extra_args+=("-mount-path" "$nfs_mount_path")
+        shift
+        ;;
+    -patch)
+        shift
+        patch_file="$1"
         shift
         ;;
     --cpu-list)
@@ -52,7 +61,14 @@ while true; do
     esac
 done
 
-set -eu
+if [[ -n "$patch_file" && ! -f "$patch_file" ]]; then
+    echo "Invalid patch file $patch_file" 1>&2
+    exit 1
+fi
+
+if [ -n "$patch_file" ]; then
+    ./eval/set-gojournal-patch.sh "$patch_file"
+fi
 
 if [ -z "$cpu_list" ]; then
     ./bench/start-daisy-nfsd.sh -disk "$disk_file" -size "$size_mb" "${extra_args[@]}" || exit 1
@@ -62,6 +78,10 @@ fi
 
 function cleanup {
     ./bench/stop-daisy-nfsd.sh "$nfs_mount_path"
+    if [ -n "$patch_file" ]; then
+        ./eval/set-gojournal-patch.sh --undo
+    fi
+
     # only delete regular files
     if [ -f "$disk_file" ]; then
         rm -f "$disk_file"
