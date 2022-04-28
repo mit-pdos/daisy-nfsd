@@ -1554,8 +1554,8 @@ module DirFs
         return Err(IsDir);
       }
       assert is_file(ino) by { reveal is_of_type(); }
-      var sz := i.sz;
       fs.freeInode(txn, ino, i);
+      var sz := i.sz;
       //map_delete_not_in(data, ino);
       data := map_delete(data, ino);
 
