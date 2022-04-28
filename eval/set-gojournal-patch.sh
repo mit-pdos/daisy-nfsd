@@ -14,21 +14,21 @@ usage() {
 undo=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -undo|--undo)
-            shift
-            undo=true
-            ;;
-        -help|--help)
-            usage
-            exit 0
-            ;;
-        -*)
-            usage
-            exit 1
-            ;;
-        *)
-            break
-            ;;
+    -undo | --undo)
+        shift
+        undo=true
+        ;;
+    -help | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        usage
+        exit 1
+        ;;
+    *)
+        break
+        ;;
     esac
 done
 
@@ -49,7 +49,10 @@ fi
 patch_file=$(realpath "$1")
 
 cd "$GO_JOURNAL_PATH"
-git restore .
+if ! git diff --quiet --exit-code; then
+    echo "go-journal repo is dirty, not applying patch" 1>&2
+    exit 1
+fi
 git apply "$patch_file"
 
 cd "$DAISY_NFSD_PATH"
