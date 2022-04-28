@@ -56,6 +56,7 @@ def parse_raw(lines):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-o", "--output", type=argparse.FileType("w"), default="data/bench.data")
     parser.add_argument("bench", type=argparse.FileType("r"))
 
     args = parser.parse_args()
@@ -63,7 +64,6 @@ if __name__ == "__main__":
     tidy_df = parse_raw(args.bench)
     df = tidy_df.pivot_table(index="bench", columns="fs", values="val")
     df = df.reindex(index=["smallfile-1", "smallfile-25", "largefile", "app"])
-    with open("data/bench.data", "w") as f:
-        print(
-            df.to_csv(sep="\t"), end="", file=f
-        )
+    print(
+        df.to_csv(sep="\t"), end="", file=args.output
+    )
