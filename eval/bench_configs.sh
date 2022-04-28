@@ -31,9 +31,9 @@ usage() {
 output_file="$DAISY_NFSD_PATH/eval/data/bench-raw.txt"
 disk="/dev/nvme1n1"
 # time to run smallfile
-benchtime="20s"
+benchtime="30s"
 # number of threads for smallfile-par
-par=20
+par=25
 # largefile size (MB)
 file_size=300
 

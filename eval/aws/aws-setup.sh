@@ -16,6 +16,9 @@ make compile
 go build ./cmd/daisy-nfsd
 go build ./cmd/daisy-eval
 
+# need to warmup, otherwise compilation is slow the first time
+./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+
 sudo cpupower frequency-set --governor performance
 # for cpu in /sys/devices/system/cpu/cpu*; do
 #     echo "performance" | sudo tee "$cpu"/cpufreq/scaling_governor >/dev/null
