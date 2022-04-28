@@ -67,7 +67,7 @@ if [[ -n "$patch_file" && ! -f "$patch_file" ]]; then
 fi
 
 if [ -n "$patch_file" ]; then
-    ./eval/set-gojournal-patch.sh "$patch_file"
+    ./bench/set-gojournal-patch.sh "$patch_file"
 fi
 
 if [ -z "$cpu_list" ]; then
@@ -79,7 +79,7 @@ fi
 function cleanup {
     ./bench/stop-daisy-nfsd.sh "$nfs_mount_path"
     if [ -n "$patch_file" ]; then
-        ./eval/set-gojournal-patch.sh --undo
+        ./bench/set-gojournal-patch.sh --undo
     fi
 
     # only delete regular files
