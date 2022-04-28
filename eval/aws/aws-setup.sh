@@ -7,6 +7,8 @@ set -eu
 cd "$GO_NFSD_PATH"
 git pull
 go build ./cmd/go-nfsd
+go build ./cmd/fs-smallfile
+go build ./cmd/fs-largefile
 
 cd "$DAISY_NFSD_PATH"
 git pull
