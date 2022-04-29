@@ -25,6 +25,7 @@ def cov_percent(data):
 
 def bench_cmd(records, args):
     df = pd.DataFrame.from_records(records)
+    benches = ["smallfile", "largefile", "app"]
     if args.debug:
         df = df.pivot_table(
             index="fs.name",
@@ -33,7 +34,7 @@ def bench_cmd(records, args):
             aggfunc=[np.mean, cov_percent],
         )
         df = df.reorder_levels([1, 0], axis="columns")
-        df = df[["smallfile", "largefile", "app"]]
+        df = df[benches]
     else:
         df = df.pivot_table(
             index="bench.name",
@@ -41,7 +42,7 @@ def bench_cmd(records, args):
             values="val",
             aggfunc=np.mean,
         )
-        df = df.reindex(index=["smallfile", "largefile", "app"])
+        df = df.reindex(index=benches)
     df.index.rename("bench", inplace=True)
     if args.debug:
         print(df)
@@ -51,6 +52,55 @@ def bench_cmd(records, args):
     columns = [x for x in columns if x in df.columns]
     df.to_csv(
         path.join(args.output, "bench.data"),
+        sep="\t",
+        columns=columns,
+    )
+
+
+def extended_bench_cmd(records, args):
+    smallfile_thread_counts = []
+    for r in records:
+        if r["bench.name"] == "smallfile":
+            threads = r["bench.start"]
+            smallfile_thread_counts.append(threads)
+            r["bench.name"] = f"smallfile-{threads}"
+    df = pd.DataFrame.from_records(records)
+    benches = [f"smallfile-{t}" for t in sorted(smallfile_thread_counts)] + [
+        "largefile",
+        "app",
+    ]
+    if args.debug:
+        df = df.pivot_table(
+            index="fs.name",
+            columns="bench.name",
+            values="val",
+            aggfunc=[np.mean, cov_percent],
+        )
+        df = df.reorder_levels([1, 0], axis="columns")
+        df = df[benches]
+    else:
+        df = df.pivot_table(
+            index="bench.name",
+            columns="fs.name",
+            values="val",
+            aggfunc=np.mean,
+        )
+        df = df.reindex(index=benches)
+    df.index.rename("bench", inplace=True)
+    if args.debug:
+        print(df)
+        return
+    columns = [
+        "linux",
+        "linux-ordered",
+        "daisy-nfsd",
+        "daisy-nfsd-seq-txn",
+        "daisy-nfsd-seq-wal",
+    ]
+    # filter to the columns that actually show up in the data
+    columns = [x for x in columns if x in df.columns]
+    df.to_csv(
+        path.join(args.output, "extended-bench.data"),
         sep="\t",
         columns=columns,
     )
@@ -115,6 +165,11 @@ def main():
         "bench", help="smallfile, largefile, app"
     )
     parser_bench.set_defaults(func=bench_cmd)
+
+    parser_extended = subparsers.add_parser(
+        "extended-bench", help="benchmarks on several file systems"
+    )
+    parser_extended.set_defaults(func=extended_bench_cmd)
 
     parser_scale = subparsers.add_parser(
         "scale", help="smallfile scaling benchmark"
