@@ -52,7 +52,7 @@ var suiteFlags = []cli.Flag{
 		Name:  "filesystems",
 		Value: "basic",
 		Usage: "suite of filesystems to run " +
-			"(basic, durability, " +
+			"(basic, extended, durability, " +
 			"or comma-separated list like daisy-nfsd,linux,go-nfsd)",
 	},
 }
@@ -114,6 +114,9 @@ func cliFilesystems(c *cli.Context) []eval.KeyValue {
 	fss := c.String("filesystems")
 	if fss == "basic" {
 		fss = "daisy-nfsd,linux,go-nfsd"
+	}
+	if fss == "extended" {
+		return eval.ExtendedFilesystems(c.String("disk"))
 	}
 	if fss == "durability" {
 		return eval.ManyDurabilityFilesystems(c.String("disk"))
@@ -189,6 +192,28 @@ var benchCommand = &cli.Command{
 	},
 }
 
+var extendedBenchCommand = &cli.Command{
+	Name:  "extended-bench",
+	Usage: "run extended benchmarks",
+	Flags: []cli.Flag{&cli.StringFlag{
+		Name:  "benchtime",
+		Usage: "smallfile duration",
+		Value: "30s",
+	}, &cli.IntFlag{
+		Name:  "par",
+		Usage: "smallfile par threads",
+		Value: 25,
+	}},
+	Before: beforeBench,
+	Action: func(c *cli.Context) error {
+		eval.PrepareBenchmarks()
+		suite := initializeSuite(c)
+		suite.Filesystems = cliFilesystems(c)
+		suite.Benches = eval.ExtendedBenchSuite(c.String("benchtime"), c.Int("par"))
+		return runSuite(c, suite)
+	},
+}
+
 var scaleCommand = &cli.Command{
 	Name:  "scale",
 	Usage: "benchmark smallfile with varying clients",
@@ -228,6 +253,7 @@ func main() {
 		Flags: suiteFlags,
 		Commands: []*cli.Command{
 			benchCommand,
+			extendedBenchCommand,
 			scaleCommand,
 			largefileCommand,
 		},

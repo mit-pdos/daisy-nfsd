@@ -85,7 +85,13 @@ func (fs Fs) Run(command []string) []string {
 }
 
 func GetFilesys(conf KeyValue) Fs {
+	conf = conf.Clone()
 	name := conf["name"].(string)
+	label := conf["label"]
+	delete(conf, "label")
+	if label != nil {
+		conf[name] = label.(string)
+	}
 	fs := Fs{opts: conf}
 	switch name {
 	case "linux":

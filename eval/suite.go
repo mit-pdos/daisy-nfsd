@@ -3,6 +3,7 @@ package eval
 import (
 	"fmt"
 	"math/rand"
+	"os"
 )
 
 type BenchmarkSuite struct {
@@ -63,6 +64,15 @@ func BenchSuite(smallfileDuration string) []Benchmark {
 	}
 }
 
+func ExtendedBenchSuite(smallfileDuration string, par int) []Benchmark {
+	return []Benchmark{
+		LargefileBench(300),
+		SmallfileBench(smallfileDuration, 1),
+		SmallfileBench(smallfileDuration, par),
+		AppBench(),
+	}
+}
+
 var LargefileSuite = []Benchmark{
 	LargefileBench(300),
 }
@@ -119,6 +129,21 @@ func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 		"size": float64(800),
 	})
 	return config
+}
+
+func ExtendedFilesystems(disk string) []KeyValue {
+	daisyKvs := extendAll(KeyValue{"name": "daisy-nfsd"}, []KeyValue{
+		{"label": "daisy-nfsd"},
+		{"label": "daisy-nfsd-seq-wal", "patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/serial.patch")},
+		{"label": "daisy-nfsd-seq-txn", "patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/global-txn-lock.patch")},
+	})
+	linuxKvs := extendAll(KeyValue{"name": "linux", "fs": "ext4"}, []KeyValue{
+		{"mount-opts": "data=journal"},
+		{"label": "linux-ordered", "mount-opts": "data=ordered"},
+	})
+	kvs := extendAll(KeyValue{"disk": disk, "size": float64(1000)},
+		append(append([]KeyValue{}, daisyKvs...), linuxKvs...))
+	return kvs
 }
 
 // LinuxDurabilityFilesystems returns many Linux filesystems,
