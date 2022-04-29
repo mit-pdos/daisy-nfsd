@@ -8,22 +8,23 @@ import numpy as np
 import pandas as pd
 
 
-def read_observations(f):
-    """Read a tidy DataFrame."""
+def read_records(f):
+    """Read a list of records."""
     records = []
     for line in f:
         o = json.loads(line)
         r = {"val": o["values"]["val"]}
         r.update(o["config"])
         records.append(r)
-    return pd.DataFrame.from_records(records)
+    return records
 
 
 def cov_percent(data):
     return round((np.std(data) / np.mean(data)) * 100, 2)
 
 
-def bench_cmd(df, args):
+def bench_cmd(records, args):
+    df = pd.DataFrame.from_records(records)
     if args.debug:
         df = df.pivot_table(
             index="fs.name",
@@ -55,8 +56,8 @@ def bench_cmd(df, args):
     )
 
 
-def scale_cmd(df, args):
-
+def scale_cmd(records, args):
+    df = pd.DataFrame.from_records(records)
     if args.debug:
         df = df.pivot_table(
             index="bench.start",
@@ -131,8 +132,8 @@ def main():
     with open(input_path, "rb") as f:
         if input_path.endswith(".gz"):
             f = gzip.GzipFile(fileobj=f)
-        df = read_observations(f)
-    args.func(df, args)
+        records = read_records(f)
+    args.func(records, args)
 
 
 if __name__ == "__main__":
