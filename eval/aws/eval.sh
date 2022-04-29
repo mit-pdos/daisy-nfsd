@@ -8,8 +8,8 @@ go build ./cmd/daisy-eval
 mkdir -p eval/data/nvme
 sudo chown "$USER" /dev/nvme1n1
 
-time ./daisy-eval --filesystems extended --dir eval/data/nvme --disk /dev/nvme1n1 --iters 10 extended-bench --benchtime=30s --par=25
-time ./daisy-eval --filesystems extended --dir eval/data --disk /dev/shm/disk.img --iters 10 extended-bench
+time ./daisy-eval --filesystems extended --dir eval/data/nvme --disk /dev/nvme1n1 --iters 5 extended-bench --benchtime=20s --par=25
+time ./daisy-eval --filesystems extended --dir eval/data --disk /dev/shm/disk.img --iters 5 extended-bench --benchtime=20s --par=25
 
 time ./daisy-eval --filesystems daisy-nfsd,linux --dir eval/data/nvme --disk /dev/nvme1n1 --iters 10 bench
 time ./daisy-eval --filesystems daisy-nfsd,linux --dir eval/data/nvme --disk /dev/nvme1n1 --iters 3 scale --benchtime=10s --threads 36
