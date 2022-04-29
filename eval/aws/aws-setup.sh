@@ -4,6 +4,18 @@ SSD=/dev/nvme1n1
 
 set -eu
 
+# set up tmux
+cat >~/.tmux.conf <<EOF
+# fix colors
+set-option -g default-terminal "tmux-256color"
+# use ctrl-space as prefix (instead of ctrl-b)
+set-option -g prefix C-Space
+bind-key Space send-prefix
+bind-key C-Space next-window
+bind-key a last-window
+bind-key C-a last-window
+EOF
+
 cd "$GO_NFSD_PATH"
 git pull
 go build ./cmd/go-nfsd
