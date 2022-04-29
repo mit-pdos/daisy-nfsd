@@ -80,7 +80,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 daisy() {
-    ./bench/run-daisy-nfsd.sh -disk "$disk" -size 1000 "$@"
+    "$DAISY_NFSD_PATH"/bench/run-daisy-nfsd.sh -disk "$disk" -size 1000 "$@"
 }
 
 daisy_seq_wal() {
