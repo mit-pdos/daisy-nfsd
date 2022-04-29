@@ -58,11 +58,11 @@ def bench_cmd(records, args):
 
 
 def extended_bench_cmd(records, args):
-    smallfile_thread_counts = []
+    smallfile_thread_counts = set([])
     for r in records:
         if r["bench.name"] == "smallfile":
             threads = r["bench.start"]
-            smallfile_thread_counts.append(threads)
+            smallfile_thread_counts.add(threads)
             r["bench.name"] = f"smallfile-{threads}"
     df = pd.DataFrame.from_records(records)
     benches = [f"smallfile-{t}" for t in sorted(smallfile_thread_counts)] + [
