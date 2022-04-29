@@ -88,9 +88,9 @@ func GetFilesys(conf KeyValue) Fs {
 	conf = conf.Clone()
 	name := conf["name"].(string)
 	label := conf["label"]
-	delete(conf, "label")
 	if label != nil {
-		conf[name] = label.(string)
+		conf["name"] = label
+		delete(conf, "label")
 	}
 	fs := Fs{opts: conf}
 	switch name {

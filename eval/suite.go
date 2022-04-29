@@ -132,6 +132,9 @@ func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 }
 
 func ExtendedFilesystems(disk string) []KeyValue {
+	if disk == ":memory:" {
+		disk = "/dev/shm/disk.img"
+	}
 	daisyKvs := extendAll(KeyValue{"name": "daisy-nfsd"}, []KeyValue{
 		{"label": "daisy-nfsd"},
 		{"label": "daisy-nfsd-seq-wal", "patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/serial.patch")},
