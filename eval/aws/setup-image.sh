@@ -92,7 +92,7 @@ EOF
 
 # Install Dafny
 
-DAFNY_VERSION=3.4.2
+DAFNY_VERSION=3.5.0
 wget -O /tmp/dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip"
 cd
 unzip /tmp/dafny.zip
@@ -118,7 +118,7 @@ sudo systemctl disable nfs-server
 sudo systemctl stop nfs-server
 
 # Make an nfs thread per core
-sudo sed -i "s/RPCNFSDCOUNT=8/RPCNFSDCOUNT=$(nproc)/" /etc/default/nfs-kernel-server
+sudo sed -i "s/RPCNFSDCOUNT=8/RPCNFSDCOUNT=36/" /etc/default/nfs-kernel-server
 
 # Set up Linux file-system tests
 
@@ -180,7 +180,7 @@ pip3 install argparse
 
 # Install Go and Go dependencies
 
-GO_FILE=go1.18.linux-amd64.tar.gz
+GO_FILE=go1.18.1.linux-amd64.tar.gz
 wget https://go.dev/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
