@@ -2,8 +2,11 @@
 
 ## Create image (AMI) with prepped image
 
-Launch an i3.xlarge using Hirsute (hirsute-daily-amd64-server). Make sure to **increase the root volume size
-to 12GB**.
+Launch an i3.xlarge using Impish
+(ubuntu/images-testing/hvm-ssd/ubuntu-impish-daily-amd64-server-20220429). This
+is a daily image, so you may need to use a more recent version (the old ones
+become unavailable over time). Make
+sure to **increase the root volume size to 12GB**.
 
 `wget https://raw.githubusercontent.com/mit-pdos/daisy-nfsd/main/eval/aws/setup-image.sh`
 

@@ -25,11 +25,18 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 )
 
+// Nagle's algorithm. Disabled by default (prioritizing latency over throughput).
+var NO_DELAY bool
+
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 	var cred rfc1057.Opaque_auth
 	cred.Flavor = rfc1057.AUTH_NONE
 
 	pmapc, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", rfc1057.PMAP_PORT))
+	if err != nil {
+		panic(err)
+	}
+	err = pmapc.(*net.TCPConn).SetNoDelay(NO_DELAY)
 	if err != nil {
 		panic(err)
 	}
@@ -110,6 +117,8 @@ func main() {
 	flag.BoolVar(&printBuildInfo, "build-info", false, "log build info")
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 
+	flag.BoolVar(&NO_DELAY, "no-delay", true, "enable Nagle's algorithm")
+
 	flag.Parse()
 
 	if printBuildInfo {
@@ -169,7 +178,7 @@ func main() {
 		}()
 	}
 
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{})
 	if err != nil {
 		panic(err)
 	}
@@ -251,10 +260,14 @@ func main() {
 	}
 
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.AcceptTCP()
 		if err != nil {
 			fmt.Printf("accept: %v\n", err)
 			break
+		}
+		err = conn.SetNoDelay(NO_DELAY)
+		if err != nil {
+			panic(err)
 		}
 
 		go srv.Run(conn)
