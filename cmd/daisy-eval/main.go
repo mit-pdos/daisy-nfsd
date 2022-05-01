@@ -116,7 +116,7 @@ func cliFilesystems(c *cli.Context) []eval.KeyValue {
 		fss = "daisy-nfsd,linux,go-nfsd"
 	}
 	if fss == "extended" {
-		return eval.ExtendedFilesystems(c.String("disk"))
+		fss = "daisy-nfsd,daisy-nfsd-seq-wal,daisy-nfsd-seq-txn,linux,linux-ordered"
 	}
 	if fss == "durability" {
 		return eval.ManyDurabilityFilesystems(c.String("disk"))

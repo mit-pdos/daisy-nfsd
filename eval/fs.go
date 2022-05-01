@@ -85,24 +85,17 @@ func (fs Fs) Run(command []string) []string {
 }
 
 func GetFilesys(conf KeyValue) Fs {
-	conf = conf.Clone()
 	name := conf["name"].(string)
-	label := conf["label"]
-	if label != nil {
-		conf["name"] = label
-		delete(conf, "label")
-	}
 	fs := Fs{opts: conf}
-	switch name {
-	case "linux":
+	if strings.HasPrefix(name, "linux") {
 		fs.scriptPath = path.Join("${GO_NFSD_PATH}", "bench", "run-linux.sh")
-	case "go-nfsd":
+	} else if strings.HasPrefix(name, "go-nfsd") {
 		fs.scriptPath = path.Join("${GO_NFSD_PATH}", "bench", "run-go-nfsd.sh")
-	case "fscq":
+	} else if strings.HasPrefix(name, "fscq") {
 		// check this because it's a dependency
 		_ = getEnvDir("FSCQ_PATH")
 		fs.scriptPath = path.Join(goNfsdPath(), "bench", "run-fscq.sh")
-	case "daisy-nfsd":
+	} else if strings.HasPrefix(name, "daisy-nfsd") {
 		fs.scriptPath = path.Join("${DAISY_NFSD_PATH}",
 			"bench", "run-daisy-nfsd.sh")
 	}

@@ -105,9 +105,19 @@ func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 		config = KeyValue{
 			"disk": nfsdDisk,
 		}
-	case "linux":
+	case "daisy-nfsd-seq-wal":
+		config = KeyValue{
+			"disk":  nfsdDisk,
+			"patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/serial.patch"),
+		}
+	case "daisy-nfsd-seq-txn":
+		config = KeyValue{
+			"disk":  nfsdDisk,
+			"patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/global-txn-lock.patch"),
+		}
+	case "linux", "linux-ordered":
 		opts := "data=journal"
-		if unstable {
+		if unstable || name == "linux-ordered" {
 			opts = "data=ordered"
 		}
 		config = KeyValue{
@@ -126,27 +136,9 @@ func BasicFilesystem(name string, disk string, unstable bool) KeyValue {
 	}
 	config.Extend(KeyValue{
 		"name": name,
-		"size": float64(800),
+		"size": float64(1000),
 	})
 	return config
-}
-
-func ExtendedFilesystems(disk string) []KeyValue {
-	if disk == ":memory:" {
-		disk = "/dev/shm/disk.img"
-	}
-	daisyKvs := extendAll(KeyValue{"name": "daisy-nfsd"}, []KeyValue{
-		{"label": "daisy-nfsd"},
-		{"label": "daisy-nfsd-seq-wal", "patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/serial.patch")},
-		{"label": "daisy-nfsd-seq-txn", "patch": os.ExpandEnv("${GO_NFSD_PATH}/eval/global-txn-lock.patch")},
-	})
-	linuxKvs := extendAll(KeyValue{"name": "linux", "fs": "ext4"}, []KeyValue{
-		{"mount-opts": "data=journal"},
-		{"label": "linux-ordered", "mount-opts": "data=ordered"},
-	})
-	kvs := extendAll(KeyValue{"disk": disk, "size": float64(1000)},
-		append(append([]KeyValue{}, daisyKvs...), linuxKvs...))
-	return kvs
 }
 
 // LinuxDurabilityFilesystems returns many Linux filesystems,
