@@ -132,9 +132,7 @@ def scale_cmd(records, args):
         path.join(args.output, "scale.data"),
         sep="\t",
     )
-    for fs in ["linux", "daisy-nfsd", "go-nfsd", "fscq"]:
-        if fs not in df:
-            continue
+    for fs in df.columns:
         with open(path.join(args.output, f"{fs}.data"), "w") as f:
             print(df[fs].to_csv(sep="\t", header=False), end="", file=f)
 
