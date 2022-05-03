@@ -60,13 +60,13 @@ func TestDirFsLookup(t *testing.T) {
 		nfs_spec.Companion_CreateHow3_.Create_Unchecked_(
 			nfs_spec.Companion_Sattr3_.SetNone(),
 		))
-	r = dirfs.Companion_Default___.HandleResult(r, txn)
+	r = dirfs.Companion_Default___.HandleResult(r, txn, true)
 	require.True(t, r.Is_Ok(), "CreateFile should succeed")
 	ino := r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 
 	txn = fs.Begin()
 	r, _ = fs.LOOKUP(txn, rootIno, stringToBytes("foo"))
-	r = dirfs.Companion_Default___.HandleResult(r, txn)
+	r = dirfs.Companion_Default___.HandleResult(r, txn, true)
 	require.True(t, r.Is_Ok(), "Lookup should succeed")
 	ino2 := r.Dtor_v().(nfs_spec.InoResult).Dtor_ino()
 	assert.Equal(t, ino, ino2, "lookup should return correct result")
