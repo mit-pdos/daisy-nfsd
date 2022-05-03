@@ -4,8 +4,8 @@ go 1.16
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/mit-pdos/go-journal v0.4.4
-	github.com/mit-pdos/go-nfsd v0.6.3
+	github.com/mit-pdos/go-journal v0.5.0
+	github.com/mit-pdos/go-nfsd v0.6.4
 	github.com/pkg/errors v0.9.1
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/stretchr/testify v1.7.0

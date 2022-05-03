@@ -34,7 +34,8 @@ module DirFs
   type FsData = map<Ino, seq<byte>>
   type FsAttrs = map<Ino, Inode.Attrs>
 
-  method HandleResult<T>(r: Result<T>, txn: Txn) returns (r':Result<T>)
+  method HandleResult<T>(r: Result<T>, txn: Txn, wait: bool) returns (r':Result<T>)
+    requires wait
     requires txn.Valid()
     ensures r.Err? ==> r'.Err?
   {
@@ -42,7 +43,7 @@ module DirFs
       txn.Abort();
       return r;
     }
-    var ok := txn.Commit();
+    var ok := txn.Commit(wait);
     if !ok {
       print "failed to commit\n";
       return Err(ServerFault);
@@ -384,7 +385,7 @@ module DirFs
         return;
       }
       fs_.reveal_valids();
-      ok := txn.Commit();
+      ok := txn.Commit(true);
       if !ok {
         fs := None;
         return;

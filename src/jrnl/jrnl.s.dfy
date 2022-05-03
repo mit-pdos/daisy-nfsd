@@ -301,7 +301,10 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
             jrnl.data := jrnl.data[a:=ObjBit(b)];
         }
 
-        method {:extern} Commit() returns (ok:bool)
+        // wait=false is not modeled; it is up to the code to use this only when
+        // deferred durability is acceptable
+        method {:extern} Commit(wait: bool) returns (ok:bool)
+        requires wait
         requires Valid() ensures Valid()
         {
             ok := true;

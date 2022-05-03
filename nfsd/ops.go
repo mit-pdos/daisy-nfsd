@@ -153,7 +153,7 @@ func parseResult(r Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64
 func (nfs *Nfs) runTxn(f func(txn Txn) Result) (v interface{}, status nfstypes.Nfsstat3, hint uint64) {
 	txn := nfs.filesys.Begin()
 	r := f(txn)
-	r = dirfs.Companion_Default___.HandleResult(r, txn)
+	r = dirfs.Companion_Default___.HandleResult(r, txn, true)
 	v, status, hint = parseResult(r)
 	return
 }
@@ -502,7 +502,7 @@ func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Seq) Result) (v interfa
 	for {
 		txn := nfs.filesys.Begin()
 		r := f(txn, locks)
-		r = dirfs.Companion_Default___.HandleResult(r, txn)
+		r = dirfs.Companion_Default___.HandleResult(r, txn, true)
 		v, status, _ = parseResult(r)
 		if r.Is_Err() && r.Dtor_err().Is_LockOrderViolated() {
 			util.DPrintf(3, "Rename violated lock order, restarting")

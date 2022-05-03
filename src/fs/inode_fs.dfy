@@ -199,7 +199,7 @@ module InodeFs {
       var txn := jrnl.Begin();
       super_block_inbounds(jrnl);
       txn.Write(SuperBlkAddr, sb_bs);
-      var _ := txn.Commit();
+      var _ := txn.Commit(true);
       var balloc := NewAllocator(actual_max);
       this.balloc := balloc;
       this.ballocActualMax := actual_max;
@@ -261,7 +261,7 @@ module InodeFs {
         }
         bn := bn + 1;
       }
-      var ok := txn.Commit();
+      var ok := txn.Commit(true);
       expect ok, "recovery transaction failed";
 
       this.jrnl := jrnl_;
@@ -668,7 +668,7 @@ module InodeFs {
       var txn := jrnl.Begin();
       var i := getInode(txn, ino);
       sz := i.sz;
-      var _ := txn.Commit();
+      var _ := txn.Commit(true);
     }
 
     method TotalBytes() returns (sz: uint64)

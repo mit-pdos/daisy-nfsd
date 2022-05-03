@@ -162,7 +162,7 @@ module TypedFs {
         }
         ino := ino + 1;
       }
-      var ok := txn.Commit();
+      var ok := txn.Commit(true);
       expect ok, "recovery transaction failed";
 
       this.ialloc := ialloc;

@@ -121,7 +121,7 @@ class Bank
             txn.Write(acct, init_acct);
             n := n + 1;
         }
-        var _ := txn.Commit();
+        var _ := txn.Commit(true);
 
         this.jrnl := jrnl;
 
@@ -183,7 +183,7 @@ class Bank
         x' := encode_acct(acct2_val+1);
         txn.Write(Acct(acct2), x');
         inc_acct(acct2, 1);
-        var _ := txn.Commit();
+        var _ := txn.Commit(true);
     }
 
     method Get(acct: uint64)
@@ -196,7 +196,7 @@ class Bank
         var x := txn.Read(Acct(acct), 64);
         bal := decode_acct(x, accts[acct]);
         // need to commit or abort (even of read-only)
-        var _ := txn.Commit();
+        var _ := txn.Commit(true);
     }
 
     // this is kind of silly but it gets the point across (without requiring the

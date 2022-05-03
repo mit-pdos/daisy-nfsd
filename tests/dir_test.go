@@ -49,7 +49,7 @@ func createRootFile(fs *dirfs.DirFilesys, name string) uint64 {
 	if !r.Is_Ok() {
 		panic(fmt.Errorf("create failed with %v", r.Dtor_err()))
 	}
-	txn.Commit()
+	txn.Commit(true)
 	return r.Dtor_v().(nfs_spec.CreateResult).Dtor_ino()
 }
 
@@ -138,5 +138,5 @@ func TestRenameLockOrder(t *testing.T) {
 	if r.Is_Err() {
 		require.Fail(t, "rename with correct lock hints errored: %v", r.Dtor_err().Nfs3__code())
 	}
-	txn.Commit()
+	txn.Commit(true)
 }

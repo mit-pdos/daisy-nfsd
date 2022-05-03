@@ -60,8 +60,8 @@ func (txn *Txn) WriteBit(a Addr, b bool) {
 	txn.txn.OverWriteBit(a_, b)
 }
 
-func (txn *Txn) Commit() bool {
-	ok := txn.txn.Commit()
+func (txn *Txn) Commit(wait bool) bool {
+	ok := txn.txn.Commit(wait)
 	return ok
 }
 

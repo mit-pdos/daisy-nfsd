@@ -37,7 +37,7 @@ func TestReadWriteTxn(t *testing.T) {
 		txn := jrnl.Begin()
 		bs := &bytes.Bytes{Data: data}
 		txn.Write(a0, bs)
-		txn.Commit()
+		txn.Commit(true)
 	}
 
 	// copy it
@@ -45,7 +45,7 @@ func TestReadWriteTxn(t *testing.T) {
 		txn := jrnl.Begin()
 		bs := txn.Read(a0, uint64(len(data))*8)
 		txn.Write(a1, bs)
-		txn.Commit()
+		txn.Commit(true)
 	}
 
 	// read from new location
@@ -53,7 +53,7 @@ func TestReadWriteTxn(t *testing.T) {
 		txn := jrnl.Begin()
 		bs := txn.Read(a1, uint64(len(data))*8)
 		assert.Equal(data, bs.Data)
-		txn.Commit()
+		txn.Commit(true)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestReadWriteBits(t *testing.T) {
 			a = mkAddr(514, off)
 			txn.WriteBit(a, correctBit(a))
 		}
-		txn.Commit()
+		txn.Commit(true)
 	}
 
 	{
@@ -95,7 +95,7 @@ func TestReadWriteBits(t *testing.T) {
 			a = mkAddr(514, off)
 			assert.Equal(correctBit(a), txn.ReadBit(a), "addr %v is incorrect", a)
 		}
-		txn.Commit()
+		txn.Commit(true)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestReadModify(t *testing.T) {
 		txn := jrnl.Begin()
 		buf := txn.Read(a0, 4096*8)
 		buf.Data[0] = 1
-		txn.Commit()
+		txn.Commit(true)
 	}
 
 	{
@@ -137,7 +137,7 @@ func TestAbortTxn(t *testing.T) {
 		txn := jrnl.Begin()
 		// after abort this shouldn't deadlock
 		_ = txn.Read(a0, 4096*8)
-		ok := txn.Commit()
+		ok := txn.Commit(true)
 		assert.True(t, ok, "read-only transaction should succeed")
 	}
 }
@@ -154,6 +154,6 @@ func TestWriteBufferTxn(t *testing.T) {
 		txn.Write(a0, bs)
 		assert.Empty(t, bs.Data,
 			"Write should empty input buffer so txn can own it")
-		txn.Commit()
+		txn.Commit(true)
 	}
 }
