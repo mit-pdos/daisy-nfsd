@@ -15,8 +15,9 @@ type Nfs struct {
 	filesys *dirfs.DirFilesys
 
 	// read-only
-	uid uint32
-	gid uint32
+	uid         uint32
+	gid         uint32
+	asyncWrites bool
 
 	// stats
 	//
@@ -86,4 +87,8 @@ func RecoverNfs(d disk.Disk) *Nfs {
 	}
 
 	return nfs
+}
+
+func (nfs *Nfs) SetAsync(asyncWrites bool) {
+	nfs.asyncWrites = asyncWrites
 }

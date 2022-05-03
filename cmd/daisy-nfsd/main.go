@@ -113,6 +113,9 @@ func main() {
 	var dumpStats bool
 	flag.BoolVar(&dumpStats, "stats", false, "dump stats to stderr on exit")
 
+	var asyncWrites bool
+	flag.BoolVar(&asyncWrites, "async", false, "enable uncommitted writes (unverified)")
+
 	var printBuildInfo bool
 	flag.BoolVar(&printBuildInfo, "build-info", false, "log build info")
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
@@ -226,6 +229,7 @@ func main() {
 	if nfs == nil {
 		panic("could not initialize nfs")
 	}
+	nfs.SetAsync(asyncWrites)
 
 	srv := rfc1057.MakeServer()
 	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))

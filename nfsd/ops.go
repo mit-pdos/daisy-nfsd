@@ -331,9 +331,27 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 	// need to give ownership to Dafny (and eventually to GoTxn)
 	bs := bytes.NewBytes(cnt)
 	copy(bs.Data, args.Data)
-	r, status, hint := nfs.runTxn(func(txn Txn) Result {
-		return nfs.filesys.WRITE(txn, inum, off, bs)
-	})
+
+	// (v interface{}, status nfstypes.Nfsstat3, hint uint64
+
+	var (
+		r      interface{}
+		status nfstypes.Nfsstat3
+		hint   uint64
+	)
+	unstable := args.Stable == nfstypes.UNSTABLE && nfs.asyncWrites
+	if unstable {
+		txn := nfs.filesys.Begin()
+		res := nfs.filesys.WRITE(txn, inum, off, bs)
+		// NOTE: pass wait=false, which is unverified
+		res = dirfs.Companion_Default___.HandleResult(res, txn, false)
+		r, status, hint = parseResult(res)
+	} else {
+		r, status, hint = nfs.runTxn(func(txn Txn) Result {
+			return nfs.filesys.WRITE(txn, inum, off, bs)
+		})
+	}
+
 	if status == nfstypes.NFS3ERR_JUKEBOX {
 		go nfs.ZeroFreeSpace(inum, hint)
 	}
@@ -345,7 +363,11 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) (reply nfstypes.WRITE3r
 
 	attrs := r.(nfs_spec.Fattr3)
 	reply.Resok.Count = nfstypes.Count3(cnt)
-	reply.Resok.Committed = nfstypes.FILE_SYNC
+	if unstable {
+		reply.Resok.Committed = nfstypes.UNSTABLE
+	} else {
+		reply.Resok.Committed = nfstypes.FILE_SYNC
+	}
 	reply.Resok.File_wcc.After.Attributes_follow = true
 	decodeFattr3(attrs, inum, &reply.Resok.File_wcc.After.Attributes)
 	return reply
