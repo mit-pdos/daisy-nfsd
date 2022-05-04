@@ -16,6 +16,12 @@ bind-key a last-window
 bind-key C-a last-window
 EOF
 
+cd "$GO_JOURNAL_PATH"
+git pull
+
+cd "$PERENNIAL_PATH"
+git pull
+
 cd "$GO_NFSD_PATH"
 git pull
 go build ./cmd/go-nfsd
