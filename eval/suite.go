@@ -41,17 +41,17 @@ func (bs *BenchmarkSuite) Workloads() []Workload {
 			benches = append(benches, b)
 		}
 	}
-	if bs.Randomize {
-		rand.Shuffle(len(benches), func(i int, j int) {
-			benches[i], benches[j] = benches[j], benches[i]
-		})
-	}
 	var ws []Workload
 	for _, fsOpts := range bs.Filesystems {
 		fs := GetFilesys(fsOpts)
 		for _, b := range benches {
 			ws = append(ws, Workload{fs, b})
 		}
+	}
+	if bs.Randomize {
+		rand.Shuffle(len(ws), func(i int, j int) {
+			ws[i], ws[j] = ws[j], ws[i]
+		})
 	}
 	return ws
 }
