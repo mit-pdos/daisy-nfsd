@@ -675,6 +675,10 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	var reply nfstypes.COMMIT3res
 
+	if nfs.asyncWrites {
+		nfs.filesys.Fs().Fs().Fs().Fs().Jrnl().Flush()
+	}
+
 	reply.Status = nfstypes.NFS3_OK
 	return reply
 }

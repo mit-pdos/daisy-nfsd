@@ -32,12 +32,9 @@ github.com/mattn/go-isatty v0.0.14/go.mod h1:7GGIvUiUoEMVVmxf/4nioHXj79iQHKdU27k
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
 github.com/mattn/go-runewidth v0.0.13 h1:lTGmDsbAYt5DmK6OnoV7EuIF1wEIFAcxld6ypU4OSgU=
 github.com/mattn/go-runewidth v0.0.13/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
-github.com/mit-pdos/go-journal v0.4.4 h1:jNQnjKU7oT87FkZ2rVP0ZXNkm25nGJtD/jyiKtoADU4=
-github.com/mit-pdos/go-journal v0.4.4/go.mod h1:RkZFb2508uICvKqf4iqH5UHtFXRx2w1kV88oTBkmG9Q=
-github.com/mit-pdos/go-journal v0.5.0 h1:FULjF9IKmpoTGFMCIO1SRjVe5pSrq7dMMkjGX0mJyqI=
 github.com/mit-pdos/go-journal v0.5.0/go.mod h1:RkZFb2508uICvKqf4iqH5UHtFXRx2w1kV88oTBkmG9Q=
-github.com/mit-pdos/go-nfsd v0.6.3 h1:LBfyD4x/AxqW8R0xrXVqHDefMv6o9J6AI3G2XfyFDOw=
-github.com/mit-pdos/go-nfsd v0.6.3/go.mod h1:jSFQLaMOq2WOQ7r3cs7kJWcRIxMpO26panAAQGSR8AQ=
+github.com/mit-pdos/go-journal v0.5.2 h1:svTS021037KstYvWAETvK2A3YkHZBaQ4+VxvFZIrl3M=
+github.com/mit-pdos/go-journal v0.5.2/go.mod h1:RkZFb2508uICvKqf4iqH5UHtFXRx2w1kV88oTBkmG9Q=
 github.com/mit-pdos/go-nfsd v0.6.4 h1:ktjjVFMvLl4W8VO/qOCbgdh9QegY0//c+NhxcFmVbtA=
 github.com/mit-pdos/go-nfsd v0.6.4/go.mod h1:XSnkmNyJPZYHNPGJNxXSaC5zjW+Yqw/tHLUgYN7p46I=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2EmQ4l5rM/4FEfDWcRD+abF5XlKShorW5LRoQ=

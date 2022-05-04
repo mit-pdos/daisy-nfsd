@@ -38,6 +38,10 @@ func (jrnl *Jrnl) Begin() *Txn {
 	return &Txn{txn: txn.Begin(jrnl.log)}
 }
 
+func (jrnl *Jrnl) Flush() {
+	jrnl.log.Flush()
+}
+
 func (txn *Txn) Read(a Addr, sz uint64) *bytes.Bytes {
 	a_ := dafnyAddrToAddr(a)
 	buf := txn.txn.ReadBuf(a_, sz)
