@@ -17,7 +17,7 @@ func RootFh() nfstypes.Nfs_fh3 {
 
 func newNfs() *nfsd.Nfs {
 	d := disk.NewMemDisk(10_000)
-	return nfsd.MakeNfs(d)
+	return nfsd.MakeNfs(d, false)
 }
 
 // regression test for bug reported by rtm

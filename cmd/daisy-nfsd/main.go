@@ -107,6 +107,9 @@ func main() {
 	var filesizeMegabytes uint64
 	flag.Uint64Var(&filesizeMegabytes, "size", 400, "size of file system (in MB)")
 
+	var force bool
+	flag.BoolVar(&force, "force", false, "force initialization even if file system seems already initialized")
+
 	var recover bool
 	flag.BoolVar(&recover, "recover", false, "run recovery (rather than initialization)")
 
@@ -224,7 +227,7 @@ func main() {
 		dur := time.Since(start).Truncate(10 * time.Millisecond)
 		util.DPrintf(1, "recovered daisy-nfsd from disk in %v", dur)
 	} else {
-		nfs = nfsd.MakeNfs(d)
+		nfs = nfsd.MakeNfs(d, force)
 	}
 	if nfs == nil {
 		panic("could not initialize nfs")

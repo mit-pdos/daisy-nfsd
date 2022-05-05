@@ -128,6 +128,16 @@ module FsKinds {
       IntEncoding.UInt64Put(actual_blocks as uint64, 24, b);
     }
 
+    static method correctMagic(b: Bytes) returns (ok: bool)
+      requires |b.data| == 4096
+      ensures ok == (b.data[0..8] == IntEncoding.le_enc64(magic))
+    {
+      var magic' := IntEncoding.UInt64Get(b, 0);
+      IntEncoding.lemma_le_enc_dec64(magic);
+      IntEncoding.lemma_le_dec_enc64(b.data[0..8]);
+      return magic == magic';
+    }
+
     static method decode(b: Bytes, ghost sb0: SuperBlock) returns (sb: SuperBlock)
       requires sb0.Valid()
       requires b.data == sb0.enc()
