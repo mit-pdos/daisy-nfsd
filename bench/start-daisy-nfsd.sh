@@ -16,11 +16,17 @@ disk_path=/dev/shm/nfs.img
 nfs_mount_opts=""
 nfs_mount_path="/mnt/nfs"
 extra_args=()
+size_mb=400
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
     -disk)
         shift
         disk_path="$1"
+        shift
+        ;;
+    -size)
+        shift
+        size_mb="$1"
         shift
         ;;
     -nfs-mount-opts)
@@ -47,7 +53,8 @@ done
 
 make --quiet compile
 go build ./cmd/daisy-nfsd
-./daisy-nfsd -debug=0 -disk "$disk_path" "${extra_args[@]}" 1>nfs.out 2>&1 &
+dd if=/dev/zero of="$disk_path" bs=4k count=$((size_mb / 4000))
+./daisy-nfsd -debug=0 -disk "$disk_path" -size "$size_mb" "${extra_args[@]}" 1>nfs.out 2>&1 &
 sleep 2
 killall -0 daisy-nfsd       # make sure server is running
 killall -SIGUSR1 daisy-nfsd # reset stats after recovery
