@@ -7,7 +7,6 @@ sudo launchctl start com.apple.rpcbind
 sudo launchctl start com.apple.lockd
 
 sleep 2
-
 sudo launchctl list | grep rpcbind
 
 mkdir /tmp/nfs

@@ -56,7 +56,10 @@ go build ./cmd/daisy-nfsd
 if [ -e "$disk_path" ]; then
     dd if=/dev/zero of="$disk_path" bs=4k count=$((size_mb * 1024 / 4)) 1>/dev/null 2>&1
 fi
-./daisy-nfsd -debug=0 -disk "$disk_path" -size "$size_mb" "${extra_args[@]}" 1>nfs.out 2>&1 &
+# ${a[@]+"${a[@]}"} checks if a is set and if so, expands to it as an array
+# "${a[@]}" should be sufficient but this idiom is compatible with bash 3 which macOS ships with
+# see https://stackoverflow.com/questions/7577052/bash-empty-array-expansion-with-set-u
+./daisy-nfsd -debug=0 -disk "$disk_path" -size "$size_mb" ${extra_args[@]+"${extra_args[@]}"} 1>nfs.out 2>&1 &
 sleep 2
 killall -0 daisy-nfsd       # make sure server is running
 killall -SIGUSR1 daisy-nfsd # reset stats after recovery
