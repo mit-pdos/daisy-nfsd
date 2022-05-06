@@ -71,7 +71,6 @@ export DAISY_NFSD_PATH=$HOME/daisy-nfsd
 export GO_NFSD_PATH=$HOME/code/go-nfsd
 export GO_JRNL_PATH=$HOME/code/go-journal
 export GO_JOURNAL_PATH=$HOME/code/go-journal
-export PERENNIAL_PATH=$HOME/perennial
 export XV6_PATH=$HOME/code/xv6-public
 export FSCQ_PATH=$HOME/fscq
 export LTP_PATH=$HOME/code/ltp

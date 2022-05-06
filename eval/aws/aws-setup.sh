@@ -19,9 +19,6 @@ EOF
 cd "$GO_JOURNAL_PATH"
 git pull
 
-cd "$PERENNIAL_PATH"
-git pull
-
 cd "$GO_NFSD_PATH"
 git pull
 go build ./cmd/go-nfsd
