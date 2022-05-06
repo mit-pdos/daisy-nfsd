@@ -49,7 +49,7 @@ sudo apt-get install -y git python3-pip wget unzip
 
 # AWS dependencies
 sudo apt-get install -y linux-tools-common linux-tools-aws "linux-tools-$(uname -r)" stress
-sudo apt-get install -y cpufrequtils
+sudo apt-get install -y cpufrequtils sysstat dstat
 
 # Get source code
 

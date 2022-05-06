@@ -31,6 +31,8 @@ make compile
 go build ./cmd/daisy-nfsd
 go build ./cmd/daisy-eval
 
+sudo apt install -y sysstat dstat
+
 # need to warmup, otherwise compilation is slow the first time
 ./bench/run-daisy-nfsd.sh "$GO_NFSD_PATH"/bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
