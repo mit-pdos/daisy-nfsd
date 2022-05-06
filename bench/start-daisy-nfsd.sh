@@ -53,7 +53,7 @@ done
 
 make --quiet compile
 go build ./cmd/daisy-nfsd
-dd if=/dev/zero of="$disk_path" bs=4k count=$((size_mb / 4000))
+dd status=none if=/dev/zero of="$disk_path" bs=4k count=$((size_mb * 1024 / 4))
 ./daisy-nfsd -debug=0 -disk "$disk_path" -size "$size_mb" "${extra_args[@]}" 1>nfs.out 2>&1 &
 sleep 2
 killall -0 daisy-nfsd       # make sure server is running
