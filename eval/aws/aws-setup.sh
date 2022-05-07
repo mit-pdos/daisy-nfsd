@@ -59,8 +59,16 @@ cpufreq-info | tee data/cpufreq-info.txt
 # disable turbo boost
 sudo sh -c "echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo"
 
-sudo sed -i "s/RPCNFSDCOUNT=[0-9]*/RPCNFSDCOUNT=$RPC_NFSD_COUNT/" /etc/default/nfs-kernel-server
-grep RPCNFSDCOUNT /etc/default/nfs-kernel-server
+# On Ubuntu Jammy (22.04), configuration goes through /etc/nfs.conf which we can
+# use nfsconf to edit.
+# See https://ubuntu.com/server/docs/service-nfs
+if command -v nfsconf &>/dev/null; then
+    sudo nfsconf --set nfsd threads "$RPC_NFSD_COUNT"
+else
+    # on older versions modify /etc/default/nfs-kernel-server
+    sudo sed -i "s/RPCNFSDCOUNT=[0-9]*/RPCNFSDCOUNT=$RPC_NFSD_COUNT/" /etc/default/nfs-kernel-server
+    grep RPCNFSDCOUNT /etc/default/nfs-kernel-server
+fi
 
 sudo turbostat stress -c 2 -t 10 2>&1 | tee data/cpuinfo.txt
 
