@@ -45,7 +45,7 @@ set DEBIAN_FRONTEND=noninteractive
 
 sudo apt-get update
 sudo apt-get upgrade -y
-sudo apt-get install -y git python3-pip wget unzip
+sudo apt-get install -y git python3-pip wget unzip apt-utils
 
 # AWS dependencies
 sudo apt-get install -y linux-tools-common linux-tools-aws "linux-tools-$(uname -r)" stress
@@ -54,7 +54,7 @@ sudo apt-get install -y cpufrequtils sysstat dstat
 # Get source code
 
 git clone https://github.com/mit-pdos/daisy-nfsd
-ln -s ~/daisy-nfsd/eval ~/artifact
+ln -s ~/daisy-nfsd/eval/aws/aws-setup.sh ~/aws-setup.sh
 
 mkdir ~/code
 cd ~/code
@@ -217,6 +217,7 @@ sudo apt-get install fd-find
 HYPERFINE_VERSION=1.13.0
 wget https://github.com/sharkdp/hyperfine/releases/download/v${HYPERFINE_VERSION}/hyperfine_${HYPERFINE_VERSION}_amd64.deb
 sudo dpkg -i hyperfine_${HYPERFINE_VERSION}_amd64.deb
+rm hyperfine_${HYPERFINE_VERSION}_amd64.deb
 
 #cd ~/code
 #git clone https://github.com/torvalds/linux.git
@@ -228,3 +229,6 @@ sudo apt-get clean
 # disable idling c-states
 sudo sed -E -i '/GRUB_CMDLINE_LINUX/s/"(.*)"/"\1 intel_idle.max_cstate=1 processor.max_cstate=1"/' /etc/default/grub
 sudo update-grub
+
+# dependencies for ubuntu minimal image
+sudo apt-get install -y vim tmux psmisc time
