@@ -231,4 +231,4 @@ sudo sed -E -i '/GRUB_CMDLINE_LINUX/s/"(.*)"/"\1 intel_idle.max_cstate=1 process
 sudo update-grub
 
 # dependencies for ubuntu minimal image
-sudo apt-get install -y vim tmux psmisc time
+sudo apt-get install -y vim tmux psmisc time rsync
