@@ -43,3 +43,22 @@ blktrace >blktrace-linux.out &
 smallfile
 wait
 stop_linux
+
+# some notes on analyzing the results:
+#
+# the units for offset and size appear to be in 512-byte sectors (based on
+# seeing a lot of writes to 0 + 8 and 8 + 8 in daisy-nfsd).
+#
+# total number of sectors written:
+# cat blktrace-daisy.out | grep 'D  W' | grep -o '\+ [0-9]*' | awk '{sum=sum+$2} END{print sum}'
+#
+# divide by 8*10000 for per-iteration writes in units of 4KB blocks
+#
+# total number of write I/Os:
+# cat blktrace-daisy.out | grep -c 'D  W'
+#
+# distribution of request sizes (after merging):
+# cat blktrace-daisy.out | grep 'D  W' | grep -o '\+ [0-9]*' | sort | uniq -c | sort -n
+#
+# distribution of addresses written:
+# cat blktrace-daisy.out | grep -o 'D  WS [0-9]*' | cut -d' ' -f4 | sort | uniq -c | sort -n
