@@ -2,10 +2,8 @@
 
 set -eu
 
-time=1
-if [ $# -gt 0 ]; then
-    time="$1"
-fi
+time=10
+iters=10000
 
 start_daisy() {
     "$DAISY_NFSD_PATH"/bench/start-daisy-nfsd.sh -disk /dev/nvme1n1
@@ -31,7 +29,7 @@ blktrace() {
 }
 
 smallfile() {
-    $GO_NFSD_PATH/fs-smallfile -benchtime="${time}s"
+    $GO_NFSD_PATH/fs-smallfile -iters="$iters"
 }
 
 start_daisy

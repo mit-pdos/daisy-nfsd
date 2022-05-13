@@ -31,7 +31,7 @@ make compile
 go build ./cmd/daisy-nfsd
 go build ./cmd/daisy-eval
 
-sudo apt-get install -y sysstat dstat
+sudo apt-get install -y sysstat dstat blktrace
 sudo apt-get install -y vim tmux psmisc time rsync
 
 # need to warmup, otherwise compilation is slow the first time
