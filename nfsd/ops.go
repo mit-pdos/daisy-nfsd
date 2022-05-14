@@ -568,6 +568,8 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.REA
 	defer nfs.reportOp(nfstypes.NFSPROC3_READDIR, time.Now())
 
 	inum := fh2ino(args.Dir)
+	// NOTE: we ignore args.Count, which gives the maximum allowed size of the
+	// returned struct (in bytes, including XDR overhead...)
 
 	r, status, _ := nfs.runTxn(func(txn Txn) Result {
 		return nfs.filesys.READDIR(txn, inum)
