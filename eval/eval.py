@@ -47,7 +47,15 @@ def bench_cmd(records, args):
     if args.debug:
         print(df)
         return
-    columns = ["linux", "daisy-nfsd", "go-nfsd", "fscq"]
+    columns = [
+        "linux",
+        "linux-ordered",
+        "daisy-nfsd",
+        "daisy-nfsd-seq-wal",
+        "daisy-nfsd-seq-txn",
+        "go-nfsd",
+        "fscq",
+    ]
     # filter to the columns that actually show up in the data
     columns = [x for x in columns if x in df.columns]
     df.to_csv(
