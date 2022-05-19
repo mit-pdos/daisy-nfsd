@@ -24,8 +24,8 @@ time ./daisy-eval --filesystems "$scale_fss" --dir eval/data/nvme --disk "$nvme"
 time ./daisy-eval --filesystems daisy-nfsd,linux --dir eval/data --disk "$mem" --iters 1 scale --benchtime=30s --threads 36
 
 # for paper
-time ./daisy-eval --filesystems "$paper_fss" --dir eval/data/nvme --disk "$nvme" --iters 10 bench --benchtime=20s
-time ./daisy-eval --filesystems daisy-nfsd,linux --dir eval/data/nvme --disk "$nvme" --iters 1 scale --benchtime=30s --threads 36
+time ./daisy-eval --filesystems "$paper_fss" --dir eval/data/nvme --disk "$nvme" --iters 10 extended-bench --benchtime=20s --par=36
+time ./daisy-eval --filesystems daisy-nfsd,daisy-nfsd-seq-txn,linux --dir eval/data/nvme --disk "$nvme" --iters 1 scale --benchtime=30s --threads 36
 
 # some other things to try
 #time ./daisy-eval --filesystems durability --dir eval/data/nvme --disk "$nvme" --iters 10 --wait 3s largefile
