@@ -10,8 +10,8 @@ on:
 
 # settings shared across all jobs
 env:
-  dafny: "3.9.1"
-  go: "1.19.x"
+  dafny: "3.11.0"
+  go: "^1.20.0"
 
 jobs:
   verify:
@@ -22,17 +22,17 @@ jobs:
         uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Verify
         run: make -j2 verify
   test-support:
     name: Test dafny_go
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.go }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Test support library
         run: |
           go test -v -timeout=1m ./dafny_go/... ./eval
@@ -45,10 +45,10 @@ jobs:
         uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.go }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install goimports
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
@@ -78,10 +78,10 @@ jobs:
         uses: dafny-lang/setup-dafny-action@v1
         with:
           dafny-version: ${{ env.dafny }}
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.go }}
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install goimports
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
