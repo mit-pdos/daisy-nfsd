@@ -160,6 +160,8 @@ module Inode {
       IntEncoding.UInt32Put(uid, off + 4 + 4, bs);
       IntEncoding.UInt32Put(gid, off + 4 + 4 + 4, bs);
       mtime.put(off + 4 + 4 + 8, bs);
+      assert bs.data[off as nat..off as nat+|enc()|] == enc();
+      assert bs.data[..off as nat] == old(bs.data[..off as nat]);
     }
   }
 

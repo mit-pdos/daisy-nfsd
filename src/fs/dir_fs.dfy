@@ -1032,6 +1032,7 @@ module DirFs
     {
       if attrs.size.Some? {
         r := Err(IsDir);
+        attrs' := Inode.Attrs.zero;
         return;
       }
       var sz: uint64 := attrs.size.get_default(i.sz);
@@ -1084,6 +1085,7 @@ module DirFs
       && (old(is_dir(ino)) ==> (var d0 := old(data[ino]);
         data == old(data[ino := DirFile(d0.dir, attrs')])))
     {
+      attrs' := Inode.Attrs.zero;
       var ino :- checkInoBounds(ino);
       if attrs.size.Some? && attrs.size.x > Inode.MAX_SZ_u64 {
         r := Err(FBig);
@@ -1188,7 +1190,7 @@ module DirFs
       requires data == old(data[ino := ByteFile(d', data[ino].attrs)])
       ensures Valid()
     {
-      assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
+      assert this.is_of_type(ino, old(fs.types)[ino].ty) by {
         reveal is_of_type();
       }
       assert old(Valid_file_at(ino, fs.data, fs.types)) by {
@@ -1214,7 +1216,7 @@ module DirFs
       requires data == old(data[ino := ByteFile(d', attrs')])
       ensures Valid()
     {
-      assert old(this).is_of_type(ino, old(fs.types)[ino].ty) by {
+      assert this.is_of_type(ino, old(fs.types)[ino].ty) by {
         reveal is_of_type();
       }
       assert old(Valid_file_at(ino, fs.data, fs.types)) by {
@@ -1467,9 +1469,9 @@ module DirFs
       requires fs.has_jrnl(txn)
       requires name.Valid()
       ensures r.ErrBadHandle? ==> d_ino !in data
-      ensures r.ErrNoent? ==> ino_ok(d_ino) && is_dir(d_ino) &&
-      (name.data !in data[d_ino].dir
-      || (name.data in data[d_ino].dir && data[d_ino].dir[name.data] !in data))
+      ensures r.ErrNoent? ==> (ino_ok(d_ino) && is_dir(d_ino) &&
+        (name.data !in data[d_ino].dir
+        || (name.data in data[d_ino].dir && data[d_ino].dir[name.data] !in data)))
       ensures r.Err? && dattr3.Some? ==>
               old(d_ino in data) && is_file_attrs(old(data[d_ino]), dattr3.x)
       ensures r.Ok? ==>
@@ -1949,6 +1951,7 @@ module DirFs
          && data == old(data)
          )
     {
+      removed := None;
       var dents :- readDirents(txn, d_ino);
       assert name != dents.file.bs by {
         assert dents.file.bs in dents.Repr();

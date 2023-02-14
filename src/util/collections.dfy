@@ -257,8 +257,11 @@ lemma concat_homogeneous_spec_alt<T>(ls: seq<seq<T>>, len: nat)
         && 0 <= x/len < |ls|
         && concat(ls)[x] == ls[x / len][x % len]
 {
+
     concat_homogeneous_len(ls, len);
     forall x: nat | x < len * |ls|
+        ensures 0 <= x / len < |ls|
+        ensures x % len < len
         ensures concat_spec(ls, x / len, x % len, len)
         ensures 0 <= x/len < |ls|
         ensures concat(ls)[x] == ls[x / len][x % len]
