@@ -6,13 +6,13 @@ module Round {
   import opened Machine
   import opened Arith
 
-  function div_roundup(x: nat, k: nat): nat
+  ghost function div_roundup(x: nat, k: nat): nat
     requires k >= 1
   {
     (x + (k-1)) / k
   }
 
-  function method div_roundup_alt(x: nat, k: nat): nat
+  function div_roundup_alt(x: nat, k: nat): nat
     requires k >= 1
   {
     if x % k == 0 then x/k else x/k + 1
@@ -85,7 +85,7 @@ module Round {
     div_roundup_spec(x, k);
   }
 
-  function method div_roundup64(x: uint64, k: uint64): (r:uint64)
+  function div_roundup64(x: uint64, k: uint64): (r:uint64)
     requires k >= 1
     requires x as nat < 0x1_0000_0000_0000_0000-k as nat
     ensures div_roundup_alt(x as nat, k as nat) == r as nat
@@ -94,13 +94,13 @@ module Round {
     (x + (k-1)) / k
   }
 
-  function roundup(x: nat, k: nat): (r:nat)
+  ghost function roundup(x: nat, k: nat): (r:nat)
     requires k >= 1
   {
     if x % k == 0 then x else x/k*k + k
   }
 
-  function method roundup64(x: uint64, k: uint64): (r:uint64)
+  function roundup64(x: uint64, k: uint64): (r:uint64)
     requires k >= 1
     requires x as nat < 0x1_0000_0000_0000_0000-k as nat
     ensures roundup(x as nat, k as nat) == r as nat

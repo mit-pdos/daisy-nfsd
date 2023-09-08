@@ -92,16 +92,16 @@ module DirFs
 
     ghost const Repr: set<object> := {this} + fs.Repr
 
-    predicate is_invalid(ino: Ino) reads this
+    ghost predicate is_invalid(ino: Ino) reads this
     { ino !in data && ino !in dirents }
 
-    predicate is_file(ino: Ino) reads this
+    ghost predicate is_file(ino: Ino) reads this
     { ino in data && ino !in dirents && data[ino].ByteFile? }
 
-    predicate is_dir(ino: Ino) reads this
+    ghost predicate is_dir(ino: Ino) reads this
     { ino in data && ino in dirents && data[ino].DirFile? }
 
-    predicate {:opaque} is_of_type(ino: Ino, t: Inode.InodeType)
+    ghost predicate {:opaque} is_of_type(ino: Ino, t: Inode.InodeType)
       reads this
     {
       && (t.InvalidType? ==> is_invalid(ino))
@@ -136,7 +136,7 @@ module DirFs
       reveal is_of_type();
     }
 
-    predicate ValidTypes()
+    ghost predicate ValidTypes()
       reads this, fs
       requires fs.ValidDomains()
     {
@@ -184,42 +184,42 @@ module DirFs
       else if t == Inode.DirType {}
     }
 
-    predicate {:opaque} ValidRoot()
+    ghost predicate {:opaque} ValidRoot()
       reads this
     {
       && is_dir(rootIno)
       && rootIno != 0
     }
 
-    predicate Valid_dirent_at(ino: Ino, fsdata: FsData)
+    ghost predicate Valid_dirent_at(ino: Ino, fsdata: FsData)
       reads this
       requires ino_dom(fsdata)
     {
       ino in dirents ==> |fsdata[ino]| % 4096 == 0 && fsdata[ino] == dirents[ino].enc()
     }
 
-    predicate Valid_file_at(ino: Ino, fsdata: FsData, attrs: FsAttrs)
+    ghost predicate Valid_file_at(ino: Ino, fsdata: FsData, attrs: FsAttrs)
       reads this
       requires ino_dom(fsdata) && ino_dom(attrs)
     {
       is_file(ino) ==> this.data[ino] == ByteFile(fsdata[ino], attrs[ino])
     }
 
-    predicate Valid_dir_at(ino: Ino, attrs: FsAttrs)
+    ghost predicate Valid_dir_at(ino: Ino, attrs: FsAttrs)
       reads this
       requires ino_dom(attrs)
     {
       is_dir(ino) ==> this.data[ino] == DirFile(dirents[ino].dir, attrs[ino])
     }
 
-    predicate Valid_invalid_at(ino: Ino, fsdata: FsData)
+    ghost predicate Valid_invalid_at(ino: Ino, fsdata: FsData)
       requires ino_dom(fsdata)
       reads this
     {
       is_invalid(ino) ==> fsdata[ino] == []
     }
 
-    predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData, fsattrs: FsAttrs)
+    ghost predicate {:opaque} Valid_data_at(ino: Ino, fsdata: FsData, fsattrs: FsAttrs)
       requires ino_dom(fsdata)
       requires ino_dom(fsattrs)
       reads this
@@ -230,7 +230,7 @@ module DirFs
         && Valid_invalid_at(ino, fsdata)
     }
 
-    predicate ValidData()
+    ghost predicate ValidData()
       requires fs.ValidDomains()
       reads this, fs
     {
@@ -290,7 +290,7 @@ module DirFs
       }
     }
 
-    predicate ValidDirFs()
+    ghost predicate ValidDirFs()
       requires fs.ValidDomains()
       reads this, fs
     {
@@ -299,14 +299,14 @@ module DirFs
       && ValidData()
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr
     {
       && fs.Valid()
       && ValidDirFs()
     }
 
-    predicate ValidIno(ino: Ino, i: MemInode)
+    ghost predicate ValidIno(ino: Ino, i: MemInode)
       reads Repr, i.Repr
     {
       && fs.ValidIno(ino, i)
@@ -420,7 +420,7 @@ module DirFs
       assert ValidTypes() by { reveal is_of_type(); }
     }
 
-    predicate ValidDirents(dents: MemDirents, d_ino: Ino)
+    ghost predicate ValidDirents(dents: MemDirents, d_ino: Ino)
       reads this, dents.Repr(), dents.file.ReprFs
     {
       && dents.Valid()

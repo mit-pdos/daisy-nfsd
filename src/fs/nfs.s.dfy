@@ -20,7 +20,7 @@ module Nfs {
     | ByteFile(data: seq<byte>, attrs: Inode.Attrs)
     | DirFile(dir: DirEntries.Directory, attrs: Inode.Attrs)
   {
-    function delete(name: seq<byte>): File
+    ghost function delete(name: seq<byte>): File
       requires DirFile?
     {
       DirFile(map_delete(dir, name), attrs)
@@ -29,7 +29,7 @@ module Nfs {
 
   type Fs = map<FsKinds.Ino, File>
 
-  predicate valid_name(name: seq<byte>)
+  ghost predicate valid_name(name: seq<byte>)
   {
     && DirEntries.is_pathc(name)
     // the following three paths are specifically disallowed
@@ -38,12 +38,12 @@ module Nfs {
     && name != ['.' as byte, '.' as byte] // ".."
   }
 
-  predicate is_file_fs(ino: FsKinds.Ino, data: Fs)
+  ghost predicate is_file_fs(ino: FsKinds.Ino, data: Fs)
   {
     ino in data && data[ino].ByteFile?
   }
 
-  predicate is_dir_fs(ino: FsKinds.Ino, data: Fs)
+  ghost predicate is_dir_fs(ino: FsKinds.Ino, data: Fs)
   {
     ino in data && data[ino].DirFile?
   }
@@ -52,23 +52,23 @@ module Nfs {
     src: FsKinds.Ino, src_name: seq<byte>,
     dst: FsKinds.Ino, dst_name: seq<byte>)
   {
-    predicate Valid()
+    ghost predicate Valid()
     {
       DirEntries.is_pathc(src_name) && DirEntries.is_pathc(dst_name)
     }
 
-    predicate same_dir()
+    ghost predicate same_dir()
     {
       src == dst
     }
 
-    predicate trivial()
+    ghost predicate trivial()
     {
       same_dir() && src_name == dst_name
     }
   }
 
-  predicate rename_overwrite_ok(args: RenameArgs, data: Fs)
+  ghost predicate rename_overwrite_ok(args: RenameArgs, data: Fs)
   {
     && args.Valid()
     && is_dir_fs(args.src, data)
@@ -76,7 +76,7 @@ module Nfs {
     && args.src_name in data[args.src].dir
   }
 
-  function rename_overwrite_spec(args: RenameArgs, data: Fs): Fs
+  ghost function rename_overwrite_spec(args: RenameArgs, data: Fs): Fs
     requires rename_overwrite_ok(args, data)
   {
     var srcd := data[args.src];
@@ -90,7 +90,7 @@ module Nfs {
 
   // simpler re-statement of rename_overwrite_spec_ok when src and destination coincide,
   // mainly to demonstrate that rename_overwrite_spec is sensible
-  function rename_overwrite_spec_same_dir(args: RenameArgs, data: Fs): Fs
+  ghost function rename_overwrite_spec_same_dir(args: RenameArgs, data: Fs): Fs
     requires args.src == args.dst
     requires rename_overwrite_ok(args, data)
   {
@@ -113,7 +113,7 @@ module Nfs {
   //
   // note that data is before the entire operation; after the initial rename
   // the destination is lost so there isn't enough information to decide this
-  predicate rename_cleanup_ok(args: RenameArgs, data: Fs)
+  ghost predicate rename_cleanup_ok(args: RenameArgs, data: Fs)
     requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
     requires args.src_name in data[args.src].dir
   {
@@ -143,7 +143,7 @@ module Nfs {
   //
   // note this is the entire rename spec, since the original data is needed to
   // express the right cleanup
-  function rename_spec(args: RenameArgs, data: Fs): Fs
+  ghost function rename_spec(args: RenameArgs, data: Fs): Fs
     requires is_dir_fs(args.src, data) && is_dir_fs(args.dst, data)
     requires rename_overwrite_ok(args, data)
   {
@@ -159,7 +159,7 @@ module Nfs {
       map_delete(data, dst_ino)
   }
 
-  predicate rename_ok(args: RenameArgs, data: Fs)
+  ghost predicate rename_ok(args: RenameArgs, data: Fs)
   {
     && rename_overwrite_ok(args, data)
     && rename_cleanup_ok(args, data)
@@ -182,7 +182,7 @@ module Nfs {
     // this is a purely internal error
     | LockOrderViolated(locks: seq<uint64>)
   {
-    function method nfs3_code(): uint32
+    function nfs3_code(): uint32
     {
       match this {
         case Noent => 2
@@ -216,18 +216,18 @@ module Nfs {
 
     // make this a failure-compatible type
 
-    predicate method IsFailure()
+    predicate IsFailure()
     {
       this.Err?
     }
 
-    function method PropagateFailure<U>(): Result<U>
+    function PropagateFailure<U>(): Result<U>
       requires IsFailure()
     {
       Err(this.err)
     }
 
-    function method Extract(): T
+    function Extract(): T
       requires !IsFailure()
     {
       this.v
@@ -236,7 +236,7 @@ module Nfs {
     // READ and WRITE are not supposed to return Err(IsDir) but should return
     // Err(Inval) when the file is a directory. IsDirToInval transforms just that error
     // condition, from a more primitive method that uses IsDir.
-    function method IsDirToInval(): Result<T>
+    function IsDirToInval(): Result<T>
     {
       match this {
         case Ok(v) => Ok(v)
@@ -244,7 +244,7 @@ module Nfs {
       }
     }
 
-    function method err_code(): uint32
+    function err_code(): uint32
     {
       match this {
         case Ok(_) => NFS3_OK
@@ -277,14 +277,14 @@ module Nfs {
     // (rather than 8 bytes)
     | Exclusive(verf: Inode.NfsTime)
   {
-    function method size(): uint64
+    function size(): uint64
     {
       if Exclusive? then 0
       else obj_attributes.size.get_default(0)
     }
   }
 
-  predicate has_create_attrs(attrs: Inode.Attrs, how: CreateHow3)
+  ghost predicate has_create_attrs(attrs: Inode.Attrs, how: CreateHow3)
   {
     && attrs.ty.FileType?
     && (!how.Exclusive? ==>
@@ -296,7 +296,7 @@ module Nfs {
       ))
   }
 
-  predicate has_before_attrs(attrs: Inode.Attrs, before: BeforeAttr)
+  ghost predicate has_before_attrs(attrs: Inode.Attrs, before: BeforeAttr)
   {
     && attrs.mtime == before.mtime
   }
@@ -305,7 +305,7 @@ module Nfs {
     | NFS3REG | NFS3DIR
     | NFS3BLK | NFS3CHR | NFS3LNK | NFS3SOCK | NFS3FIFO
   {
-    function method to_uint32(): uint32 {
+    function to_uint32(): uint32 {
       match this {
         case NFS3REG => 1
         case NFS3DIR => 2
@@ -326,7 +326,7 @@ module Nfs {
   datatype Fattr3 = Fattr3(ftype: Ftype3, size: uint64, attrs: Inode.Attrs)
   datatype BeforeAttr = BeforeAttr(size: uint64, mtime: Inode.NfsTime)
 
-  predicate is_file_attrs(file: File, attr: Fattr3)
+  ghost predicate is_file_attrs(file: File, attr: Fattr3)
   {
     && file.ByteFile? == attr.ftype.NFS3REG?
     && file.DirFile? == attr.ftype.NFS3DIR?
@@ -341,7 +341,7 @@ module Nfs {
   // ino and sz are just a hint
   datatype RemoveResult = RemoveResult(ino: FsKinds.Ino, sz: uint64, dir_before: BeforeAttr, d_attrs: Fattr3)
 
-  predicate is_read_data(data: seq<byte>, off: nat, len: nat,
+  ghost predicate is_read_data(data: seq<byte>, off: nat, len: nat,
     bs: seq<byte>, eof: bool)
   {
     && |bs| <= len
@@ -349,7 +349,7 @@ module Nfs {
     && (eof <==> off + |bs| >= |data|)
   }
 
-  predicate has_root_attrs(attrs: Inode.Attrs, uid: uint32, gid: uint32)
+  ghost predicate has_root_attrs(attrs: Inode.Attrs, uid: uint32, gid: uint32)
   {
     && attrs.ty.DirType?
     && attrs.uid == uid && attrs.gid == gid
@@ -358,7 +358,7 @@ module Nfs {
     && attrs.mode == ((7 as bv32 << 6) | (7 as bv32 << 3) | (7 as bv32)) as uint32
   }
 
-  predicate has_mkdir_attrs(attrs: Inode.Attrs, sattr: Sattr3)
+  ghost predicate has_mkdir_attrs(attrs: Inode.Attrs, sattr: Sattr3)
   {
     && attrs.ty.DirType?
     && attrs.mode == sattr.mode.get_default(0)
@@ -370,7 +370,7 @@ module Nfs {
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
-  predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
+  ghost predicate has_set_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs, sattr: Sattr3)
   {
     && attrs.ty == attrs0.ty
     && attrs.mode == sattr.mode.get_default(attrs0.mode)
@@ -380,7 +380,7 @@ module Nfs {
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
-  predicate has_modify_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs)
+  ghost predicate has_modify_attrs(attrs0: Inode.Attrs, attrs: Inode.Attrs)
   {
     && attrs.ty == attrs0.ty
     && attrs.mode == attrs0.mode

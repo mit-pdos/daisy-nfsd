@@ -21,7 +21,7 @@ module FileCursor {
     var valid?: bool
 
     // this doesn't include fs.Repr and i.Repr; we list those explicitly
-    function Repr(): set<object>
+    ghost function Repr(): set<object>
       reads this
     {
       {this, bs}
@@ -29,7 +29,7 @@ module FileCursor {
 
     ghost const ReprFs: set<object> := fs.Repr + i.Repr
 
-    predicate {:opaque} ValidFs()
+    ghost predicate {:opaque} ValidFs()
       reads this, ReprFs
     {
       && fs.ValidIno(ino, i)
@@ -39,7 +39,7 @@ module FileCursor {
       && (valid? ==> off as nat + 4096 <= |fs.data[ino]|)
     }
 
-    predicate {:opaque} ValidBytes()
+    ghost predicate {:opaque} ValidBytes()
       reads this, bs, fs
       requires fs.ValidDomains()
     {
@@ -48,7 +48,7 @@ module FileCursor {
       && bs.data == fs.data[ino][off as nat .. off as nat + 4096]
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr(), fs.Repr, i.Repr
     {
       && fs.ValidDomains()
@@ -57,14 +57,14 @@ module FileCursor {
     }
 
     // convenience function since this is a core concept
-    function contents(): seq<byte>
+    ghost function contents(): seq<byte>
       reads fs
       requires fs.ValidDomains()
     {
       fs.data[ino]
     }
 
-    predicate has_data(data: seq<byte>)
+    ghost predicate has_data(data: seq<byte>)
       reads this, bs
     {
       valid? && bs.data == data

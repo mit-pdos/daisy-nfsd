@@ -16,25 +16,25 @@ module MemDirEnts
 
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
-    predicate Valid()
+    ghost predicate Valid()
       reads name
     {
       && is_pathc(name.data)
     }
 
-    function val(): DirEnt
+    ghost function val(): DirEnt
       reads name
       requires Valid()
     {
       DirEnt(name.data, ino)
     }
 
-    predicate method used()
+    predicate used()
     {
       ino as uint64 != 0
     }
 
-    function path(): PathComp
+    ghost function path(): PathComp
       reads name
       requires Valid()
     {
@@ -42,7 +42,7 @@ module MemDirEnts
     }
   }
 
-  function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
+  ghost function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
   {
     set i:nat | i < |s| :: s[i].name
   }
@@ -65,13 +65,13 @@ module MemDirEnts
     }
   }
 
-  predicate mem_seq_valid(s: seq<MemDirEnt>)
+  ghost predicate mem_seq_valid(s: seq<MemDirEnt>)
     reads mem_dirs_repr(s)
   {
     forall i:nat | i < |s| :: s[i].Valid()
   }
 
-  function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
+  ghost function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
     reads mem_dirs_repr(s)
     requires mem_seq_valid(s)
   {
@@ -102,12 +102,12 @@ module MemDirEntries
   import opened Paths
   import opened FileCursor
 
-  function dirent_off(k: nat): nat
+  ghost function dirent_off(k: nat): nat
   {
     k * dirent_sz
   }
 
-  function path_ub(k: nat): nat
+  ghost function path_ub(k: nat): nat
   {
     k * dirent_sz + path_len
   }
@@ -190,27 +190,27 @@ module MemDirEntries
     ghost var val: Dirents
     const file: Cursor
 
-    function Repr(): set<object>
+    ghost function Repr(): set<object>
       reads this.file
     {
         {this} + file.Repr()
     }
 
-    predicate {:opaque} ValidCore()
+    ghost predicate {:opaque} ValidCore()
       requires file.fs.ValidDomains()
       reads this, file.fs
     {
       && file.contents() == val.enc()
     }
 
-    predicate {:opaque} ValidVal()
+    ghost predicate {:opaque} ValidVal()
       reads this
     {
       && |val.s| <= dir_sz
       && |val.s| % 64 == 0
     }
 
-    predicate {:opaque} Valid()
+    ghost predicate {:opaque} Valid()
       reads Repr(), file.ReprFs
     {
       && file.Valid()
@@ -218,7 +218,7 @@ module MemDirEntries
       && ValidVal()
     }
 
-    function dir(): Directory
+    ghost function dir(): Directory
       reads this
     {
       val.dir
@@ -251,7 +251,7 @@ module MemDirEntries
         k % 64
     }
 
-    predicate at_dir_off(k: nat)
+    ghost predicate at_dir_off(k: nat)
       reads this, file
     {
       && k < |val.s|
@@ -259,13 +259,13 @@ module MemDirEntries
       && file.valid?
     }
 
-    predicate has_jrnl(txn: Txn)
+    ghost predicate has_jrnl(txn: Txn)
       reads file.fs.Repr
     {
       file.fs.has_jrnl(txn)
     }
 
-    predicate inode_unchanged()
+    ghost predicate inode_unchanged()
       reads file.fs.fs.fs.fs, file.i.Repr
     {
       && file.i.Valid()

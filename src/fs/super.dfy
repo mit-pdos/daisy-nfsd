@@ -23,7 +23,7 @@ module FsKinds {
 
     static const zero := Super(0, 0)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && 0 < inode_blocks
       && 0 < data_bitmaps
@@ -100,12 +100,12 @@ module FsKinds {
     // a random number
     static const magic: uint64 := 0x5211cc92a57dd76b;
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       info.Valid()
     }
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
       requires Valid()
     {
       IntEncoding.le_enc64(magic) +
@@ -162,7 +162,7 @@ module FsKinds {
     }
   }
 
-  function zero_inode_witness(): (x:uint64)
+  ghost function zero_inode_witness(): (x:uint64)
     ensures ino_ok(x)
   {
     reveal ino_ok();
@@ -171,10 +171,10 @@ module FsKinds {
 
   type Ino = ino:uint64 | ino_ok(ino) ghost witness zero_inode_witness()
 
-  predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
-  predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
+  ghost predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
+  ghost predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
 
-  function method zeroIno(): Ino {
+  function zeroIno(): Ino {
     reveal ino_ok();
     0 as Ino
   }
@@ -188,14 +188,14 @@ module FsKinds {
 
   const SuperBlkAddr: Addr := Addr(Super.block_addr, 0);
 
-  function method InodeBlk(ino: Ino): (bn':Blkno)
+  function InodeBlk(ino: Ino): (bn':Blkno)
     ensures InodeBlk?(bn')
   {
     reveal ino_ok();
     513 + 1 + ino / 32
   }
 
-  predicate InodeBlk?(bn: Blkno)
+  ghost predicate InodeBlk?(bn: Blkno)
   {
     513 + 1 <= bn as nat < 513 + 1 + super.inode_blocks
   }
@@ -210,7 +210,7 @@ module FsKinds {
     }
   }
 
-  function method DataAllocBlk(bn: Blkno): (bn':Blkno)
+  function DataAllocBlk(bn: Blkno): (bn':Blkno)
     ensures blkno_ok(bn) ==> DataAllocBlk?(bn')
   {
     var bn' := super_data_bitmap_start + bn / (4096*8);
@@ -220,7 +220,7 @@ module FsKinds {
     ) else bn'
   }
 
-  predicate DataAllocBlk?(bn: Blkno)
+  ghost predicate DataAllocBlk?(bn: Blkno)
   {
     var start := super.data_bitmap_start;
     start <= bn as nat < start + super.data_bitmaps
@@ -236,7 +236,7 @@ module FsKinds {
     }
   }
 
-  function method {:opaque} InodeAddr(ino: Ino): (a:Addr)
+  function {:opaque} InodeAddr(ino: Ino): (a:Addr)
     ensures a in addrsForKinds(fs_kinds)
   {
     kind_inode_size();
@@ -250,12 +250,12 @@ module FsKinds {
     reveal_addrsForKinds();
     Addr(ino_blk, ino_off*128*8)
   }
-  function method DataBitAddr(bn: Blkno): Addr
+  function DataBitAddr(bn: Blkno): Addr
     requires blkno_ok(bn)
   {
     Addr(DataAllocBlk(bn), bn % (4096*8))
   }
-  function method {:opaque} DataBlk(bn: Blkno): (a:Addr)
+  function {:opaque} DataBlk(bn: Blkno): (a:Addr)
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
@@ -265,7 +265,7 @@ module FsKinds {
     reveal_addrsForKinds();
     Addr(super_data_start+bn, 0)
   }
-  predicate DataBlk?(bn: uint64)
+  ghost predicate DataBlk?(bn: uint64)
   {
     super.data_start <= bn as nat
   }

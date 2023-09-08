@@ -20,7 +20,7 @@ module InodeFs {
   import opened FsKinds
   import opened Marshal
 
-  function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
+  ghost function zero_lookup(m: map<Blkno, Block>, bn: Blkno): Block
     requires blkno_dom(m)
     requires blkno_ok(bn)
   {
@@ -29,12 +29,12 @@ module InodeFs {
       else m[bn]
   }
 
-  predicate blkno_dom<T>(m: map<Blkno, T>)
+  ghost predicate blkno_dom<T>(m: map<Blkno, T>)
   {
     forall bn: Blkno :: blkno_ok(bn) <==> bn in m
   }
 
-  predicate ino_dom<T>(m: map<Ino, T>)
+  ghost predicate ino_dom<T>(m: map<Ino, T>)
   {
     forall ino: Ino :: ino in m
   }
@@ -64,7 +64,7 @@ module InodeFs {
       && jrnl.kinds == fs_kinds
     }
 
-    predicate Valid_domains()
+    ghost predicate Valid_domains()
       reads this
     {
       && blkno_dom(block_used)
@@ -72,7 +72,7 @@ module InodeFs {
       && ino_dom(inodes)
     }
 
-    predicate {:opaque} Valid_jrnl_super_block(actual_blocks: uint64)
+    ghost predicate {:opaque} Valid_jrnl_super_block(actual_blocks: uint64)
       reads jrnl
       requires Valid_basics(jrnl)
     {
@@ -80,7 +80,7 @@ module InodeFs {
       jrnl.data[SuperBlkAddr] == ObjData(SuperBlock(super, actual_blocks).enc())
     }
 
-    predicate {:opaque} Valid_jrnl_to_block_used(block_used: map<Blkno, Option<AllocState>>)
+    ghost predicate {:opaque} Valid_jrnl_to_block_used(block_used: map<Blkno, Option<AllocState>>)
       reads jrnl
       requires blkno_dom(block_used)
       requires Valid_basics(jrnl)
@@ -90,7 +90,7 @@ module InodeFs {
         && jrnl.data[DataBitAddr(bn)] == ObjBit(block_used[bn].Some?))
     }
 
-    predicate {:opaque} Valid_jrnl_to_data_block(data_block: map<Blkno, Block>)
+    ghost predicate {:opaque} Valid_jrnl_to_data_block(data_block: map<Blkno, Block>)
       reads jrnl
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
@@ -100,7 +100,7 @@ module InodeFs {
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
-    predicate {:opaque} Valid_jrnl_to_data_block_except(data_block: map<Blkno, Block>, bn0: Blkno)
+    ghost predicate {:opaque} Valid_jrnl_to_data_block_except(data_block: map<Blkno, Block>, bn0: Blkno)
       reads jrnl
       requires blkno_dom(data_block)
       requires Valid_basics(jrnl)
@@ -110,7 +110,7 @@ module InodeFs {
         && jrnl.data[DataBlk(bn)] == ObjData(data_block[bn]))
     }
 
-    predicate {:opaque} Valid_jrnl_to_inodes(inodes: map<Ino, Inode.Inode>)
+    ghost predicate {:opaque} Valid_jrnl_to_inodes(inodes: map<Ino, Inode.Inode>)
       reads this, jrnl
       requires ino_dom(inodes)
       requires Valid_basics(jrnl)
@@ -122,13 +122,13 @@ module InodeFs {
           else jrnl.data[InodeAddr(ino)] == ObjData(Inode.enc(inodes[ino]))
     }
 
-    predicate quiescent()
+    ghost predicate quiescent()
       reads this
     {
       cur_inode == None
     }
 
-    predicate on_inode(ino: Ino)
+    ghost predicate on_inode(ino: Ino)
       reads this
     {
       && cur_inode.Some?
@@ -137,7 +137,7 @@ module InodeFs {
 
     static const ballocMax: uint64 := super.data_bitmaps as uint64 * (4096*8) - 8
 
-    predicate Valid_balloc()
+    ghost predicate Valid_balloc()
       reads this
     {
       && this.balloc.max == ballocActualMax <= ballocMax
@@ -146,7 +146,7 @@ module InodeFs {
 
     ghost const Repr: set<object> := {this, jrnl}
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr
     {
       && Valid_basics(jrnl)
@@ -158,7 +158,7 @@ module InodeFs {
       && Valid_balloc()
     }
 
-    predicate ValidExcept(bn: Blkno)
+    ghost predicate ValidExcept(bn: Blkno)
       reads Repr
     {
       && Valid_basics(jrnl)
@@ -171,7 +171,7 @@ module InodeFs {
       && blkno_ok(bn)
     }
 
-    predicate ValidQ()
+    ghost predicate ValidQ()
       reads Repr
     {
       && Valid()
@@ -411,7 +411,7 @@ module InodeFs {
       }
     }
 
-    predicate is_inode(ino: Ino, i: Inode.Inode)
+    ghost predicate is_inode(ino: Ino, i: Inode.Inode)
       reads this, jrnl
       requires Valid_basics(jrnl)
       requires Valid_domains()
@@ -419,7 +419,7 @@ module InodeFs {
       && inodes[ino] == i
     }
 
-    predicate is_cur_inode(ino: Ino, i: Inode.Inode)
+    ghost predicate is_cur_inode(ino: Ino, i: Inode.Inode)
       reads this, jrnl
       requires Valid_basics(jrnl)
       requires Valid_domains()

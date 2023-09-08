@@ -8,7 +8,7 @@ module Pow {
 
     import opened Arith
 
-    function method pow(x:nat, k:nat): (p:nat)
+    function pow(x:nat, k:nat): (p:nat)
         decreases k
     {
         if k == 0 then 1 else (

@@ -18,7 +18,7 @@ const KindInode: Kind := KindByte + 7 // 2^7 = 128 bytes
 const KindBlock: Kind := 15
 
 // kindSize interprets a kind as a size in bits
-function method kindSize(k: Kind): (sz:nat)
+function kindSize(k: Kind): (sz:nat)
 ensures sz > 0
 {
     Pow.pow_pos(2, k);

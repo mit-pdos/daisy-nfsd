@@ -11,7 +11,7 @@ module JrnlTypes
     type Blkno = uint64
 
     type Block = b:seq<byte> | |b| == 4096 witness C.repeat(0 as byte, 4096)
-    predicate is_block(b: seq<byte>) { |b| == 4096 }
+    ghost predicate is_block(b: seq<byte>) { |b| == 4096 }
     const block0: Block := C.repeat(0 as byte, 4096)
 }
 
@@ -40,14 +40,14 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         | ObjData (bs:seq<byte>)
         | ObjBit (b:bool)
 
-    function method objSize(obj: Object): nat
+    function objSize(obj: Object): nat
     {
         match obj
         case ObjData(bs) => |bs| * 8
         case ObjBit(b) => 1
     }
 
-    function method zeroObject(k: Kind): (obj:Object)
+    function zeroObject(k: Kind): (obj:Object)
     ensures objSize(obj) == kindSize(k)
     {
         if k == 0 then ObjBit(false)
@@ -56,13 +56,13 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
             ObjData(C.repeat(0 as byte, kindSize(k)/8))
     }
 
-    predicate kindsValid(kinds: map<Blkno, Kind>)
+    ghost predicate kindsValid(kinds: map<Blkno, Kind>)
     {
         forall a | a in kinds :: 513 <= a
     }
 
     // specifies the set of addresses used for a kind schema
-    function method {:opaque} addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
+    function {:opaque} addrsForKinds(kinds: map<Blkno, Kind>): (addrs:set<Addr>)
     {
         set blkno : Blkno, off : uint64 |
         && blkno in kinds
@@ -77,7 +77,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     {
         ghost const max: uint64
 
-        predicate Valid()
+        ghost predicate Valid()
         {
             && 0 < max
             && max % 8 == 0
@@ -138,7 +138,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         var data: JrnlData;
         ghost const kinds: map<Blkno, Kind>;
 
-        predicate {:opaque} Valid()
+        ghost predicate {:opaque} Valid()
         reads this
         {
             && kindsValid(kinds)
@@ -185,7 +185,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         }
 
 
-        function size(a: Addr): nat
+        ghost function size(a: Addr): nat
         reads this
         requires Valid()
         requires a in data
@@ -194,7 +194,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
             kindSize(this.kinds[a.blkno])
         }
 
-        predicate has_kind(a: Addr, k: Kind)
+        ghost predicate has_kind(a: Addr, k: Kind)
         reads this
         requires Valid()
         {
@@ -216,7 +216,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         }
     }
 
-    predicate same_jrnl(jrnl1: Jrnl, jrnl2: Jrnl)
+    ghost predicate same_jrnl(jrnl1: Jrnl, jrnl2: Jrnl)
         reads jrnl1, jrnl2
     {
         && jrnl1.data == jrnl2.data
@@ -247,7 +247,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
             this.jrnl := jrnl;
         }
 
-        predicate Valid()
+        ghost predicate Valid()
             reads this, jrnl
         {
             && jrnl.Valid()

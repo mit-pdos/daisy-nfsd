@@ -60,7 +60,7 @@ class Bank
         && acct_sum == C.sum_nat(accts)
     }
 
-    predicate Valid()
+    ghost predicate Valid()
         reads this, jrnl
     {
         && ValidState(jrnl, accts, acct_sum)

@@ -8,7 +8,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     class {:extern} Bytes {
         var data: seq<byte>
 
-        predicate Valid()
+        ghost predicate Valid()
         reads this
         {
             |data| < U64.MAX
@@ -21,7 +21,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
             this.data := data_;
         }
 
-        function method {:extern} Len(): (len:uint64)
+        function {:extern} Len(): (len:uint64)
         reads this
         requires Valid()
         ensures len as nat == |data|
@@ -29,7 +29,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
             |data| as uint64
         }
 
-        function method {:extern} Get(i: uint64): (x: byte)
+        function {:extern} Get(i: uint64): (x: byte)
         reads this
         requires i as nat < |data|
         ensures x == data[i]

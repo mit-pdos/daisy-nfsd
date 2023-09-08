@@ -28,14 +28,14 @@ module TypedFs {
 
     static const iallocMax: uint64 := super.num_inodes as uint64
 
-    predicate {:opaque} bytefsValid()
+    ghost predicate {:opaque} bytefsValid()
       reads fs.Repr
     {
       // not quiescent
       && fs.fs.Valid()
     }
 
-    predicate {:opaque} fsValidIno(ino: Ino, i: MemInode)
+    ghost predicate {:opaque} fsValidIno(ino: Ino, i: MemInode)
       reads fs.Repr, i.Repr
     {
       && fs.fs.ValidIno(ino, i)
@@ -49,7 +49,7 @@ module TypedFs {
       reveal fsValidIno();
     }
 
-    predicate {:opaque} ValidFields()
+    ghost predicate {:opaque} ValidFields()
       reads this, fs.Repr
       requires bytefsValid()
     {
@@ -58,27 +58,27 @@ module TypedFs {
       && types == fs.inode_types()
     }
 
-    predicate ValidDomains()
+    ghost predicate ValidDomains()
       reads this
     {
       && InodeFs.ino_dom(data)
       && InodeFs.ino_dom(types)
     }
 
-    predicate {:opaque} ValidInvalid()
+    ghost predicate {:opaque} ValidInvalid()
       reads this
       requires ValidDomains()
     {
       forall ino: Ino :: types[ino].ty.InvalidType? ==> data[ino] == []
     }
 
-    predicate ValidAlloc()
+    ghost predicate ValidAlloc()
     {
       && ialloc.Valid()
       && ialloc.max == iallocMax
     }
 
-    predicate ValidThis()
+    ghost predicate ValidThis()
       reads Repr
       requires bytefsValid()
     {
@@ -88,7 +88,7 @@ module TypedFs {
       && ValidAlloc()
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr
     {
       && bytefsValid()
@@ -96,7 +96,7 @@ module TypedFs {
       && fs.fs.fs.quiescent()
     }
 
-    predicate ValidIno(ino: Ino, i: MemInode)
+    ghost predicate ValidIno(ino: Ino, i: MemInode)
       reads Repr, i.Repr
     {
       reveal fsValidIno();
@@ -177,13 +177,13 @@ module TypedFs {
       types == old(types)
     }
 
-    predicate has_jrnl(txn: Txn)
+    ghost predicate has_jrnl(txn: Txn)
       reads fs.fs.fs
     {
       fs.fs.has_jrnl(txn)
     }
 
-    predicate inode_unchanged(ino: Ino, i: Inode.Inode)
+    ghost predicate inode_unchanged(ino: Ino, i: Inode.Inode)
       reads fs.fs.fs
     {
       fs.fs.fs.cur_inode == Some((ino, i))

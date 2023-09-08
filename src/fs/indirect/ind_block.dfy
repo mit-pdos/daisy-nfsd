@@ -15,14 +15,14 @@ module IndBlocks
     static const preZero := IndBlknos(C.repeat(0 as Blkno, 512))
     static const zero: IndBlknos := preZero
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       |s| == 512
     }
   }
   type IndBlknos = x:preIndBlknos | x.Valid() witness preIndBlknos.preZero
 
-  predicate block_has_blknos(b: Block, blknos: IndBlknos)
+  ghost predicate block_has_blknos(b: Block, blknos: IndBlknos)
   {
     && b == seq_enc_uint64(blknos.s)
   }
@@ -33,7 +33,7 @@ module IndBlocks
     zero_encode_seq_uint64(512);
   }
 
-  function to_blknos(bs: Block): (blknos:IndBlknos)
+  ghost function to_blknos(bs: Block): (blknos:IndBlknos)
     ensures block_has_blknos(bs, blknos)
   {
     IndBlknos(decode_uint64_seq(bs))

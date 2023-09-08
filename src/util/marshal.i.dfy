@@ -31,9 +31,9 @@ method UInt32Decode(bs: Bytes, off: uint64, ghost x: uint32) returns (x': uint32
 
 datatype Encodable = EncUInt64(x:uint64) | EncUInt32(y:uint32) | EncBytes(bs: seq<byte>)
 
-function EncByte(b: byte): Encodable { EncBytes([b]) }
+ghost function EncByte(b: byte): Encodable { EncBytes([b]) }
 
-function enc_encode(e: Encodable): seq<byte>
+ghost function enc_encode(e: Encodable): seq<byte>
 {
     match e
     case EncUInt64(x) => le_enc64(x)
@@ -41,7 +41,7 @@ function enc_encode(e: Encodable): seq<byte>
     case EncBytes(bs) => bs
 }
 
-function seq_encode(es: seq<Encodable>): seq<byte>
+ghost function seq_encode(es: seq<Encodable>): seq<byte>
 decreases es
 {
     if es == [] then []
@@ -77,9 +77,9 @@ ensures seq_encode(es1 + es2) == seq_encode(es1) + seq_encode(es2)
 
 // BUG: Dafny cannot reason about equality of the lambda x => EncUInt64(x)
 // without a global definition
-function encUInt64(x: uint64): Encodable { EncUInt64(x) }
+ghost function encUInt64(x: uint64): Encodable { EncUInt64(x) }
 
-function seq_enc_uint64(xs: seq<uint64>): seq<byte>
+ghost function seq_enc_uint64(xs: seq<uint64>): seq<byte>
 {
     seq_encode(seq_fmap(encUInt64, xs))
 }
@@ -124,7 +124,7 @@ lemma zero_encode_seq_uint64(n: nat)
   }
 }
 
-function decode_uint64(bs: seq<byte>): (x:uint64)
+ghost function decode_uint64(bs: seq<byte>): (x:uint64)
     requires |bs| == u64_bytes
     ensures enc_encode(EncUInt64(x)) == bs
 {
@@ -138,7 +138,7 @@ lemma decode_encode_uint64(x: uint64)
     lemma_le_enc_dec64(x);
 }
 
-function decode_uint64_seq(bs: seq<byte>): (es: seq<uint64>)
+ghost function decode_uint64_seq(bs: seq<byte>): (es: seq<uint64>)
     requires |bs| % 8 == 0
     ensures seq_encode(seq_fmap(encUInt64, es)) == bs
     ensures |es| == |bs|/8
@@ -163,7 +163,7 @@ lemma decode_encode_uint64_seq_id(es: seq<uint64>)
     assert seq_encode(seq_fmap(encUInt64, es[1..])) == seq_encode(seq_fmap(encUInt64, es))[8..];
 }
 
-function decode_uint64_seq_one(bs: seq<byte>, k: nat): uint64
+ghost function decode_uint64_seq_one(bs: seq<byte>, k: nat): uint64
     requires |bs| % 8 == 0
     requires k*8 < |bs|
 {

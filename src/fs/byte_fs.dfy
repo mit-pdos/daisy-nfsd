@@ -20,7 +20,7 @@ module ByteFs {
   import opened MemInodes
   import Inode
 
-  function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
+  ghost function {:opaque} raw_inode_data(d: InodeData): (bs:seq<byte>)
     ensures |bs| == Inode.MAX_SZ
   {
     C.concat_homogeneous_len(d.blks, 4096);
@@ -60,7 +60,7 @@ module ByteFs {
     //C.concat_homogeneous_suffix(blks, off+count, 4096);
   }
 
-  function inode_data(sz: nat, d: InodeData): (bs:seq<byte>)
+  ghost function inode_data(sz: nat, d: InodeData): (bs:seq<byte>)
     requires sz <= Inode.MAX_SZ
     ensures sz <= Inode.MAX_SZ && |bs| == sz as nat
   {
@@ -69,13 +69,13 @@ module ByteFs {
 
   // less general than actual WRITE semantics, which also supports creating
   // holes by first extending data to make off in bounds
-  function write_data(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
+  ghost function write_data(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
     requires off <= |data|
   {
     data[..off] + bs + if off + |bs| <= |data| then data[off + |bs|..] else []
   }
 
-  function write_data_holes(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
+  ghost function write_data_holes(data: seq<byte>, off: nat, bs: seq<byte>): seq<byte>
   {
     if off > |data| then data + C.repeat(0 as byte, off - |data|) + bs
     else write_data(data, off, bs)
@@ -128,13 +128,13 @@ module ByteFs {
     const fs: IndFilesys
     ghost const Repr: set<object> := fs.Repr
 
-    predicate Valid()
+    ghost predicate Valid()
       reads this.Repr
     {
       && fs.ValidQ()
     }
 
-    function data(): map<Ino, seq<byte>>
+    ghost function data(): map<Ino, seq<byte>>
       reads Repr
       requires fs.Valid()
     {
@@ -143,7 +143,7 @@ module ByteFs {
         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
 
-    function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
+    ghost function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
       reads fs
       requires InodeFs.ino_dom(fs.metadata)
       ensures InodeFs.ino_dom(m)
@@ -166,7 +166,7 @@ module ByteFs {
       reveal inode_types();
     }
 
-    function raw_data(ino: Ino): seq<byte>
+    ghost function raw_data(ino: Ino): seq<byte>
       reads Repr
       requires fs.Valid()
     {

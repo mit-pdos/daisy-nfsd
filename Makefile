@@ -4,7 +4,7 @@ OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 DAFNY_LOAD := 0.5
 
 # these arguments don't affect verification outcomes
-DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:$(DAFNY_LOAD) /functionSyntax:3
+DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:$(DAFNY_LOAD)
 
 DAFNY_ARGS := /noNLarith /arith:5
 DAFNY = ./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)

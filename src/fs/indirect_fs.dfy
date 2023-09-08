@@ -21,12 +21,12 @@ module IndFs
   import opened IndirectPos
   import opened MemInodes
 
-  predicate pos_dom<T>(m: imap<Pos, T>)
+  ghost predicate pos_dom<T>(m: imap<Pos, T>)
   {
     forall p:Pos :: p in m
   }
 
-  predicate data_dom<T>(m: imap<Pos, T>)
+  ghost predicate data_dom<T>(m: imap<Pos, T>)
   {
     forall pos: Pos | pos.data? :: pos in m
   }
@@ -49,7 +49,7 @@ module IndFs
     var bs: Bytes;
     var ok: bool;
 
-    function Repr(): set<object>
+    ghost function Repr(): set<object>
       reads this
     {
       {this, bs}
@@ -64,7 +64,7 @@ module IndFs
       bs := bs0;
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr()
     {
       ok ==> !pos.data?
@@ -74,7 +74,7 @@ module IndFs
   // caching policy is to only cache the second-to-last level (since we only
   // cache one lookup, we don't want to cache more indirect lookups since they
   // will be used less)
-  predicate method shouldCache(pos: Pos)
+  predicate shouldCache(pos: Pos)
   {
       pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k]
   }
@@ -95,7 +95,7 @@ module IndFs
     // bubbles up inode sizes
     ghost var metadata: map<Ino, Inode.Meta>
 
-    function blkno_pos(bn: Blkno): Option<Pos>
+    ghost function blkno_pos(bn: Blkno): Option<Pos>
       reads fs
       requires blkno_ok(bn)
       requires fs.Valid_domains()
@@ -103,7 +103,7 @@ module IndFs
       fs.block_used[bn]
     }
 
-    predicate has_jrnl(txn: Txn)
+    ghost predicate has_jrnl(txn: Txn)
       reads fs
     {
       txn.jrnl == fs.jrnl
@@ -111,14 +111,14 @@ module IndFs
 
     ghost const Repr: set<object> := {this} + fs.Repr
 
-    predicate ValidBlknos()
+    ghost predicate ValidBlknos()
       reads this
     {
       && pos_dom(to_blkno)
       && (forall pos:Pos :: blkno_ok(to_blkno[pos]))
     }
 
-    predicate ValidBasics()
+    ghost predicate ValidBasics()
       reads this, fs
     {
       && fs.Valid_domains()
@@ -128,7 +128,7 @@ module IndFs
       && fs.block_used[0].None?
     }
 
-    predicate {:opaque} ValidPos()
+    ghost predicate {:opaque} ValidPos()
       reads this, fs
       requires ValidBasics()
     {
@@ -148,7 +148,7 @@ module IndFs
       reveal ValidPos();
     }
 
-    predicate {:opaque} ValidMetadata()
+    ghost predicate {:opaque} ValidMetadata()
       reads this, fs
       requires ValidBasics()
     {
@@ -168,7 +168,7 @@ module IndFs
         // && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
     }
 
-    predicate {:opaque} ValidInodes()
+    ghost predicate {:opaque} ValidInodes()
       reads this, fs
       requires ValidBasics()
     {
@@ -182,7 +182,7 @@ module IndFs
       reveal ValidInodes();
     }
 
-    predicate valid_parent(pos: Pos)
+    ghost predicate valid_parent(pos: Pos)
       reads this, fs
       requires pos.ilevel > 0
       requires ValidBasics()
@@ -194,7 +194,7 @@ module IndFs
       blknos.s[j] == bn
     }
 
-    predicate {:opaque} ValidIndirect()
+    ghost predicate {:opaque} ValidIndirect()
       reads this, fs
       requires ValidBasics()
     {
@@ -219,7 +219,7 @@ module IndFs
       IndBlocks.to_blknos_zero();
     }
 
-    predicate {:opaque} ValidData()
+    ghost predicate {:opaque} ValidData()
       reads this, fs
       requires ValidBasics()
     {
@@ -236,7 +236,7 @@ module IndFs
       reveal ValidData();
     }
 
-    predicate ValidThis()
+    ghost predicate ValidThis()
       reads this, fs
     {
       && ValidBasics()
@@ -248,14 +248,14 @@ module IndFs
       && ValidData()
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads this.Repr
     {
       && fs.Valid()
       && ValidThis()
     }
 
-    predicate ValidIno(ino: Ino, i: MemInode)
+    ghost predicate ValidIno(ino: Ino, i: MemInode)
       reads this.Repr, i.Repr
     {
       && Valid()
@@ -263,7 +263,7 @@ module IndFs
       && fs.is_cur_inode(ino, i.val())
     }
 
-    predicate ValidInoExcept(ino: Ino, i: MemInode, bn: Blkno)
+    ghost predicate ValidInoExcept(ino: Ino, i: MemInode, bn: Blkno)
       reads this.Repr, i.Repr
     {
       && fs.ValidExcept(bn)
@@ -272,14 +272,14 @@ module IndFs
       && fs.is_cur_inode(ino, i.val())
     }
 
-    predicate ValidQ()
+    ghost predicate ValidQ()
       reads Repr
     {
       && Valid()
       && fs.quiescent()
     }
 
-    predicate ValidCache(ino: Ino, c: BlknoCache)
+    ghost predicate ValidCache(ino: Ino, c: BlknoCache)
       reads Repr, c.Repr()
       requires Valid()
     {

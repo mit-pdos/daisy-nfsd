@@ -18,14 +18,14 @@ module BlockFs
     static const preZero := InodeData(C.repeat(block0, config.total))
     static const zero: InodeData := preZero
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       |blks| == config.total
     }
   }
   type InodeData = x:preInodeData | x.Valid() witness preInodeData.preZero
 
-  function {:opaque} inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
+  ghost function {:opaque} inode_blocks(ino: Ino, data: imap<Pos, Block>): InodeData
     requires data_dom(data)
   {
     var blks := seq(config.total,
@@ -33,12 +33,12 @@ module BlockFs
     InodeData(blks)
   }
 
-  predicate is_lba(i: uint64)
+  ghost predicate is_lba(i: uint64)
   {
     i as nat < config.total
   }
 
-  function {:opaque} block_data(data: imap<Pos, Block>): (m:map<Ino, InodeData>)
+  ghost function {:opaque} block_data(data: imap<Pos, Block>): (m:map<Ino, InodeData>)
     requires data_dom(data)
     ensures InodeFs.ino_dom(m)
   {

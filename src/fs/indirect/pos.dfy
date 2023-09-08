@@ -24,19 +24,19 @@ module IndirectPos
   {
     static const direct: IndOff := IndOff(0, 0)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       j as nat < pow(512, ilevel as nat)
     }
 
-    function method parent(): IndOff
+    function parent(): IndOff
       requires Valid()
       requires ilevel > 0
     {
       IndOff(ilevel-1, j / 512)
     }
 
-    function method child(): IndOff
+    function child(): IndOff
       requires Valid()
       requires ilevel > 0
     {
@@ -45,7 +45,7 @@ module IndirectPos
   }
   type IndOff = x:preIndOff | x.Valid() witness IndOff(0, 0)
 
-  function method pow64(x: uint64, k: uint64): (p:uint64)
+  function pow64(x: uint64, k: uint64): (p:uint64)
     requires 0 < x
     requires pow(x as nat, k as nat) < U64.MAX
     ensures p as nat == pow(x as nat, k as nat)
@@ -60,12 +60,12 @@ module IndirectPos
   {
     const total := sum_nat(ilevels)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       total < U64.MAX
     }
 
-    function method total_to(k: uint64): (t:uint64)
+    function total_to(k: uint64): (t:uint64)
       requires Valid()
       requires k as nat <= |ilevels|
       ensures t as nat == sum_nat(ilevels[..k])
@@ -75,13 +75,13 @@ module IndirectPos
       sum(ilevels[..k])
     }
 
-    function method totals(): seq<uint64>
+    function totals(): seq<uint64>
       requires Valid()
     {
       sums(ilevels)
     }
 
-    function total_u64(): (t:uint64)
+    ghost function total_u64(): (t:uint64)
       requires Valid()
       ensures t as nat == total
     {
@@ -231,7 +231,7 @@ module IndirectPos
   {
     const ilevel: uint64 := off.ilevel
       // if false, idx is indirect
-    predicate method data?()
+    predicate data?()
     {
       && k as nat < |config.ilevels|
       && off.ilevel == config.ilevels[k]
@@ -243,14 +243,14 @@ module IndirectPos
       Idx(k, IndOff.direct)
     }
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && k as nat < |config.ilevels|
       && off.ilevel <= config.ilevels[k]
     }
 
     // "flat" indices are logical block addresses (LBAs) for the inode
-    function flat(): uint64
+    ghost function flat(): uint64
       requires Valid()
       requires this.data?()
     {
@@ -353,13 +353,13 @@ module IndirectPos
       Pos(ino, Idx.from_flat(n))
     }
 
-    function method parent(): Pos
+    function parent(): Pos
       requires ilevel > 0
     {
       Pos(ino, Idx(idx.k, idx.off.parent()))
     }
 
-    function method child(): IndOff
+    function child(): IndOff
       requires ilevel > 0
     {
       idx.off.child()

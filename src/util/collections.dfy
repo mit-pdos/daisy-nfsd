@@ -11,7 +11,7 @@ lemma seq_ext_eq<T>(xs: seq<T>, ys: seq<T>)
 {}
 
 // workaround for Dafny bug https://github.com/dafny-lang/dafny/issues/1113
-function to_seq<T>(s: seq<T>): seq<T> { s }
+ghost function to_seq<T>(s: seq<T>): seq<T> { s }
 
 // sequence indexing
 
@@ -63,7 +63,7 @@ lemma double_subslice_auto<T>(xs: seq<T>)
 
 // fmap over sequences
 
-function method {:opaque}
+function {:opaque}
 seq_fmap<T,U>(f: T -> U, xs: seq<T>): (ys:seq<U>) decreases xs
 ensures |ys| == |xs| && forall i :: 0 <= i < |xs| ==> ys[i] == f(xs[i])
 {
@@ -79,7 +79,7 @@ lemma seq_fmap_compose<T,U,V>(f: T -> U, g: U -> V, xs: seq<T>)
 {}
 
 // filter
-function method seq_filter<T>(p: T -> bool, xs: seq<T>): (ys:seq<T>)
+function seq_filter<T>(p: T -> bool, xs: seq<T>): (ys:seq<T>)
     ensures |ys| <= |xs| && forall y :: y in ys ==> p(y) && y in xs
 {
     if xs == [] then []
@@ -101,7 +101,7 @@ lemma seq_filter_app<T>(p: T -> bool, xs1: seq<T>, xs2: seq<T>)
 }
 
 // find_first
-function method find_first<T>(p: T -> bool, xs: seq<T>): (i:nat)
+function find_first<T>(p: T -> bool, xs: seq<T>): (i:nat)
     ensures i < |xs| ==> p(xs[i])
 {
     if xs == [] then 0
@@ -128,7 +128,7 @@ lemma find_first_characterization<T>(p: T -> bool, xs: seq<T>, i: nat)
 }
 
 // count matching a predicate
-function method count_matching<T>(p: T -> bool, xs: seq<T>): (i:nat)
+function count_matching<T>(p: T -> bool, xs: seq<T>): (i:nat)
     ensures i <= |xs|
 {
     if xs == [] then 0
@@ -147,7 +147,7 @@ lemma {:induction xs1} count_matching_app<T>(p: T -> bool, xs1: seq<T>, xs2: seq
 
 // repeat
 
-function method repeat<T>(x: T, count: nat): (xs:seq<T>)
+function repeat<T>(x: T, count: nat): (xs:seq<T>)
 {
     seq(count, _ => x)
 }
@@ -169,7 +169,7 @@ lemma repeat_split<T>(x: T, count: nat, count1: nat, count2: nat)
 
 // concat
 
-function method concat<T>(xs: seq<seq<T>>): (ys: seq<T>)
+function concat<T>(xs: seq<seq<T>>): (ys: seq<T>)
     decreases xs
 {
     if xs == [] then []
@@ -204,7 +204,7 @@ lemma {:induction ls} concat_homogeneous_len<T>(ls: seq<seq<T>>, len: nat)
     }
 }
 
-predicate concat_spec<T>(ls: seq<seq<T>>, x1: nat, x2: nat, len: nat)
+ghost predicate concat_spec<T>(ls: seq<seq<T>>, x1: nat, x2: nat, len: nat)
     requires forall l | l in ls :: |l| == len
     requires x1 < |ls|
     requires x2 < len
@@ -339,7 +339,7 @@ lemma concat_repeat<T>(x: T, count1: nat, count2: nat)
 
 // map to domain as a set
 
-function method map_domain<K, V>(m: map<K, V>): set<K> {
+function map_domain<K, V>(m: map<K, V>): set<K> {
     set k:K | k in m
 }
 
@@ -354,7 +354,7 @@ lemma map_update<K, V>(m1: map<K, V>, m2: map<K, V>, k: K, v: V)
 
 // prefix_of
 
-predicate prefix_of<T>(s1: seq<T>, s2: seq<T>) {
+ghost predicate prefix_of<T>(s1: seq<T>, s2: seq<T>) {
     |s1| <= |s2| && s1 == s2[..|s1|]
 }
 
@@ -385,7 +385,7 @@ ensures prefix_of(s1[n..], s2[n..])
 
 // summation
 
-function method sum_nat(xs: seq<nat>): nat
+function sum_nat(xs: seq<nat>): nat
 decreases xs
 {
     if xs == [] then 0
@@ -418,7 +418,7 @@ ensures sum_nat(xs[i:=x]) == sum_nat(xs)-xs[i]+x
 
 // unique
 
-predicate unique<T>(xs: seq<T>)
+ghost predicate unique<T>(xs: seq<T>)
 {
   forall i, j | 0 <= i < |xs| && 0 <= j < |xs| :: xs[i] == xs[j] ==> i == j
 }
@@ -431,13 +431,13 @@ lemma unique_extend<T>(xs: seq<T>, x: T)
 
 // without_last, last
 
-function without_last<T>(xs: seq<T>): seq<T>
+ghost function without_last<T>(xs: seq<T>): seq<T>
     requires 0 < |xs|
 {
     xs[..|xs|-1]
 }
 
-function last<T>(xs: seq<T>): T
+ghost function last<T>(xs: seq<T>): T
     requires 0 < |xs|
 {
     xs[|xs|-1]
@@ -452,7 +452,7 @@ lemma concat_split_last<T>(xs: seq<seq<T>>)
 }
 
 // splice (insert sequence)
-function method splice<T>(xs: seq<T>, off: nat, ys: seq<T>): (xs':seq<T>)
+function splice<T>(xs: seq<T>, off: nat, ys: seq<T>): (xs':seq<T>)
     requires off + |ys| <= |xs|
     ensures |xs'| == |xs|
 {

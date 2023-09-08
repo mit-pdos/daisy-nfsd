@@ -17,7 +17,7 @@ module Inode {
 
   datatype InodeType = InvalidType | FileType | DirType
   {
-    function method to_u32(): uint32
+    function to_u32(): uint32
     {
       match this {
         case InvalidType => 0
@@ -35,7 +35,7 @@ module Inode {
       ensures from_u32(to_u32()) == this
     {}
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(to_u32())
     }
@@ -52,7 +52,7 @@ module Inode {
   {
     static const zero: NfsTime := NfsTime(0, 0)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(sec) + IntEncoding.le_enc32(nsec)
     }
@@ -96,7 +96,7 @@ module Inode {
     static const zero_file: Attrs := Attrs(FileType, 0, 0, 0, NfsTime.zero)
     static const zero_dir: Attrs := Attrs(DirType, 0, 0, 0, NfsTime.zero)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(ty.to_u32()) +
         IntEncoding.le_enc32(mode) +
@@ -170,7 +170,7 @@ module Inode {
     const ty := attrs.ty;
     static const zero: Meta := Meta(0, Attrs.zero)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc64(sz) + attrs.enc()
     }
@@ -197,7 +197,7 @@ module Inode {
 
     static const preZero: preInode := Mk(Meta(0, Attrs.zero), C.repeat(0 as uint64, 12))
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && |blks| == 12
       && sz as nat <= MAX_SZ
@@ -220,7 +220,7 @@ module Inode {
     reveal enc();
   }
 
-  function {:opaque} enc(i: Inode): (bs:seq<byte>)
+  ghost function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
     assert i.Valid();
