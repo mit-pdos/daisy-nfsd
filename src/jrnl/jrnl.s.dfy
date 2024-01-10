@@ -32,7 +32,9 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     class {:extern} Disk{}
 
     method DiskSize(d: Disk) returns (x: uint64)
-    {}
+    {
+        x := 0; // just a witness, opaque in signature
+    }
 
     datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
@@ -135,8 +137,8 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
 
     class {:extern} Jrnl
     {
-        var data: JrnlData;
-        ghost const kinds: map<Blkno, Kind>;
+        var data: JrnlData
+        ghost const kinds: map<Blkno, Kind>
 
         ghost predicate {:opaque} Valid()
         reads this
@@ -237,7 +239,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     class {:extern} Txn
     {
 
-        const jrnl: Jrnl;
+        const jrnl: Jrnl
 
         constructor(jrnl: Jrnl)
             requires jrnl.Valid()
@@ -262,9 +264,12 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         ensures
         && fresh(buf)
         && buf.Valid()
+        && jrnl.data[a].ObjData?
         && buf.data == jrnl.data[a].bs
         && objSize(jrnl.data[a]) == sz as nat
         {
+            reveal jrnl.Valid();
+            assert jrnl.data[a].ObjData?;
             ghost var k := jrnl.kinds[a.blkno];
             kindSize_bounds(k);
             return new Bytes(jrnl.data[a].bs);
@@ -276,6 +281,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         requires a in jrnl.data && jrnl.size(a) == 1
         ensures && jrnl.data[a] == ObjBit(b)
         {
+            reveal jrnl.Valid();
             return jrnl.data[a].b;
         }
 
@@ -288,6 +294,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         requires 8 <= |bs.data|
         ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
         {
+            reveal jrnl.Valid();
             jrnl.data := jrnl.data[a:=ObjData(bs.data)];
             bs.data := [];
         }
@@ -298,6 +305,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         requires a in jrnl.data && jrnl.size(a) == 1
         ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
         {
+            reveal jrnl.Valid();
             jrnl.data := jrnl.data[a:=ObjBit(b)];
         }
 

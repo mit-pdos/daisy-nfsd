@@ -32,7 +32,7 @@ module FsKinds {
 
     // NOTE(tej): hack because otherwise non-linear arithmetic in
     // disk_size confuses Dafny and it doesn't know the sum is still a nat
-    static function method add_nats(n1: nat, n2: nat): nat
+    static function add_nats(n1: nat, n2: nat): nat
     {
       n1 + n2
     }
@@ -62,7 +62,7 @@ module FsKinds {
   const NUM_DATA_BITMAPS : uint64 := 200
 
   // we initialize the superblock this way to get named arguments
-  const super := Super.zero.(
+  const super := Super(0, 0).(
     inode_blocks:=NUM_INODE_BLOCKS as nat,
     data_bitmaps:=NUM_DATA_BITMAPS as nat)
 
@@ -73,8 +73,8 @@ module FsKinds {
   // num_data_data_blocks (in MB) is 128 * NUM_DATA_BITMAPS
   // (it's exactly NUM_DATA_BITMAPS * 4096*8*4096 / 1_000_000)
   lemma super_size()
-    ensures super.num_inodes == 19200;
-    ensures super.num_inodes == NUM_INODES as nat;
+    ensures super.num_inodes == 19200
+    ensures super.num_inodes == NUM_INODES as nat
     ensures super.num_data_blocks
         * 4096 / (1024*1024) == 25600 /* MB */
   {}
@@ -85,9 +85,9 @@ module FsKinds {
   // we need these to be a real constants because accessing any const in super
   // computes a big int every time it's referenced, which shows up in the CPU
   // profile...
-  const super_data_bitmap_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS;
+  const super_data_bitmap_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS
   const super_num_data_blocks: uint64 := NUM_DATA_BITMAPS*(4096*8)
-  const super_data_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS + NUM_DATA_BITMAPS;
+  const super_data_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS + NUM_DATA_BITMAPS
   lemma super_consts_ok()
     ensures super_num_data_blocks as nat == super.num_data_blocks
     ensures super_data_bitmap_start as nat == super.data_bitmap_start
@@ -98,7 +98,7 @@ module FsKinds {
   datatype SuperBlock = SuperBlock(info: Super, actual_blocks: uint64)
   {
     // a random number
-    static const magic: uint64 := 0x5211cc92a57dd76b;
+    static const magic: uint64 := 0x5211cc92a57dd76b
 
     ghost predicate Valid()
     {
@@ -186,7 +186,7 @@ module FsKinds {
     reveal ino_ok();
   }
 
-  const SuperBlkAddr: Addr := Addr(Super.block_addr, 0);
+  const SuperBlkAddr: Addr := Addr(Super.block_addr, 0)
 
   function InodeBlk(ino: Ino): (bn':Blkno)
     ensures InodeBlk?(bn')

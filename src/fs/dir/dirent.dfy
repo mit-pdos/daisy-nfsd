@@ -132,7 +132,7 @@ module DirEntries
       ino != 0
     }
 
-    static predicate method is_used(e: DirEnt) { e.used() }
+    static predicate is_used(e: DirEnt) { e.used() }
 
     predicate unused()
     {
@@ -231,6 +231,7 @@ module DirEntries
   lemma test_seq_to_dir_overwrite()
   {
     reveal is_pathc();
+    reveal ino_ok();
     var e1 := DirEnt([1], 1 as Ino);
     var e2 := DirEnt([1], 2 as Ino);
     var e3 := DirEnt([2], zeroIno());
@@ -384,7 +385,7 @@ module DirEntries
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
-    static function method zeros(n: nat): (dents:preDirents)
+    static function zeros(n: nat): (dents:preDirents)
       ensures dirents_unique(dents.s)
     {
       reveal dirents_unique();
@@ -413,7 +414,7 @@ module DirEntries
       && dirents_unique(s)
     }
 
-    static function encOne(e: DirEnt): (s:seq<byte>)
+    static ghost function encOne(e: DirEnt): (s:seq<byte>)
       ensures |s| == dirent_sz
     {
       e.enc_len();
@@ -477,7 +478,7 @@ module DirEntries
       seq_to_dir_insert(s, this.findFree(), e);
     }
 
-    static function method findName_pred(p: PathComp): DirEnt -> bool
+    static function findName_pred(p: PathComp): DirEnt -> bool
     {
       (e:DirEnt) => e.used() && e.name == p
     }
@@ -524,7 +525,7 @@ module DirEntries
       && forall k:nat | k < i :: s[k].used()
     }
 
-    static predicate method is_unused(e: DirEnt)
+    static predicate is_unused(e: DirEnt)
     {
       !e.used()
     }

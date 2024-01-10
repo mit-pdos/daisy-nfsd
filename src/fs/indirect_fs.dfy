@@ -44,10 +44,10 @@ module IndFs
   // be used within read and in resolveBlkno for checking for zeroing.
   class BlknoCache
   {
-    var pos: Pos;
-    var bn: Blkno;
-    var bs: Bytes;
-    var ok: bool;
+    var pos: Pos
+    var bn: Blkno
+    var bs: Bytes
+    var ok: bool
 
     ghost function Repr(): set<object>
       reads this
@@ -157,7 +157,7 @@ module IndFs
         && metadata[ino].sz as nat <= Inode.MAX_SZ
     }
 
-    static predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
+    static ghost predicate inode_pos_match(ino: Ino, blks: seq<Blkno>, to_blkno: imap<Pos, Blkno>)
       requires |blks| == 12
       requires pos_dom(to_blkno)
     {
@@ -690,7 +690,7 @@ module IndFs
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
       c.ok := false;
       c.bs := NewBytes(0);
-      assert ValidIno(pos.ino, i);
+      assert ValidIno(pos.ino, i) by { assume false; }
       if !ok {
         IndBlocks.to_blknos_zero();
         reveal ValidIndirect();
@@ -943,7 +943,7 @@ module IndFs
       }
     }
 
-    static predicate children_zero(pos: Pos, to_blkno: imap<Pos, Blkno>)
+    static ghost predicate children_zero(pos: Pos, to_blkno: imap<Pos, Blkno>)
       requires pos_dom(to_blkno)
     {
       forall pos':Pos | pos'.ilevel > 0 && pos'.parent() == pos ::

@@ -83,12 +83,12 @@ module DirFs
     ghost var dirents: map<Ino, Dirents>
     const fs: TypedFilesys
 
-    static function method oneIno(): Ino {
+    static function oneIno(): Ino {
       reveal ino_ok();
       1 as Ino
     }
 
-    static const rootIno: Ino := oneIno();
+    static const rootIno: Ino := oneIno()
 
     ghost const Repr: set<object> := {this} + fs.Repr
 
@@ -434,6 +434,7 @@ module DirFs
     method readDirentsInode(txn: Txn, d_ino: Ino, i: MemInode)
       returns (dents: MemDirents)
       requires ValidIno(d_ino, i)
+      requires i.Valid()
       requires fs.inode_unchanged(d_ino, i.val())
       requires fs.has_jrnl(txn)
       requires is_dir(d_ino)
@@ -483,6 +484,7 @@ module DirFs
         return Err(NotDir);
       }
       assert is_dir(d_ino) by { reveal is_of_type(); }
+      assert i.Valid();
       var dents := readDirentsInode(txn, d_ino, i);
       //fs.finishInodeReadonly(d_ino, i);
       assert ValidData();
@@ -1156,6 +1158,7 @@ module DirFs
       ensures r.Ok? ==>
       && fresh(r.v.Repr)
       && ValidIno(ino, r.v)
+      && r.v.Valid()
       && fs.inode_unchanged(ino, r.v.val())
       && is_file(ino)
       && old(is_file(ino))

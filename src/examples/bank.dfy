@@ -17,14 +17,14 @@ Demo of bank transfer using axiomatized journal API
 */
 class Bank
 {
-    ghost var accts: seq<nat>;
-    ghost const acct_sum: nat;
+    ghost var accts: seq<nat>
+    ghost const acct_sum: nat
 
-    var jrnl: Jrnl;
+    var jrnl: Jrnl
 
     static const BankKinds : map<Blkno, Kind> := map[513 as Blkno := KindUInt64 as Kind]
 
-    static function method Acct(n: uint64): (a:Addr)
+    static function Acct(n: uint64): (a:Addr)
     requires n < 512
     ensures a.off as nat % kindSize(KindUInt64) == 0
     {
@@ -33,7 +33,7 @@ class Bank
         Addr(513, n*64)
     }
 
-    static predicate acct_val(jrnl: Jrnl, acct: uint64, val: nat)
+    static ghost predicate acct_val(jrnl: Jrnl, acct: uint64, val: nat)
     reads jrnl
     requires jrnl.Valid()
     requires jrnl.kinds == BankKinds
@@ -45,7 +45,7 @@ class Bank
     }
 
     // pure version of Valid for crash condition
-    static predicate ValidState(jrnl: Jrnl, accts: seq<nat>, acct_sum: nat)
+    static ghost predicate ValidState(jrnl: Jrnl, accts: seq<nat>, acct_sum: nat)
         reads jrnl
     {
         && jrnl.Valid()

@@ -12,8 +12,8 @@ module Inode {
   import opened Marshal
   import C = Collections
 
-  const MAX_SZ_u64: uint64 := 4096 * (8 + 2*512 + 512*512 + 512*512*512);
-  const MAX_SZ: nat := MAX_SZ_u64 as nat;
+  const MAX_SZ_u64: uint64 := 4096 * (8 + 2*512 + 512*512 + 512*512*512)
+  const MAX_SZ: nat := MAX_SZ_u64 as nat
 
   datatype InodeType = InvalidType | FileType | DirType
   {
@@ -26,7 +26,7 @@ module Inode {
       }
     }
 
-    static function method from_u32(x: uint32): InodeType
+    static function from_u32(x: uint32): InodeType
     {
       if x == 0 then InvalidType else if x == 1 then FileType else DirType
     }
@@ -167,7 +167,7 @@ module Inode {
 
   datatype Meta = Meta(sz: uint64, attrs: Attrs)
   {
-    const ty := attrs.ty;
+    const ty := attrs.ty
     static const zero: Meta := Meta(0, Attrs.zero)
 
     ghost function enc(): seq<byte>

@@ -24,7 +24,7 @@ module TypedFs {
     const fs: ByteFilesys
     const ialloc: Allocator
 
-    ghost const Repr: set<object> := {this} + fs.Repr;
+    ghost const Repr: set<object> := {this} + fs.Repr
 
     static const iallocMax: uint64 := super.num_inodes as uint64
 
@@ -195,6 +195,7 @@ module TypedFs {
       ensures ok ==> ValidIno(ino, i')
       ensures !ok ==> Valid()
       requires has_jrnl(txn)
+      ensures ok ==> i'.Valid()
       ensures ok ==> inode_unchanged(ino, i'.val())
       ensures fresh(i'.Repr)
       ensures ok ==> i'.attrs == types[ino]
@@ -413,7 +414,7 @@ module TypedFs {
       assert write_data(data[ino], off as nat, []) == data[ino];
 
       while bs.Len() > 4096
-        decreases |data0| - written as nat;
+        decreases |data0| - written as nat
         invariant fresh({bs})
         invariant 0 < |bs.data| <= |data0| <= WT_MAX as nat
         invariant ValidIno(ino, i)

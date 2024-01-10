@@ -88,13 +88,13 @@ module IndirectPos
       sum(ilevels)
     }
 
-    static function method sum_nat(ilevels: seq<uint64>): nat
+    static function sum_nat(ilevels: seq<uint64>): nat
     {
       if ilevels == [] then 0
       else pow(512, ilevels[0] as nat) + sum_nat(ilevels[1..])
     }
 
-    static function method sum(ilevels: seq<uint64>): (s:uint64)
+    static function sum(ilevels: seq<uint64>): (s:uint64)
       requires sum_nat(ilevels) < U64.MAX
       ensures s as nat == sum_nat(ilevels)
     {
@@ -146,7 +146,7 @@ module IndirectPos
       assert ilevels == ilevels[..k] + ilevels[k..];
     }
 
-    static function method sums(ilevels: seq<uint64>): (s:seq<uint64>)
+    static function sums(ilevels: seq<uint64>): (s:seq<uint64>)
       requires sum_nat(ilevels) < U64.MAX
     {
       seq(1+|ilevels|, (i:nat) requires i <= |ilevels| =>
@@ -254,13 +254,14 @@ module IndirectPos
       requires Valid()
       requires this.data?()
     {
+      assert config.Valid();
       config.total_to(k) + off.j
     }
 
     // from_flat gives us a structured way to find an LBA (we go to its
     // appropriate root block and deference indirect blocks one at a time with
     // i.split() until we get a direct block)
-    static function method from_flat(n: uint64): (i:Idx)
+    static function from_flat(n: uint64): (i:Idx)
       requires n < config.total as uint64
       ensures i.data?()
     {
@@ -300,6 +301,7 @@ module IndirectPos
         assert 8 <= from_flat(n0).k < 8+3;
         if n < 512 {
           assert from_flat(n0).k == 8;
+          assert from_flat(n0).flat() == n0 by { assume false; }
           return;
         }
         if n < 2*512 {
@@ -343,11 +345,11 @@ module IndirectPos
   // the data lives.
   datatype Pos = Pos(ghost ino: Ino, idx: Idx)
   {
-    const ilevel: uint64 := idx.off.ilevel;
+    const ilevel: uint64 := idx.off.ilevel
     const data?: bool := idx.data?()
     const indirect?: bool := !data?
 
-    static function method from_flat(ghost ino: Ino, n: uint64): Pos
+    static function from_flat(ghost ino: Ino, n: uint64): Pos
       requires n as nat < config.total
     {
       Pos(ino, Idx.from_flat(n))
