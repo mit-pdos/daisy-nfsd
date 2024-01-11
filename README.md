@@ -48,7 +48,7 @@ You'll need Dafny 3:
 - On Arch Linux you can get `dafny-bin` from the AUR
 - On macOS use `brew install dafny`
 - For other systems the easiest solution is to download a binary release from
-  https://github.com/dafny-lang/dafny/releases, extract it, and add it to your
+  <https://github.com/dafny-lang/dafny/releases>, extract it, and add it to your
   $PATH (this is what we have to do in CI, which runs on Ubuntu 20.04).
 
 Compilation additionally depends on `goimports` to remove unused imports:
@@ -97,7 +97,7 @@ the kernel to get the fix (you can check what you have with `uname -r`).
 On macOS you already have `rpcbind` and the NFS client utilities, but you'll
 need to start a couple services with:
 
-```
+```sh
 sudo launchctl start com.apple.rpcbind
 sudo launchctl start com.apple.lockd
 ```
@@ -122,3 +122,18 @@ You can run tests for this support library with `go test`:
 ```sh
 go test ./dafny_go/...
 ```
+
+## Checking verification performance
+
+To time verification and analyze the results easily, we have a script to process timing from Dafny's `/trace` option. Use it with the following fish function:
+
+```fish
+function dafny_time
+  set -l file $argv[1]
+  dafny /timeLimit:10 /compile:0 /arith:5 /noNLarith /trace $file $argv[2..-1] > .timing.prof
+  cat .timing.prof | ./etc/summarize-timing
+end
+```
+
+The timing infrastructure itself is implemented as a library in `etc/`. It even
+has tests, which you can run with `pytest`.
