@@ -396,7 +396,7 @@ module Nfs {
     tfiles: uint64, ffiles: uint64
     )
   {
-    static const zero := Fsstat3(0,0,0,0);
+    static const zero := Fsstat3(0,0,0,0)
   }
 
 }

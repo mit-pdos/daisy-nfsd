@@ -470,6 +470,7 @@ module DirFs
       ensures r.ErrNotDir? ==> is_file(d_ino)
       ensures r.Err? ==> r.err.BadHandle? || r.err.NotDir?
       ensures r.Ok? ==>
+      && fresh(r.v.Repr())
       && is_dir(d_ino)
       && dirents_for(r.v, d_ino)
     {
@@ -1296,7 +1297,8 @@ module DirFs
       var new_attrs := ModifyAttrs(i.attrs);
       fs.setAttrs(ino, i, new_attrs);
 
-      if i.sz + bs.Len() > Inode.MAX_SZ_u64 ||
+      if sum_overflows(i.sz, bs.Len()) ||
+        i.sz + bs.Len() > Inode.MAX_SZ_u64 ||
         sum_overflows(off, bs.Len()) ||
         off + bs.Len() > Inode.MAX_SZ_u64 {
         return Err(FBig);

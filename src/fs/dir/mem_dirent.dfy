@@ -458,7 +458,13 @@ module MemDirEntries
       assert decode_null_terminated(name.data) == val.s[k].name by {
         decode_encode(val.s[k].name);
       }
+      assert forall i | 0 <= i < |needle.data| :: needle.data[i] != 0 by {
+        reveal is_pathc();
+      }
       decode_nullterm_no_null(needle.data);
+      assert |needle.data| <= |name.data| by {
+        reveal is_pathc();
+      }
       var equal := NullTerminatedEqualSmaller(needle, name);
       if equal {
         return Some(ino);
