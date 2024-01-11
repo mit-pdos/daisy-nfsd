@@ -119,8 +119,8 @@ module ByteFs {
   lemma write_data_app_auto(data: seq<byte>, off: nat)
     requires off <= |data|
     ensures forall bs1, bs2 :: write_data(data, off, bs1 + bs2) ==
-        write_data(write_data(data, off, bs1),
-          off + |bs1|, bs2)
+              write_data(write_data(data, off, bs1),
+                off + |bs1|, bs2)
   {}
 
   class ByteFilesys
@@ -351,6 +351,7 @@ module ByteFs {
       returns (ok: bool)
       modifies Repr, i.Repr, bs
       requires fs.has_jrnl(txn)
+      requires i.bs != bs
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
@@ -398,11 +399,12 @@ module ByteFs {
       returns (ok: bool)
       modifies Repr, i.Repr, bs
       requires fs.has_jrnl(txn)
+      requires bs != i.bs
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires is_block(bs.data)
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data()[ino]|
-      ensures fs.metadata == old(fs.metadata);
+      ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
       ensures ok ==> data() == old(
       var d0 := data()[ino];
@@ -557,6 +559,7 @@ module ByteFs {
       fs.inode_metadata(ino, i);
       assert sz == fs.metadata[ino].sz;
       var unusedStart := Round.roundup64(sz, 4096);
+      done := false;
       if unusedStart < Inode.MAX_SZ_u64 {
         done := zeroFromRaw(txn, ino, i, unusedStart, sz_hint);
         assert raw_data(ino)[..unusedStart] == old(raw_data(ino)[..unusedStart]);
@@ -764,6 +767,7 @@ module ByteFs {
       var d := C.splice(d0, off as nat, bs.data);
       data()[ino := d])
     {
+      ok := false;
       ghost var d0 := data()[ino];
       if bs.Len() == 0 {
         assert bs.data == [];

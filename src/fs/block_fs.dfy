@@ -124,6 +124,7 @@ module BlockFs
     requires fs.has_jrnl(txn)
     requires is_lba(n)
     requires is_block(blk.data)
+    requires blk != i.bs
     requires blk != c.bs
     ensures fs.metadata == old(fs.metadata)
     ensures ok ==> block_data(fs.data) == old(
@@ -182,7 +183,7 @@ module BlockFs
     off: uint64, len: uint64)
     returns (ok: bool)
     requires fs.has_jrnl(txn)
-    requires fs.ValidIno(ino, i);
+    requires fs.ValidIno(ino, i)
     requires off as nat + len as nat <= config.total
     ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
       block_data(fs.data)[ino].blks[off'] == block0
