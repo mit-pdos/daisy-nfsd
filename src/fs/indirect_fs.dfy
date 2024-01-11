@@ -737,6 +737,7 @@ module IndFs
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       requires pos.data?
       requires is_block(blk.data)
+      requires blk != i.bs
       requires blk != c.bs
       ensures ok ==> data == old(data[pos := blk.data])
       ensures !ok ==> data == old(data)
@@ -824,10 +825,11 @@ module IndFs
       }
     }
 
-    method zeroOutIndirectWithParent(txn: Txn,
+    method {:timeLimitMultiplier 2} zeroOutIndirectWithParent(txn: Txn,
       pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
+      requires ib != i.bs
       requires ValidInoExcept(pos.ino, i, ibn) ensures ValidInoExcept(pos.ino, i, ibn)
       requires pos.ilevel > 0 // indirect
       requires pos.data?      // last level
@@ -841,6 +843,7 @@ module IndFs
       ensures ib.data == fs.data_block[ibn]
     {
       valid_parent_at(pos);
+      assert ib !in i.Repr;
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
       var child_bn := IndBlocks.decode_one(ib, child.j);
@@ -853,6 +856,7 @@ module IndFs
       }
       fs.freeWithException(txn, child_bn, ibn);
       IndBlocks.modify_one(ib, child.j, 0);
+      assert i.Valid();
       fs.fakeWriteDataBlock(ibn, ib.data);
       data := data[pos := block0];
       to_blkno := to_blkno[pos := 0 as Blkno];
@@ -885,6 +889,10 @@ module IndFs
           }
         }
       }
+      assert && fs.ValidExcept(ibn)
+      && ValidThis();
+      assert i.Valid();
+      assert fs.is_cur_inode(pos.ino, i.val());
     }
 
     method readParent(txn: Txn, pos: Pos, i: MemInode)
@@ -972,6 +980,7 @@ module IndFs
       pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
+      requires ib != i.bs
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       // the level of the pos should intermediate: not data (0) and not root in
       // the inode (config.ilevels[pos.idx.k])
@@ -985,6 +994,7 @@ module IndFs
       ensures to_blkno == old(to_blkno[pos := 0 as Blkno])
       ensures ibn == to_blkno[pos.parent()]
     {
+      assert ib !in i.Repr;
       valid_parent_at(pos);
       var parent: Pos := pos.parent();
       var child: IndOff := pos.child();
