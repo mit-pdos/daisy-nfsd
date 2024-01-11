@@ -40,7 +40,7 @@ module InodeFs {
   }
 
   class InodeFilesys<AllocState(!new)>
-    {
+  {
 
     // inodes, block_used, and data_block are basically just the data in the
     // journal (except block_used additionally has inode owners)

@@ -112,15 +112,15 @@ module ByteFs {
   lemma write_data_app(data: seq<byte>, off: nat, bs1: seq<byte>, bs2: seq<byte>)
     requires off <= |data|
     ensures write_data(data, off, bs1 + bs2) ==
-        write_data(write_data(data, off, bs1),
-          off + |bs1|, bs2)
+            write_data(write_data(data, off, bs1),
+                       off + |bs1|, bs2)
   {}
 
   lemma write_data_app_auto(data: seq<byte>, off: nat)
     requires off <= |data|
     ensures forall bs1, bs2 :: write_data(data, off, bs1 + bs2) ==
-              write_data(write_data(data, off, bs1),
-                off + |bs1|, bs2)
+                               write_data(write_data(data, off, bs1),
+                                          off + |bs1|, bs2)
   {}
 
   class ByteFilesys
@@ -140,7 +140,7 @@ module ByteFs {
     {
       map ino:Ino ::
         (fs.metadata_bound(ino);
-        inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
+         inode_data(fs.metadata[ino].sz as nat, block_data(fs.data)[ino]))
     }
 
     ghost function {:opaque} inode_types(): (m:map<Ino, Inode.Attrs>)
@@ -317,8 +317,8 @@ module ByteFs {
       ensures fresh(bs)
       ensures fs.fs.cur_inode == old(fs.fs.cur_inode)
       ensures ok ==>
-          && off as nat + len as nat <= |data()[ino]|
-          && bs.data == this.data()[ino][off..off+len]
+                && off as nat + len as nat <= |data()[ino]|
+                && bs.data == this.data()[ino][off..off+len]
     {
       fs.inode_metadata(ino, i);
 
@@ -357,8 +357,8 @@ module ByteFs {
       requires off % 4096 == 0
       requires off as nat + 4096 <= Inode.MAX_SZ
       ensures (var ino0 := ino;
-        forall ino:Ino | ino != ino0 ::
-          data()[ino] == old(data()[ino]))
+               forall ino:Ino | ino != ino0 ::
+                 data()[ino] == old(data()[ino]))
       ensures ok ==> raw_data(ino) == C.splice(old(raw_data(ino)), off as nat, old(bs.data))
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
@@ -407,9 +407,9 @@ module ByteFs {
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
       ensures ok ==> data() == old(
-      var d0 := data()[ino];
-      var d := C.splice(d0, off as nat, bs.data);
-      data()[ino := d])
+                                 var d0 := data()[ino];
+                                 var d := C.splice(d0, off as nat, bs.data);
+                                 data()[ino := d])
       ensures !ok ==> data() == old(data())
     {
       ok := alignedRawWrite(txn, ino, i, bs, off);
@@ -434,7 +434,7 @@ module ByteFs {
     }
 
     method rawCheckZero(txn: Txn, ghost ino: Ino, i: MemInode,
-      off: uint64, len: uint64)
+                        off: uint64, len: uint64)
       returns (ok: bool)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -456,7 +456,7 @@ module ByteFs {
     }
 
     method checkZero(txn: Txn, ghost ino: Ino, i: MemInode,
-      off: uint64, len: uint64)
+                     off: uint64, len: uint64)
       returns (ok: bool)
       requires fs.ValidIno(ino, i)
       requires fs.has_jrnl(txn)
@@ -505,18 +505,18 @@ module ByteFs {
     }
 
     method zeroFromRaw(txn: Txn, ghost ino: Ino, i: MemInode,
-      off: uint64, sz_hint: uint64)
+                       off: uint64, sz_hint: uint64)
       returns (done: bool)
       modifies Repr, i.Repr
       requires fs.has_jrnl(txn)
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires off % 4096 == 0 && off as nat < Inode.MAX_SZ
       ensures var ino0 := ino;
-        forall ino:Ino | ino != ino0 ::
-          data()[ino] == old(data()[ino])
+              forall ino:Ino | ino != ino0 ::
+                data()[ino] == old(data()[ino])
       ensures var off0 := off;
-        forall off:uint64 | off < off0 ::
-          raw_data(ino)[off] == old(raw_data(ino)[off])
+              forall off:uint64 | off < off0 ::
+                raw_data(ino)[off] == old(raw_data(ino)[off])
       ensures fs.metadata == old(fs.metadata)
       ensures types_unchanged()
     {
@@ -616,9 +616,9 @@ module ByteFs {
       requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      r.SetSizeOk? ==> (var d0 := old(data()[ino]);
-      var d' := setSize_with_zeros(d0, sz' as nat);
-      && data() == old(data()[ino := d']))
+        r.SetSizeOk? ==> (var d0 := old(data()[ino]);
+                          var d' := setSize_with_zeros(d0, sz' as nat);
+                          && data() == old(data()[ino := d']))
       ensures types_unchanged()
     {
       fs.inode_metadata(ino, i);
@@ -642,11 +642,11 @@ module ByteFs {
           return SetSizeNotZero;
         }
         assert data()[ino] ==
-          old(data()[ino]) +
-          junk[..freeStart - sz0] +
-          C.repeat(0 as byte, sz' as nat - freeStart as nat) by {
+               old(data()[ino]) +
+               junk[..freeStart - sz0] +
+               C.repeat(0 as byte, sz' as nat - freeStart as nat) by {
           assert junk[freeStart - sz0..] ==
-            C.repeat(0 as byte, sz' as nat - freeStart as nat);
+                 C.repeat(0 as byte, sz' as nat - freeStart as nat);
         }
       }
       if sz0 < freeStart {
@@ -672,10 +672,10 @@ module ByteFs {
           calc {
             data()[ino];
             C.splice(old(data()[ino]) + junk[..zeroLen]
-              + C.repeat(0 as byte, sz' as nat - freeStart as nat),
-              sz0 as nat, C.repeat(0 as byte, zeroLen as nat));
+                     + C.repeat(0 as byte, sz' as nat - freeStart as nat),
+                     sz0 as nat, C.repeat(0 as byte, zeroLen as nat));
             old(data()[ino]) + C.repeat(0 as byte, zeroLen as nat)
-              + C.repeat(0 as byte, sz' as nat - freeStart as nat);
+            + C.repeat(0 as byte, sz' as nat - freeStart as nat);
             old(data()[ino]) + C.repeat(0 as byte, sz' as nat - sz0 as nat);
           }
         }
@@ -685,10 +685,10 @@ module ByteFs {
     lemma data_update_in_place(data0: seq<byte>, data1: seq<byte>, off: nat, bs: seq<byte>, blk: seq<byte>)
       requires off + |bs| <= off/4096*4096 + 4096 <= |data0|
       requires
-      (var off' := off / 4096 * 4096;
-      && blk == C.splice(data0[off'..off'+4096], off % 4096, bs)
-      && data1 == C.splice(data0, off', blk)
-      )
+        (var off' := off / 4096 * 4096;
+         && blk == C.splice(data0[off'..off'+4096], off % 4096, bs)
+         && data1 == C.splice(data0, off', blk)
+        )
       ensures data1 == C.splice(data0, off, bs)
     {
       var off' := off / 4096 * 4096;
@@ -720,9 +720,9 @@ module ByteFs {
       requires off as nat % 4096 + |bs.data| <= 4096
       ensures types_unchanged()
       ensures ok ==> data() == old(
-      var d0 := data()[ino];
-      var d := C.splice(d0, off as nat, bs.data);
-      data()[ino := d])
+                                 var d0 := data()[ino];
+                                 var d := C.splice(d0, off as nat, bs.data);
+                                 data()[ino := d])
     {
       if bs.Len() == 4096 {
         ok := this.alignedWrite(txn, ino, i, bs, off);
@@ -763,9 +763,9 @@ module ByteFs {
       requires off as nat + |bs.data| <= |data()[ino]|
       ensures types_unchanged()
       ensures ok ==> data() == old(
-      var d0 := data()[ino];
-      var d := C.splice(d0, off as nat, bs.data);
-      data()[ino := d])
+                                 var d0 := data()[ino];
+                                 var d := C.splice(d0, off as nat, bs.data);
+                                 data()[ino := d])
     {
       ok := false;
       ghost var d0 := data()[ino];
@@ -947,10 +947,10 @@ module ByteFs {
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures types_unchanged()
       ensures ok ==>
-      && data() == old(
-      var d0 := data()[ino];
-      var d := write_data(d0, off as nat, bs.data);
-      data()[ino := d])
+                && data() == old(
+                               var d0 := data()[ino];
+                               var d := write_data(d0, off as nat, bs.data);
+                               data()[ino := d])
     {
       ghost var d0 := data()[ino];
       fs.inode_metadata(ino, i);

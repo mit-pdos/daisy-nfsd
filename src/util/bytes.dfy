@@ -49,24 +49,24 @@ module ByteHelpers {
   }
 
   method CopyTo(bs0: Bytes, off: uint64, bs: Bytes)
-      modifies bs0
-      requires bs != bs0
-      requires bs.Valid()
-      requires off as nat + |bs.data| <= |bs0.data|
-      ensures bs0.data == old(C.splice(bs0.data, off as nat, bs.data))
-      ensures |bs0.data| == old(|bs0.data|)
-      ensures bs.data == old(bs.data)
+    modifies bs0
+    requires bs != bs0
+    requires bs.Valid()
+    requires off as nat + |bs.data| <= |bs0.data|
+    ensures bs0.data == old(C.splice(bs0.data, off as nat, bs.data))
+    ensures |bs0.data| == old(|bs0.data|)
+    ensures bs.data == old(bs.data)
   {
     var len := bs.Len();
     bs0.CopySegment(off, bs, 0, len);
   }
 
   method CopyFrom(bs0: Bytes, bs: Bytes, off: uint64, len: uint64)
-      modifies bs0
-      requires bs != bs0
-      requires off as nat + len as nat <= |bs.data|
-      requires len as nat <= |bs0.data|
-      ensures bs0.data == bs.data[off as nat..off as nat + len as nat] + old(bs0.data[len as nat..])
+    modifies bs0
+    requires bs != bs0
+    requires off as nat + len as nat <= |bs.data|
+    requires len as nat <= |bs0.data|
+    ensures bs0.data == bs.data[off as nat..off as nat + len as nat] + old(bs0.data[len as nat..])
   {
     bs0.CopySegment(0, bs, off, len);
   }

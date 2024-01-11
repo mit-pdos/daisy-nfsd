@@ -75,9 +75,9 @@ module IndBlocks
     requires k < 512
     ensures is_block(bs.data)
     ensures (
-    var blknos' := to_blknos(bs.data);
-    var blknos := old(to_blknos(bs.data));
-    blknos' == blknos.(s:=blknos.s[k := bn]))
+              var blknos' := to_blknos(bs.data);
+              var blknos := old(to_blknos(bs.data));
+              blknos' == blknos.(s:=blknos.s[k := bn]))
   {
     decode_uint64_seq_modify_one(bs.data, k as nat, bn);
     IntEncoding.UInt64Put(bn, k*8, bs);

@@ -151,8 +151,8 @@ module IndirectPos
     {
       seq(1+|ilevels|, (i:nat) requires i <= |ilevels| =>
         (sum_nat_prefix_lt(ilevels, i);
-        sum(ilevels[..i]))
-          )
+         sum(ilevels[..i]))
+        )
     }
 
   }
@@ -230,7 +230,7 @@ module IndirectPos
   datatype preIdx = Idx(k: uint64, off: IndOff)
   {
     const ilevel: uint64 := off.ilevel
-      // if false, idx is indirect
+    // if false, idx is indirect
     predicate data?()
     {
       && k as nat < |config.ilevels|
@@ -268,21 +268,21 @@ module IndirectPos
       if n < 8 then
         Idx(n, IndOff.direct)
       else (
-        var n: uint64 := n-8;
-        if n < 2*512 then
-          Idx(8+n/512, IndOff(1, n%512))
-        else (
-          var n: uint64 := n - 2*512;
-          if n < 512*512 then
-            Idx(8+2, IndOff(2, n%(512*512)))
-          else (
-            var n: uint64 := n-512*512;
-            // there's only one triply-indirect block so no complicated
-            // calculations are needed here
-            Idx(8+3, IndOff(3, n))
-          )
-        )
-      )
+             var n: uint64 := n-8;
+             if n < 2*512 then
+               Idx(8+n/512, IndOff(1, n%512))
+             else (
+                    var n: uint64 := n - 2*512;
+                    if n < 512*512 then
+                      Idx(8+2, IndOff(2, n%(512*512)))
+                    else (
+                           var n: uint64 := n-512*512;
+                           // there's only one triply-indirect block so no complicated
+                           // calculations are needed here
+                           Idx(8+3, IndOff(3, n))
+                         )
+                  )
+           )
     }
 
     static lemma from_to_flat_id(n: uint64)
@@ -323,7 +323,7 @@ module IndirectPos
         config_total_to(8+3);
       }
       assert from_flat(n0).flat() == 8+2*512 + 512*512 + (n-2*512 - 512*512);
-  }
+    }
 
     static lemma from_flat_inj(n1: uint64, n2: uint64)
       requires n1 as nat < config.total && n2 as nat < config.total

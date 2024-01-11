@@ -1,24 +1,24 @@
 // -*- dafny-prover-local-args: ("/z3opt:smt.arith.nl=true" "/arith:1") -*-
 module Arith {
   lemma div_mod_split(x: nat, k: nat)
-      requires 0 < k
-      ensures x == (x/k)*k + x%k
-      ensures 0 <= x/k
-      ensures x%k < k
+    requires 0 < k
+    ensures x == (x/k)*k + x%k
+    ensures 0 <= x/k
+    ensures x%k < k
   {}
 
   lemma mul_add_bound(x1: nat, x2: nat, x1_bound: nat, k:nat)
-      requires 0 < k
-      requires x1 < x1_bound
-      requires x2 < k
-      ensures x1*k + x2 < k*x1_bound
+    requires 0 < k
+    requires x1 < x1_bound
+    requires x2 < k
+    ensures x1*k + x2 < k*x1_bound
   {
-      //assert x1 <= x1_bound-1;
-      calc {
-          x1 * k;
-          <= (x1_bound-1)*k;
-          == x1_bound*k-k;
-      }
+    //assert x1 <= x1_bound-1;
+    calc {
+       x1 * k;
+    <= (x1_bound-1)*k;
+    == x1_bound*k-k;
+    }
   }
 
   lemma mul_r_strictly_incr(x: int, y: int, k: int)
@@ -47,8 +47,8 @@ module Arith {
   {}
 
   lemma mul_r_increasing(x1: nat, x2: nat)
-  requires 0 < x2
-  ensures x1 <= x1 * x2
+    requires 0 < x2
+    ensures x1 <= x1 * x2
   {}
 
   lemma mul_positive(x: nat, y: nat)

@@ -154,9 +154,9 @@ module FileCursor {
       ensures fs.types_unchanged()
       ensures buffer_fresh()
       ensures ok ==>
-      (reveal ValidFs();
-        && Valid()
-        && fs.data == old(fs.data[ino := C.splice(fs.data[ino], off as nat, bs.data)]))
+                (reveal ValidFs();
+                 && Valid()
+                 && fs.data == old(fs.data[ino := C.splice(fs.data[ino], off as nat, bs.data)]))
     {
       reveal ValidFs();
       ok := fs.writeBlock(txn, ino, i, off, bs);
@@ -173,9 +173,9 @@ module FileCursor {
       ensures fs.types_unchanged()
       ensures buffer_fresh()
       ensures ok ==>
-      && Valid()
-      && off == old(off)
-      && fs.data == old(fs.data[ino := fs.data[ino] + JrnlTypes.block0])
+                && Valid()
+                && off == old(off)
+                && fs.data == old(fs.data[ino := fs.data[ino] + JrnlTypes.block0])
     {
       reveal ValidFs();
       var blk := NewBytes(4096);

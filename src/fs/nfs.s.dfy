@@ -1,7 +1,7 @@
 include "../machine/bytes.s.dfy"
 include "../util/std.dfy"
 include "inode/inode.dfy"
-// for definition of directories
+  // for definition of directories
 include "dir/dirent.dfy"
 
 module Nfs {
@@ -32,7 +32,7 @@ module Nfs {
   ghost predicate valid_name(name: seq<byte>)
   {
     && DirEntries.is_pathc(name)
-    // the following three paths are specifically disallowed
+       // the following three paths are specifically disallowed
     && name != [] // ""
     && name != ['.' as byte] // "."
     && name != ['.' as byte, '.' as byte] // ".."
@@ -126,17 +126,17 @@ module Nfs {
     // (1) the destination didn't exist so no overwriting took place
     || (args.dst_name !in dst1.dir)
     || var src := data[args.src];
-      var dst := data[args.dst];
-      && var src_ino := src.dir[args.src_name];
-        var dst_ino := dst.dir[args.dst_name];
-        // (2) source and destination are both files
-        || (&& is_file_fs(src_ino, data)
-          && is_file_fs(dst_ino, data))
-        // (3) source and destinations are both directories, and the
-        // destination is empty
-        || (&& is_dir_fs(src_ino, data)
-          && is_dir_fs(dst_ino, data)
-          && data1[dst_ino].dir == map[])
+       var dst := data[args.dst];
+       && var src_ino := src.dir[args.src_name];
+       var dst_ino := dst.dir[args.dst_name];
+       // (2) source and destination are both files
+       || (&& is_file_fs(src_ino, data)
+           && is_file_fs(dst_ino, data))
+          // (3) source and destinations are both directories, and the
+          // destination is empty
+       || (&& is_dir_fs(src_ino, data)
+           && is_dir_fs(dst_ino, data)
+           && data1[dst_ino].dir == map[])
   }
 
   // rename with cleanup of any overwritten files
@@ -179,7 +179,7 @@ module Nfs {
     | BadHandle
     | ServerFault
     | JukeBox(sz_hint: uint64)
-    // this is a purely internal error
+      // this is a purely internal error
     | LockOrderViolated(locks: seq<uint64>)
   {
     function nfs3_code(): uint32
@@ -259,12 +259,12 @@ module Nfs {
 
   datatype Sattr3 =
     Sattr3(
-    mode: Option<uint32>,
-    uid: Option<uint32>,
-    gid: Option<uint32>,
-    size: Option<uint64>,
-    atime: SetTime,
-    mtime: SetTime
+      mode: Option<uint32>,
+      uid: Option<uint32>,
+      gid: Option<uint32>,
+      size: Option<uint64>,
+      atime: SetTime,
+      mtime: SetTime
     )
   {
     static const setNone := Sattr3(None, None, None, None, DontChange, DontChange)
@@ -273,8 +273,8 @@ module Nfs {
   datatype CreateHow3 =
     | Unchecked(obj_attributes: Sattr3)
     | Guarded(obj_attributes: Sattr3)
-    // for simplicity we get the wrapper code to directly give an NFS time
-    // (rather than 8 bytes)
+      // for simplicity we get the wrapper code to directly give an NFS time
+      // (rather than 8 bytes)
     | Exclusive(verf: Inode.NfsTime)
   {
     function size(): uint64
@@ -288,12 +288,12 @@ module Nfs {
   {
     && attrs.ty.FileType?
     && (!how.Exclusive? ==>
-      (var how_attrs := how.obj_attributes;
-      && (how_attrs.mode.Some? ==> attrs.mode == how_attrs.mode.x)
-      && (how_attrs.uid.Some? ==> attrs.uid == how_attrs.uid.x)
-      && (how_attrs.gid.Some? ==> attrs.gid == how_attrs.gid.x)
-      && (how_attrs.mtime.SetToClientTime? ==> attrs.mtime == how_attrs.mtime.time)
-      ))
+          (var how_attrs := how.obj_attributes;
+           && (how_attrs.mode.Some? ==> attrs.mode == how_attrs.mode.x)
+           && (how_attrs.uid.Some? ==> attrs.uid == how_attrs.uid.x)
+           && (how_attrs.gid.Some? ==> attrs.gid == how_attrs.gid.x)
+           && (how_attrs.mtime.SetToClientTime? ==> attrs.mtime == how_attrs.mtime.time)
+          ))
   }
 
   ghost predicate has_before_attrs(attrs: Inode.Attrs, before: BeforeAttr)
@@ -332,7 +332,7 @@ module Nfs {
     && file.DirFile? == attr.ftype.NFS3DIR?
     && file.attrs == attr.attrs
     && (file.ByteFile? ==> |file.data| == attr.size as nat)
-    // size of directory is an encoding detail that is leaked to clients
+       // size of directory is an encoding detail that is leaked to clients
   }
 
   datatype ReadResult = ReadResult(data: Bytes, eof: bool)
@@ -342,7 +342,7 @@ module Nfs {
   datatype RemoveResult = RemoveResult(ino: FsKinds.Ino, sz: uint64, dir_before: BeforeAttr, d_attrs: Fattr3)
 
   ghost predicate is_read_data(data: seq<byte>, off: nat, len: nat,
-    bs: seq<byte>, eof: bool)
+                               bs: seq<byte>, eof: bool)
   {
     && |bs| <= len
     && (off + |bs| <= |data| ==> bs == data[off..off + |bs|])
@@ -353,8 +353,8 @@ module Nfs {
   {
     && attrs.ty.DirType?
     && attrs.uid == uid && attrs.gid == gid
-    // Dafny doesn't have octal literals, so write out 0777 carefully
-    // the code just uses 511 which is the decimal value of this expression
+       // Dafny doesn't have octal literals, so write out 0777 carefully
+       // the code just uses 511 which is the decimal value of this expression
     && attrs.mode == ((7 as bv32 << 6) | (7 as bv32 << 3) | (7 as bv32)) as uint32
   }
 
@@ -364,9 +364,9 @@ module Nfs {
     && attrs.mode == sattr.mode.get_default(0)
     && attrs.uid == sattr.uid.get_default(0)
     && attrs.gid == sattr.gid.get_default(0)
-    // Linux calls MKDIR with DontChange, but we expect it to get a creation
-    // timestamp somehow
-    // && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
+       // Linux calls MKDIR with DontChange, but we expect it to get a creation
+       // timestamp somehow
+       // && (sattr.mtime.DontChange? ==> attrs.mtime == attrs0.mtime)
     && (sattr.mtime.SetToClientTime? ==> attrs.mtime == sattr.mtime.time)
   }
 
@@ -386,7 +386,7 @@ module Nfs {
     && attrs.mode == attrs0.mode
     && attrs.uid == attrs0.uid
     && attrs.gid == attrs0.gid
-    // mtime can change
+       // mtime can change
   }
 
   datatype Fsstat3 = Fsstat3(
@@ -394,7 +394,7 @@ module Nfs {
     tbytes: uint64, fbytes: uint64,
     // files (inodes) in file system / free files
     tfiles: uint64, ffiles: uint64
-    )
+  )
   {
     static const zero := Fsstat3(0,0,0,0)
   }

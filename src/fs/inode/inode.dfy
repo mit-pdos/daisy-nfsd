@@ -99,10 +99,10 @@ module Inode {
     ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(ty.to_u32()) +
-        IntEncoding.le_enc32(mode) +
-        IntEncoding.le_enc32(uid) +
-        IntEncoding.le_enc32(gid) +
-        mtime.enc()
+      IntEncoding.le_enc32(mode) +
+      IntEncoding.le_enc32(uid) +
+      IntEncoding.le_enc32(gid) +
+      mtime.enc()
     }
 
     lemma enc_len()
@@ -231,8 +231,8 @@ module Inode {
 
   lemma enc_app(i: Inode)
     ensures enc(i) ==
-    IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
-    seq_enc_uint64(i.blks)
+            IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
+            seq_enc_uint64(i.blks)
   {
     reveal enc();
   }

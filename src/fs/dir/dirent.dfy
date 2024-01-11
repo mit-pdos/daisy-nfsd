@@ -16,14 +16,14 @@ module DirEntries
 
   const dirent_sz_u64: uint64 := 64
   const dirent_sz: nat := dirent_sz_u64 as nat
-    // dirent_sz - 8
+  // dirent_sz - 8
   const path_len_u64: uint64 := 56
   const path_len: nat := path_len_u64 as nat
 
-    // this is the maximum directory size in entries
-    //
-    // somewhat arbitrary limit to prevent integer overflow/overflowing inode
-    // max sz
+  // this is the maximum directory size in entries
+  //
+  // somewhat arbitrary limit to prevent integer overflow/overflowing inode
+  // max sz
   const dir_sz_u64: uint64 := 10240
   const dir_sz: nat := dir_sz_u64 as nat
 
@@ -58,8 +58,8 @@ module DirEntries
   {
     if s == [] then []
     else
-      if s[0] == 0 as byte then []
-      else [s[0]] + decode_null_terminated(s[1..])
+    if s[0] == 0 as byte then []
+    else [s[0]] + decode_null_terminated(s[1..])
   }
 
   // decode_null_terminated is technically the longest sequence satisfying these properties
@@ -182,12 +182,12 @@ module DirEntries
   {
     if s == [] then map[]
     else (
-      var e := s[0];
-      var s' := s[1..];
-      if e.used() then
-        seq_to_dir(s')[e.name := e.ino]
-      else seq_to_dir(s')
-      )
+           var e := s[0];
+           var s' := s[1..];
+           if e.used() then
+             seq_to_dir(s')[e.name := e.ino]
+           else seq_to_dir(s')
+         )
   }
 
   function used_dirents(s: seq<DirEnt>): seq<DirEnt>
@@ -564,8 +564,8 @@ module DirEntries
 
     lemma enc_extend_zero(n: nat)
       ensures
-      Dirents(s + C.repeat(DirEnt.zero, n)).enc()
-      == this.enc() + C.repeat(0 as byte, dirent_sz * n)
+        Dirents(s + C.repeat(DirEnt.zero, n)).enc()
+        == this.enc() + C.repeat(0 as byte, dirent_sz * n)
     {
       enc_app(s, C.repeat(DirEnt.zero, n));
       zeros_enc(n);

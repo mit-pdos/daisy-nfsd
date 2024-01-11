@@ -58,9 +58,9 @@ module Round {
       calc {
         (x + (k-1)) / k;
         (x/k*k + (k-1)) / k;
-      { div_add_l(x/k, k, (k-1)); }
+        { div_add_l(x/k, k, (k-1)); }
         x/k + (k-1) / k;
-      { div_small(k-1, k); }
+        { div_small(k-1, k); }
         x/k;
       }
     } else {

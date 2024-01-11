@@ -76,7 +76,7 @@ module IndFs
   // will be used less)
   predicate shouldCache(pos: Pos)
   {
-      pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k]
+    pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k]
   }
 
   class IndFilesys
@@ -133,11 +133,11 @@ module IndFs
       requires ValidBasics()
     {
       && (forall bn:Blkno | bn != 0 && blkno_ok(bn) ::
-          blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
+            blkno_pos(bn).Some? ==> to_blkno[blkno_pos(bn).x] == bn)
       && (forall pos:Pos ::
-          var bn := to_blkno[pos];
-          && blkno_ok(bn)
-          && (bn != 0 ==> blkno_pos(bn) == Some(pos)))
+            var bn := to_blkno[pos];
+            && blkno_ok(bn)
+            && (bn != 0 ==> blkno_pos(bn) == Some(pos)))
     }
 
     lemma blkno_unused(bn: Blkno)
@@ -165,7 +165,7 @@ module IndFs
         var bn := blks[k];
         && blkno_ok(bn)
         && to_blkno[Pos(ino, Idx.from_inode(k))] == bn
-        // && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
+           // && (bn != 0 ==> blkno_pos(bn) == Some(MkPos(ino, Idx.from_inode(k))))
     }
 
     ghost predicate {:opaque} ValidInodes()
@@ -285,9 +285,9 @@ module IndFs
     {
       && c.Valid()
       && (c.ok ==>
-        && c.pos.ino == ino
-        && to_blkno[c.pos] == c.bn
-        && c.bs.data == zero_lookup(fs.data_block, c.bn))
+            && c.pos.ino == ino
+            && to_blkno[c.pos] == c.bn
+            && c.bs.data == zero_lookup(fs.data_block, c.bn))
     }
 
     constructor Init(d: Disk)
@@ -417,13 +417,13 @@ module IndFs
     twostate lemma Valid_unchanged()
       requires old(Valid())
       requires
-          && fs.Valid()
-          && fs.data_block == old(fs.data_block)
-          && fs.inodes == old(fs.inodes)
-          && fs.block_used == old(fs.block_used)
-          && data == old(data)
-          && metadata == old(metadata)
-          && to_blkno == old(to_blkno)
+        && fs.Valid()
+        && fs.data_block == old(fs.data_block)
+        && fs.inodes == old(fs.inodes)
+        && fs.block_used == old(fs.block_used)
+        && data == old(data)
+        && metadata == old(metadata)
+        && to_blkno == old(to_blkno)
       ensures Valid()
     {
       reveal ValidPos();
@@ -480,7 +480,7 @@ module IndFs
     // zero block. Does not affect the user state but makes it possible to
     // allocate data blocks and store them underneath this indirect block.
     method {:timeLimitMultiplier 2} allocateIndirectMetadata(txn: Txn,
-      pos: Pos, ibn: Blkno, pblock: Bytes)
+                                                             pos: Pos, ibn: Blkno, pblock: Bytes)
       returns (ok: bool, bn: Blkno)
       modifies Repr, pblock
       requires has_jrnl(txn)
@@ -574,9 +574,9 @@ module IndFs
       requires to_blkno[pos] == bn
       ensures fresh(c.Repr() - old(c.Repr()))
     {
-    // caching policy is to only cache the second-to-last level (since we only
-    // cache one lookup, we don't want to cache more indirect lookups since they
-    // will be used less)
+      // caching policy is to only cache the second-to-last level (since we only
+      // cache one lookup, we don't want to cache more indirect lookups since they
+      // will be used less)
       if pos.idx.off.ilevel + 1 == config.ilevels[pos.idx.k] {
         c.ok := true;
         c.pos := pos;
@@ -749,7 +749,7 @@ module IndFs
       var bn;
       ok, bn := this.resolveMetadata(txn, pos, i', c);
       if !ok {
-         return;
+        return;
       }
       assert ValidIno(pos.ino, i');
 
@@ -826,7 +826,7 @@ module IndFs
     }
 
     method {:timeLimitMultiplier 2} zeroOutIndirectWithParent(txn: Txn,
-      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
+                                                              pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
       requires ib != i.bs
@@ -890,7 +890,7 @@ module IndFs
         }
       }
       assert && fs.ValidExcept(ibn)
-      && ValidThis();
+             && ValidThis();
       assert i.Valid();
       assert fs.is_cur_inode(pos.ino, i.val());
     }
@@ -962,11 +962,11 @@ module IndFs
       requires pos.idx.off.j % 512 == 0
       requires pos.ilevel > 0
       ensures forall pos': Pos | pos'.ilevel > 0 ::
-      pos'.parent() == pos.parent() <==>
-      (&& pos'.ino == pos.ino
-      && pos'.idx.k == pos.idx.k
-      && pos'.ilevel == pos.ilevel
-      && pos.idx.off.j <= pos'.idx.off.j < pos.idx.off.j + 512)
+                pos'.parent() == pos.parent() <==>
+                (&& pos'.ino == pos.ino
+                 && pos'.idx.k == pos.idx.k
+                 && pos'.ilevel == pos.ilevel
+                 && pos.idx.off.j <= pos'.idx.off.j < pos.idx.off.j + 512)
     {
     }
 
@@ -977,7 +977,7 @@ module IndFs
     // parent is another block (and not the inode) and this block only has
     // pointers so changing it to a zero doesn't affect the data
     method zeroOutIntermediateIndirectWithParent(txn: Txn,
-      pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
+                                                 pos: Pos, ibn: Blkno, ib: Bytes, i: MemInode)
       modifies Repr, i.Repr, ib
       requires has_jrnl(txn)
       requires ib != i.bs
@@ -1049,7 +1049,7 @@ module IndFs
     //
     // only applies to blocks that are stored in the inode
     method zeroOutIndirectFromInode(txn: Txn,
-      pos: Pos, i: MemInode)
+                                    pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
@@ -1090,7 +1090,7 @@ module IndFs
     }
 
     method zeroOutIndirectPointer(txn: Txn,
-      pos: Pos, i: MemInode)
+                                  pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
@@ -1112,7 +1112,7 @@ module IndFs
     }
 
     method zeroIndirectIfPossible(txn: Txn,
-      pos: Pos, i: MemInode)
+                                  pos: Pos, i: MemInode)
       modifies Repr, i.Repr
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
@@ -1146,10 +1146,10 @@ module IndFs
       // must be the start of an indirect block since we also zero the parent
       requires pos.idx.off.j % 512 == 0
       ensures forall pos':Pos |
-      pos'.data? &&
-      (pos'.ino != pos.ino ||
-      pos'.idx.flat() < pos.idx.flat()) ::
-      data[pos'] == old(data[pos'])
+                pos'.data? &&
+                (pos'.ino != pos.ino ||
+                 pos'.idx.flat() < pos.idx.flat()) ::
+                data[pos'] == old(data[pos'])
       ensures metadata == old(metadata)
     {
       var idx0 := pos.idx;
@@ -1171,16 +1171,16 @@ module IndFs
         invariant 0 <= j <= 512
         invariant ValidInoExcept(pos0.ino, i, ibn)
         invariant forall pos:Pos | pos.data? ::
-          if && pos.ino == pos0.ino
-             && pos.idx.k == idx0.k
-             && idx0.off.j <= pos.idx.off.j < idx0.off.j + j
-          then data[pos] == block0
-          else data[pos] == old(data[pos])
+                    if && pos.ino == pos0.ino
+                       && pos.idx.k == idx0.k
+                       && idx0.off.j <= pos.idx.off.j < idx0.off.j + j
+                    then data[pos] == block0
+                    else data[pos] == old(data[pos])
         invariant forall pos:Pos | pos.data? ::
-          (&& pos.ino == pos0.ino
-           && pos.idx.k == pos0.idx.k
-           && idx0.off.j <= pos.idx.off.j < idx0.off.j + j) ==>
-          to_blkno[pos] == 0
+                    (&& pos.ino == pos0.ino
+                     && pos.idx.k == pos0.idx.k
+                     && idx0.off.j <= pos.idx.off.j < idx0.off.j + j) ==>
+                      to_blkno[pos] == 0
         invariant metadata == old(metadata)
         invariant ibn == to_blkno[pos0.parent()]
         invariant ib.data == fs.data_block[ibn]
@@ -1203,16 +1203,16 @@ module IndFs
       requires pos.data? && pos.ilevel > 0
       requires pos.idx.off.j % 512 == 0
       ensures forall pos':Pos | pos'.data? && pos'.ino != pos.ino ::
-        data[pos'] == old(data[pos'])
+                data[pos'] == old(data[pos'])
       ensures forall off:uint64 |
-        off as nat < pos.idx.flat() as nat < config.total ::
-          data[Pos.from_flat(pos.ino, off)] ==
-          old(data[Pos.from_flat(pos.ino, off)])
+                off as nat < pos.idx.flat() as nat < config.total ::
+                data[Pos.from_flat(pos.ino, off)] ==
+                old(data[Pos.from_flat(pos.ino, off)])
       ensures forall pos':Pos |
-      pos'.data? &&
-      (pos'.ino != pos.ino ||
-      pos'.idx.flat() < pos.idx.flat()) ::
-      data[pos'] == old(data[pos'])
+                pos'.data? &&
+                (pos'.ino != pos.ino ||
+                 pos'.idx.flat() < pos.idx.flat()) ::
+                data[pos'] == old(data[pos'])
       ensures metadata == old(metadata)
     {
       zeroIndirectBlockRange'(txn, pos, i);
@@ -1234,7 +1234,7 @@ module IndFs
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       requires off as nat + len as nat <= config.total
       ensures forall off': uint64 | off' < off ::
-      data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+                data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
       ensures forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
       ensures metadata == old(metadata)
     {
@@ -1250,7 +1250,7 @@ module IndFs
         invariant off0 as nat <= off as nat <= config.total
         invariant ValidIno(ino, i)
         invariant forall off': uint64 | off' < off0 ::
-          data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
+                    data[Pos.from_flat(ino, off')] == old(data[Pos.from_flat(ino, off')])
         invariant forall pos:Pos | pos.data? && pos.ino != ino :: data[pos] == old(data[pos])
         invariant metadata == old(metadata)
       {
@@ -1290,7 +1290,7 @@ module IndFs
       requires off as nat < config.total
       ensures off as nat <= end as nat <= config.total
       ensures forall i:uint64 | off <= i < end ::
-        data[Pos.from_flat(ino, i)] == block0
+                data[Pos.from_flat(ino, i)] == block0
     {
       // nothing zero (signals failure)
       end := off;
@@ -1325,19 +1325,19 @@ module IndFs
 
     // check that ino is already zero starting at off, through off + len
     method checkZero(txn: Txn, off: uint64, len: uint64,
-      ghost ino: Ino, i: MemInode)
+                     ghost ino: Ino, i: MemInode)
       returns (ok: bool)
       requires has_jrnl(txn)
       requires ValidIno(ino, i)
       requires off as nat + len as nat <= config.total
       ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
-       data[Pos.from_flat(ino, off')] == block0
+                  data[Pos.from_flat(ino, off')] == block0
     {
       var end := off;
       while end < off + len
         invariant off as nat <= end as nat <= config.total
         invariant forall off': uint64 | off <= off' < end ::
-          data[Pos.from_flat(ino, off')] == block0
+                    data[Pos.from_flat(ino, off')] == block0
       {
         var newEnd := checkZeroAt(txn, end, ino, i);
         if newEnd == end {

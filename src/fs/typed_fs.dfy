@@ -274,12 +274,12 @@ module TypedFs {
       requires !ty.InvalidType?
       ensures ok ==> i != null && fresh(i.Repr)
       ensures ok ==>
-      && old(types[ino].ty.InvalidType?)
-      && types == old(types[ino := types[ino].(ty := ty)])
-      && data == old(data)
-      && data[ino] == []
-      && ValidIno(ino, i)
-      && ino != 0
+                && old(types[ino].ty.InvalidType?)
+                && types == old(types[ino := types[ino].(ty := ty)])
+                && data == old(data)
+                && data[ino] == []
+                && ValidIno(ino, i)
+                && ino != 0
     {
       reveal_valids();
       reveal ino_ok();
@@ -327,14 +327,14 @@ module TypedFs {
     }
 
     method freeSafe(ino: Ino)
-        requires ValidAlloc()
-        requires ino_ok(ino)
+      requires ValidAlloc()
+      requires ino_ok(ino)
     {
-        if ino as uint64 == 0 {
-            return;
-        }
-        reveal ino_ok();
-        ialloc.Free(ino);
+      if ino as uint64 == 0 {
+        return;
+      }
+      reveal ino_ok();
+      ialloc.Free(ino);
     }
 
     method {:timeLimitMultiplier 2} freeInode(txn: Txn, ino: Ino, i: MemInode)
@@ -366,7 +366,7 @@ module TypedFs {
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data[ino]|
       ensures ok ==>
-      data == old(data[ino := C.splice(data[ino], off as nat, bs.data)])
+                data == old(data[ino := C.splice(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       reveal_valids();
@@ -387,7 +387,7 @@ module TypedFs {
       requires off as nat <= |data[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+                && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       reveal ValidFields();
@@ -413,7 +413,7 @@ module TypedFs {
       requires off as nat <= |data[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+                && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       if bs.Len() == 0 {
@@ -453,9 +453,9 @@ module TypedFs {
         assert bs_remaining.data == bs_remaining_data0;
 
         assert data[ino] == old(write_data(data[ino], off as nat,
-          data0[..written + 4096])) by {
+                                           data0[..written + 4096])) by {
           assert data[ino] == write_data(old(data[ino]), off as nat,
-            data0[..written] + data0[written..written + 4096]) by {
+                                         data0[..written] + data0[written..written + 4096]) by {
             write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..written + 4096]);
             assert (off + written) as nat == off as nat + |data0[..written]|;
           }
@@ -568,9 +568,9 @@ module TypedFs {
       requires has_jrnl(txn)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      r.SetSizeOk? ==> (var d0 := old(data[ino]);
-      var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
-      && data == old(data[ino := d']))
+        r.SetSizeOk? ==> (var d0 := old(data[ino]);
+                          var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
+                          && data == old(data[ino := d']))
       ensures types_unchanged()
     {
       reveal_valids();

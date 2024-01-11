@@ -29,7 +29,7 @@ module BlockFs
     requires data_dom(data)
   {
     var blks := seq(config.total,
-      (n:nat) requires n < config.total => data[Pos.from_flat(ino, n as uint64)]);
+                (n:nat) requires n < config.total => data[Pos.from_flat(ino, n as uint64)]);
     InodeData(blks)
   }
 
@@ -116,7 +116,7 @@ module BlockFs
 
   // public
   method block_write(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode, c: BlknoCache,
-    n: uint64, blk: Bytes)
+                     n: uint64, blk: Bytes)
     returns (ok: bool)
     modifies fs.Repr, i.Repr, c.Repr(), blk
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -128,9 +128,9 @@ module BlockFs
     requires blk != c.bs
     ensures fs.metadata == old(fs.metadata)
     ensures ok ==> block_data(fs.data) == old(
-        var data := block_data(fs.data);
-        var d0 := data[ino];
-        data[ino := d0.(blks := d0.blks[n := blk.data])])
+                                            var data := block_data(fs.data);
+                                            var d0 := data[ino];
+                                            data[ino := d0.(blks := d0.blks[n := blk.data])])
     ensures !ok ==> block_data(fs.data) == old(block_data(fs.data))
   {
     ok := fs.write(txn, Pos.from_flat(ino, n), i, c, blk);
@@ -161,7 +161,7 @@ module BlockFs
   {}
 
   method block_zero_free(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode,
-    start: uint64, len: uint64)
+                         start: uint64, len: uint64)
     returns (done: bool)
     modifies fs.Repr, i.Repr
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
@@ -170,8 +170,8 @@ module BlockFs
     requires start as nat + len as nat <= config.total
     ensures forall ino':Ino | ino != ino' :: block_data(fs.data)[ino'] == old(block_data(fs.data)[ino'])
     ensures forall off:uint64 | off < start ::
-      block_data(fs.data)[ino].blks[off] ==
-      old(block_data(fs.data)[ino].blks[off])
+              block_data(fs.data)[ino].blks[off] ==
+              old(block_data(fs.data)[ino].blks[off])
     ensures fs.metadata == old(fs.metadata)
   {
     done := fs.zeroFrom(txn, start, len, ino, i);
@@ -180,13 +180,13 @@ module BlockFs
   }
 
   method block_checkZero(fs: IndFilesys, txn: Txn, ghost ino: Ino, i: MemInode,
-    off: uint64, len: uint64)
+                         off: uint64, len: uint64)
     returns (ok: bool)
     requires fs.has_jrnl(txn)
     requires fs.ValidIno(ino, i)
     requires off as nat + len as nat <= config.total
     ensures ok ==> forall off': uint64 | off <= off' < (off + len) ::
-      block_data(fs.data)[ino].blks[off'] == block0
+                block_data(fs.data)[ino].blks[off'] == block0
   {
     ok := fs.checkZero(txn, off, len, ino, i);
     reveal inode_blocks();

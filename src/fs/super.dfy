@@ -63,8 +63,8 @@ module FsKinds {
 
   // we initialize the superblock this way to get named arguments
   const super := Super(0, 0).(
-    inode_blocks:=NUM_INODE_BLOCKS as nat,
-    data_bitmaps:=NUM_DATA_BITMAPS as nat)
+                 inode_blocks:=NUM_INODE_BLOCKS as nat,
+                 data_bitmaps:=NUM_DATA_BITMAPS as nat)
 
   // this lemma gives the human-readable file-system size
   // (which is also reported by df -h)
@@ -76,7 +76,7 @@ module FsKinds {
     ensures super.num_inodes == 19200
     ensures super.num_inodes == NUM_INODES as nat
     ensures super.num_data_blocks
-        * 4096 / (1024*1024) == 25600 /* MB */
+            * 4096 / (1024*1024) == 25600 /* MB */
   {}
   lemma super_valid()
     ensures super.Valid()
@@ -109,10 +109,10 @@ module FsKinds {
       requires Valid()
     {
       IntEncoding.le_enc64(magic) +
-        IntEncoding.le_enc64(info.inode_blocks as uint64) +
-        IntEncoding.le_enc64(info.data_bitmaps as uint64) +
-        IntEncoding.le_enc64(actual_blocks) +
-        C.repeat(0 as byte, 4096-(8*4))
+      IntEncoding.le_enc64(info.inode_blocks as uint64) +
+      IntEncoding.le_enc64(info.data_bitmaps as uint64) +
+      IntEncoding.le_enc64(actual_blocks) +
+      C.repeat(0 as byte, 4096-(8*4))
     }
 
     method encode() returns (b: Bytes)
@@ -215,9 +215,9 @@ module FsKinds {
   {
     var bn' := super_data_bitmap_start + bn / (4096*8);
     if bn < super_num_data_blocks then (
-      Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
-      bn'
-    ) else bn'
+                                         Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
+                                         bn'
+                                       ) else bn'
   }
 
   ghost predicate DataAllocBlk?(bn: Blkno)
@@ -272,7 +272,7 @@ module FsKinds {
 
   lemma InodeAddr_inj()
     ensures forall ino: Ino, ino': Ino ::
-    InodeAddr(ino) == InodeAddr(ino') ==> ino == ino'
+              InodeAddr(ino) == InodeAddr(ino') ==> ino == ino'
   {
     reveal_InodeAddr();
   }
@@ -314,12 +314,12 @@ module FsKinds {
       513 <= blkno as nat < super.disk_size
       :: (if blkno == Super.block_addr
           then KindBlock
-        else if InodeBlk?(blkno)
+          else if InodeBlk?(blkno)
           then KindInode
-        else if DataAllocBlk?(blkno)
+          else if DataAllocBlk?(blkno)
           then KindBit
-        else (assert DataBlk?(blkno); KindBlock)
-      ) as Kind
+          else (assert DataBlk?(blkno); KindBlock)
+         ) as Kind
 
   lemma fs_kinds_valid()
     ensures kindsValid(fs_kinds)
