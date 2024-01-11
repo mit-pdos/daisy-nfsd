@@ -9,9 +9,9 @@ import pandas as pd
 
 NAME_RE = re.compile(
     r"""Verifying\s
-    (?P<type>\w*)\$\$
     (?P<module>[a-zA-Z0-9_]*)\.
     (?P<name>[a-zA-Z0-9_.]*)
+    \s\((?P<type>[a-zA-Z-]*)\)
     \s\.\.\.
     """,
     re.VERBOSE,
@@ -34,6 +34,11 @@ TIME_RE = re.compile(
     \s* (?P<num_obligations>[0-9]*)\ proof\ obligations?\]
     \s*(?P<result>verified|error|timed\ out)
     """,
+    re.VERBOSE,
+)
+
+SKIP_RE = re.compile(
+    r"""^\[TRACE\]""",
     re.VERBOSE,
 )
 
@@ -60,11 +65,14 @@ def parse_df(lines) -> pd.DataFrame:
 
     for line in lines:
         line = line.rstrip("\n")
+        if SKIP_RE.match(line):
+            continue
         if current is None:
             current = get_name(line)
             continue
 
         # should find timing after a name
+
         timing = get_time(line)
         if timing is None:
             print(f"did not find timing info for {current}", file=sys.stderr)
