@@ -120,6 +120,7 @@ module BlockFs
     returns (ok: bool)
     modifies fs.Repr, i.Repr, c.Repr(), blk
     requires fs.ValidIno(ino, i) ensures fs.ValidIno(ino, i)
+    requires i.Repr !! c.Repr() ensures i.Repr !! c.Repr()
     requires fs.ValidCache(ino, c)
     requires fs.has_jrnl(txn)
     requires is_lba(n)

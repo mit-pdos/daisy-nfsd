@@ -627,6 +627,7 @@ module IndFs
       decreases pos.ilevel
       modifies Repr, i.Repr, c.Repr()
       requires has_jrnl(txn)
+      requires i.Repr !! c.Repr() ensures i.Repr !! c.Repr()
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
       ensures bn == to_blkno[pos]
@@ -687,17 +688,22 @@ module IndFs
         return;
       }
 
+      assert {:split_here} true;
+
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
       c.ok := false;
       c.bs := NewBytes(0);
-      assert ValidIno(pos.ino, i) by {
-        assume false; // otherwise times out
-        assert i.Valid() && fs.is_cur_inode(pos.ino, i.val());
-      }
+      assert Valid();
       if !ok {
         IndBlocks.to_blknos_zero();
         reveal ValidIndirect();
+        assert i.Valid() by { reveal i.Valid(); }
+        assert fs.is_cur_inode(pos.ino, i.val());
         return;
+      }
+      assert ValidIno(pos.ino, i) by {
+        assert i.Valid() by { reveal i.Valid(); }
+        assert fs.is_cur_inode(pos.ino, i.val());
       }
     }
 
@@ -738,6 +744,7 @@ module IndFs
       requires has_jrnl(txn)
       requires ValidIno(pos.ino, i) ensures ValidIno(pos.ino, i)
       requires ValidCache(pos.ino, c) ensures ValidCache(pos.ino, c)
+      requires i.Repr !! c.Repr() ensures i.Repr !! c.Repr()
       requires pos.data?
       requires is_block(blk.data)
       requires blk != i.bs
