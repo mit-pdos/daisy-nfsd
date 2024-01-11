@@ -690,7 +690,10 @@ module IndFs
       ok, bn := allocateIndirectMetadata(txn, pos, ibn, pblock);
       c.ok := false;
       c.bs := NewBytes(0);
-      assert ValidIno(pos.ino, i) by { assume false; }
+      assert ValidIno(pos.ino, i) by {
+        assume false; // otherwise times out
+        assert i.Valid() && fs.is_cur_inode(pos.ino, i.val());
+      }
       if !ok {
         IndBlocks.to_blknos_zero();
         reveal ValidIndirect();

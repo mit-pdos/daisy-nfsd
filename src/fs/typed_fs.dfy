@@ -549,7 +549,6 @@ module TypedFs {
         eof := true;
         return;
       }
-      assume false;
       var readLen: uint64 := len;
       if off + len >= i.sz {
         readLen := i.sz - off;
@@ -557,7 +556,9 @@ module TypedFs {
       } else {
         eof := false;
       }
+      reveal_valids();
       bs, ok := fs.readWithInode(txn, ino, i, off, readLen);
+      reveal_valids();
       reveal ValidFields();
     }
 

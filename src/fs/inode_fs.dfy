@@ -478,7 +478,6 @@ module InodeFs {
       }
       assert Valid() by {
         reveal Valid_jrnl_super_block();
-        reveal Valid_jrnl_to_data_block();
         reveal Valid_jrnl_to_block_used();
         assert && Valid_basics(jrnl)
                && Valid_domains()
@@ -486,7 +485,17 @@ module InodeFs {
                && Valid_jrnl_to_block_used(block_used)
                && Valid_jrnl_to_inodes(inodes)
                && Valid_balloc();
-        assert && Valid_jrnl_to_data_block(data_block) by { assume false; }
+        assert Valid_jrnl_to_data_block(data_block) by {
+          reveal Valid_jrnl_to_data_block();
+        forall bn | blkno_ok(bn) && bn != 0
+            ensures (
+              datablk_inbounds(jrnl, bn);
+              jrnl.data[DataBlk(bn)] == ObjData(data_block[bn])) {
+                datablk_inbounds(jrnl, bn);
+                assert jrnl.data[DataBlk(bn)] == old(jrnl.data[DataBlk(bn)]);
+          }
+          assert Valid_jrnl_to_data_block(data_block);
+        }
       }
     }
 

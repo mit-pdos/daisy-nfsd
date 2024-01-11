@@ -44,7 +44,7 @@ src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 # up unused imports emitted by Dafny.
 dafnygen/dafnygen.go: src/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out dafnygen $<
+	$(Q)$(DAFNY) /noVerify /spillTargetCode:2 /out dafnygen $<
 	$(Q)rm -rf dafnygen
 	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
 	$(Q)rm -r dafnygen-go

@@ -301,7 +301,13 @@ module IndirectPos
         assert 8 <= from_flat(n0).k < 8+3;
         if n < 512 {
           assert from_flat(n0).k == 8;
-          assert from_flat(n0).flat() == n0 by { assume false; }
+          assert from_flat(n0).off.ilevel == 1;
+          assert from_flat(n0).off.j == n % 512;
+          // this lemma is actually required to prove this equality (it's hard
+          // to get Dafny to compute this recursive function)
+          config_totals_after_8(8);
+          assert config.total_to(8) == 8;
+          assert from_flat(n0).flat() == n0;
           return;
         }
         if n < 2*512 {
