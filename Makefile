@@ -2,10 +2,7 @@ DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
 DAFNY_CORES := "50%"
-
-# these arguments don't affect verification outcomes
 DAFNY_BASIC_ARGS := --verification-time-limit 20 --cores $(DAFNY_CORES)
-
 DAFNY_ARGS := --disable-nonlinear-arithmetic
 DAFNY = ./etc/dafnyq verify $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
@@ -44,8 +41,7 @@ src/nonlin/%.dfy.ok: DAFNY_ARGS =
 # up unused imports emitted by Dafny.
 dafnygen/dafnygen.go: src/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	# TODO: use dafny translate (new CLI)
-	$(Q)./etc/dafnyq /compileTarget:go /noVerify /spillTargetCode:2 /out dafnygen $<
+	$(Q)./etc/dafnyq translate go --no-verify --include-runtime --output dafnygen $<
 	$(Q)rm -rf dafnygen
 	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
 	$(Q)rm -r dafnygen-go
