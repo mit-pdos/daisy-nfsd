@@ -16,25 +16,25 @@ module MemDirEnts
 
   datatype MemDirEnt = MemDirEnt(name: Bytes, ino: Ino)
   {
-    predicate Valid()
+    ghost predicate Valid()
       reads name
     {
       && is_pathc(name.data)
     }
 
-    function val(): DirEnt
+    ghost function val(): DirEnt
       reads name
       requires Valid()
     {
       DirEnt(name.data, ino)
     }
 
-    predicate method used()
+    predicate used()
     {
       ino as uint64 != 0
     }
 
-    function path(): PathComp
+    ghost function path(): PathComp
       reads name
       requires Valid()
     {
@@ -42,7 +42,7 @@ module MemDirEnts
     }
   }
 
-  function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
+  ghost function mem_dirs_repr(s: seq<MemDirEnt>): set<object>
   {
     set i:nat | i < |s| :: s[i].name
   }
@@ -65,20 +65,20 @@ module MemDirEnts
     }
   }
 
-  predicate mem_seq_valid(s: seq<MemDirEnt>)
+  ghost predicate mem_seq_valid(s: seq<MemDirEnt>)
     reads mem_dirs_repr(s)
   {
     forall i:nat | i < |s| :: s[i].Valid()
   }
 
-  function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
+  ghost function mem_seq_val(s: seq<MemDirEnt>): seq<DirEnt>
     reads mem_dirs_repr(s)
     requires mem_seq_valid(s)
   {
     seq(|s|, (i:nat)
-      reads mem_dirs_repr(s)
-      requires i < |s|
-      requires s[i].Valid() =>
+    reads mem_dirs_repr(s)
+    requires i < |s|
+    requires s[i].Valid() =>
       s[i].val())
   }
 
@@ -102,12 +102,12 @@ module MemDirEntries
   import opened Paths
   import opened FileCursor
 
-  function dirent_off(k: nat): nat
+  ghost function dirent_off(k: nat): nat
   {
     k * dirent_sz
   }
 
-  function path_ub(k: nat): nat
+  ghost function path_ub(k: nat): nat
   {
     k * dirent_sz + path_len
   }
@@ -129,7 +129,7 @@ module MemDirEntries
     seq_data_one(data, val, k);
     val.s[k].enc_app();
     assert data[dirent_off(k)..dirent_off(k+1)][..path_len] ==
-      data[dirent_off(k)..path_ub(k)];
+           data[dirent_off(k)..path_ub(k)];
   }
 
   lemma seq_data_one_ino(data: seq<byte>, val: Dirents, k: nat)
@@ -140,7 +140,7 @@ module MemDirEntries
     seq_data_one(data, val, k);
     val.s[k].enc_app();
     assert data[dirent_off(k)..dirent_off(k+1)][path_len..dirent_sz] ==
-      data[path_ub(k)..dirent_off(k+1)];
+           data[path_ub(k)..dirent_off(k+1)];
     assert data[path_ub(k)..dirent_off(k+1)] == IntEncoding.le_enc64(val.s[k].ino);
     IntEncoding.lemma_le_enc_dec64(val.s[k].ino);
   }
@@ -152,14 +152,14 @@ module MemDirEntries
     // return this expression for caller's convenience
     ensures val' == Dirents(val.s[k := v])
     ensures (v.enc_len();
-    C.splice(data, k*dirent_sz, v.enc()) == val'.enc())
+             C.splice(data, k*dirent_sz, v.enc()) == val'.enc())
   {
     v.enc_len();
     C.concat_homogeneous_splice_one(C.seq_fmap(Dirents.encOne, val.s),
-      k as nat, v.enc(), dirent_sz);
+                                    k as nat, v.enc(), dirent_sz);
     //assert data == C.concat(C.seq_fmap(Dirents.encOne, val.s)[k as nat := v.enc()]);
     assert C.seq_fmap(Dirents.encOne, val.s)[k as nat := v.enc()] ==
-            C.seq_fmap(Dirents.encOne, val.s[k as nat := v]);
+           C.seq_fmap(Dirents.encOne, val.s[k as nat := v]);
     val' := Dirents(val.s[k := v]);
     reveal val'.enc();
   }
@@ -170,7 +170,7 @@ module MemDirEntries
     requires k < |val.s|
     ensures val' == Dirents(val.s[k := val.s[k].(ino := ino')])
     ensures
-    C.splice(data, k*dirent_sz + path_len, IntEncoding.le_enc64(ino')) == val'.enc()
+      C.splice(data, k*dirent_sz + path_len, IntEncoding.le_enc64(ino')) == val'.enc()
   {
     var old_name := val.s[k].name;
     var old_padded_name := data[dirent_off(k)..path_ub(k)];
@@ -181,7 +181,7 @@ module MemDirEntries
     e'.enc_app();
     // splicing in just the inode encoding is like splicing in the encoding of the new entry
     assert C.splice(data, k*dirent_sz + path_len, IntEncoding.le_enc64(ino')) ==
-      C.splice(data, k*dirent_sz, e'.enc());
+           C.splice(data, k*dirent_sz, e'.enc());
     val' := seq_data_splice_one(data, val, k, e');
   }
 
@@ -190,27 +190,27 @@ module MemDirEntries
     ghost var val: Dirents
     const file: Cursor
 
-    function Repr(): set<object>
+    ghost function Repr(): set<object>
       reads this.file
     {
-        {this} + file.Repr()
+      {this} + file.Repr()
     }
 
-    predicate {:opaque} ValidCore()
+    ghost predicate {:opaque} ValidCore()
       requires file.fs.ValidDomains()
       reads this, file.fs
     {
       && file.contents() == val.enc()
     }
 
-    predicate {:opaque} ValidVal()
+    ghost predicate {:opaque} ValidVal()
       reads this
     {
       && |val.s| <= dir_sz
       && |val.s| % 64 == 0
     }
 
-    predicate {:opaque} Valid()
+    ghost predicate {:opaque} Valid()
       reads Repr(), file.ReprFs
     {
       && file.Valid()
@@ -218,7 +218,7 @@ module MemDirEntries
       && ValidVal()
     }
 
-    function dir(): Directory
+    ghost function dir(): Directory
       reads this
     {
       val.dir
@@ -242,16 +242,16 @@ module MemDirEntries
 
     static function dir_blk(k: nat): nat
     {
-        k / 64 * 4096
+      k / 64 * 4096
     }
 
     // offset of a whole-file offset within one paged-in block in the cursor
     static function dir_blk_off(k: nat): nat
     {
-        k % 64
+      k % 64
     }
 
-    predicate at_dir_off(k: nat)
+    ghost predicate at_dir_off(k: nat)
       reads this, file
     {
       && k < |val.s|
@@ -259,13 +259,13 @@ module MemDirEntries
       && file.valid?
     }
 
-    predicate has_jrnl(txn: Txn)
+    ghost predicate has_jrnl(txn: Txn)
       reads file.fs.Repr
     {
       file.fs.has_jrnl(txn)
     }
 
-    predicate inode_unchanged()
+    ghost predicate inode_unchanged()
       reads file.fs.fs.fs.fs, file.i.Repr
     {
       && file.i.Valid()
@@ -354,9 +354,9 @@ module MemDirEntries
       requires start <= end <= 4096
       ensures |file.bs.data| == 4096
       ensures (reveal_fs_dom();
-      && dir_blk(k) + end <= |file.contents()|
-      && file.bs.data[start..end] ==
-        file.contents()[dir_blk(k) + start .. dir_blk(k) + end])
+               && dir_blk(k) + end <= |file.contents()|
+               && file.bs.data[start..end] ==
+                  file.contents()[dir_blk(k) + start .. dir_blk(k) + end])
     {
       reveal Valid();
       file.data_ok();
@@ -410,10 +410,10 @@ module MemDirEntries
       requires k as nat < |val.s|
       ensures r.None? ==> !val.s[k].used()
       ensures r.Some? ==>
-      && val.s[k].used()
-      && fresh(r.x.name)
-      && r.x.Valid()
-      && r.x.val() == val.s[k]
+                && val.s[k].used()
+                && fresh(r.x.name)
+                && r.x.Valid()
+                && r.x.val() == val.s[k]
       ensures file.buffer_fresh()
     {
       reveal Valid();
@@ -458,7 +458,13 @@ module MemDirEntries
       assert decode_null_terminated(name.data) == val.s[k].name by {
         decode_encode(val.s[k].name);
       }
+      assert forall i | 0 <= i < |needle.data| :: needle.data[i] != 0 by {
+        reveal is_pathc();
+      }
       decode_nullterm_no_null(needle.data);
+      assert |needle.data| <= |name.data| by {
+        reveal is_pathc();
+      }
       var equal := NullTerminatedEqualSmaller(needle, name);
       if equal {
         return Some(ino);
@@ -537,10 +543,10 @@ module MemDirEntries
       requires is_pathc(name.data)
       ensures r.None? ==> name.data !in val.dir && val.findName(name.data) == |val.s|
       ensures r.Some? ==>
-      && name.data in val.dir
-      && r.x.0 as nat < |val.s|
-      && r.x.0 as nat == val.findName(name.data)
-      && val.dir[name.data] == r.x.1
+                && name.data in val.dir
+                && r.x.0 as nat < |val.s|
+                && r.x.0 as nat == val.findName(name.data)
+                && val.dir[name.data] == r.x.1
       ensures fresh(Repr() - old(Repr()))
     {
       ghost var p: PathComp := name.data;
@@ -699,8 +705,8 @@ module MemDirEntries
       seq_to_dir_delete(old(val.s), k as nat, old_name);
       assert file.fs.data[file.ino] == val.enc() by {
         C.double_splice(old(file.contents()),
-          dir_blk(k as nat), dir_blk(k as nat) + 4096,
-          (k as nat % 64)*dirent_sz + path_len, IntEncoding.le_enc64(0 as uint64));
+                        dir_blk(k as nat), dir_blk(k as nat) + 4096,
+                        (k as nat % 64)*dirent_sz + path_len, IntEncoding.le_enc64(0 as uint64));
       }
       assert Valid() by {
         assert ValidCore();
@@ -718,11 +724,11 @@ module MemDirEntries
       ensures val.dir == old(val.dir)
       ensures fresh(file.Repr() - old(file.Repr()))
       ensures ok ==>
-      && old(|val.s| + 64 <= dir_sz)
-      && val == old(val.extend_zero(64))
-      && val.findFree() == old(val.findFree())
-      && val.findFree() < |val.s|
-      && file.fs.data == old(file.fs.data)[file.ino := val.enc()]
+                && old(|val.s| + 64 <= dir_sz)
+                && val == old(val.extend_zero(64))
+                && val.findFree() == old(val.findFree())
+                && val.findFree() < |val.s|
+                && file.fs.data == old(file.fs.data)[file.ino := val.enc()]
     {
       reveal Valid();
       assert val.findFree() == |val.s| by {

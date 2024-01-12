@@ -3,7 +3,7 @@ package compile_test
 import (
 	"testing"
 
-	bank "github.com/mit-pdos/daisy-nfsd/dafnygen/Bank_Compile"
+	bank "github.com/mit-pdos/daisy-nfsd/dafnygen/Bank"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tchajed/goose/machine/disk"

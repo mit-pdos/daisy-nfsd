@@ -23,7 +23,7 @@ module FsKinds {
 
     static const zero := Super(0, 0)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && 0 < inode_blocks
       && 0 < data_bitmaps
@@ -32,7 +32,7 @@ module FsKinds {
 
     // NOTE(tej): hack because otherwise non-linear arithmetic in
     // disk_size confuses Dafny and it doesn't know the sum is still a nat
-    static function method add_nats(n1: nat, n2: nat): nat
+    static function add_nats(n1: nat, n2: nat): nat
     {
       n1 + n2
     }
@@ -62,9 +62,9 @@ module FsKinds {
   const NUM_DATA_BITMAPS : uint64 := 200
 
   // we initialize the superblock this way to get named arguments
-  const super := Super.zero.(
-    inode_blocks:=NUM_INODE_BLOCKS as nat,
-    data_bitmaps:=NUM_DATA_BITMAPS as nat)
+  const super := Super(0, 0).(
+                 inode_blocks:=NUM_INODE_BLOCKS as nat,
+                 data_bitmaps:=NUM_DATA_BITMAPS as nat)
 
   // this lemma gives the human-readable file-system size
   // (which is also reported by df -h)
@@ -73,10 +73,10 @@ module FsKinds {
   // num_data_data_blocks (in MB) is 128 * NUM_DATA_BITMAPS
   // (it's exactly NUM_DATA_BITMAPS * 4096*8*4096 / 1_000_000)
   lemma super_size()
-    ensures super.num_inodes == 19200;
-    ensures super.num_inodes == NUM_INODES as nat;
+    ensures super.num_inodes == 19200
+    ensures super.num_inodes == NUM_INODES as nat
     ensures super.num_data_blocks
-        * 4096 / (1024*1024) == 25600 /* MB */
+            * 4096 / (1024*1024) == 25600 /* MB */
   {}
   lemma super_valid()
     ensures super.Valid()
@@ -85,9 +85,9 @@ module FsKinds {
   // we need these to be a real constants because accessing any const in super
   // computes a big int every time it's referenced, which shows up in the CPU
   // profile...
-  const super_data_bitmap_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS;
+  const super_data_bitmap_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS
   const super_num_data_blocks: uint64 := NUM_DATA_BITMAPS*(4096*8)
-  const super_data_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS + NUM_DATA_BITMAPS;
+  const super_data_start: uint64 := 513 + 1 + NUM_INODE_BLOCKS + NUM_DATA_BITMAPS
   lemma super_consts_ok()
     ensures super_num_data_blocks as nat == super.num_data_blocks
     ensures super_data_bitmap_start as nat == super.data_bitmap_start
@@ -98,21 +98,21 @@ module FsKinds {
   datatype SuperBlock = SuperBlock(info: Super, actual_blocks: uint64)
   {
     // a random number
-    static const magic: uint64 := 0x5211cc92a57dd76b;
+    static const magic: uint64 := 0x5211cc92a57dd76b
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       info.Valid()
     }
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
       requires Valid()
     {
       IntEncoding.le_enc64(magic) +
-        IntEncoding.le_enc64(info.inode_blocks as uint64) +
-        IntEncoding.le_enc64(info.data_bitmaps as uint64) +
-        IntEncoding.le_enc64(actual_blocks) +
-        C.repeat(0 as byte, 4096-(8*4))
+      IntEncoding.le_enc64(info.inode_blocks as uint64) +
+      IntEncoding.le_enc64(info.data_bitmaps as uint64) +
+      IntEncoding.le_enc64(actual_blocks) +
+      C.repeat(0 as byte, 4096-(8*4))
     }
 
     method encode() returns (b: Bytes)
@@ -162,7 +162,7 @@ module FsKinds {
     }
   }
 
-  function zero_inode_witness(): (x:uint64)
+  ghost function zero_inode_witness(): (x:uint64)
     ensures ino_ok(x)
   {
     reveal ino_ok();
@@ -171,10 +171,10 @@ module FsKinds {
 
   type Ino = ino:uint64 | ino_ok(ino) ghost witness zero_inode_witness()
 
-  predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
-  predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
+  ghost predicate blkno_ok(blkno: Blkno) { blkno as nat < super.num_data_blocks }
+  ghost predicate {:opaque} ino_ok(ino: uint64) { ino as nat < super.num_inodes }
 
-  function method zeroIno(): Ino {
+  function zeroIno(): Ino {
     reveal ino_ok();
     0 as Ino
   }
@@ -186,16 +186,16 @@ module FsKinds {
     reveal ino_ok();
   }
 
-  const SuperBlkAddr: Addr := Addr(Super.block_addr, 0);
+  const SuperBlkAddr: Addr := Addr(Super.block_addr, 0)
 
-  function method InodeBlk(ino: Ino): (bn':Blkno)
+  function InodeBlk(ino: Ino): (bn':Blkno)
     ensures InodeBlk?(bn')
   {
     reveal ino_ok();
     513 + 1 + ino / 32
   }
 
-  predicate InodeBlk?(bn: Blkno)
+  ghost predicate InodeBlk?(bn: Blkno)
   {
     513 + 1 <= bn as nat < 513 + 1 + super.inode_blocks
   }
@@ -210,17 +210,17 @@ module FsKinds {
     }
   }
 
-  function method DataAllocBlk(bn: Blkno): (bn':Blkno)
+  function DataAllocBlk(bn: Blkno): (bn':Blkno)
     ensures blkno_ok(bn) ==> DataAllocBlk?(bn')
   {
     var bn' := super_data_bitmap_start + bn / (4096*8);
     if bn < super_num_data_blocks then (
-      Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
-      bn'
-    ) else bn'
+                                         Arith.div_incr(bn as nat, super.data_bitmaps, 4096*8);
+                                         bn'
+                                       ) else bn'
   }
 
-  predicate DataAllocBlk?(bn: Blkno)
+  ghost predicate DataAllocBlk?(bn: Blkno)
   {
     var start := super.data_bitmap_start;
     start <= bn as nat < start + super.data_bitmaps
@@ -236,7 +236,7 @@ module FsKinds {
     }
   }
 
-  function method {:opaque} InodeAddr(ino: Ino): (a:Addr)
+  function {:opaque} InodeAddr(ino: Ino): (a:Addr)
     ensures a in addrsForKinds(fs_kinds)
   {
     kind_inode_size();
@@ -250,12 +250,12 @@ module FsKinds {
     reveal_addrsForKinds();
     Addr(ino_blk, ino_off*128*8)
   }
-  function method DataBitAddr(bn: Blkno): Addr
+  function DataBitAddr(bn: Blkno): Addr
     requires blkno_ok(bn)
   {
     Addr(DataAllocBlk(bn), bn % (4096*8))
   }
-  function method {:opaque} DataBlk(bn: Blkno): (a:Addr)
+  function {:opaque} DataBlk(bn: Blkno): (a:Addr)
     requires blkno_ok(bn)
     ensures a in addrsForKinds(fs_kinds)
   {
@@ -265,14 +265,14 @@ module FsKinds {
     reveal_addrsForKinds();
     Addr(super_data_start+bn, 0)
   }
-  predicate DataBlk?(bn: uint64)
+  ghost predicate DataBlk?(bn: uint64)
   {
     super.data_start <= bn as nat
   }
 
   lemma InodeAddr_inj()
     ensures forall ino: Ino, ino': Ino ::
-    InodeAddr(ino) == InodeAddr(ino') ==> ino == ino'
+              InodeAddr(ino) == InodeAddr(ino') ==> ino == ino'
   {
     reveal_InodeAddr();
   }
@@ -314,12 +314,12 @@ module FsKinds {
       513 <= blkno as nat < super.disk_size
       :: (if blkno == Super.block_addr
           then KindBlock
-        else if InodeBlk?(blkno)
-          then KindInode
-        else if DataAllocBlk?(blkno)
-          then KindBit
-        else (assert DataBlk?(blkno); KindBlock)
-      ) as Kind
+          else if InodeBlk?(blkno)
+            then KindInode
+            else if DataAllocBlk?(blkno)
+              then KindBit
+              else (assert DataBlk?(blkno); KindBlock)
+         ) as Kind
 
   lemma fs_kinds_valid()
     ensures kindsValid(fs_kinds)

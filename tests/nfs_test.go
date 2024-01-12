@@ -3,7 +3,7 @@ package compile_test
 import (
 	"testing"
 
-	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
+	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs"
 	"github.com/mit-pdos/daisy-nfsd/nfsd"
 	"github.com/mit-pdos/go-nfsd/nfstypes"
 	"github.com/stretchr/testify/assert"

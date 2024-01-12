@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
-	dirents "github.com/mit-pdos/daisy-nfsd/dafnygen/DirEntries_Compile"
-	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
-	lock_order "github.com/mit-pdos/daisy-nfsd/dafnygen/LockOrder_Compile"
-	nfs_spec "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs_Compile"
-	std "github.com/mit-pdos/daisy-nfsd/dafnygen/Std_Compile"
+	dirents "github.com/mit-pdos/daisy-nfsd/dafnygen/DirEntries"
+	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs"
+	lock_order "github.com/mit-pdos/daisy-nfsd/dafnygen/LockOrder"
+	nfs_spec "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs"
+	std "github.com/mit-pdos/daisy-nfsd/dafnygen/Std"
 	_dafny "github.com/mit-pdos/daisy-nfsd/dafnygen/dafny"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,11 +23,11 @@ func NewFs() *dirfs.DirFilesys {
 	if dfsopt.Is_None() {
 		panic("no dirfs")
 	}
-	dfs := dfsopt.Get().(std.Option_Some).X.(*dirfs.DirFilesys)
+	dfs := dfsopt.Get_().(std.Option_Some).X.(*dirfs.DirFilesys)
 	return dfs
 }
 
-func seqOfString(s string) _dafny.Seq {
+func seqOfString(s string) _dafny.Sequence {
 	xs_i := make([]interface{}, len(s))
 	for i, x := range []byte(s) {
 		xs_i[i] = x
@@ -75,7 +75,7 @@ func TestDirFsLookup(t *testing.T) {
 func TestPathEncode(t *testing.T) {
 	s := seqOfString("foo")
 	s2 := dirents.Companion_Default___.DecodeEncodeTest(s)
-	assert.Equal(t, s2.LenInt(), int(3), "decoded string is short")
+	assert.Equal(t, s2.Cardinality(), uint32(3), "decoded string is short")
 }
 
 // based on a test rtm came up with

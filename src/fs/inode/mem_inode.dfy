@@ -19,7 +19,7 @@ module MemInodes {
     ghost const Repr: set<object> := {this, bs}
 
     // the inode represented
-    function val(): Inode.Inode
+    ghost function val(): Inode.Inode
       reads Repr
       requires Valid()
     {
@@ -27,13 +27,13 @@ module MemInodes {
       Inode.Mk(Inode.Meta(sz, attrs), blks)
     }
 
-    function method ty(): Inode.InodeType
+    function ty(): Inode.InodeType
       reads this
     {
       attrs.ty
     }
 
-    predicate {:opaque} Valid()
+    ghost predicate {:opaque} Valid()
       reads Repr
     {
       && |blks| == 12
@@ -42,7 +42,7 @@ module MemInodes {
       && Marshal.decode_uint64_seq(bs.data[32..]) == blks
     }
 
-    function method meta(): Inode.Meta
+    function meta(): Inode.Meta
       reads this
     {
       Inode.Meta(sz, attrs)
@@ -93,7 +93,7 @@ module MemInodes {
       reveal Valid();
       bn := IntEncoding.UInt64Get(this.bs, 32 + 8 * k);
       assert bs.data[32 + 8*k .. 32 + 8*k + 8] ==
-        bs.data[32..][8*k .. 8*k + 8];
+             bs.data[32..][8*k .. 8*k + 8];
       Marshal.decode_uint64_seq_one_spec(bs.data[32..], k as nat);
     }
 
@@ -110,7 +110,7 @@ module MemInodes {
       Marshal.decode_uint64_seq_modify_one(bs.data[32..], k as nat, bn);
       IntEncoding.UInt64Put(bn, 32 + k*8, this.bs);
       assert bs.data[32..] ==
-        old(C.splice(bs.data[32..], k as nat*8, IntEncoding.le_enc64(bn)));
+             old(C.splice(bs.data[32..], k as nat*8, IntEncoding.le_enc64(bn)));
       blks := blks[k as nat := bn];
     }
 

@@ -6,13 +6,13 @@ module Round {
   import opened Machine
   import opened Arith
 
-  function div_roundup(x: nat, k: nat): nat
+  ghost function div_roundup(x: nat, k: nat): nat
     requires k >= 1
   {
     (x + (k-1)) / k
   }
 
-  function method div_roundup_alt(x: nat, k: nat): nat
+  function div_roundup_alt(x: nat, k: nat): nat
     requires k >= 1
   {
     if x % k == 0 then x/k else x/k + 1
@@ -58,9 +58,9 @@ module Round {
       calc {
         (x + (k-1)) / k;
         (x/k*k + (k-1)) / k;
-      { div_add_l(x/k, k, (k-1)); }
+        { div_add_l(x/k, k, (k-1)); }
         x/k + (k-1) / k;
-      { div_small(k-1, k); }
+        { div_small(k-1, k); }
         x/k;
       }
     } else {
@@ -85,7 +85,7 @@ module Round {
     div_roundup_spec(x, k);
   }
 
-  function method div_roundup64(x: uint64, k: uint64): (r:uint64)
+  function div_roundup64(x: uint64, k: uint64): (r:uint64)
     requires k >= 1
     requires x as nat < 0x1_0000_0000_0000_0000-k as nat
     ensures div_roundup_alt(x as nat, k as nat) == r as nat
@@ -94,13 +94,20 @@ module Round {
     (x + (k-1)) / k
   }
 
-  function roundup(x: nat, k: nat): (r:nat)
+  ghost function roundup(x: nat, k: nat): (r:nat)
     requires k >= 1
   {
     if x % k == 0 then x else x/k*k + k
   }
 
-  function method roundup64(x: uint64, k: uint64): (r:uint64)
+  lemma roundup_spec(x: nat, k: nat)
+    requires k >= 1
+    ensures roundup(x, k) == ((x + (k-1)) / k) * k
+  {
+    div_roundup_spec(x, k);
+  }
+
+  function roundup64(x: uint64, k: uint64): (r:uint64)
     requires k >= 1
     requires x as nat < 0x1_0000_0000_0000_0000-k as nat
     ensures roundup(x as nat, k as nat) == r as nat
@@ -114,14 +121,18 @@ module Round {
     ensures roundup(x1, k) <= roundup(x2, k)
   {
     div_increasing(x1+(k-1), x2+(k-1), k);
-    div_roundup_spec(x1, k);
-    div_roundup_spec(x2, k);
+    assert (x1+(k-1))/k <= (x2+(k-1))/k;
+    mul_increasing((x1+(k-1))/k, (x2+(k-1))/k, k);
+    roundup_spec(x1, k);
+    roundup_spec(x2, k);
   }
 
   lemma div_roundup_bound(x: nat, k: nat)
     requires k >= 1
     ensures div_roundup(x, k) >= x/k
-  {}
+  {
+    div_roundup_spec(x, k);
+  }
 
   lemma roundup_bound(x: nat, k: nat)
     requires k >= 1

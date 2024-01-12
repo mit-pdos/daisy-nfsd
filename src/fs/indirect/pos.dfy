@@ -24,19 +24,19 @@ module IndirectPos
   {
     static const direct: IndOff := IndOff(0, 0)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       j as nat < pow(512, ilevel as nat)
     }
 
-    function method parent(): IndOff
+    function parent(): IndOff
       requires Valid()
       requires ilevel > 0
     {
       IndOff(ilevel-1, j / 512)
     }
 
-    function method child(): IndOff
+    function child(): IndOff
       requires Valid()
       requires ilevel > 0
     {
@@ -45,7 +45,7 @@ module IndirectPos
   }
   type IndOff = x:preIndOff | x.Valid() witness IndOff(0, 0)
 
-  function method pow64(x: uint64, k: uint64): (p:uint64)
+  function pow64(x: uint64, k: uint64): (p:uint64)
     requires 0 < x
     requires pow(x as nat, k as nat) < U64.MAX
     ensures p as nat == pow(x as nat, k as nat)
@@ -60,12 +60,12 @@ module IndirectPos
   {
     const total := sum_nat(ilevels)
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       total < U64.MAX
     }
 
-    function method total_to(k: uint64): (t:uint64)
+    function total_to(k: uint64): (t:uint64)
       requires Valid()
       requires k as nat <= |ilevels|
       ensures t as nat == sum_nat(ilevels[..k])
@@ -75,26 +75,26 @@ module IndirectPos
       sum(ilevels[..k])
     }
 
-    function method totals(): seq<uint64>
+    function totals(): seq<uint64>
       requires Valid()
     {
       sums(ilevels)
     }
 
-    function total_u64(): (t:uint64)
+    ghost function total_u64(): (t:uint64)
       requires Valid()
       ensures t as nat == total
     {
       sum(ilevels)
     }
 
-    static function method sum_nat(ilevels: seq<uint64>): nat
+    static function sum_nat(ilevels: seq<uint64>): nat
     {
       if ilevels == [] then 0
       else pow(512, ilevels[0] as nat) + sum_nat(ilevels[1..])
     }
 
-    static function method sum(ilevels: seq<uint64>): (s:uint64)
+    static function sum(ilevels: seq<uint64>): (s:uint64)
       requires sum_nat(ilevels) < U64.MAX
       ensures s as nat == sum_nat(ilevels)
     {
@@ -146,13 +146,13 @@ module IndirectPos
       assert ilevels == ilevels[..k] + ilevels[k..];
     }
 
-    static function method sums(ilevels: seq<uint64>): (s:seq<uint64>)
+    static function sums(ilevels: seq<uint64>): (s:seq<uint64>)
       requires sum_nat(ilevels) < U64.MAX
     {
       seq(1+|ilevels|, (i:nat) requires i <= |ilevels| =>
         (sum_nat_prefix_lt(ilevels, i);
-        sum(ilevels[..i]))
-          )
+         sum(ilevels[..i]))
+        )
     }
 
   }
@@ -230,8 +230,8 @@ module IndirectPos
   datatype preIdx = Idx(k: uint64, off: IndOff)
   {
     const ilevel: uint64 := off.ilevel
-      // if false, idx is indirect
-    predicate method data?()
+    // if false, idx is indirect
+    predicate data?()
     {
       && k as nat < |config.ilevels|
       && off.ilevel == config.ilevels[k]
@@ -243,45 +243,46 @@ module IndirectPos
       Idx(k, IndOff.direct)
     }
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && k as nat < |config.ilevels|
       && off.ilevel <= config.ilevels[k]
     }
 
     // "flat" indices are logical block addresses (LBAs) for the inode
-    function flat(): uint64
+    ghost function flat(): uint64
       requires Valid()
       requires this.data?()
     {
+      assert config.Valid();
       config.total_to(k) + off.j
     }
 
     // from_flat gives us a structured way to find an LBA (we go to its
     // appropriate root block and deference indirect blocks one at a time with
     // i.split() until we get a direct block)
-    static function method from_flat(n: uint64): (i:Idx)
+    static function from_flat(n: uint64): (i:Idx)
       requires n < config.total as uint64
       ensures i.data?()
     {
       if n < 8 then
         Idx(n, IndOff.direct)
       else (
-        var n: uint64 := n-8;
-        if n < 2*512 then
-          Idx(8+n/512, IndOff(1, n%512))
-        else (
-          var n: uint64 := n - 2*512;
-          if n < 512*512 then
-            Idx(8+2, IndOff(2, n%(512*512)))
-          else (
-            var n: uint64 := n-512*512;
-            // there's only one triply-indirect block so no complicated
-            // calculations are needed here
-            Idx(8+3, IndOff(3, n))
-          )
-        )
-      )
+             var n: uint64 := n-8;
+             if n < 2*512 then
+               Idx(8+n/512, IndOff(1, n%512))
+             else (
+                    var n: uint64 := n - 2*512;
+                    if n < 512*512 then
+                      Idx(8+2, IndOff(2, n%(512*512)))
+                    else (
+                           var n: uint64 := n-512*512;
+                           // there's only one triply-indirect block so no complicated
+                           // calculations are needed here
+                           Idx(8+3, IndOff(3, n))
+                         )
+                  )
+           )
     }
 
     static lemma from_to_flat_id(n: uint64)
@@ -300,6 +301,13 @@ module IndirectPos
         assert 8 <= from_flat(n0).k < 8+3;
         if n < 512 {
           assert from_flat(n0).k == 8;
+          assert from_flat(n0).off.ilevel == 1;
+          assert from_flat(n0).off.j == n % 512;
+          // this lemma is actually required to prove this equality (it's hard
+          // to get Dafny to compute this recursive function)
+          config_totals_after_8(8);
+          assert config.total_to(8) == 8;
+          assert from_flat(n0).flat() == n0;
           return;
         }
         if n < 2*512 {
@@ -321,7 +329,7 @@ module IndirectPos
         config_total_to(8+3);
       }
       assert from_flat(n0).flat() == 8+2*512 + 512*512 + (n-2*512 - 512*512);
-  }
+    }
 
     static lemma from_flat_inj(n1: uint64, n2: uint64)
       requires n1 as nat < config.total && n2 as nat < config.total
@@ -343,23 +351,23 @@ module IndirectPos
   // the data lives.
   datatype Pos = Pos(ghost ino: Ino, idx: Idx)
   {
-    const ilevel: uint64 := idx.off.ilevel;
+    const ilevel: uint64 := idx.off.ilevel
     const data?: bool := idx.data?()
     const indirect?: bool := !data?
 
-    static function method from_flat(ghost ino: Ino, n: uint64): Pos
+    static function from_flat(ghost ino: Ino, n: uint64): Pos
       requires n as nat < config.total
     {
       Pos(ino, Idx.from_flat(n))
     }
 
-    function method parent(): Pos
+    function parent(): Pos
       requires ilevel > 0
     {
       Pos(ino, Idx(idx.k, idx.off.parent()))
     }
 
-    function method child(): IndOff
+    function child(): IndOff
       requires ilevel > 0
     {
       idx.off.child()

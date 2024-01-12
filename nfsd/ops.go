@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"time"
 
-	direntries "github.com/mit-pdos/daisy-nfsd/dafnygen/DirEntries_Compile"
-	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
-	inode "github.com/mit-pdos/daisy-nfsd/dafnygen/Inode_Compile"
-	lock_order "github.com/mit-pdos/daisy-nfsd/dafnygen/LockOrder_Compile"
-	memdirents "github.com/mit-pdos/daisy-nfsd/dafnygen/MemDirEnts_Compile"
-	dafny_nfs "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs_Compile"
-	nfs_spec "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs_Compile"
-	std "github.com/mit-pdos/daisy-nfsd/dafnygen/Std_Compile"
-	typed_fs "github.com/mit-pdos/daisy-nfsd/dafnygen/TypedFs_Compile"
+	direntries "github.com/mit-pdos/daisy-nfsd/dafnygen/DirEntries"
+	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs"
+	inode "github.com/mit-pdos/daisy-nfsd/dafnygen/Inode"
+	lock_order "github.com/mit-pdos/daisy-nfsd/dafnygen/LockOrder"
+	memdirents "github.com/mit-pdos/daisy-nfsd/dafnygen/MemDirEnts"
+	dafny_nfs "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs"
+	nfs_spec "github.com/mit-pdos/daisy-nfsd/dafnygen/Nfs"
+	std "github.com/mit-pdos/daisy-nfsd/dafnygen/Std"
+	typed_fs "github.com/mit-pdos/daisy-nfsd/dafnygen/TypedFs"
 	dafny "github.com/mit-pdos/daisy-nfsd/dafnygen/dafny"
 
 	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
@@ -519,7 +519,7 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	return reply
 }
 
-func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Seq) Result) (v interface{}, status nfstypes.Nfsstat3) {
+func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Sequence) Result) (v interface{}, status nfstypes.Nfsstat3) {
 	locks := lock_order.Companion_Default___.EmptyLockHint()
 	for {
 		txn := nfs.filesys.Begin()
@@ -544,7 +544,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) (reply nfstypes.RENAM
 	dst_inum := fh2ino(args.To.Dir)
 	dst_name := filenameToBytes(args.To.Name)
 
-	_, status := nfs.runWithLocks(func(txn Txn, locks dafny.Seq) Result {
+	_, status := nfs.runWithLocks(func(txn Txn, locks dafny.Sequence) Result {
 		return nfs.filesys.RENAME(txn, locks, src_inum, src_name, dst_inum, dst_name)
 	})
 
@@ -579,9 +579,9 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.REA
 		util.DPrintf(1, "NFS Readdir error %v", status)
 		return reply
 	}
-	seq := r.(dafny.Seq)
+	seq := r.(dafny.Sequence)
 
-	seqlen := seq.LenInt()
+	seqlen := seq.Cardinality()
 	// TODO: produce this . from Dafny, or add it to every directory
 	ents := &nfstypes.Entry3{
 		Fileid:    nfstypes.Fileid3(inum),
@@ -589,9 +589,9 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.REA
 		Cookie:    1,
 		Nextentry: nil,
 	}
-	for i := 0; i < seqlen; i++ {
-		dirent := seq.IndexInt(i).(memdirents.MemDirEnt)
-		dirent2 := dirent.Get().(memdirents.MemDirEnt_MemDirEnt)
+	for i := uint32(0); i < seqlen; i++ {
+		dirent := seq.Select(i).(memdirents.MemDirEnt)
+		dirent2 := dirent.Get_().(memdirents.MemDirEnt_MemDirEnt)
 
 		de_ino := dirent2.Ino
 		var de_name []byte = dirent2.Name.Data

@@ -12,12 +12,12 @@ module Inode {
   import opened Marshal
   import C = Collections
 
-  const MAX_SZ_u64: uint64 := 4096 * (8 + 2*512 + 512*512 + 512*512*512);
-  const MAX_SZ: nat := MAX_SZ_u64 as nat;
+  const MAX_SZ_u64: uint64 := 4096 * (8 + 2*512 + 512*512 + 512*512*512)
+  const MAX_SZ: nat := MAX_SZ_u64 as nat
 
   datatype InodeType = InvalidType | FileType | DirType
   {
-    function method to_u32(): uint32
+    function to_u32(): uint32
     {
       match this {
         case InvalidType => 0
@@ -26,7 +26,7 @@ module Inode {
       }
     }
 
-    static function method from_u32(x: uint32): InodeType
+    static function from_u32(x: uint32): InodeType
     {
       if x == 0 then InvalidType else if x == 1 then FileType else DirType
     }
@@ -35,7 +35,7 @@ module Inode {
       ensures from_u32(to_u32()) == this
     {}
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(to_u32())
     }
@@ -52,7 +52,7 @@ module Inode {
   {
     static const zero: NfsTime := NfsTime(0, 0)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(sec) + IntEncoding.le_enc32(nsec)
     }
@@ -96,13 +96,13 @@ module Inode {
     static const zero_file: Attrs := Attrs(FileType, 0, 0, 0, NfsTime.zero)
     static const zero_dir: Attrs := Attrs(DirType, 0, 0, 0, NfsTime.zero)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc32(ty.to_u32()) +
-        IntEncoding.le_enc32(mode) +
-        IntEncoding.le_enc32(uid) +
-        IntEncoding.le_enc32(gid) +
-        mtime.enc()
+      IntEncoding.le_enc32(mode) +
+      IntEncoding.le_enc32(uid) +
+      IntEncoding.le_enc32(gid) +
+      mtime.enc()
     }
 
     lemma enc_len()
@@ -167,10 +167,10 @@ module Inode {
 
   datatype Meta = Meta(sz: uint64, attrs: Attrs)
   {
-    const ty := attrs.ty;
+    const ty := attrs.ty
     static const zero: Meta := Meta(0, Attrs.zero)
 
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       IntEncoding.le_enc64(sz) + attrs.enc()
     }
@@ -197,7 +197,7 @@ module Inode {
 
     static const preZero: preInode := Mk(Meta(0, Attrs.zero), C.repeat(0 as uint64, 12))
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       && |blks| == 12
       && sz as nat <= MAX_SZ
@@ -220,7 +220,7 @@ module Inode {
     reveal enc();
   }
 
-  function {:opaque} enc(i: Inode): (bs:seq<byte>)
+  ghost function {:opaque} enc(i: Inode): (bs:seq<byte>)
     ensures |bs| == 128
   {
     assert i.Valid();
@@ -231,8 +231,8 @@ module Inode {
 
   lemma enc_app(i: Inode)
     ensures enc(i) ==
-    IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
-    seq_enc_uint64(i.blks)
+            IntEncoding.le_enc64(i.meta.sz) + i.meta.attrs.enc() +
+            seq_enc_uint64(i.blks)
   {
     reveal enc();
   }

@@ -16,14 +16,14 @@ module DirEntries
 
   const dirent_sz_u64: uint64 := 64
   const dirent_sz: nat := dirent_sz_u64 as nat
-    // dirent_sz - 8
+  // dirent_sz - 8
   const path_len_u64: uint64 := 56
   const path_len: nat := path_len_u64 as nat
 
-    // this is the maximum directory size in entries
-    //
-    // somewhat arbitrary limit to prevent integer overflow/overflowing inode
-    // max sz
+  // this is the maximum directory size in entries
+  //
+  // somewhat arbitrary limit to prevent integer overflow/overflowing inode
+  // max sz
   const dir_sz_u64: uint64 := 10240
   const dir_sz: nat := dir_sz_u64 as nat
 
@@ -33,7 +33,7 @@ module DirEntries
     ensures path_len == dirent_sz - 8
   {}
 
-  predicate {:opaque} is_pathc(s: String)
+  ghost predicate {:opaque} is_pathc(s: String)
   {
     && |s| <= MAX_FILENAME_SZ as nat
     && forall i | 0 <= i < |s| :: s[i] != 0
@@ -41,25 +41,25 @@ module DirEntries
 
   type PathComp = s:String | is_pathc(s) ghost witness (reveal is_pathc(); [])
 
-  function method empty_path(): PathComp
+  function empty_path(): PathComp
   {
     reveal is_pathc();
     []
   }
 
-  function method encode_pathc(pc: PathComp): (s:seq<byte>)
+  function encode_pathc(pc: PathComp): (s:seq<byte>)
     ensures |s| == path_len
   {
     reveal is_pathc();
     pc + C.repeat(0 as byte, path_len - |pc|)
   }
 
-  function method decode_null_terminated(s: seq<byte>): String
+  function decode_null_terminated(s: seq<byte>): String
   {
     if s == [] then []
     else
-      if s[0] == 0 as byte then []
-      else [s[0]] + decode_null_terminated(s[1..])
+    if s[0] == 0 as byte then []
+    else [s[0]] + decode_null_terminated(s[1..])
   }
 
   // decode_null_terminated is technically the longest sequence satisfying these properties
@@ -68,7 +68,7 @@ module DirEntries
     ensures forall i | 0 <= i < |decode_null_terminated(s)| :: decode_null_terminated(s)[i] != 0
   {}
 
-  function method decode_pathc(s: seq<byte>): PathComp
+  function decode_pathc(s: seq<byte>): PathComp
     requires |s| == path_len
   {
     decode_null_terminated_spec(s);
@@ -76,14 +76,24 @@ module DirEntries
     decode_null_terminated(s)
   }
 
-  lemma {:induction s1} decode_nullterm_prefix(s1: seq<byte>, s2: seq<byte>)
+  // NOTE: without induction false, performance is awful
+  lemma {:induction false} decode_nullterm_prefix(s1: seq<byte>, s2: seq<byte>)
+    decreases |s1|
     requires forall i | 0 <= i < |s1| :: s1[i] != 0
     ensures decode_null_terminated(s1 + s2) == s1 + decode_null_terminated(s2)
   {
     if s1 == [] {
       assert s1 + s2 == s2;
     } else {
-      assert (s1 + s2)[1..] == s1[1..] + s2;
+      assert s1[0] != 0 as byte;
+      calc {
+        decode_null_terminated(s1 + s2);
+        [(s1 + s2)[0]] + decode_null_terminated((s1 + s2)[1..]);
+        { assert (s1 + s2)[1..] == s1[1..] + s2; }
+        [s1[0]] + decode_null_terminated(s1[1..] + s2);
+        { decode_nullterm_prefix(s1[1..], s2); }
+        s1 + decode_null_terminated(s2);
+      }
     }
   }
 
@@ -127,19 +137,19 @@ module DirEntries
 
     // we don't call this valid because unused DirEnts do show up (eg, a Dirents
     // will in general have unused DirEnts and this isn't a problem)
-    predicate method used()
+    predicate used()
     {
       ino != 0
     }
 
-    static predicate method is_used(e: DirEnt) { e.used() }
+    static predicate is_used(e: DirEnt) { e.used() }
 
-    predicate method unused()
+    predicate unused()
     {
       ino == 0
     }
 
-    function {:opaque} encoding(): seq<Encodable>
+    ghost function {:opaque} encoding(): seq<Encodable>
     {
       [EncBytes(encode_pathc(name)), EncUInt64(ino)]
     }
@@ -149,7 +159,7 @@ module DirEntries
     //
     // this function doesn't really show up often anyway so it probably won't
     // trigger too many things
-    function enc(): seq<byte>
+    ghost function enc(): seq<byte>
     {
       Marshal.seq_encode(encoding())
     }
@@ -178,19 +188,19 @@ module DirEntries
 
   type Directory = map<PathComp, Ino>
 
-  function seq_to_dir(s: seq<DirEnt>): Directory
+  ghost function seq_to_dir(s: seq<DirEnt>): Directory
   {
     if s == [] then map[]
     else (
-      var e := s[0];
-      var s' := s[1..];
-      if e.used() then
-        seq_to_dir(s')[e.name := e.ino]
-      else seq_to_dir(s')
-      )
+           var e := s[0];
+           var s' := s[1..];
+           if e.used() then
+             seq_to_dir(s')[e.name := e.ino]
+           else seq_to_dir(s')
+         )
   }
 
-  function method used_dirents(s: seq<DirEnt>): seq<DirEnt>
+  function used_dirents(s: seq<DirEnt>): seq<DirEnt>
   {
     C.seq_filter(DirEnt.is_used, s)
   }
@@ -231,6 +241,7 @@ module DirEntries
   lemma test_seq_to_dir_overwrite()
   {
     reveal is_pathc();
+    reveal ino_ok();
     var e1 := DirEnt([1], 1 as Ino);
     var e2 := DirEnt([1], 2 as Ino);
     var e3 := DirEnt([2], zeroIno());
@@ -264,7 +275,7 @@ module DirEntries
     // }
   }
 
-  predicate {:opaque} dirents_unique(s: seq<DirEnt>)
+  ghost predicate {:opaque} dirents_unique(s: seq<DirEnt>)
   {
     forall i, j | 0 <= i < |s| && 0 <= j < |s| ::
       s[i].name == s[j].name && s[i].used() && s[j].used() ==> i == j
@@ -384,7 +395,7 @@ module DirEntries
 
   datatype preDirents = Dirents(s: seq<DirEnt>)
   {
-    static function method zeros(n: nat): (dents:preDirents)
+    static function zeros(n: nat): (dents:preDirents)
       ensures dirents_unique(dents.s)
     {
       reveal dirents_unique();
@@ -406,14 +417,14 @@ module DirEntries
       zeros_dir(64);
     }
 
-    predicate Valid()
+    ghost predicate Valid()
     {
       // 128*32 == 4096 so these will fit in a block
       && |s| <= dir_sz
       && dirents_unique(s)
     }
 
-    static function encOne(e: DirEnt): (s:seq<byte>)
+    static ghost function encOne(e: DirEnt): (s:seq<byte>)
       ensures |s| == dirent_sz
     {
       e.enc_len();
@@ -423,7 +434,7 @@ module DirEntries
     // note that this does not require Valid, so we can call it on a Dirents(s)
     // without first proving validity (that is, it's really a method for any
     // seq<DirEnt>)
-    function {:opaque} enc(): (data:seq<byte>)
+    ghost function {:opaque} enc(): (data:seq<byte>)
       ensures |data| == dirent_sz*|s|
     {
       C.concat_homogeneous_len(C.seq_fmap(encOne, this.s), dirent_sz);
@@ -453,7 +464,7 @@ module DirEntries
       zeros_enc(64);
     }
 
-    function insert_ent(i: nat, e: DirEnt): (ents': Dirents)
+    ghost function insert_ent(i: nat, e: DirEnt): (ents': Dirents)
       requires Valid()
       requires i < |s|
       requires this.findName(e.name) >= |s|
@@ -477,12 +488,12 @@ module DirEntries
       seq_to_dir_insert(s, this.findFree(), e);
     }
 
-    static function method findName_pred(p: PathComp): DirEnt -> bool
+    static function findName_pred(p: PathComp): DirEnt -> bool
     {
       (e:DirEnt) => e.used() && e.name == p
     }
 
-    function findName(p: PathComp): (i:nat)
+    ghost function findName(p: PathComp): (i:nat)
       requires Valid()
     {
       C.find_first(findName_pred(p), s)
@@ -518,18 +529,18 @@ module DirEntries
       }
     }
 
-    predicate {:opaque} find_free_spec(i: nat)
+    ghost predicate {:opaque} find_free_spec(i: nat)
     {
       && i <= |s|
       && forall k:nat | k < i :: s[k].used()
     }
 
-    static predicate method is_unused(e: DirEnt)
+    static predicate is_unused(e: DirEnt)
     {
       !e.used()
     }
 
-    function method findFree(): (i:nat)
+    function findFree(): (i:nat)
       requires Valid()
       ensures i < |s| ==> !s[i].used()
       ensures find_free_spec(i)
@@ -563,14 +574,14 @@ module DirEntries
 
     lemma enc_extend_zero(n: nat)
       ensures
-      Dirents(s + C.repeat(DirEnt.zero, n)).enc()
-      == this.enc() + C.repeat(0 as byte, dirent_sz * n)
+        Dirents(s + C.repeat(DirEnt.zero, n)).enc()
+        == this.enc() + C.repeat(0 as byte, dirent_sz * n)
     {
       enc_app(s, C.repeat(DirEnt.zero, n));
       zeros_enc(n);
     }
 
-    function {:opaque} extend_zero(n: nat): (dents: Dirents)
+    ghost function {:opaque} extend_zero(n: nat): (dents: Dirents)
       requires Valid()
       requires |s| + n <= dir_sz
       ensures dents.Valid()

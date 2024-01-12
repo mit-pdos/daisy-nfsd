@@ -6,8 +6,8 @@ import (
 
 	"github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"
 	"github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"
-	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs_Compile"
-	fskinds "github.com/mit-pdos/daisy-nfsd/dafnygen/FsKinds_Compile"
+	dirfs "github.com/mit-pdos/daisy-nfsd/dafnygen/DirFs"
+	fskinds "github.com/mit-pdos/daisy-nfsd/dafnygen/FsKinds"
 
 	"github.com/tchajed/goose/machine/disk"
 )

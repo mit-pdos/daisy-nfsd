@@ -1,22 +1,10 @@
 DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
-# use DAFNY_CORES instead of a load factor since /vcsLoad is broken in Dafny 3.5.0
-#DAFNY_LOAD := 0.5
-
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-	NUM_CORES := $(shell sysctl -n hw.ncpu)
-else
-	NUM_CORES := $(shell nproc)
-endif
-DAFNY_CORES ?= $(shell expr $(NUM_CORES) / 2)
-
-# these arguments don't affect verification outcomes
-DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsCores:$(DAFNY_CORES)
-
-DAFNY_ARGS := /noNLarith /arith:5
-DAFNY=./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
+DAFNY_CORES := "50%"
+DAFNY_BASIC_ARGS := --verification-time-limit 20 --cores $(DAFNY_CORES)
+DAFNY_ARGS := --disable-nonlinear-arithmetic
+DAFNY = ./etc/dafnyq verify $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
 Q:=@
 
@@ -38,7 +26,7 @@ ifeq ($(filter clean,$(MAKECMDGOALS)),)
 endif
 
 # allow non-linear reasoning for nonlin directory specifically
-src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
+src/nonlin/%.dfy.ok: DAFNY_ARGS =
 
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"
@@ -53,7 +41,7 @@ src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 # up unused imports emitted by Dafny.
 dafnygen/dafnygen.go: src/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /countVerificationErrors:0 /spillTargetCode:2 /out dafnygen $<
+	$(Q)./etc/dafnyq translate go --no-verify --include-runtime --output dafnygen $<
 	$(Q)rm -rf dafnygen
 	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
 	$(Q)rm -r dafnygen-go

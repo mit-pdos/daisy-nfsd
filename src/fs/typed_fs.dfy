@@ -24,18 +24,18 @@ module TypedFs {
     const fs: ByteFilesys
     const ialloc: Allocator
 
-    ghost const Repr: set<object> := {this} + fs.Repr;
+    ghost const Repr: set<object> := {this} + fs.Repr
 
     static const iallocMax: uint64 := super.num_inodes as uint64
 
-    predicate {:opaque} bytefsValid()
+    ghost predicate {:opaque} bytefsValid()
       reads fs.Repr
     {
       // not quiescent
       && fs.fs.Valid()
     }
 
-    predicate {:opaque} fsValidIno(ino: Ino, i: MemInode)
+    ghost predicate {:opaque} fsValidIno(ino: Ino, i: MemInode)
       reads fs.Repr, i.Repr
     {
       && fs.fs.ValidIno(ino, i)
@@ -49,7 +49,7 @@ module TypedFs {
       reveal fsValidIno();
     }
 
-    predicate {:opaque} ValidFields()
+    ghost predicate {:opaque} ValidFields()
       reads this, fs.Repr
       requires bytefsValid()
     {
@@ -58,27 +58,27 @@ module TypedFs {
       && types == fs.inode_types()
     }
 
-    predicate ValidDomains()
+    ghost predicate ValidDomains()
       reads this
     {
       && InodeFs.ino_dom(data)
       && InodeFs.ino_dom(types)
     }
 
-    predicate {:opaque} ValidInvalid()
+    ghost predicate {:opaque} ValidInvalid()
       reads this
       requires ValidDomains()
     {
       forall ino: Ino :: types[ino].ty.InvalidType? ==> data[ino] == []
     }
 
-    predicate ValidAlloc()
+    ghost predicate ValidAlloc()
     {
       && ialloc.Valid()
       && ialloc.max == iallocMax
     }
 
-    predicate ValidThis()
+    ghost predicate ValidThis()
       reads Repr
       requires bytefsValid()
     {
@@ -88,7 +88,7 @@ module TypedFs {
       && ValidAlloc()
     }
 
-    predicate Valid()
+    ghost predicate Valid()
       reads Repr
     {
       && bytefsValid()
@@ -96,7 +96,7 @@ module TypedFs {
       && fs.fs.fs.quiescent()
     }
 
-    predicate ValidIno(ino: Ino, i: MemInode)
+    ghost predicate ValidIno(ino: Ino, i: MemInode)
       reads Repr, i.Repr
     {
       reveal fsValidIno();
@@ -177,13 +177,13 @@ module TypedFs {
       types == old(types)
     }
 
-    predicate has_jrnl(txn: Txn)
+    ghost predicate has_jrnl(txn: Txn)
       reads fs.fs.fs
     {
       fs.fs.has_jrnl(txn)
     }
 
-    predicate inode_unchanged(ino: Ino, i: Inode.Inode)
+    ghost predicate inode_unchanged(ino: Ino, i: Inode.Inode)
       reads fs.fs.fs
     {
       fs.fs.fs.cur_inode == Some((ino, i))
@@ -195,6 +195,7 @@ module TypedFs {
       ensures ok ==> ValidIno(ino, i')
       ensures !ok ==> Valid()
       requires has_jrnl(txn)
+      ensures ok ==> i'.Valid()
       ensures ok ==> inode_unchanged(ino, i'.val())
       ensures fresh(i'.Repr)
       ensures ok ==> i'.attrs == types[ino]
@@ -206,10 +207,12 @@ module TypedFs {
       if i'.ty().InvalidType? {
         ok := false;
         fs.finishInodeReadonly(ino, i');
+        reveal_valids();
         reveal ValidFields();
         return;
       }
       ok := true;
+      reveal_valids();
       reveal ValidFields();
     }
 
@@ -225,17 +228,20 @@ module TypedFs {
       ty := i.ty();
       fs.finishInodeReadonly(ino, i);
       reveal ValidFields();
+      reveal_valids();
       return;
     }
 
     ghost method finishInodeReadonly(ino: Ino, i: MemInode)
       modifies fs.fs.fs
       requires ValidIno(ino, i)
+      requires i.Valid()
       requires inode_unchanged(ino, i.val())
       ensures Valid()
     {
       reveal_valids();
       fs.finishInodeReadonly(ino, i);
+      reveal_valids();
       reveal ValidFields();
     }
 
@@ -247,6 +253,7 @@ module TypedFs {
     {
       reveal_valids();
       fs.finishInode(txn, ino, i);
+      reveal_valids();
       reveal ValidFields();
     }
 
@@ -255,6 +262,7 @@ module TypedFs {
       ensures i.attrs == types[ino]
       ensures i.sz as nat == |data[ino]|
     {
+      reveal_valids();
       fs.inode_metadata(ino, i);
       reveal ValidFields();
     }
@@ -266,18 +274,20 @@ module TypedFs {
       requires !ty.InvalidType?
       ensures ok ==> i != null && fresh(i.Repr)
       ensures ok ==>
-      && old(types[ino].ty.InvalidType?)
-      && types == old(types[ino := types[ino].(ty := ty)])
-      && data == old(data)
-      && data[ino] == []
-      && ValidIno(ino, i)
-      && ino != 0
+                && old(types[ino].ty.InvalidType?)
+                && types == old(types[ino := types[ino].(ty := ty)])
+                && data == old(data)
+                && data[ino] == []
+                && ValidIno(ino, i)
+                && ino != 0
     {
       reveal_valids();
       reveal ino_ok();
+      i := null;
       ino := ialloc.Alloc();
       if ino == 0 {
         ok := false;
+        reveal_valids();
         return;
       }
       i := fs.startInode(txn, ino);
@@ -292,6 +302,7 @@ module TypedFs {
       types := fs.inode_types();
       reveal ValidInvalid();
       reveal ValidFields();
+      reveal_valids();
     }
 
     method allocateAt(txn: Txn, ino: Ino, ty: Inode.InodeType) returns (i': MemInode)
@@ -312,17 +323,18 @@ module TypedFs {
       types := fs.inode_types();
       reveal ValidInvalid();
       reveal ValidFields();
+      reveal_valids();
     }
 
     method freeSafe(ino: Ino)
-        requires ValidAlloc()
-        requires ino_ok(ino)
+      requires ValidAlloc()
+      requires ino_ok(ino)
     {
-        if ino as uint64 == 0 {
-            return;
-        }
-        reveal ino_ok();
-        ialloc.Free(ino);
+      if ino as uint64 == 0 {
+        return;
+      }
+      reveal ino_ok();
+      ialloc.Free(ino);
     }
 
     method {:timeLimitMultiplier 2} freeInode(txn: Txn, ino: Ino, i: MemInode)
@@ -341,6 +353,7 @@ module TypedFs {
       types := fs.inode_types();
       reveal ValidFields();
       reveal ValidInvalid();
+      reveal_valids();
     }
 
     method writeBlock(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
@@ -353,13 +366,15 @@ module TypedFs {
       requires off % 4096 == 0
       requires off as nat + 4096 <= |data[ino]|
       ensures ok ==>
-      data == old(data[ino := C.splice(data[ino], off as nat, bs.data)])
+                data == old(data[ino := C.splice(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
+      reveal_valids();
       reveal ValidFields();
       ok := fs.alignedWrite(txn, ino, i, bs, off);
       data := fs.data();
       reveal ValidInvalid();
+      reveal_valids();
     }
 
     method writeOne_(txn: Txn, ino: Ino, i: MemInode, off: uint64, bs: Bytes)
@@ -372,16 +387,18 @@ module TypedFs {
       requires off as nat <= |data[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+                && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       reveal ValidFields();
+      reveal_valids();
       ok := fs.write(txn, ino, i, off, bs);
       if !ok {
         return;
       }
       data := fs.data();
       assert ValidIno(ino, i) by {
+        reveal_valids();
         reveal ValidInvalid();
       }
     }
@@ -396,7 +413,7 @@ module TypedFs {
       requires off as nat <= |data[ino]|
       requires off as nat + |bs.data| <= Inode.MAX_SZ
       ensures ok ==>
-      && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
+                && data == old(data[ino := write_data(data[ino], off as nat, bs.data)])
       ensures types_unchanged()
     {
       if bs.Len() == 0 {
@@ -413,7 +430,7 @@ module TypedFs {
       assert write_data(data[ino], off as nat, []) == data[ino];
 
       while bs.Len() > 4096
-        decreases |data0| - written as nat;
+        decreases |data0| - written as nat
         invariant fresh({bs})
         invariant 0 < |bs.data| <= |data0| <= WT_MAX as nat
         invariant ValidIno(ino, i)
@@ -436,9 +453,9 @@ module TypedFs {
         assert bs_remaining.data == bs_remaining_data0;
 
         assert data[ino] == old(write_data(data[ino], off as nat,
-          data0[..written + 4096])) by {
+                                           data0[..written + 4096])) by {
           assert data[ino] == write_data(old(data[ino]), off as nat,
-            data0[..written] + data0[written..written + 4096]) by {
+                                         data0[..written] + data0[written..written + 4096]) by {
             write_data_app(old(data[ino]), off as nat, data0[..written], data0[written..written + 4096]);
             assert (off + written) as nat == off as nat + |data0[..written]|;
           }
@@ -485,11 +502,13 @@ module TypedFs {
       ensures types_unchanged()
       ensures ok ==> && data == old(data[ino := bs.data])
     {
+      reveal_valids();
       reveal ValidFields();
       C.splice_all(data[ino], bs.data);
       ok := fs.alignedWrite(txn, ino, i, bs, 0);
       data := fs.data();
       reveal ValidInvalid();
+      reveal_valids();
     }
 
     method readUnsafe(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
@@ -501,8 +520,10 @@ module TypedFs {
       ensures fresh(bs)
       ensures bs.data == this.data[ino][off..off as nat + len as nat]
     {
+      reveal_valids();
       reveal ValidFields();
       bs := fs.readInternal(txn, ino, i, off, len);
+      reveal_valids();
     }
 
     method read(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
@@ -511,19 +532,19 @@ module TypedFs {
       requires has_jrnl(txn)
       requires ValidIno(ino, i) ensures ValidIno(ino, i)
       ensures fs.fs.fs.cur_inode == old(fs.fs.fs.cur_inode)
-      requires inode_unchanged(ino, i.val())
+      requires i.Valid() && inode_unchanged(ino, i.val())
       requires len <= 32*4096
       ensures fresh(bs)
       ensures ok ==> Nfs.is_read_data(data[ino], off as nat, len as nat, bs.data, eof)
     {
+      bs := NewBytes(0);
+      ok := false;
+      eof := false;
       if sum_overflows(off, len) {
-        bs := NewBytes(0);
-        ok := false;
         return;
       }
       inode_metadata(ino, i);
       if off > i.sz {
-        bs := NewBytes(0);
         ok := true;
         eof := true;
         return;
@@ -535,7 +556,9 @@ module TypedFs {
       } else {
         eof := false;
       }
+      reveal_valids();
       bs, ok := fs.readWithInode(txn, ino, i, off, readLen);
+      reveal_valids();
       reveal ValidFields();
     }
 
@@ -546,15 +569,17 @@ module TypedFs {
       requires has_jrnl(txn)
       requires sz' as nat <= Inode.MAX_SZ
       ensures
-      r.SetSizeOk? ==> (var d0 := old(data[ino]);
-      var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
-      && data == old(data[ino := d']))
+        r.SetSizeOk? ==> (var d0 := old(data[ino]);
+                          var d' := ByteFs.ByteFilesys.setSize_with_zeros(d0, sz' as nat);
+                          && data == old(data[ino := d']))
       ensures types_unchanged()
     {
+      reveal_valids();
       r := fs.setSize(txn, ino, i, sz');
       data := fs.data();
       reveal ValidFields();
       reveal ValidInvalid();
+      reveal_valids();
     }
 
     method setAttrs(ghost ino: Ino, i: MemInode, attrs': Inode.Attrs)
@@ -564,10 +589,12 @@ module TypedFs {
       ensures data == old(data)
       ensures types == old(types[ino := attrs'])
     {
+      reveal_valids();
       fs.setAttrs(ino, i, attrs');
       types := types[ino := attrs'];
       reveal ValidFields();
       reveal ValidInvalid();
+      reveal_valids();
     }
 
     method zeroFreeSpace(txn: Txn, ino: Ino, sz_hint: uint64)
@@ -579,9 +606,11 @@ module TypedFs {
       ensures types == old(types)
     {
       reveal ValidFields();
+      reveal_valids();
       var i := fs.startInode(txn, ino);
       done := fs.zeroFreeSpace(txn, ino, i, sz_hint);
       fs.finishInode(txn, ino, i);
+      reveal_valids();
     }
 
     method TotalFiles() returns (num: uint64)
