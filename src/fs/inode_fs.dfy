@@ -188,7 +188,7 @@ module InodeFs {
     {
       var jrnl := NewJrnl(d, fs_kinds);
       this.jrnl := jrnl;
-      var num_blks := d.Size();
+      var num_blks := DiskSize(d);
       var actual_max := ballocMax;
       if super_data_start+8 < num_blks <= actual_max {
         actual_max := Round.roundup64(num_blks - super_data_start - 8, 8);

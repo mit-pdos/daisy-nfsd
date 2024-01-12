@@ -23,11 +23,11 @@ func NewFs() *dirfs.DirFilesys {
 	if dfsopt.Is_None() {
 		panic("no dirfs")
 	}
-	dfs := dfsopt.Get().(std.Option_Some).X.(*dirfs.DirFilesys)
+	dfs := dfsopt.Get_().(std.Option_Some).X.(*dirfs.DirFilesys)
 	return dfs
 }
 
-func seqOfString(s string) _dafny.Seq {
+func seqOfString(s string) _dafny.Sequence {
 	xs_i := make([]interface{}, len(s))
 	for i, x := range []byte(s) {
 		xs_i[i] = x
@@ -75,7 +75,7 @@ func TestDirFsLookup(t *testing.T) {
 func TestPathEncode(t *testing.T) {
 	s := seqOfString("foo")
 	s2 := dirents.Companion_Default___.DecodeEncodeTest(s)
-	assert.Equal(t, s2.LenInt(), int(3), "decoded string is short")
+	assert.Equal(t, s2.Cardinality(), uint32(3), "decoded string is short")
 }
 
 // based on a test rtm came up with

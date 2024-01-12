@@ -9,11 +9,7 @@ import (
 
 type Disk = disk.Disk
 
-type Companion_DefaultStruct struct{}
-
-var Companion_Default___ = Companion_DefaultStruct{}
-
-func (_ Companion_DefaultStruct) DiskSize(d *Disk) uint64 {
+func DiskSize(d *Disk) uint64 {
 	return (*d).Size()
 }
 

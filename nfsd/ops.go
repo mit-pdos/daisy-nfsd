@@ -519,7 +519,7 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	return reply
 }
 
-func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Seq) Result) (v interface{}, status nfstypes.Nfsstat3) {
+func (nfs *Nfs) runWithLocks(f func(txn Txn, locks dafny.Sequence) Result) (v interface{}, status nfstypes.Nfsstat3) {
 	locks := lock_order.Companion_Default___.EmptyLockHint()
 	for {
 		txn := nfs.filesys.Begin()
@@ -544,7 +544,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) (reply nfstypes.RENAM
 	dst_inum := fh2ino(args.To.Dir)
 	dst_name := filenameToBytes(args.To.Name)
 
-	_, status := nfs.runWithLocks(func(txn Txn, locks dafny.Seq) Result {
+	_, status := nfs.runWithLocks(func(txn Txn, locks dafny.Sequence) Result {
 		return nfs.filesys.RENAME(txn, locks, src_inum, src_name, dst_inum, dst_name)
 	})
 
@@ -579,9 +579,9 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.REA
 		util.DPrintf(1, "NFS Readdir error %v", status)
 		return reply
 	}
-	seq := r.(dafny.Seq)
+	seq := r.(dafny.Sequence)
 
-	seqlen := seq.LenInt()
+	seqlen := seq.Cardinality()
 	// TODO: produce this . from Dafny, or add it to every directory
 	ents := &nfstypes.Entry3{
 		Fileid:    nfstypes.Fileid3(inum),
@@ -589,9 +589,9 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) (reply nfstypes.REA
 		Cookie:    1,
 		Nextentry: nil,
 	}
-	for i := 0; i < seqlen; i++ {
-		dirent := seq.IndexInt(i).(memdirents.MemDirEnt)
-		dirent2 := dirent.Get().(memdirents.MemDirEnt_MemDirEnt)
+	for i := uint32(0); i < seqlen; i++ {
+		dirent := seq.Select(i).(memdirents.MemDirEnt)
+		dirent2 := dirent.Get_().(memdirents.MemDirEnt_MemDirEnt)
 
 		de_ino := dirent2.Ino
 		var de_name []byte = dirent2.Name.Data
