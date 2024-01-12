@@ -29,12 +29,14 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
   import opened ByteSlice
   import C = Collections
 
-  class {:extern} Disk{}
-
-  method DiskSize(d: Disk) returns (x: uint64)
-  {
-    x := 0; // just a witness, opaque in signature
+  class {:extern} Disk {
+    method {:extern} Size() returns (x: uint64)
   }
+
+  method {:extern} DiskSize(d: Disk) returns (x: uint64)
+  // {
+  //   x := 0; // just a witness
+  // }
 
   datatype {:extern} Addr = Addr(blkno: Blkno, off: uint64)
 
@@ -129,15 +131,15 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     requires max%8 == 0
     ensures a.max == max
     ensures fresh(a)
-  {
-    return new Allocator(max);
-  }
+  // {
+  //   return new Allocator(max);
+  // }
 
   type JrnlData = map<Addr, Object>
 
   class {:extern} Jrnl
   {
-    var data: JrnlData
+    ghost var data: JrnlData
     ghost const kinds: map<Blkno, Kind>
 
     ghost predicate {:opaque} Valid()
@@ -239,7 +241,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
   class {:extern} Txn
   {
 
-    const jrnl: Jrnl
+    ghost const jrnl: Jrnl
 
     constructor(jrnl: Jrnl)
       requires jrnl.Valid()
@@ -267,23 +269,23 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
         && jrnl.data[a].ObjData?
         && buf.data == jrnl.data[a].bs
         && objSize(jrnl.data[a]) == sz as nat
-    {
-      reveal jrnl.Valid();
-      assert jrnl.data[a].ObjData?;
-      ghost var k := jrnl.kinds[a.blkno];
-      kindSize_bounds(k);
-      return new Bytes(jrnl.data[a].bs);
-    }
+    // {
+    //   reveal jrnl.Valid();
+    //   assert jrnl.data[a].ObjData?;
+    //   ghost var k := jrnl.kinds[a.blkno];
+    //   kindSize_bounds(k);
+    //   return new Bytes(jrnl.data[a].bs);
+    // }
 
     method {:extern} ReadBit(a: Addr)
       returns (b:bool)
       requires Valid() ensures Valid()
       requires a in jrnl.data && jrnl.size(a) == 1
       ensures && jrnl.data[a] == ObjBit(b)
-    {
-      reveal jrnl.Valid();
-      return jrnl.data[a].b;
-    }
+    // {
+    //   reveal jrnl.Valid();
+    //   return jrnl.data[a].b;
+    // }
 
     method {:extern} Write(a: Addr, bs: Bytes)
       modifies jrnl, bs
@@ -293,41 +295,41 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
       requires a in jrnl.data && jrnl.size(a) == objSize(ObjData(bs.data))
       requires 8 <= |bs.data|
       ensures jrnl.data == old(jrnl.data[a:=ObjData(bs.data)])
-    {
-      reveal jrnl.Valid();
-      jrnl.data := jrnl.data[a:=ObjData(bs.data)];
-      bs.data := [];
-    }
+    // {
+    //   reveal jrnl.Valid();
+    //   jrnl.data := jrnl.data[a:=ObjData(bs.data)];
+    //   bs.data := [];
+    // }
 
     method {:extern} WriteBit(a: Addr, b: bool)
       modifies jrnl
       requires Valid() ensures Valid()
       requires a in jrnl.data && jrnl.size(a) == 1
       ensures jrnl.data == old(jrnl.data[a:=ObjBit(b)])
-    {
-      reveal jrnl.Valid();
-      jrnl.data := jrnl.data[a:=ObjBit(b)];
-    }
+    // {
+    //   reveal jrnl.Valid();
+    //   jrnl.data := jrnl.data[a:=ObjBit(b)];
+    // }
 
     // wait=false is not modeled; it is up to the code to use this only when
     // deferred durability is acceptable
     method {:extern} Commit(wait: bool) returns (ok:bool)
       requires wait
       requires Valid() ensures Valid()
-    {
-      ok := true;
-    }
+    // {
+    //   ok := true;
+    // }
 
     method {:extern} Abort()
       requires Valid()
-    {}
+    // {}
 
     method {:extern} NDirty()
       returns (num: uint64)
       requires Valid()
-    {
-      num := 0;
-    }
+    // {
+    //   num := 0;
+    // }
   }
 
   // NOTE: we can't provide a model for this because we need kinds to be ghost
