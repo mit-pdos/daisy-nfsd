@@ -1,13 +1,13 @@
 DFY_FILES := $(shell find src -name "*.dfy")
 OK_FILES := $(DFY_FILES:.dfy=.dfy.ok)
 
-DAFNY_LOAD := 0.5
+DAFNY_CORES := "50%"
 
 # these arguments don't affect verification outcomes
-DAFNY_BASIC_ARGS = /compile:0 /compileTarget:go /timeLimit:20 /vcsLoad:$(DAFNY_LOAD)
+DAFNY_BASIC_ARGS := --verification-time-limit 20 --cores $(DAFNY_CORES)
 
-DAFNY_ARGS := /noNLarith /arith:5
-DAFNY = ./etc/dafnyq $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
+DAFNY_ARGS := --disable-nonlinear-arithmetic
+DAFNY = ./etc/dafnyq verify $(DAFNY_BASIC_ARGS) $(DAFNY_ARGS)
 
 Q:=@
 
@@ -29,7 +29,7 @@ ifeq ($(filter clean,$(MAKECMDGOALS)),)
 endif
 
 # allow non-linear reasoning for nonlin directory specifically
-src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
+src/nonlin/%.dfy.ok: DAFNY_ARGS =
 
 %.dfy.ok: %.dfy
 	@echo "DAFNY $<"
@@ -44,7 +44,8 @@ src/nonlin/%.dfy.ok: DAFNY_ARGS = /arith:1
 # up unused imports emitted by Dafny.
 dafnygen/dafnygen.go: src/compile.dfy $(DFY_FILES)
 	@echo "DAFNY COMPILE $<"
-	$(Q)$(DAFNY) /noVerify /spillTargetCode:2 /out dafnygen $<
+	# TODO: use dafny translate (new CLI)
+	$(Q)./etc/dafnyq /compileTarget:go /noVerify /spillTargetCode:2 /out dafnygen $<
 	$(Q)rm -rf dafnygen
 	$(Q)cd dafnygen-go/src && ../../etc/dafnygen-imports.py ../../dafnygen
 	$(Q)rm -r dafnygen-go
