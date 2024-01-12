@@ -487,12 +487,12 @@ module InodeFs {
                && Valid_balloc();
         assert Valid_jrnl_to_data_block(data_block) by {
           reveal Valid_jrnl_to_data_block();
-        forall bn | blkno_ok(bn) && bn != 0
+          forall bn | blkno_ok(bn) && bn != 0
             ensures (
-              datablk_inbounds(jrnl, bn);
-              jrnl.data[DataBlk(bn)] == ObjData(data_block[bn])) {
-                datablk_inbounds(jrnl, bn);
-                assert jrnl.data[DataBlk(bn)] == old(jrnl.data[DataBlk(bn)]);
+                      datablk_inbounds(jrnl, bn);
+                      jrnl.data[DataBlk(bn)] == ObjData(data_block[bn])) {
+            datablk_inbounds(jrnl, bn);
+            assert jrnl.data[DataBlk(bn)] == old(jrnl.data[DataBlk(bn)]);
           }
           assert Valid_jrnl_to_data_block(data_block);
         }

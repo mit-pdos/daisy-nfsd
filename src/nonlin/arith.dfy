@@ -92,7 +92,7 @@ module Arith {
     ensures forall x:nat, y:nat, k:nat | 0 < k && x < k * y :: x / k < y
   {
     forall x:nat, y:nat, k:nat | 0 < k && x < k * y
-     ensures x / k < y {
+      ensures x / k < y {
       div_incr(x, y, k);
     }
   }

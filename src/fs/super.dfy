@@ -315,10 +315,10 @@ module FsKinds {
       :: (if blkno == Super.block_addr
           then KindBlock
           else if InodeBlk?(blkno)
-          then KindInode
-          else if DataAllocBlk?(blkno)
-          then KindBit
-          else (assert DataBlk?(blkno); KindBlock)
+            then KindInode
+            else if DataAllocBlk?(blkno)
+              then KindBit
+              else (assert DataBlk?(blkno); KindBlock)
          ) as Kind
 
   lemma fs_kinds_valid()
