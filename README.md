@@ -43,13 +43,13 @@ continuous integration.
 Run `make` to compile and verify everything, or `make compile` to just compile
 from Dafny to Go. Then you can build the server with `go build ./cmd/daisy-nfsd`.
 
-You'll need Dafny 3:
+You'll need Dafny 4:
 
 - On Arch Linux you can get `dafny-bin` from the AUR
 - On macOS use `brew install dafny`
 - For other systems the easiest solution is to download a binary release from
   <https://github.com/dafny-lang/dafny/releases>, extract it, and add it to your
-  $PATH (this is what we have to do in CI, which runs on Ubuntu 20.04).
+  $PATH (this is what we have to do in CI, which runs on Ubuntu 22.04).
 
 Compilation additionally depends on `goimports` to remove unused imports:
 
