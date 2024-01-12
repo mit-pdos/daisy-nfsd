@@ -84,7 +84,12 @@ module Arith {
 
   lemma div_incr_auto()
     ensures forall x:nat, y:nat, k:nat | 0 < k && x < k * y :: x / k < y
-  {}
+  {
+    forall x:nat, y:nat, k:nat | 0 < k && x < k * y
+     ensures x / k < y {
+      div_incr(x, y, k);
+    }
+  }
 
   lemma div_positive(x: nat, y: int)
     requires 0 < y
@@ -146,6 +151,7 @@ module Arith {
     if x/k <= y/k { return; }
     // if x/k > y/k we'll derive a contradiction
     assert x/k - y/k >= 1;
+    mul_r_incr(1, x/k - y/k, k);
     assert (x/k - y/k) * k >= k;
     assert false;
   }
@@ -183,7 +189,9 @@ module Arith {
     if x/k == y/k {
       assert false;
     }
-    assert x/k < y/k;
+    assert x/k < y/k by {
+      div_increasing(x, y, k);
+    }
     assert x/k + 1 <= y/k;
     calc {
       x + k;
