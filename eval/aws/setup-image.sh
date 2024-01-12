@@ -91,8 +91,8 @@ EOF
 
 # Install Dafny
 
-DAFNY_VERSION=3.5.0
-wget -O /tmp/dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-16.04.zip"
+DAFNY_VERSION=4.4.0
+wget -O /tmp/dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v$DAFNY_VERSION/dafny-$DAFNY_VERSION-x64-ubuntu-20.04.zip"
 cd
 unzip /tmp/dafny.zip
 mv dafny .dafny-bin
@@ -179,7 +179,7 @@ pip3 install argparse
 
 # Install Go and Go dependencies
 
-GO_FILE=go1.18.1.linux-amd64.tar.gz
+GO_FILE=go1.21.6.linux-amd64.tar.gz
 wget https://go.dev/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
@@ -214,7 +214,7 @@ cd ~/
 sudo apt-get install ripgrep
 sudo apt-get install fd-find
 
-HYPERFINE_VERSION=1.13.0
+HYPERFINE_VERSION=1.18.0
 wget https://github.com/sharkdp/hyperfine/releases/download/v${HYPERFINE_VERSION}/hyperfine_${HYPERFINE_VERSION}_amd64.deb
 sudo dpkg -i hyperfine_${HYPERFINE_VERSION}_amd64.deb
 rm hyperfine_${HYPERFINE_VERSION}_amd64.deb
