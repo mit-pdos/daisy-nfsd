@@ -225,6 +225,12 @@ module ByteFs {
       raw_inode_index_one(d, off);
     }
 
+    lemma seq_prefix_helper<T>(s: seq<T>, i: nat, j: nat, k: nat)
+      requires j <= k <= i <= |s|
+      ensures s[..i][j..k] == s[j..k]
+    {
+    }
+
     // TODO: wrap this in a loop to support larger reads
     method {:timeLimitMultiplier 2} readInternal(txn: Txn, ino: Ino, i: MemInode, off: uint64, len: uint64)
       returns (bs: Bytes)
@@ -267,16 +273,20 @@ module ByteFs {
 
       bs.AppendBytes(bs2);
       assert (off + len) as nat == bs2_upper_bound;
+      assert off as nat + len as nat == bs2_upper_bound;
       assert off + len <= i.sz;
       assert (off + len) as nat <= i.sz as nat;
       calc {
         bs.data;
         raw_data(ino)[off..off''] + raw_data(ino)[off''..bs2_upper_bound];
         raw_data(ino)[off..(off + len) as nat];
-        raw_inode_data(block_data(fs.data)[ino])[off..off + len];
-        raw_inode_data(block_data(fs.data)[ino])[..i.sz][off..off + len];
+        raw_inode_data(block_data(fs.data)[ino])[off..(off + len) as nat];
+        { seq_prefix_helper(raw_inode_data(block_data(fs.data)[ino]),
+          i.sz as nat, off as nat, (off + len) as nat); }
+        raw_inode_data(block_data(fs.data)[ino])[..i.sz][off..(off + len) as nat];
         inode_data(i.sz as nat, block_data(fs.data)[ino])[off..bs2_upper_bound];
         this.data()[ino][off..bs2_upper_bound];
+        this.data()[ino][off..off as nat + len as nat];
       }
     }
 
