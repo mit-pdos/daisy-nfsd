@@ -76,14 +76,24 @@ module DirEntries
     decode_null_terminated(s)
   }
 
-  lemma {:induction s1} decode_nullterm_prefix(s1: seq<byte>, s2: seq<byte>)
+  // NOTE: without induction false, performance is awful
+  lemma {:induction false} decode_nullterm_prefix(s1: seq<byte>, s2: seq<byte>)
+    decreases |s1|
     requires forall i | 0 <= i < |s1| :: s1[i] != 0
     ensures decode_null_terminated(s1 + s2) == s1 + decode_null_terminated(s2)
   {
     if s1 == [] {
       assert s1 + s2 == s2;
     } else {
-      assert (s1 + s2)[1..] == s1[1..] + s2;
+      assert s1[0] != 0 as byte;
+      calc {
+        decode_null_terminated(s1 + s2);
+        [(s1 + s2)[0]] + decode_null_terminated((s1 + s2)[1..]);
+        { assert (s1 + s2)[1..] == s1[1..] + s2; }
+        [s1[0]] + decode_null_terminated(s1[1..] + s2);
+        { decode_nullterm_prefix(s1[1..], s2); }
+        s1 + decode_null_terminated(s2);
+      }
     }
   }
 
