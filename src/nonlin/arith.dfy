@@ -51,6 +51,12 @@ module Arith {
     ensures x1 <= x1 * x2
   {}
 
+  lemma mul_increasing(x1: nat, x2: nat, k: nat)
+    requires 0 <= k
+    requires x1 <= x2
+    ensures x1 * k <= x2 * k
+  {}
+
   lemma mul_positive(x: nat, y: nat)
     ensures 0 <= x*y
   {}
