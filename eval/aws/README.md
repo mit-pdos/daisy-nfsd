@@ -2,8 +2,7 @@
 
 ## Create image (AMI) with prepped image
 
-Launch an i3.xlarge using Jammy
-(ubuntu/images-testing/hvm-ssd/ubuntu-jammy-22.04-amd64-minimal-20220505). This
+Launch an i3.xlarge using Lunar (ubuntu-minimal/images/hvm-ssd/ubuntu-lunar-23.04-amd64-minimal-20231207). This
 is a daily image, so you may need to use a more recent version (the old ones
 become unavailable over time).
 

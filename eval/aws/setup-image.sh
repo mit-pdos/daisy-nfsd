@@ -175,7 +175,8 @@ fi
 
 # Install Python dependencies
 
-pip3 install argparse
+# no longer needed
+# pip3 install argparse
 
 # Install Go and Go dependencies
 
