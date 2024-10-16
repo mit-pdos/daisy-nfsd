@@ -14,14 +14,14 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
       |data| < U64.MAX
     }
 
-    constructor {:extern} (data_: seq<byte>)
+    constructor {:axiom} {:extern} (data_: seq<byte>)
       requires |data_| < U64.MAX
       ensures data == data_
     // {
     //   this.data := data_;
     // }
 
-    function {:extern} Len(): (len:uint64)
+    function {:axiom} {:extern} Len(): (len:uint64)
       reads this
       requires Valid()
       ensures len as nat == |data|
@@ -29,7 +29,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   |data|
     // }
 
-    function {:extern} Get(i: uint64): (x: byte)
+    function {:axiom} {:extern} Get(i: uint64): (x: byte)
       reads this
       requires i as nat < |data|
       ensures x == data[i]
@@ -37,7 +37,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   data[i]
     // }
 
-    method {:extern} Set(i: uint64, b: byte)
+    method {:axiom} {:extern} Set(i: uint64, b: byte)
       modifies this
       requires i as nat < |data|
       ensures data == old(data)[i as nat:=b]
@@ -45,7 +45,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   data := data[i as nat := b];
     // }
 
-    method {:extern} Append(b: byte)
+    method {:axiom} {:extern} Append(b: byte)
       modifies this
       requires no_overflow(|data|, 1)
       ensures data == old(data) + [b]
@@ -53,7 +53,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   data := data + [b];
     // }
 
-    method {:extern} AppendBytes(bs: Bytes)
+    method {:axiom} {:extern} AppendBytes(bs: Bytes)
       modifies this
       // NOTE: I did not think of this initially, until the model proof
       // caught it
@@ -64,7 +64,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   data := data + bs.data;
     // }
 
-    method {:extern} Subslice(start: uint64, end: uint64)
+    method {:axiom} {:extern} Subslice(start: uint64, end: uint64)
       modifies this
       requires start as nat <= end as nat <= |data|
       ensures data == old(data[start..end])
@@ -76,7 +76,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     // copy some range of bs into some part of this
     //
     // Go: copy(this[dst:], bs[src:src+len])
-    method {:extern} CopySegment(dst: uint64, bs: Bytes, src: uint64, len: uint64)
+    method {:axiom} {:extern} CopySegment(dst: uint64, bs: Bytes, src: uint64, len: uint64)
       modifies this
       requires bs != this
       requires src as nat + len as nat <= |bs.data|
@@ -86,7 +86,7 @@ module {:extern "bytes", "github.com/mit-pdos/daisy-nfsd/dafny_go/bytes"} ByteSl
     //   data := C.splice(data, dst as nat, bs.data[src..src as nat+len as nat]);
     // }
 
-    method {:extern} Split(off: uint64) returns (bs: Bytes)
+    method {:axiom} {:extern} Split(off: uint64) returns (bs: Bytes)
       modifies this
       ensures fresh(bs)
       requires off as nat <= |data|

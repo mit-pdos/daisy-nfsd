@@ -124,7 +124,7 @@ module ByteFs {
   {}
 
   class ByteFilesys
-  {
+    {
     const fs: IndFilesys
     ghost const Repr: set<object> := fs.Repr
 
@@ -276,13 +276,15 @@ module ByteFs {
       assert off as nat + len as nat == bs2_upper_bound;
       assert off + len <= i.sz;
       assert (off + len) as nat <= i.sz as nat;
+      assert off' <= off + len;
       calc {
         bs.data;
         raw_data(ino)[off..off''] + raw_data(ino)[off''..bs2_upper_bound];
+        raw_data(ino)[off..off''] + raw_data(ino)[off''..(off + len) as nat];
         raw_data(ino)[off..(off + len) as nat];
         raw_inode_data(block_data(fs.data)[ino])[off..(off + len) as nat];
         { seq_prefix_helper(raw_inode_data(block_data(fs.data)[ino]),
-          i.sz as nat, off as nat, (off + len) as nat); }
+                            i.sz as nat, off as nat, (off + len) as nat); }
         raw_inode_data(block_data(fs.data)[ino])[..i.sz][off..(off + len) as nat];
         inode_data(i.sz as nat, block_data(fs.data)[ino])[off..bs2_upper_bound];
         this.data()[ino][off..bs2_upper_bound];

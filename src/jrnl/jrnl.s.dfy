@@ -87,7 +87,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
       && max % 8 == 0
     }
 
-    constructor {:extern}(max: uint64)
+    constructor {:axiom} {:extern}(max: uint64)
       requires 0 < max
       requires max%8 == 0
       ensures this.max == max
@@ -97,27 +97,27 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     }
 
     // MarkUsed prevents an index from being allocated. Used during recovery.
-    method {:extern} MarkUsed(x: uint64)
+    method {:axiom} {:extern} MarkUsed(x: uint64)
       requires Valid()
       requires x < max
     {
     }
 
-    method {:extern} Alloc() returns (x:uint64)
+    method {:axiom} {:extern} Alloc() returns (x:uint64)
       requires Valid()
       ensures x < max
     {
       x := 1;
     }
 
-    method {:extern} Free(x: uint64)
+    method {:axiom} {:extern} Free(x: uint64)
       requires Valid()
       requires x != 0
       requires x < max
     {
     }
 
-    method {:extern} NumFree() returns (num: uint64)
+    method {:axiom} {:extern} NumFree() returns (num: uint64)
       requires Valid()
       ensures num <= max
     {
@@ -126,7 +126,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
 
   }
 
-  method {:extern} NewAllocator(max: uint64) returns (a:Allocator)
+  method {:axiom} {:extern} NewAllocator(max: uint64) returns (a:Allocator)
     requires 0 < max
     requires max%8 == 0
     ensures a.max == max
@@ -257,7 +257,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
       && jrnl.Valid()
     }
 
-    method {:extern} Read(a: Addr, sz: uint64)
+    method {:axiom} {:extern} Read(a: Addr, sz: uint64)
       returns (buf:Bytes)
       requires Valid() ensures Valid()
       requires a in jrnl.data && jrnl.size(a) == sz as nat
@@ -277,7 +277,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     //   return new Bytes(jrnl.data[a].bs);
     // }
 
-    method {:extern} ReadBit(a: Addr)
+    method {:axiom} {:extern} ReadBit(a: Addr)
       returns (b:bool)
       requires Valid() ensures Valid()
       requires a in jrnl.data && jrnl.size(a) == 1
@@ -287,7 +287,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     //   return jrnl.data[a].b;
     // }
 
-    method {:extern} Write(a: Addr, bs: Bytes)
+    method {:axiom} {:extern} Write(a: Addr, bs: Bytes)
       modifies jrnl, bs
       requires Valid() ensures Valid()
       ensures bs.data == []
@@ -301,7 +301,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
     //   bs.data := [];
     // }
 
-    method {:extern} WriteBit(a: Addr, b: bool)
+    method {:axiom} {:extern} WriteBit(a: Addr, b: bool)
       modifies jrnl
       requires Valid() ensures Valid()
       requires a in jrnl.data && jrnl.size(a) == 1
@@ -313,7 +313,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
 
     // wait=false is not modeled; it is up to the code to use this only when
     // deferred durability is acceptable
-    method {:extern} Commit(wait: bool) returns (ok:bool)
+    method {:axiom} {:extern} Commit(wait: bool) returns (ok:bool)
       requires wait
       requires Valid() ensures Valid()
     // {
@@ -338,7 +338,7 @@ module {:extern "jrnl", "github.com/mit-pdos/daisy-nfsd/dafny_go/jrnl"} JrnlSpec
   // The best we can do is manually check that NewJrnl has about the same spec
   // as the constructor, except for adding fresh(jrnl) which is implied by the
   // constructor.
-  method {:extern} NewJrnl(d: Disk, ghost kinds: map<Blkno, Kind>)
+  method {:axiom} {:extern} NewJrnl(d: Disk, ghost kinds: map<Blkno, Kind>)
     returns (jrnl:Jrnl)
     requires kindsValid(kinds)
     ensures fresh(jrnl)

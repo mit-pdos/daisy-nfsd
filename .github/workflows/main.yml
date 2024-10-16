@@ -10,8 +10,8 @@ on:
 
 # settings shared across all jobs
 env:
-  dafny: "4.4.0"
-  go: "^1.21.0"
+  dafny: "4.8.1"
+  go: "^1.23.0"
 
 jobs:
   verify:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Dafny
-        uses: dafny-lang/setup-dafny-action@v1.7.0
+        uses: dafny-lang/setup-dafny-action@v1.8.0
         with:
           dafny-version: ${{ env.dafny }}
       - name: Verify
