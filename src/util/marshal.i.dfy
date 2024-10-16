@@ -158,10 +158,32 @@ module Marshal
     if es == [] { return; }
     decode_encode_uint64(es[0]);
     decode_encode_uint64_seq_id(es[1..]);
+    assert es == [es[0]] + es[1..];
+    enc_uint64_len(es);
     enc_uint64_len(es[1..]);
+    assert |seq_enc_uint64(es)| == 8*|es|;
     assert seq_fmap(encUInt64, es[1..]) == seq_fmap(encUInt64, es)[1..];
     assert seq_encode(seq_fmap(encUInt64, es[1..])) == seq_encode(seq_fmap(encUInt64, es))[8..];
   }
+
+  /*
+  lemma decode_encode_uint64_seq_id(es: seq<uint64>)
+    ensures |seq_enc_uint64(es)| == 8*|es|
+    ensures decode_uint64_seq(seq_encode(seq_fmap(encUInt64, es))) == es
+  {
+    enc_uint64_len(es);
+    assert |seq_enc_uint64(es)| == 8*|es|;
+    if es == [] { return; }
+    decode_encode_uint64(es[0]);
+    decode_encode_uint64_seq_id(es[1..]);
+    enc_uint64_len(es[1..]);
+    assert seq_fmap(encUInt64, es[1..]) == seq_fmap(encUInt64, es)[1..];
+    assert seq_encode(seq_fmap(encUInt64, es[1..])) == seq_encode(seq_fmap(encUInt64, es))[8..];
+    assert es == [es[0]] + es[1..];
+    assert seq_encode(seq_fmap(encUInt64, es)) == enc_encode(encUInt64(es[0])) + seq_encode(seq_fmap(encUInt64, es[1..]));
+    assert decode_uint64(seq_encode(seq_fmap(encUInt64, es))[..8]) == es[0];
+  }
+  */
 
   ghost function decode_uint64_seq_one(bs: seq<byte>, k: nat): uint64
     requires |bs| % 8 == 0
