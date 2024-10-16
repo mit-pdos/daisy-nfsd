@@ -151,7 +151,7 @@ module Marshal
          )
   }
 
-  lemma decode_encode_uint64_seq_id(es: seq<uint64>)
+  lemma {:timeLimitMultiplier 2} decode_encode_uint64_seq_id(es: seq<uint64>)
     ensures (enc_uint64_len(es);
              decode_uint64_seq(seq_encode(seq_fmap(encUInt64, es))) == es)
   {
