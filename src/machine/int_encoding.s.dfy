@@ -15,9 +15,9 @@ module {:extern "encoding", "github.com/mit-pdos/daisy-nfsd/dafny_go/encoding"} 
   const u64_bytes: nat := 8
   const u32_bytes: nat := 4
 
-  function {:axiom} le_enc64(x: uint64): (bs:seq<byte>)
+  ghost function {:axiom} le_enc64(x: uint64): (bs:seq<byte>)
     ensures |bs| == u64_bytes
-  function {:axiom} le_dec64(bs: seq<byte>): uint64
+  ghost function {:axiom} le_dec64(bs: seq<byte>): uint64
     requires |bs| == u64_bytes
   lemma {:axiom} lemma_le_enc_dec64(x: uint64)
     ensures le_dec64(le_enc64(x)) == x
@@ -33,9 +33,9 @@ module {:extern "encoding", "github.com/mit-pdos/daisy-nfsd/dafny_go/encoding"} 
     lemma_le_enc_dec64(0);
   }
 
-  function {:axiom} le_enc32(x: uint32): (bs:seq<byte>)
+  ghost function {:axiom} le_enc32(x: uint32): (bs:seq<byte>)
     ensures |bs| == u32_bytes
-  function {:axiom} le_dec32(bs: seq<byte>): uint32
+  ghost function {:axiom} le_dec32(bs: seq<byte>): uint32
     requires |bs| == u32_bytes
   lemma {:axiom} lemma_le_enc_dec32(x: uint32)
     ensures le_dec32(le_enc32(x)) == x
